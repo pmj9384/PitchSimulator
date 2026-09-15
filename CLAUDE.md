@@ -53,7 +53,7 @@ unity command screenshot --view game --json        # Play 중 화면
 - 씬 배선은 `create_gameobject`·`attach_script`·`set_serialized_field`·`set_parent`·`save_scene`으로 직접 한다. YAML 편집·1회성 에디터 도구 불필요
 - 결과 `data.result`가 문자열로 오는 명령이 있다(`recompile_status`) — 문자열이면 한 번 더 파싱
 - 에디터가 닫혀 있으면 배치: `unity projects verify .` · `unity run .` · `unity test . --mode EditMode`
-- **동작 검증은 유저 Play Mode.** 체크리스트를 제시한다. AI가 `editor_play`로 먼저 돌려 콘솔·스크린샷을 볼 수는 있다
+- **동작 검증은 유저 Play Mode.** 체크리스트를 제시한다. `editor_play`는 에디터가 앞에 있어야 프레임이 돈다(뒤에 있으면 frameCount 1에서 멈춤) — AI는 콘솔 오류 확인까지만
 
 ## 프로젝트 관례
 
