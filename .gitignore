@@ -1,0 +1,39 @@
+# Unity generated
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+
+# Visual Studio
+.vs/
+*.csproj
+*.sln
+
+# OS
+.DS_Store
+Thumbs.db
+
+# JetBrains
+.idea/
+*.suo
+
+# Unity 6 (추가)
+*.slnx
+.vscode/
+[Mm]emoryCaptures/
+[Rr]ecordings/
+sysinfo.txt
+crashlytics-build.properties
+
+# EDM4U (External Dependency Manager) — Android Resolver 재생성물
+# 리졸버가 Play Services 의존을 받아 채우는 산출물이라 리포에 고정하지 않는다.
+# GvhProjectSettings.xml은 EDM4U 동작 설정이라 반대로 커밋한다.
+[Aa]ssets/Plugins/Android/
+[Aa]ssets/Plugins/Android.meta
+ProjectSettings/AndroidResolverDependencies.xml
+# LocalMavenRepoDir 설정이 가리키는 리졸브 산출물 위치
+[Aa]ssets/GeneratedLocalRepo/
+[Aa]ssets/GeneratedLocalRepo.meta
