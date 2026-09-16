@@ -40,3 +40,7 @@ ProjectSettings/AndroidResolverDependencies.xml
 
 # unity test 배치 실행 산출물
 /test-results.xml
+
+# 파이프라인 capture_game_view 산출물 (Assets 안에만 저장됨)
+/Assets/Temp/
+/Assets/Temp.meta
