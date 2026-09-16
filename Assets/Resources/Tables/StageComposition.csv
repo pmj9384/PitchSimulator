@@ -1,0 +1,3 @@
+stage,side,kind,id,count,posX,posZ
+1,player,player,ST,1,-10,0
+1,enemy,player,GK,1,50,0
