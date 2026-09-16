@@ -33,6 +33,11 @@ public class GameManager : MonoBehaviour
 
     public ObjectPoolManager ObjectPool { get; private set; }
     public GameUIManager UIManager { get; private set; }
+
+    // 게임 매니저 3종(09-16 이식 1차). 매니저 간 참조는 이 프로퍼티 경유(CLAUDE.md 관례)
+    public PlayerManager Players { get; private set; }
+    public MatchManager Match { get; private set; }
+    public StageManager Stage { get; private set; }
     // TODO: 게임별 매니저 추가
 
     #endregion
@@ -89,7 +94,9 @@ public class GameManager : MonoBehaviour
         List<GameObject> managerObjects = GameObject.FindGameObjectsWithTag("Manager").ToList();
 
         UIManager = RegisterManager<GameUIManager>(managerObjects);
-        // TODO: 게임별 매니저 등록 추가
+        Players = RegisterManager<PlayerManager>(managerObjects);
+        Match = RegisterManager<MatchManager>(managerObjects);
+        Stage = RegisterManager<StageManager>(managerObjects);   // 등록 순서 = Initialize 순서 = GameReady 훅 순서(Match 시계 0 → Stage 스폰)
 
         foreach (var manager in managers)
         {

@@ -1,0 +1,99 @@
+using System;
+using System.Collections.Generic;
+using Game.Core.Data;
+using UnityEngine;
+using UnityEngine.Pool;
+
+// 선수의 수명 관리자. 스폰 순번 발급·풀 대여/반환·팀별 명부. 이 세 가지가 전부다.
+// 경기 진행은 MatchManager, 편성은 StageManager 몫. 여기는 "누가 필드에 있는가"의 명부만 안다.
+// 1차 이식(09-16): 프리팹은 한 종류(캡슐). 역할별 겉모습이 생기면 WTS처럼 roleId별 프리팹 캐시로 넓힌다.
+public class PlayerManager : InGameManager
+{
+    [SerializeField] private GameObject playerPrefab;
+    [SerializeField] private Material homeMaterial;   // 팀 0 = 플레이어
+    [SerializeField] private Material awayMaterial;   // 팀 1 = 상대
+
+    private ObjectPool<GameObject> pool;
+    private readonly List<PlayerController>[] rosters = { new List<PlayerController>(), new List<PlayerController>() };
+    private readonly Dictionary<int, PlayerController> byIndex = new Dictionary<int, PlayerController>();
+    private int nextSpawnIndex;   // 자체 발급 스폰 순번. 타이브레이크의 근원(GetInstanceID 금지)
+
+    public PlayerController Spawn(string roleId, int team, Vector3 position)
+    {
+        PlayerStats stats = PlayerTableRepository.Get(roleId);
+        if (stats == null)
+        {
+            // 풀에서 빌리기 전에 막는다. 빌린 뒤 터지면 몸이 반환되지 않고 NRE로 데이터 오류가 가려진다
+            throw new InvalidOperationException($"[PlayerManager] PlayerTable에 없는 roleId: {roleId}");
+        }
+
+        GameObject body = Pool().Get();
+
+        PlayerController player = body.GetComponent<PlayerController>();
+        player.Setup(nextSpawnIndex++, team, stats, position);
+        ApplyTeamColor(body, team);
+
+        rosters[team].Add(player);
+        byIndex[player.SpawnIndex] = player;
+        return player;
+    }
+
+    public void Despawn(PlayerController player)
+    {
+        rosters[player.Team].Remove(player);
+        byIndex.Remove(player.SpawnIndex);
+        Pool().Release(player.gameObject);
+    }
+
+    public IReadOnlyList<PlayerController> Roster(int team)
+    {
+        return rosters[team];
+    }
+
+    // 스폰인덱스로 실체를 찾는다. 없으면(이미 반환됐으면) null
+    public PlayerController Find(int spawnIndex)
+    {
+        PlayerController player;
+        if (byIndex.TryGetValue(spawnIndex, out player)) { return player; }
+        return null;
+    }
+
+    private ObjectPool<GameObject> Pool()
+    {
+        if (pool != null) { return pool; }
+
+        pool = GameManager.ObjectPool.CreateObjectPool(playerPrefab, CreateBody, OnGetFromPool, OnReleaseToPool);
+        return pool;
+    }
+
+    private GameObject CreateBody()
+    {
+        return Instantiate(playerPrefab);
+    }
+
+    private void ApplyTeamColor(GameObject body, int team)
+    {
+        PlayerView view = body.GetComponent<PlayerView>();
+        if (view == null) { return; }
+        view.ApplyTeam(team == 0 ? homeMaterial : awayMaterial);
+    }
+
+    private void OnGetFromPool(GameObject body)
+    {
+        body.SetActive(true);
+    }
+
+    private void OnReleaseToPool(GameObject body)
+    {
+        body.SetActive(false);
+    }
+
+    // 씬이 내려갈 때만 불린다. 빌린 몸은 씬과 함께 사라지므로 풀에 돌려보내지 않는다
+    public override void Clear()
+    {
+        rosters[0].Clear();
+        rosters[1].Clear();
+        byIndex.Clear();
+        nextSpawnIndex = 0;
+    }
+}
