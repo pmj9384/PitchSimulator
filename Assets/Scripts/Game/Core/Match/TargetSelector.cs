@@ -7,14 +7,14 @@ namespace Game.Core.Match
     // 누가 후보 목록에 드는가(정의역)는 호출자(MatchManager) 책임. 여기는 받은 목록에서 고르기만 한다.
     public static class TargetSelector
     {
-        // 반환 = 고른 선수의 SpawnIndex, 후보가 없으면 -1.
-        // 동률이면 SpawnIndex 작은 쪽. 목록 순서와 무관하게 항상 같은 답이어야 재현성(고정 스텝·멀티)이 선다.
+        // 반환 = 고른 선수의 PlayerId, 후보가 없으면 -1.
+        // 동률이면 PlayerId 작은 쪽. 목록 순서와 무관하게 항상 같은 답이어야 재현성(고정 스텝·멀티)이 선다.
         public static int SelectNearest(float pointX, float pointZ, IReadOnlyList<TargetInfo>? candidates)
         {
             if (candidates == null || candidates.Count == 0) { return -1; }
 
             // 첫 후보로 시딩한다. -1·MaxValue로 시작하면 거리가 무한대·NaN인 후보에서 후보가 있는데도 -1이 나온다
-            int bestSpawn = candidates[0].SpawnIndex;
+            int bestId = candidates[0].PlayerId;
             float bestDistSq = DistSq(candidates[0], pointX, pointZ);
 
             for (int i = 1; i < candidates.Count; i++)
@@ -23,14 +23,14 @@ namespace Game.Core.Match
 
                 // 더 가까우면 교체, 똑같이 가까우면 스폰 순번 작은 쪽으로 교체
                 if (distSq < bestDistSq ||
-                    (distSq == bestDistSq && candidates[i].SpawnIndex < bestSpawn))
+                    (distSq == bestDistSq && candidates[i].PlayerId < bestId))
                 {
                     bestDistSq = distSq;
-                    bestSpawn = candidates[i].SpawnIndex;
+                    bestId = candidates[i].PlayerId;
                 }
             }
 
-            return bestSpawn;
+            return bestId;
         }
 
         // 대소 비교만 하므로 √ 생략. 22명이 매 틱 도는 계산

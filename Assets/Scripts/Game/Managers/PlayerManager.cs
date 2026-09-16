@@ -4,7 +4,7 @@ using Game.Core.Data;
 using UnityEngine;
 using UnityEngine.Pool;
 
-// 선수의 수명 관리자. 스폰 순번 발급·풀 대여/반환·팀별 명부. 이 세 가지가 전부다.
+// 선수의 수명 관리자. 선수 번호 발급·풀 대여/반환·팀별 명부. 이 세 가지가 전부다.
 // 경기 진행은 MatchManager, 편성은 StageManager 몫. 여기는 "누가 필드에 있는가"의 명부만 안다.
 // 1차 이식(09-16): 프리팹은 한 종류(캡슐). 역할별 겉모습이 생기면 WTS처럼 roleId별 프리팹 캐시로 넓힌다.
 public class PlayerManager : InGameManager
@@ -15,8 +15,8 @@ public class PlayerManager : InGameManager
 
     private ObjectPool<GameObject> pool;
     private readonly List<PlayerController>[] rosters = { new List<PlayerController>(), new List<PlayerController>() };
-    private readonly Dictionary<int, PlayerController> byIndex = new Dictionary<int, PlayerController>();
-    private int nextSpawnIndex;   // 자체 발급 스폰 순번. 타이브레이크의 근원(GetInstanceID 금지)
+    private readonly Dictionary<int, PlayerController> byId = new Dictionary<int, PlayerController>();
+    private int nextPlayerId;     // 스폰 순서로 발급하는 선수 번호. 타이브레이크의 근원(GetInstanceID 금지)
 
     public PlayerController Spawn(string roleId, int team, Vector3 position)
     {
@@ -30,18 +30,18 @@ public class PlayerManager : InGameManager
         GameObject body = Pool().Get();
 
         PlayerController player = body.GetComponent<PlayerController>();
-        player.Setup(nextSpawnIndex++, team, stats, position);
+        player.Setup(nextPlayerId++, team, stats, position);
         ApplyTeamColor(body, team);
 
         rosters[team].Add(player);
-        byIndex[player.SpawnIndex] = player;
+        byId[player.PlayerId] = player;
         return player;
     }
 
     public void Despawn(PlayerController player)
     {
         rosters[player.Team].Remove(player);
-        byIndex.Remove(player.SpawnIndex);
+        byId.Remove(player.PlayerId);
         Pool().Release(player.gameObject);
     }
 
@@ -50,11 +50,11 @@ public class PlayerManager : InGameManager
         return rosters[team];
     }
 
-    // 스폰인덱스로 실체를 찾는다. 없으면(이미 반환됐으면) null
-    public PlayerController Find(int spawnIndex)
+    // 선수 번호로 실체를 찾는다. 없으면(이미 반환됐으면) null
+    public PlayerController Find(int playerId)
     {
         PlayerController player;
-        if (byIndex.TryGetValue(spawnIndex, out player)) { return player; }
+        if (byId.TryGetValue(playerId, out player)) { return player; }
         return null;
     }
 
@@ -93,7 +93,7 @@ public class PlayerManager : InGameManager
     {
         rosters[0].Clear();
         rosters[1].Clear();
-        byIndex.Clear();
-        nextSpawnIndex = 0;
+        byId.Clear();
+        nextPlayerId = 0;
     }
 }
