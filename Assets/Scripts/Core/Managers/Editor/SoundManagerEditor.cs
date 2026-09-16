@@ -19,7 +19,7 @@ public class SoundManagerEditor : Editor
         
         if (GUILayout.Button($"Add AudioSource"))
         {
-            if (soundManager.audioSourcePlayer is null)
+            if (soundManager.audioSourcePlayer == null)   // Unity 오브젝트는 is null 이 fake null 을 못 거른다 (UNT0029)
             {
                 Debug.LogError("Missing AudioSource Parent");
                 

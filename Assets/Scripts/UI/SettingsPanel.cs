@@ -17,8 +17,8 @@ public class SettingsPanel : UIElement
 
     public override void Show()
     {
-        bgmSlider.SetValueWithoutNotify(SoundManager.Instance.bgmVolume);
-        sfxSlider.SetValueWithoutNotify(SoundManager.Instance.sfxVolume);
+        bgmSlider.SetValueWithoutNotify(SoundManager.Instance.BgmVolume);
+        sfxSlider.SetValueWithoutNotify(SoundManager.Instance.SfxVolume);
         gameObject.SetActive(true);
     }
 

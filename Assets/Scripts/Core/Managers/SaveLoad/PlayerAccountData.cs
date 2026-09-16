@@ -9,7 +9,7 @@ public class PlayerAccountData : ISaveLoad
 
     public bool TryUpdateBestScore(int score)
     {
-        if (score <= BestScore) return false;
+        if (score <= BestScore) { return false; }
         BestScore = score;
         return true;
     }
@@ -39,7 +39,7 @@ public class PlayerAccountData : ISaveLoad
 
     public void AddCoins(int amount)
     {
-        if (amount <= 0) return;
+        if (amount <= 0) { return; }
         Coins += amount;
     }
     public bool SpendCoin(int amount)
@@ -69,8 +69,8 @@ public class PlayerAccountData : ISaveLoad
     public void Save()
     {
         var saveData = SaveLoadSystem.Instance.CurrentSaveData.playerAccountDataSave = new();
-        saveData.bgmVolume = SoundManager.Instance.bgmVolume;
-        saveData.sfxVolume = SoundManager.Instance.sfxVolume;
+        saveData.bgmVolume = SoundManager.Instance.BgmVolume;
+        saveData.sfxVolume = SoundManager.Instance.SfxVolume;
         saveData.bestScore = BestScore;
         saveData.coins = Coins;
         saveData.frameRateFps = FrameRateSetting.Current;

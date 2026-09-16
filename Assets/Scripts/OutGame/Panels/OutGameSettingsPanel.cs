@@ -24,19 +24,19 @@ public class OutGameSettingsPanel : UIPopup
         {
             int fps = options[i];   // 클로저가 루프 변수를 잡지 않도록 복사
             var label = frameRateToggles[i].GetComponentInChildren<TMP_Text>();
-            if (label != null) label.text = fps.ToString();
+            if (label != null) { label.text = fps.ToString(); }
 
             frameRateToggles[i].onValueChanged.AddListener(on =>
             {
-                if (on) FrameRateSetting.Set(fps);   // 꺼지는 쪽은 무시 — 그룹이 곧바로 다른 하나를 켠다
+                if (on) { FrameRateSetting.Set(fps); }   // 꺼지는 쪽은 무시 — 그룹이 곧바로 다른 하나를 켠다
             });
         }
     }
 
     public override void Show()
     {
-        bgmSlider.SetValueWithoutNotify(SoundManager.Instance.bgmVolume);
-        sfxSlider.SetValueWithoutNotify(SoundManager.Instance.sfxVolume);
+        bgmSlider.SetValueWithoutNotify(SoundManager.Instance.BgmVolume);
+        sfxSlider.SetValueWithoutNotify(SoundManager.Instance.SfxVolume);
         SyncFrameRateToggles();
         base.Show();
     }
@@ -46,6 +46,8 @@ public class OutGameSettingsPanel : UIPopup
     {
         var options = FrameRateSetting.Options;
         for (int i = 0; i < frameRateToggles.Length && i < options.Length; i++)
+        {
             frameRateToggles[i].SetIsOnWithoutNotify(options[i] == FrameRateSetting.Current);
+        }
     }
 }

@@ -28,14 +28,18 @@ public static class AddressablesFolderRegistrar
         // 설정이 없으면 만든다 (Window > Asset Management > Addressables > Groups의 "Create"와 동일)
         var settings = AddressableAssetSettingsDefaultObject.GetSettings(true);
 
-        var group = settings.FindGroup(GroupName)
-                    ?? settings.CreateGroup(GroupName, false, false, true, settings.DefaultGroup.Schemas);
+        // Unity 오브젝트는 ??가 파괴된 오브젝트(fake null)를 못 거른다 — == null 로 비교 (UNT0007)
+        var group = settings.FindGroup(GroupName);
+        if (group == null)
+        {
+            group = settings.CreateGroup(GroupName, false, false, true, settings.DefaultGroup.Schemas);
+        }
 
         int count = 0;
         foreach (string file in Directory.GetFiles(SourceFolder, SearchPattern))
         {
             string guid = AssetDatabase.AssetPathToGUID(file.Replace("\\", "/"));
-            if (string.IsNullOrEmpty(guid)) continue;
+            if (string.IsNullOrEmpty(guid)) { continue; }
 
             var entry = settings.CreateOrMoveEntry(guid, group);
             entry.address = $"{AddressPrefix}/{Path.GetFileNameWithoutExtension(file)}";
