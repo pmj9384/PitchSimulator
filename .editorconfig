@@ -1,0 +1,103 @@
+# PitchSimulator 정적 검사 규칙 (2026-09-15)
+# 근거: Unity 매뉴얼 "Analyzer scope and diagnostics"(.editorconfig로 심각도 지정),
+#       Unity-Technologies/com.unity.netcode.gameobjects .editorconfig 형식,
+#       microsoft/Microsoft.Unity.Analyzers doc/index.md 규칙 표.
+# 경고→오류 승격은 Assets/csc.rsp(-warnaserror+)가 담당한다.
+# 주의: Unity 컴파일은 .editorconfig를 읽지 않는다(실측 09-15, Bee rsp에 -analyzerconfig 없음). 컴파일 시 UNT 심각도의 SSOT는 Assets/Default.ruleset이고,
+# 아래 UNT 항목은 IDE(Rider·VS Code) 표시용으로 같은 값을 둔다. 바꿀 땐 두 파일을 같이 고친다.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.cs]
+indent_style = space
+indent_size = 4
+
+# --- 코드 문체: 이른 반환, 한 줄 문장도 중괄호(Unity 스타일 가이드 "don't omit braces"), 람다는 외부 API가 요구할 때만 ---
+csharp_prefer_braces = true:warning
+csharp_using_directive_placement = outside_namespace:warning
+dotnet_sort_system_directives_first = true
+dotnet_style_require_accessibility_modifiers = for_non_interface_members:warning
+csharp_preferred_modifier_order = public,private,protected,internal,static,extern,new,virtual,abstract,sealed,override,readonly,unsafe,volatile,async:warning
+dotnet_style_qualification_for_field = false:suggestion
+dotnet_style_qualification_for_property = false:suggestion
+dotnet_style_qualification_for_method = false:suggestion
+dotnet_style_predefined_type_for_locals_parameters_members = true:warning
+
+# --- 명명 (Unity C# 스타일 가이드 Unity 6판): 타입·공개 멤버 PascalCase, private 필드·매개변수·지역 camelCase(접두 없음), 인터페이스 I 접두 ---
+dotnet_naming_symbols.private_fields.applicable_kinds = field
+dotnet_naming_symbols.private_fields.applicable_accessibilities = private, protected, internal, protected_internal, private_protected
+dotnet_naming_style.camel_no_prefix.capitalization = camel_case
+dotnet_naming_rule.private_fields_camel.symbols = private_fields
+dotnet_naming_rule.private_fields_camel.style = camel_no_prefix
+dotnet_naming_rule.private_fields_camel.severity = warning
+
+dotnet_naming_symbols.types_and_members.applicable_kinds = namespace, class, struct, enum, property, method, event, delegate
+dotnet_naming_symbols.types_and_members.applicable_accessibilities = public, internal, protected
+dotnet_naming_style.pascal.capitalization = pascal_case
+dotnet_naming_rule.types_and_members_pascal.symbols = types_and_members
+dotnet_naming_rule.types_and_members_pascal.style = pascal
+dotnet_naming_rule.types_and_members_pascal.severity = warning
+
+dotnet_naming_symbols.params_locals.applicable_kinds = parameter, local
+dotnet_naming_symbols.params_locals.applicable_accessibilities = *
+dotnet_naming_style.camel.capitalization = camel_case
+dotnet_naming_rule.params_locals_camel.symbols = params_locals
+dotnet_naming_rule.params_locals_camel.style = camel
+dotnet_naming_rule.params_locals_camel.severity = warning
+
+dotnet_naming_symbols.interfaces.applicable_kinds = interface
+dotnet_naming_symbols.interfaces.applicable_accessibilities = *
+dotnet_naming_style.i_prefix.required_prefix = I
+dotnet_naming_style.i_prefix.capitalization = pascal_case
+dotnet_naming_rule.interfaces_i_prefix.symbols = interfaces
+dotnet_naming_rule.interfaces_i_prefix.style = i_prefix
+dotnet_naming_rule.interfaces_i_prefix.severity = warning
+
+# --- Microsoft.Unity.Analyzers: IDE 표시용. 컴파일 SSOT는 Assets/Default.ruleset이며 값은 같다(바꿀 땐 두 파일 함께) ---
+dotnet_diagnostic.UNT0001.severity = warning    # 빈 Unity 메시지(Update 등) | Unity 성능 가이드 명시
+dotnet_diagnostic.UNT0002.severity = warning    # tag == 문자열 대신 CompareTag | Unity 성능 가이드 명시
+dotnet_diagnostic.UNT0003.severity = warning    # 제네릭 아닌 GetComponent | Microsoft TypeSafety
+dotnet_diagnostic.UNT0006.severity = warning    # Unity 메시지 시그니처 오류 | Microsoft TypeSafety
+dotnet_diagnostic.UNT0007.severity = warning    # Unity 오브젝트에 ?? (fake null 못 거름) | Microsoft Correctness
+dotnet_diagnostic.UNT0008.severity = warning    # Unity 오브젝트에 ?. | Microsoft Correctness
+dotnet_diagnostic.UNT0009.severity = warning    # InitializeOnLoad에 static 생성자 없음 | Microsoft Correctness
+dotnet_diagnostic.UNT0012.severity = warning    # 코루틴 반환값 미사용 | Microsoft Correctness
+dotnet_diagnostic.UNT0013.severity = warning    # SerializeField가 무의미하거나 중복 | Microsoft Correctness
+dotnet_diagnostic.UNT0014.severity = warning    # GetComponent에 컴포넌트 아닌 타입 | Microsoft TypeSafety
+dotnet_diagnostic.UNT0015.severity = warning    # InitializeOnLoadMethod 류 시그니처 오류 | Microsoft TypeSafety
+dotnet_diagnostic.UNT0016.severity = warning    # 메서드 이름을 문자열로(Invoke·StartCoroutine) | Microsoft TypeSafety
+dotnet_diagnostic.UNT0017.severity = suggestion # SetPixels 느림 | Microsoft Performance
+dotnet_diagnostic.UNT0018.severity = suggestion # 성능 민감 메시지에서 리플렉션 | Microsoft Performance
+dotnet_diagnostic.UNT0019.severity = suggestion # gameObject.gameObject 간접 호출 | Microsoft Performance
+dotnet_diagnostic.UNT0020.severity = warning    # MenuItem이 static 아닌 메서드에 | Microsoft Correctness
+dotnet_diagnostic.UNT0021.severity = none       # Unity 메시지를 protected로 (opt-in) | 관례 충돌
+dotnet_diagnostic.UNT0022.severity = suggestion # position·rotation 따로 대입 | Microsoft Performance
+dotnet_diagnostic.UNT0023.severity = warning    # Unity 오브젝트에 ??= | Microsoft Correctness
+dotnet_diagnostic.UNT0024.severity = suggestion # 벡터 연산보다 스칼라 먼저 | Microsoft Performance
+dotnet_diagnostic.UNT0025.severity = warning    # Input.GetKey에 문자열 대신 KeyCode | Microsoft Correctness
+dotnet_diagnostic.UNT0026.severity = suggestion # GetComponent 할당(TryGetComponent) | Microsoft Performance
+dotnet_diagnostic.UNT0027.severity = warning    # PropertyDrawer.OnGUI 직접 호출 | Microsoft Correctness
+dotnet_diagnostic.UNT0028.severity = suggestion # 할당 없는 Physics API | Microsoft Performance
+dotnet_diagnostic.UNT0029.severity = warning    # Unity 오브젝트에 is null 패턴 | Microsoft Correctness
+dotnet_diagnostic.UNT0030.severity = warning    # Transform에 Destroy | Microsoft Correctness
+dotnet_diagnostic.UNT0031.severity = warning    # LoadAttribute 메서드에서 에셋 작업 | Microsoft Correctness
+dotnet_diagnostic.UNT0032.severity = suggestion # localPosition·localRotation 따로 대입 | Microsoft Performance
+dotnet_diagnostic.UNT0033.severity = warning    # Unity 메시지 대소문자 오타 | Microsoft Correctness
+dotnet_diagnostic.UNT0034.severity = suggestion # Vector3→Vector2 변환 가능 | Microsoft Readability
+dotnet_diagnostic.UNT0035.severity = suggestion # Vector2→Vector3 변환 가능 | Microsoft Readability
+dotnet_diagnostic.UNT0036.severity = suggestion # position·rotation 따로 읽기 | Microsoft Performance
+dotnet_diagnostic.UNT0037.severity = suggestion # localPosition·localRotation 따로 읽기 | Microsoft Performance
+dotnet_diagnostic.UNT0038.severity = warning    # WaitForSeconds 캐시 | Unity 성능 가이드 명시
+dotnet_diagnostic.UNT0039.severity = suggestion # 자기 GetComponent엔 RequireComponent | Microsoft TypeSafety, 구조 요구라 승인 표대로 Info
+dotnet_diagnostic.UNT0040.severity = warning    # GameObject.isStatic은 에디터 전용 | Microsoft Correctness
+dotnet_diagnostic.UNT0041.severity = warning    # Animator.StringToHash 사용 | Unity 성능 가이드 명시
+dotnet_diagnostic.UNT0042.severity = suggestion # 루프 안 Mesh 배열 프로퍼티 | Microsoft Performance
+dotnet_diagnostic.UNT0043.severity = warning    # 조건부 컴파일 심볼 오타 | Microsoft Correctness
+dotnet_diagnostic.UNT0044.severity = warning    # TMP text에 임시 문자열 | Unity 성능 가이드 명시
+dotnet_diagnostic.UNT0045.severity = suggestion # 할당 없는 배열 접근 | Microsoft Performance
+dotnet_diagnostic.UNT0046.severity = warning    # Shader.PropertyToID 캐시 | Unity 성능 가이드 명시

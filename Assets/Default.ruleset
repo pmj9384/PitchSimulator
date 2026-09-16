@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- PitchSimulator 컴파일 시 분석기 심각도 (2026-09-16 확정).
+     메커니즘: Unity 매뉴얼 "Analyzer scope and diagnostics" (Assets/Default.ruleset이 컴파일에 적용, asmdef 옆 .ruleset이 그 어셈블리만 대체).
+     Unity 컴파일은 .editorconfig를 읽지 않는다(Library/Bee/*.rsp에 -analyzerconfig 없음, 실측 09-15). 이 파일이 SSOT.
+     분석기: microsoft/Microsoft.Unity.Analyzers 1.27.0 (Microsoft 제작, VS·VS Code Unity 확장 기본 탑재).
+     심각도 기준 3층: ① Unity "모바일 게임 성능 최적화" 가이드가 명시한 관행 → Warning(csc.rsp -warnaserror+로 오류)
+                     ② Microsoft 카테고리 Correctness·TypeSafety → Warning   ③ 그 외 Performance·Readability → Info(힌트, 측정된 곳만 적용)
+     UNT0021은 Microsoft도 기본 비활성 + 이 프로젝트 관례(private 메시지)와 충돌 → None. -->
+<RuleSet Name="PitchSimulator" Description="Microsoft.Unity.Analyzers 심각도" ToolsVersion="10.0">
+  <Rules AnalyzerId="Microsoft.Unity.Analyzers" RuleNamespace="Microsoft.Unity.Analyzers">
+    <Rule Id="UNT0001" Action="Warning" /> <!-- 빈 Unity 메시지(Update 등) | Unity 성능 가이드 명시 -->
+    <Rule Id="UNT0002" Action="Warning" /> <!-- tag == 문자열 대신 CompareTag | Unity 성능 가이드 명시 -->
+    <Rule Id="UNT0003" Action="Warning" /> <!-- 제네릭 아닌 GetComponent | Microsoft TypeSafety -->
+    <Rule Id="UNT0006" Action="Warning" /> <!-- Unity 메시지 시그니처 오류 | Microsoft TypeSafety -->
+    <Rule Id="UNT0007" Action="Warning" /> <!-- Unity 오브젝트에 ?? (fake null 못 거름) | Microsoft Correctness -->
+    <Rule Id="UNT0008" Action="Warning" /> <!-- Unity 오브젝트에 ?. | Microsoft Correctness -->
+    <Rule Id="UNT0009" Action="Warning" /> <!-- InitializeOnLoad에 static 생성자 없음 | Microsoft Correctness -->
+    <Rule Id="UNT0012" Action="Warning" /> <!-- 코루틴 반환값 미사용 | Microsoft Correctness -->
+    <Rule Id="UNT0013" Action="Warning" /> <!-- SerializeField가 무의미하거나 중복 | Microsoft Correctness -->
+    <Rule Id="UNT0014" Action="Warning" /> <!-- GetComponent에 컴포넌트 아닌 타입 | Microsoft TypeSafety -->
+    <Rule Id="UNT0015" Action="Warning" /> <!-- InitializeOnLoadMethod 류 시그니처 오류 | Microsoft TypeSafety -->
+    <Rule Id="UNT0016" Action="Warning" /> <!-- 메서드 이름을 문자열로(Invoke·StartCoroutine) | Microsoft TypeSafety -->
+    <Rule Id="UNT0017" Action="Info" /> <!-- SetPixels 느림 | Microsoft Performance -->
+    <Rule Id="UNT0018" Action="Info" /> <!-- 성능 민감 메시지에서 리플렉션 | Microsoft Performance -->
+    <Rule Id="UNT0019" Action="Info" /> <!-- gameObject.gameObject 간접 호출 | Microsoft Performance -->
+    <Rule Id="UNT0020" Action="Warning" /> <!-- MenuItem이 static 아닌 메서드에 | Microsoft Correctness -->
+    <Rule Id="UNT0021" Action="None" /> <!-- Unity 메시지를 protected로 (opt-in) | 관례 충돌 -->
+    <Rule Id="UNT0022" Action="Info" /> <!-- position·rotation 따로 대입 | Microsoft Performance -->
+    <Rule Id="UNT0023" Action="Warning" /> <!-- Unity 오브젝트에 ??= | Microsoft Correctness -->
+    <Rule Id="UNT0024" Action="Info" /> <!-- 벡터 연산보다 스칼라 먼저 | Microsoft Performance -->
+    <Rule Id="UNT0025" Action="Warning" /> <!-- Input.GetKey에 문자열 대신 KeyCode | Microsoft Correctness -->
+    <Rule Id="UNT0026" Action="Info" /> <!-- GetComponent 할당(TryGetComponent) | Microsoft Performance -->
+    <Rule Id="UNT0027" Action="Warning" /> <!-- PropertyDrawer.OnGUI 직접 호출 | Microsoft Correctness -->
+    <Rule Id="UNT0028" Action="Info" /> <!-- 할당 없는 Physics API | Microsoft Performance -->
+    <Rule Id="UNT0029" Action="Warning" /> <!-- Unity 오브젝트에 is null 패턴 | Microsoft Correctness -->
+    <Rule Id="UNT0030" Action="Warning" /> <!-- Transform에 Destroy | Microsoft Correctness -->
+    <Rule Id="UNT0031" Action="Warning" /> <!-- LoadAttribute 메서드에서 에셋 작업 | Microsoft Correctness -->
+    <Rule Id="UNT0032" Action="Info" /> <!-- localPosition·localRotation 따로 대입 | Microsoft Performance -->
+    <Rule Id="UNT0033" Action="Warning" /> <!-- Unity 메시지 대소문자 오타 | Microsoft Correctness -->
+    <Rule Id="UNT0034" Action="Info" /> <!-- Vector3→Vector2 변환 가능 | Microsoft Readability -->
+    <Rule Id="UNT0035" Action="Info" /> <!-- Vector2→Vector3 변환 가능 | Microsoft Readability -->
+    <Rule Id="UNT0036" Action="Info" /> <!-- position·rotation 따로 읽기 | Microsoft Performance -->
+    <Rule Id="UNT0037" Action="Info" /> <!-- localPosition·localRotation 따로 읽기 | Microsoft Performance -->
+    <Rule Id="UNT0038" Action="Warning" /> <!-- WaitForSeconds 캐시 | Unity 성능 가이드 명시 -->
+    <Rule Id="UNT0039" Action="Info" /> <!-- 자기 GetComponent엔 RequireComponent | Microsoft TypeSafety, 구조 요구라 승인 표대로 Info -->
+    <Rule Id="UNT0040" Action="Warning" /> <!-- GameObject.isStatic은 에디터 전용 | Microsoft Correctness -->
+    <Rule Id="UNT0041" Action="Warning" /> <!-- Animator.StringToHash 사용 | Unity 성능 가이드 명시 -->
+    <Rule Id="UNT0042" Action="Info" /> <!-- 루프 안 Mesh 배열 프로퍼티 | Microsoft Performance -->
+    <Rule Id="UNT0043" Action="Warning" /> <!-- 조건부 컴파일 심볼 오타 | Microsoft Correctness -->
+    <Rule Id="UNT0044" Action="Warning" /> <!-- TMP text에 임시 문자열 | Unity 성능 가이드 명시 -->
+    <Rule Id="UNT0045" Action="Info" /> <!-- 할당 없는 배열 접근 | Microsoft Performance -->
+    <Rule Id="UNT0046" Action="Warning" /> <!-- Shader.PropertyToID 캐시 | Unity 성능 가이드 명시 -->
+  </Rules>
+</RuleSet>

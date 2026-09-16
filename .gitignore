@@ -37,3 +37,6 @@ ProjectSettings/AndroidResolverDependencies.xml
 # LocalMavenRepoDir 설정이 가리키는 리졸브 산출물 위치
 [Aa]ssets/GeneratedLocalRepo/
 [Aa]ssets/GeneratedLocalRepo.meta
+
+# unity test 배치 실행 산출물
+/test-results.xml
