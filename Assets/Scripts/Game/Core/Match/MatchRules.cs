@@ -33,6 +33,32 @@ namespace Game.Core.Match
             return Math.Abs(a1 - a2);
         }
 
+        // ── 슛 확률(09-16 확정: xG 바탕 + 능력치 보정 1단). GK 세이브 확률을 따로 곱하지 않는다(xG에 이미 들어 있다).
+        // 보정은 로짓에 더한다: 슈터 shot이 올리고 GK reflexes·diving 평균이 내린다. 로짓이라 결과가 저절로 0~1에 머문다
+        public static float ShotProbability(float x, float z, int attackSign, int shooterShot, int keeperReflexes, int keeperDiving)
+        {
+            float xToGoalLine = FieldBounds.HalfLength - x * attackSign;
+            float logit = XgModel.Logit(Math.Max(xToGoalLine, 0f), Math.Abs(z));
+            float keeperBlock = (keeperReflexes + keeperDiving) * 0.5f;
+            logit += (shooterShot - 50) / 50f * MatchTuning.StatLogitScale;
+            logit -= (keeperBlock - 50) / 50f * MatchTuning.StatLogitScale;
+            return Logistic(logit);
+        }
+
+        // 내 골 앞 페널티 박스 안인가(GK 출격 한계). attackSign이 +1이면 내 골은 -X 쪽
+        public static bool IsInOwnPenaltyBox(float x, float z, int attackSign)
+        {
+            float depthFromGoalLine = FieldBounds.HalfLength + x * attackSign;   // 내 골라인에서 필드 안쪽으로 잰 거리
+            return depthFromGoalLine >= 0f
+                && depthFromGoalLine <= FieldBounds.PenaltyBoxDepth
+                && Math.Abs(z) <= FieldBounds.PenaltyBoxHalfWidth;
+        }
+
+        public static float Logistic(float logit)
+        {
+            return 1f / (1f + (float)Math.Exp(-logit));
+        }
+
         // ── 세이브 뒤 캐치 확률. 기본 0.65에 handling이 ±0.2. 캐치면 GK 소유, 아니면 앞으로 튕겨 자유 공(스펙 §5)
         public static float CatchProbability(int handling)
         {

@@ -69,3 +69,62 @@ public class MatchRulesTests
         Assert.IsTrue(MatchRules.Resolve(1f, 0.999f));
     }
 }
+
+// 슛 확률(xG 7변수 공개 모델 + 능력치 로짓 보정). 원문 검산값을 기준으로 잡고, 보정 방향과 범위를 본다
+public class ShotProbabilityTests
+{
+    private const float Tol = 0.002f;
+
+    private static float Neutral(float xToGoalLine, float z)
+    {
+        return MatchRules.ShotProbability(FieldBounds.HalfLength - xToGoalLine, z, +1, shooterShot: 50, keeperReflexes: 50, keeperDiving: 50);
+    }
+
+    [Test]
+    public void 능력치가_중립이면_공개_모델_검산값과_같다()
+    {
+        Assert.AreEqual(0.1813f, Neutral(11f, 0f), Tol, "정면 11m(페널티 스팟)");
+        Assert.AreEqual(0.0620f, Neutral(20f, 0f), Tol, "정면 20m");
+        Assert.AreEqual(0.0253f, Neutral(30f, 0f), Tol, "정면 30m");
+        Assert.AreEqual(0.0930f, Neutral(11f, 10f), Tol, "11m, 옆으로 10m");
+    }
+
+    [Test]
+    public void 좌우_대칭이고_팀1도_같은_값이다()
+    {
+        Assert.AreEqual(Neutral(11f, 10f), Neutral(11f, -10f), 1e-5f);
+        float team1 = MatchRules.ShotProbability(-(FieldBounds.HalfLength - 11f), 0f, -1, 50, 50, 50);
+        Assert.AreEqual(Neutral(11f, 0f), team1, 1e-5f);
+    }
+
+    [Test]
+    public void shot이_올리고_GK_reflexes_diving이_내린다()
+    {
+        float baseP = Neutral(11f, 0f);
+        Assert.Greater(MatchRules.ShotProbability(FieldBounds.HalfLength - 11f, 0f, +1, 90, 50, 50), baseP);
+        Assert.Less(MatchRules.ShotProbability(FieldBounds.HalfLength - 11f, 0f, +1, 50, 80, 40), baseP);
+        Assert.AreEqual(baseP, MatchRules.ShotProbability(FieldBounds.HalfLength - 11f, 0f, +1, 90, 90, 90), 1e-5f, "슈터 +40과 GK 평균 +40은 상쇄");
+    }
+
+    [Test]
+    public void 어떤_입력이어도_0과_1_사이다()
+    {
+        float best = MatchRules.ShotProbability(FieldBounds.HalfLength - 1f, 0f, +1, 100, 0, 0);
+        float worst = MatchRules.ShotProbability(-FieldBounds.HalfLength, 30f, +1, 0, 100, 100);
+        Assert.That(best, Is.InRange(0f, 1f));
+        Assert.That(worst, Is.InRange(0f, 1f));
+        Assert.Greater(best, worst);
+    }
+
+    [Test]
+    public void 내_페널티_박스_판정()
+    {
+        // 팀 0(+X 공격)의 내 골은 -X. 골라인 -52.5에서 16.5m 안, 폭 ±20.15
+        Assert.IsTrue(MatchRules.IsInOwnPenaltyBox(-50f, 0f, +1));
+        Assert.IsTrue(MatchRules.IsInOwnPenaltyBox(-36f, 20.15f, +1), "경계 포함");
+        Assert.IsFalse(MatchRules.IsInOwnPenaltyBox(-35.9f, 0f, +1), "깊이 밖");
+        Assert.IsFalse(MatchRules.IsInOwnPenaltyBox(-50f, 20.2f, +1), "폭 밖");
+        Assert.IsFalse(MatchRules.IsInOwnPenaltyBox(-53f, 0f, +1), "골라인 뒤");
+        Assert.IsTrue(MatchRules.IsInOwnPenaltyBox(50f, 0f, -1), "팀 1의 내 골은 +X");
+    }
+}

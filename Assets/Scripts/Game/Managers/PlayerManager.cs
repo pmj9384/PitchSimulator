@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Game.Core.Data;
+using Game.Core.Match;
 using UnityEngine;
 using UnityEngine.Pool;
 
@@ -29,8 +30,12 @@ public class PlayerManager : InGameManager
 
         GameObject body = Pool().Get();
 
+        // 경기 상태는 순수 PlayerState가 갖고 시뮬(MatchManager)에 등록한다. 컨트롤러는 그 값을 비추는 뷰
+        var state = new PlayerState(nextPlayerId++, team, stats, position.x, position.z);
+        GameManager.Match.Register(state);
+
         PlayerController player = body.GetComponent<PlayerController>();
-        player.Setup(nextPlayerId++, team, stats, position);
+        player.Setup(state);
         ApplyTeamColor(body, team);
 
         rosters[team].Add(player);
