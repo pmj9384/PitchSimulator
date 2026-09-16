@@ -45,7 +45,7 @@
 ```bash
 unity command run_tests --mode EditMode --json     # 동기, data.result.Summary.Failed == 0
 unity command recompile && unity command recompile_status
-unity command get_console_logs --json
+unity command console_status --json           # compilationFailed·경고 수. 본문은 console --level warning --tail 30
 unity command get_scene_hierarchy --json           # 씬 읽기
 unity command screenshot --view game --json        # Play 중 화면
 ```
@@ -54,6 +54,20 @@ unity command screenshot --view game --json        # Play 중 화면
 - 결과 `data.result`가 문자열로 오는 명령이 있다(`recompile_status`) — 문자열이면 한 번 더 파싱
 - 에디터가 닫혀 있으면 배치: `unity projects verify .` · `unity run .` · `unity test . --mode EditMode`
 - **동작 검증은 유저 Play Mode.** 체크리스트를 제시한다. `editor_play`는 에디터가 앞에 있어야 프레임이 돈다(뒤에 있으면 frameCount 1에서 멈춤) — AI는 콘솔 오류 확인까지만
+
+## 정적 검사 (2026-09-15 세팅, 경고 0 정책)
+
+컴파일러·분석기가 먼저 잡고 사람은 남은 것만 본다. 이식 전에 깔아 옮기는 코드가 첫 컴파일부터 검사된다.
+
+- `Assets/csc.rsp`: `-warnaserror+`(경고 = 컴파일 실패) · `-warnaserror-:612,618`(Obsolete 2종만 경고로 남김. Unity 패키지 업그레이드가 우리 손 밖이라. Unity 자체 리포 ml-agents·ECS 샘플과 같은 설정)
+- `Assets/Analyzers/Microsoft.Unity.Analyzers.dll`(1.27.0, 라벨 `RoslynAnalyzer`, 모든 플랫폼 끔): **Microsoft 제작** Unity 전용 규칙(UNTxxxx). VS·VS Code Unity 확장에 기본 탑재라 사실상 표준이고, Unity Technologies 공식은 아니다. 분석기 오류는 `recompile_status`의 errors[]에 CS 오류와 같이 나오므로 검증 루프가 그대로 잡는다
+- **심각도 기준 3층**(근거를 물으면 이 순서로 답한다): ① Unity "모바일 게임 성능 최적화" 가이드가 명시한 관행(빈 Update·CompareTag·WaitForSeconds 캐시·StringToHash·PropertyToID·매 프레임 문자열) → 오류 ② Microsoft 카테고리 Correctness·TypeSafety(fake null 비교 등, Unity 레퍼런스 `Object.operator==`가 근거) → 오류 ③ 그 외 Performance·Readability → Info. 성능 규칙은 "쓰지 마"가 아니라 "이 형태로"라서 읽기 편한 쪽으로 쓰고 프로파일러에 잡힌 곳만 규칙 형태로 바꾼다
+- **컴파일 시 심각도의 SSOT = `Assets/Default.ruleset`.** Unity 컴파일은 `.editorconfig`를 읽지 않는다(Bee rsp에 `-analyzerconfig` 없음, 09-15 실측). `.editorconfig`는 IDE 표시·문체용이고 UNT 값은 ruleset과 같게 유지한다
+- 서드파티 asmdef(`Plugins/SerializedCollections` Runtime·Editor)는 asmdef마다 옆의 `ThirdParty.ruleset`으로 UNT 규칙을 끈다. 남의 코드는 고치지 않는다. 새 플러그인을 넣으면 같은 파일을 복사한다
+- `UNT0021`(메시지를 protected로)은 끔. 분석기 기본값도 꺼져 있고 이 프로젝트 관례는 `private void Awake()`다
+- 문체는 Unity C# 스타일 가이드(Unity 6판)와 맞춘다: private 필드 camelCase 접두 없음(가이드의 첫 권장, m_는 선택), 공개 멤버 PascalCase, **한 줄 문장도 중괄호**(`if (x) { return; }`, 가이드 "don't omit braces"). `.editorconfig`가 IDE에서 표시한다
+- `-nullable:enable`은 게임 코드 어셈블리(`Game.Core`)의 asmdef 옆 `csc.rsp`에만 켠다(이식 때). 템플릿 코드 전체에 켜면 경고가 쏟아진다
+- `unity command audit --output <csv>` → `audit_status`(completed) → CSV. 4,800건 중 4,700건이 Packages라 **`RelativePath`가 `Assets/`(Plugins 제외)·`ProjectSettings`인 행만** 본다. 커밋 전 1회면 충분하다(구현 단위마다 안 돌린다)
 
 ## 프로젝트 관례
 
