@@ -66,7 +66,7 @@ unity command screenshot --view game --json        # Play 중 화면
 - 서드파티 asmdef(`Plugins/SerializedCollections` Runtime·Editor)는 asmdef마다 옆의 `ThirdParty.ruleset`으로 UNT 규칙을 끈다. 남의 코드는 고치지 않는다. 새 플러그인을 넣으면 같은 파일을 복사한다
 - `UNT0021`(메시지를 protected로)은 끔. 분석기 기본값도 꺼져 있고 이 프로젝트 관례는 `private void Awake()`다
 - 문체는 Unity C# 스타일 가이드(Unity 6판)와 맞춘다: private 필드 camelCase 접두 없음(가이드의 첫 권장, m_는 선택), 공개 멤버 PascalCase, **한 줄 문장도 중괄호**(`if (x) { return; }`, 가이드 "don't omit braces"). `.editorconfig`가 IDE에서 표시한다
-- `-nullable:enable`은 게임 코드 어셈블리(`Game.Core`)의 asmdef 옆 `csc.rsp`에만 켠다(이식 때). 템플릿 코드 전체에 켜면 경고가 쏟아진다
+- `-nullable:enable`은 게임 코드 어셈블리(`Game.Core`)의 asmdef 옆 `csc.rsp`에만 켠다. 템플릿 코드 전체에 켜면 경고가 쏟아진다. **asmdef 옆 csc.rsp는 `Assets/csc.rsp`를 대체한다**(합쳐지지 않음, 09-16 Bee rsp로 확인). 그래서 `-warnaserror+`·`-warnaserror-:612,618`을 거기에도 적는다. 새 asmdef를 만들면 `Scripts/Game/Core/csc.rsp`를 복사한다
 - `unity command audit --output <csv>` → `audit_status`(completed) → CSV. 4,800건 중 4,700건이 Packages라 **`RelativePath`가 `Assets/`(Plugins 제외)·`ProjectSettings`인 행만** 본다. 커밋 전 1회면 충분하다(구현 단위마다 안 돌린다)
 
 ## 프로젝트 관례
