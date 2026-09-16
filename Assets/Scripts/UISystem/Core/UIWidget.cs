@@ -12,7 +12,7 @@ public abstract class UIWidget : MonoBehaviour
 
     protected virtual void OnEnable()
     {
-        if (started) Subscribe();
+        if (started) { Subscribe(); }
     }
 
     protected virtual void OnDisable() => Unsubscribe();

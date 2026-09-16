@@ -29,7 +29,9 @@ public partial class CheatWindow : EditorWindow
     {
         EditorGUILayout.LabelField("코인", EditorStyles.boldLabel);
         if (GameDataManager.Instance != null)
+        {
             EditorGUILayout.LabelField($"현재: {GameDataManager.Instance.PlayerAccountData.Coins}");
+        }
         coinAmount = EditorGUILayout.IntField("조절량", coinAmount);
         using (new EditorGUILayout.HorizontalScope())
         {

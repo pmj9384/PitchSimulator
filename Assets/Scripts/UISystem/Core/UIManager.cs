@@ -36,22 +36,30 @@ public class UIManager : MonoBehaviour, IUIManager
         foreach (var kvp in screens)
         {
             if (kvp.Key == typeof(T))
+            {
                 kvp.Value.Open();
+            }
             else
+            {
                 kvp.Value.Close();
+            }
         }
     }
 
     public void ShowPopup<T>() where T : UIPopup
     {
         if (popups.TryGetValue(typeof(T), out var popup))
+        {
             popup.Show();
+        }
     }
 
     public void HidePopup<T>() where T : UIPopup
     {
         if (popups.TryGetValue(typeof(T), out var popup))
+        {
             popup.Hide();
+        }
     }
 
     public void OpenScreen(UIScreen screen)
@@ -59,9 +67,13 @@ public class UIManager : MonoBehaviour, IUIManager
         foreach (var entry in screens)
         {
             if (entry.Value == screen)
+            {
                 entry.Value.Open();
+            }
             else
+            {
                 entry.Value.Close();
+            }
         }
     }
 }

@@ -49,7 +49,7 @@ public class SafeAreaCanvas : MonoBehaviour
     // 앵커가 1을 넘었고(09-14 실측: Max 1.29·1.08), 회전이나 해상도 변경에도 같은 경로로 대응한다 (유니티 공식 SafeArea 샘플 방식)
     private void Update()
     {
-        if (Screen.safeArea == lastSafeArea && Screen.width == lastScreenSize.x && Screen.height == lastScreenSize.y) return;
+        if (Screen.safeArea == lastSafeArea && Screen.width == lastScreenSize.x && Screen.height == lastScreenSize.y) { return; }
         ApplySafeAreaCanvasAnchor();
     }
 

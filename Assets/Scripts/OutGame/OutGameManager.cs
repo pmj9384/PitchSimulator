@@ -20,7 +20,9 @@ public class OutGameManager : MonoBehaviour
         managers.Add(UIManager);
 
         foreach (var manager in managers)
+        {
             manager.Initialize();
+        }
 
         UIManager.OpenScreen<LobbyScreen>();
     }
@@ -28,6 +30,8 @@ public class OutGameManager : MonoBehaviour
     private void OnDestroy()
     {
         foreach (var manager in managers)
+        {
             manager.Clear();
+        }
     }
 }

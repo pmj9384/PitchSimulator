@@ -49,9 +49,13 @@ namespace UnityCommunity.UnitySingleton
             else
             {
                 if (Application.isPlaying)
+                {
                     Destroy(gameObject);
+                }
                 else
+                {
                     DestroyImmediate(gameObject);
+                }
             }
         }
 
@@ -62,7 +66,9 @@ namespace UnityCommunity.UnitySingleton
         public virtual void InitializeSingleton()
         {
             if (this.initializationStatus != SingletonInitializationStatus.None)
+            {
                 return;
+            }
 
             this.initializationStatus = SingletonInitializationStatus.Initializing;
             OnInitializing();
@@ -81,7 +87,9 @@ namespace UnityCommunity.UnitySingleton
         public static void DestroyInstance()
         {
             if (instance == null)
+            {
                 return;
+            }
 
             instance.ClearSingleton();
             instance = default(T);

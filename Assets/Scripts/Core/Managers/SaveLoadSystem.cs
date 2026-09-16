@@ -35,15 +35,17 @@ public class SaveLoadSystem : PersistentMonoSingleton<SaveLoadSystem>
         OnApplicationQuitSave();
 
         if (!Directory.Exists(SavePathDirectory))
+        {
             Directory.CreateDirectory(SavePathDirectory);
+        }
 
         var path = Path.Combine(SavePathDirectory, CurrentSaveFileName);
         var json = JsonConvert.SerializeObject(CurrentSaveData, settings);
         // 원자적 저장: temp에 다 쓰고 rename — 저장 도중 프로세스 킬에도 반파손 파일이 생기지 않는다
         var tmpPath = path + ".tmp";
         File.WriteAllText(tmpPath, json);
-        if (File.Exists(path)) File.Replace(tmpPath, path, null);
-        else File.Move(tmpPath, path);
+        if (File.Exists(path)) { File.Replace(tmpPath, path, null); }
+        else { File.Move(tmpPath, path); }
     }
 
     public void Load()
@@ -70,14 +72,16 @@ public class SaveLoadSystem : PersistentMonoSingleton<SaveLoadSystem>
         {
             var json = File.ReadAllText(path);
             var saveData = JsonConvert.DeserializeObject<SaveDataVC>(json, settings);
-            if (saveData == null) throw new JsonException("역직렬화 결과 null");
+            if (saveData == null) { throw new JsonException("역직렬화 결과 null"); }
 
             while (saveData.Version < SaveDataVersion)
             {
                 int before = saveData.Version;
                 saveData = (SaveDataVC)saveData.VersionUp();
                 if (saveData.Version <= before)
+                {
                     throw new InvalidOperationException($"VersionUp이 버전을 올리지 않음 (v{before})");
+                }
             }
 
             CurrentSaveData = saveData;
@@ -108,7 +112,9 @@ public class SaveLoadSystem : PersistentMonoSingleton<SaveLoadSystem>
     private void OnApplicationPause(bool pause)
     {
         if (pause)
+        {
             Save();
+        }
     }
 #endif
 }

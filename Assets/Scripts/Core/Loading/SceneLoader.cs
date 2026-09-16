@@ -24,16 +24,18 @@ public class SceneLoader : MonoBehaviour
         float shownAt = Time.realtimeSinceStartup;   // timeScale 무관 기준
 
         if (!string.IsNullOrEmpty(preloadLabel))
+        {
             yield return Preload();
+        }
 
         // 최소 노출 시간 채우기 — 남은 시간 동안 바를 100%까지 마저 채우는 연출
         float remain;
         while ((remain = minShowSeconds - (Time.realtimeSinceStartup - shownAt)) > 0f)
         {
-            if (ui != null) ui.UpdateProgress(1f - remain / minShowSeconds);
+            if (ui != null) { ui.UpdateProgress(1f - remain / minShowSeconds); }
             yield return null;
         }
-        if (ui != null) ui.UpdateProgress(1f);
+        if (ui != null) { ui.UpdateProgress(1f); }
 
         yield return SceneManager.LoadSceneAsync(nextSceneName);   // 공식 표준 관용구 — 로드 중에도 로딩 화면이 살아 있게
     }
@@ -58,12 +60,14 @@ public class SceneLoader : MonoBehaviour
 
         while (!handle.IsDone)
         {
-            if (ui != null) ui.UpdateProgress(handle.PercentComplete * 0.9f);   // 마지막 10%는 최소 노출 연출 몫
+            if (ui != null) { ui.UpdateProgress(handle.PercentComplete * 0.9f); }   // 마지막 10%는 최소 노출 연출 몫
             yield return null;
         }
 
         if (handle.Status == AsyncOperationStatus.Failed)
+        {
             Debug.LogWarning($"[SceneLoader] 프리로드 실패({preloadLabel}) — 개별 로드는 사용 시점 SkinSprites가 담당");
+        }
 
         Addressables.Release(handle);   // 다운로드/예열 목적 달성 — 실사용 refcount는 SkinSprites 몫
     }

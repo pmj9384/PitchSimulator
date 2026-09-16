@@ -50,9 +50,13 @@ public static class BuildScript
 
         var report = BuildPipeline.BuildPlayer(options);
         if (report.summary.result == UnityEditor.Build.Reporting.BuildResult.Succeeded)
+        {
             Debug.Log($"[BuildScript] 빌드 성공 → {outputPath} ({report.summary.totalSize / (1024 * 1024)}MB)");
+        }
         else
+        {
             Debug.LogError($"[BuildScript] 빌드 실패: {report.summary.result}");
+        }
     }
 
     // 빌드마다 강제한다 — Inspector 상태에 의존하면 누가 한 번 바꿔놓은 게 그대로 나간다.

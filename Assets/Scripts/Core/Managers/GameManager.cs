@@ -103,7 +103,7 @@ public class GameManager : MonoBehaviour
         T component = null;
         foreach (var obj in list)
         {
-            if (obj.TryGetComponent<T>(out component)) break;
+            if (obj.TryGetComponent<T>(out component)) { break; }
         }
 
         if (component != null)
@@ -121,7 +121,7 @@ public class GameManager : MonoBehaviour
     #region 상태 제어
     public void SetGameState(GameState newState)
     {
-        if (currentState == newState) return;
+        if (currentState == newState) { return; }
 
         previousState = currentState;
         currentState = newState;
@@ -153,7 +153,7 @@ public class GameManager : MonoBehaviour
     // GamePlay 진입 훅이 다시 돌아 준비 국면(배치 등)에서 멈췄다 풀 때 게임이 시작돼 버린다 (WarTableSimulator 09-14).
     public void ResumeFromPause()
     {
-        if (currentState != GameState.GameStop) return;
+        if (currentState != GameState.GameStop) { return; }
 
         GameState resumeTo = previousState;
         previousState = currentState;

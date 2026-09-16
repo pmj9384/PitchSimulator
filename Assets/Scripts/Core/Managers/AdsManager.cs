@@ -26,7 +26,7 @@ public class AdsManager : PersistentMonoSingleton<AdsManager>
             isInitialized = true;
             Debug.Log("[AdsManager] AdMob 초기화 완료");
             LoadRewardedAd();
-            if (bannerRequested) LoadBanner();
+            if (bannerRequested) { LoadBanner(); }
         });
     }
 
@@ -34,21 +34,21 @@ public class AdsManager : PersistentMonoSingleton<AdsManager>
     public void ShowBanner()
     {
         bannerRequested = true;
-        if (!isInitialized) return;   // 초기화 콜백에서 이어서 로드
+        if (!isInitialized) { return; }   // 초기화 콜백에서 이어서 로드
         LoadBanner();
     }
 
     public void HideBanner()
     {
         bannerRequested = false;
-        if (bannerView == null) return;
+        if (bannerView == null) { return; }
         bannerView.Destroy();
         bannerView = null;
     }
 
     private void LoadBanner()
     {
-        if (bannerView != null) return;   // 이미 떠 있음
+        if (bannerView != null) { return; }   // 이미 떠 있음
 
         bannerView = new BannerView(BannerAdUnitId, AdSize.Banner, AdPosition.Bottom);
         bannerView.OnBannerAdLoaded += OnBannerLoaded;
@@ -104,7 +104,7 @@ public class AdsManager : PersistentMonoSingleton<AdsManager>
         {
             ad.OnAdFullScreenContentClosed -= OnClosed;
             ad.OnAdFullScreenContentFailed -= OnFailed;
-            if (rewarded) onRewarded?.Invoke();
+            if (rewarded) { onRewarded?.Invoke(); }
             LoadRewardedAd();
         }
 
