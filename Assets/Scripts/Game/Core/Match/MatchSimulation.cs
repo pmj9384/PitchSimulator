@@ -27,13 +27,14 @@ namespace Game.Core.Match
     // 주사위는 nextRoll로 주입받는다. 경기는 System.Random(seed)을, 테스트는 고정 수열을 준다. 그래서 같은 시드 = 같은 경기.
     public sealed class MatchSimulation
     {
-        public BallState Ball { get; private set; }
+        public BallState Ball { get; internal set; }   // internal: 테스트가 상황을 만들 때만 쓴다(InternalsVisibleTo)
         public IReadOnlyList<PlayerState> Players => players;
         public int HomeGoals { get; private set; }
         public int AwayGoals { get; private set; }
 
         // 1주차 리트머스 판: 슛이 어떤 결과든 끝나면 킥오프로 되돌린다. ST가 10번 쏘려면 공이 매번 돌아와야 한다.
-        // 2주차에 GK 배급(패스)이 생기면 끈다. 골 뒤 킥오프는 스펙 §7이라 이 스위치와 무관하게 항상 한다
+        // 2주차에 GK 배급(패스)이 생기면 끈다. 골(스펙 §7)과 빗나감(골라인 통과·정지)은 스위치와 무관하게 항상 킥오프이고,
+        // 캐치·튕김만 이 스위치를 따른다
         public bool ResetAfterEveryShot { get; set; }
 
         public event Action<ShotReport>? ShotResolved;
@@ -77,6 +78,14 @@ namespace Game.Core.Match
         public void Tick(float deltaTime)
         {
             Ball = BallRules.Step(Ball, deltaTime, MatchTuning.BallDeceleration);
+
+            // 골라인에 못 미치고 감속으로 멈춘 슛(정지 거리 78m 밖에서 쏜 경우). 빗나감으로 마감해야 옛 슛 표시가 남지 않는다
+            if (shotInFlight && Ball.Phase != BallPhase.Flight)
+            {
+                Finish(ShotOutcome.Missed);
+                Kickoff();
+                return;
+            }
 
             if (ResolveShotAtGoalLine()) { return; }
             if (ResetIfOut()) { return; }

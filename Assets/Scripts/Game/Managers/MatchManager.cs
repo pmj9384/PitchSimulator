@@ -119,10 +119,7 @@ public class MatchManager : InGameManager
         GameManager.SetGameState(winnerTeam == 0 ? GameManager.GameState.GameClear : GameManager.GameState.GameOver);
         Debug.Log($"[Match] 경기 종료. 승리 팀: {winnerTeam}  ({Simulation.HomeGoals}:{Simulation.AwayGoals})");
 
-        if (MatchEnded != null)
-        {
-            MatchEnded(winnerTeam);
-        }
+        MatchEnded?.Invoke(winnerTeam);
     }
 
     public override void Clear()

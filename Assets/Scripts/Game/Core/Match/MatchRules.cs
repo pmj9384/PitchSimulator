@@ -37,6 +37,8 @@ namespace Game.Core.Match
         // 보정은 로짓에 더한다: 슈터 shot이 올리고 GK reflexes·diving 평균이 내린다. 로짓이라 결과가 저절로 0~1에 머문다
         public static float ShotProbability(float x, float z, int attackSign, int shooterShot, int keeperReflexes, int keeperDiving)
         {
+            if (ShotDistance(x, z, attackSign) > MatchTuning.MaxShotRange) { return 0f; }   // 모델 학습 범위 밖. 다항식이 멀수록 다시 오르는 걸 막는다
+
             float xToGoalLine = FieldBounds.HalfLength - x * attackSign;
             float logit = XgModel.Logit(Math.Max(xToGoalLine, 0f), Math.Abs(z));
             float keeperBlock = (keeperReflexes + keeperDiving) * 0.5f;

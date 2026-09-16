@@ -32,8 +32,9 @@ namespace Game.Core.AI
                 new ActionNode(ctx => { }));
         }
 
-        // 슛 확률은 GK 스탯이 필요한데 트리는 상대를 모른다. 소유자 기준 "정면에 GK가 있다"고 가정하지 않고
-        // 순수 xG(능력치 보정 전)로 성향을 판단한다. 실제 판정(GK 보정 포함)은 시뮬이 Shoot 때 한다
+        // 슛 확률엔 GK 스탯이 필요한데 트리는 상대를 모른다. 슈터 보정은 넣고 GK만 중립(50)으로 두어 성향을 판단한다.
+        // 실제 판정(진짜 GK 보정)은 시뮬이 Shoot 때 한다. 그래서 GK 세팅은 골 확률만 바꾸고 슛 빈도는 못 바꾼다(1주차 스코프,
+        // 2주차 트리에서 상대 GK 스냅샷을 컨텍스트에 얹으면 해소)
         private static float ShotChance(IPlayerContext ctx)
         {
             return MatchRules.ShotProbability(ctx.X, ctx.Z, ctx.AttackSign, ctx.Stats.Shot, keeperReflexes: 50, keeperDiving: 50);

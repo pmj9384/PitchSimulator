@@ -123,6 +123,35 @@ public class MatchSimulationTests
     }
 
     [Test]
+    public void 슛_한_틱_이동이_잡기_반경보다_짧다()
+    {
+        // 골라인 판정이 세이브 판정보다 먼저 도는 Tick 순서가 안전한 조건. 이게 깨지면 골라인 앞 GK가 세이브를 놓친다
+        Assert.Less(MatchTuning.ShotSpeed * Dt, MatchTuning.CaptureRadius);
+    }
+
+    [Test]
+    public void 골라인에_못_미치고_멈춘_슛은_빗나감으로_마감되고_킥오프한다()
+    {
+        PlayerStats farShooter = Striker();
+        farShooter.ShotBias = 0f;   // 확률 0이어도 쏜다(다이얼 하한이 0)
+        var sim = new MatchSimulation(() => 0.99f, PlayerTreeBuilder.BuildLitmus());
+        PlayerState st = sim.AddPlayer(new PlayerState(0, 0, farShooter, -45f, 0f));   // 골라인까지 97.5m > 정지 거리 78m
+        sim.AddPlayer(new PlayerState(1, 1, Keeper(), 50f, 0f));
+        sim.Kickoff();
+        sim.Ball = BallRules.Own(sim.Ball, st.PlayerId, st.X, st.Z);   // 공을 ST 발에 직접 놓는다(킥오프 공은 중앙이라 달려가 잡으면 거리가 짧아짐)
+        var reports = new List<ShotReport>();
+        sim.ShotResolved += r => reports.Add(r);
+
+        for (int i = 0; i < 1200; i++) { sim.Tick(Dt); if (reports.Count > 0) { break; } }   // 바로 쏘고 멈출 때까지(6.25초 = 313틱)
+
+        Assert.AreEqual(1, reports.Count);
+        Assert.AreEqual(ShotOutcome.Missed, reports[0].Outcome);
+        Assert.AreEqual(0f, reports[0].Probability, "40m 밖은 확률 0");
+        Assert.AreEqual(BallPhase.Free, sim.Ball.Phase);
+        Assert.AreEqual(0f, sim.Ball.X, "킥오프로 돌아옴");
+    }
+
+    [Test]
     public void GK는_박스_밖_자유_공을_쫓지_않는다()
     {
         var sim = new MatchSimulation(() => 0.5f, PlayerTreeBuilder.BuildLitmus());
@@ -143,7 +172,7 @@ public class MatchSimulationTests
         sim.Kickoff();
 
         // 슛이 아닌 굴림으로 터치라인 밖까지 보낸다: Kick은 시뮬 내부라 공 상태를 직접 만든다
-        typeof(MatchSimulation).GetProperty("Ball")!.SetValue(sim, BallRules.Kick(BallState.FreeAt(0f, 33.9f), 0f, 1f, 5f));
+        sim.Ball = BallRules.Kick(BallState.FreeAt(0f, 33.9f), 0f, 1f, 5f);
         sim.Tick(Dt);   // 33.9 + 5·0.02 = 34.0 → 아직 안 → 한 틱 더
         sim.Tick(Dt);
 

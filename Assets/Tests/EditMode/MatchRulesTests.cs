@@ -117,6 +117,15 @@ public class ShotProbabilityTests
     }
 
     [Test]
+    public void 사거리_40m_밖은_확률_0이고_안은_양수다()
+    {
+        Assert.AreEqual(0f, Neutral(45f, 0f));
+        Assert.AreEqual(0f, Neutral(30f, 27f), "√(30²+27²) ≈ 40.4m");
+        Assert.Greater(Neutral(39f, 0f), 0f);
+        Assert.Greater(Neutral(30f, 26f), 0f, "√(30²+26²) ≈ 39.7m");
+    }
+
+    [Test]
     public void 내_페널티_박스_판정()
     {
         // 팀 0(+X 공격)의 내 골은 -X. 골라인 -52.5에서 16.5m 안, 폭 ±20.15
