@@ -11,9 +11,9 @@ public class TargetSelectorTests
     {
         var candidates = new List<TargetInfo>
         {
-            new TargetInfo(spawnIndex: 10, x: 5f, z: 0f),    // 거리 5
-            new TargetInfo(spawnIndex: 11, x: 3f, z: 0f),    // 거리 3 ← 최근접
-            new TargetInfo(spawnIndex: 12, x: 0f, z: 4f),    // 거리 4
+            new TargetInfo(playerId: 10, x: 5f, z: 0f),    // 거리 5
+            new TargetInfo(playerId: 11, x: 3f, z: 0f),    // 거리 3 ← 최근접
+            new TargetInfo(playerId: 12, x: 0f, z: 4f),    // 거리 4
         };
 
         Assert.AreEqual(11, TargetSelector.SelectNearest(0f, 0f, candidates));
@@ -25,8 +25,8 @@ public class TargetSelectorTests
         // 일부러 큰 인덱스를 목록 앞에 둔다. "먼저 온 쪽"이 아니라 "인덱스 작은 쪽"임을 증명
         var candidates = new List<TargetInfo>
         {
-            new TargetInfo(spawnIndex: 7, x: 3f, z: 0f),   // 거리 3
-            new TargetInfo(spawnIndex: 2, x: 0f, z: 3f),   // 거리 3 (동률)
+            new TargetInfo(playerId: 7, x: 3f, z: 0f),   // 거리 3
+            new TargetInfo(playerId: 2, x: 0f, z: 3f),   // 거리 3 (동률)
         };
 
         Assert.AreEqual(2, TargetSelector.SelectNearest(0f, 0f, candidates));
@@ -46,7 +46,7 @@ public class TargetSelectorTests
     [Test]
     public void 후보가_하나면_그_선수다()
     {
-        var one = new List<TargetInfo> { new TargetInfo(spawnIndex: 42, x: 100f, z: 100f) };
+        var one = new List<TargetInfo> { new TargetInfo(playerId: 42, x: 100f, z: 100f) };
         Assert.AreEqual(42, TargetSelector.SelectNearest(0f, 0f, one), "아무리 멀어도 후보가 하나면 그 선수. 거리 제한은 여기 몫이 아님");
     }
 }

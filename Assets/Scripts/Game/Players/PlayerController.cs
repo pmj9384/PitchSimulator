@@ -1,21 +1,24 @@
-using Game.Core.AI;
-using Game.Core.Data;
+using Game.Core.Match;
 using UnityEngine;
 
-// 선수 1명의 실체. 스폰 순번·팀·역할 프리셋을 들고 필드에 선다.
-// 1차 이식(09-16)은 "서 있음"까지. 트리가 묻고 시키는 것(IPlayerContext 멤버)은 공·소유 설계 뒤 여기서 구현한다.
-public class PlayerController : MonoBehaviour, IPlayerContext
+// 선수 1명의 실체(화면). 경기 중 위치·판단은 순수 PlayerState(MatchSimulation 안)가 갖고, 여기는 그 값을 transform에 비춘다.
+// 09-16 결정: 경기 루프를 엔진 없이 EditMode에서 굴리기 위해 상태를 전부 순수 쪽에 두었다. 매니저는 모른다.
+public class PlayerController : MonoBehaviour
 {
-    public int SpawnIndex { get; private set; }   // 자체 발급 순번. 타이브레이크·명부 조회의 열쇠
-    public int Team { get; private set; }         // 0 = 플레이어, 1 = 상대
-    public PlayerStats Stats { get; private set; }
+    public PlayerState State { get; private set; }
+    public int PlayerId => State.PlayerId;
+    public int Team => State.Team;
 
-    public void Setup(int spawnIndex, int team, PlayerStats stats, Vector3 position)
+    public void Setup(PlayerState state)
     {
-        SpawnIndex = spawnIndex;
-        Team = team;
-        Stats = stats;
-        transform.position = position;
-        name = $"Player_{team}_{stats.RoleId}_{spawnIndex}";   // 하이어라키에서 바로 읽히게
+        State = state;
+        name = $"Player_{state.Team}_{state.Stats.RoleId}_{state.PlayerId}";   // 하이어라키에서 바로 읽히게
+        SyncView();
+    }
+
+    // 고정 스텝 뒤 MatchManager가 부른다. 높이(y)는 발 높이 0
+    public void SyncView()
+    {
+        transform.position = new Vector3(State.X, 0f, State.Z);
     }
 }

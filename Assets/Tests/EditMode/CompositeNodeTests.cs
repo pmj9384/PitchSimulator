@@ -1,4 +1,6 @@
 using Game.Core.AI;
+using Game.Core.Data;
+using Game.Core.Match;
 using NUnit.Framework;
 
 // BT 엔진 검증. 가짜 선수(FakePlayer)에게 노드를 틱해 "어떤 명령을 내렸는가"만 본다.
@@ -12,6 +14,21 @@ public class CompositeNodeTests
         public bool Flag;
         public int ACalls;
         public int BCalls;
+
+        // 복합 노드 테스트는 계약 멤버를 읽지 않는다. 형식만 맞춘 빈 구현
+        public int PlayerId => 0;
+        public int Team => 0;
+        public int AttackSign => 1;
+        public float X => 0f;
+        public float Z => 0f;
+        public PlayerStats Stats => new PlayerStats();
+        public bool IsGoalkeeper => false;
+        public BallPhase BallPhase => BallPhase.Free;
+        public bool OwnsBall => false;
+        public float BallX => 0f;
+        public float BallZ => 0f;
+        public void MoveToward(float x, float z) { }
+        public void Shoot() { }
     }
 
     private static BehaviorNode Cond(bool value)

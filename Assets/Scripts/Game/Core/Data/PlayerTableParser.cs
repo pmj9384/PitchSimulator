@@ -73,6 +73,10 @@ namespace Game.Core.Data
             RequirePositive(p.Shot, "shot", line);
             RequirePositive(p.Tackle, "tackle", line);
             RequirePositive(p.Positioning, "positioning", line);
+            // GK 전용은 필드 플레이어가 0을 두므로 0 이상. 음수는 총점 300을 다른 스탯에 몰아주는 구멍이라 막는다
+            RequireNonNegative(p.Reflexes, "reflexes", line);
+            RequireNonNegative(p.Handling, "handling", line);
+            RequireNonNegative(p.Diving, "diving", line);
 
             if (p.BuildTotal != PlayerStats.TotalPoints)
             {
@@ -104,6 +108,14 @@ namespace Game.Core.Data
             }
         }
 
+        private static void RequireNonNegative(int value, string field, int line)
+        {
+            if (value < 0)
+            {
+                throw new FormatException($"PlayerTable {line}행: {field}는 0 이상 ({value})");
+            }
+        }
+
 
         // CSV 헤더(camelCase) ↔ C# 프로퍼티(PascalCase) 명시 매핑. 자동 추론에 안 맡긴다
         private sealed class PlayerStatsMap : ClassMap<PlayerStats>
@@ -117,6 +129,9 @@ namespace Game.Core.Data
                 Map(p => p.Shot).Name("shot");
                 Map(p => p.Tackle).Name("tackle");
                 Map(p => p.Positioning).Name("positioning");
+                Map(p => p.Reflexes).Name("reflexes");
+                Map(p => p.Handling).Name("handling");
+                Map(p => p.Diving).Name("diving");
                 Map(p => p.PushUp).Name("pushUp");
                 Map(p => p.PressRange).Name("pressRange");
                 Map(p => p.ShotBias).Name("shotBias");

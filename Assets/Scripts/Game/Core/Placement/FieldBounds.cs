@@ -8,6 +8,11 @@ namespace Game.Core.Placement
         public const float HalfLength = 52.5f;   // 진영 축(X) 방향 절반
         public const float HalfWidth = 34f;      // 폭(Z) 방향 절반
 
+        // 골대·페널티 박스(FIFA 규격). 골대는 골라인(x = ±HalfLength) 위 z = ±GoalHalfWidth
+        public const float GoalHalfWidth = 3.66f;         // 골대 폭 7.32m의 절반. xG 각도 계산의 두 포스트
+        public const float PenaltyBoxDepth = 16.5f;       // 골라인에서 필드 안쪽으로
+        public const float PenaltyBoxHalfWidth = 20.15f;  // 박스 폭 40.3m의 절반. GK 출격 한계(스펙 §5)
+
         // 선수 몸이 라인 밖으로 걸치지 않게 두는 여백
         public const float EdgeMargin = 0.5f;
 
