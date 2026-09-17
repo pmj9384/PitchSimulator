@@ -11,13 +11,14 @@ public static class PlayerTableRepository
     private static Dictionary<string, PlayerStats> byId;
     private static List<PlayerStats> ordered;   // CSV 행 순서. Dictionary.Values는 순서를 보장하지 않아 팔레트 순서가 흔들린다
 
-    public static PlayerStats Get(string roleId)
+    // 프리셋 키는 variantId(st_poacher). 편성 CSV의 id가 이것을 가리킨다
+    public static PlayerStats Get(string variantId)
     {
         EnsureLoaded();
         PlayerStats stats;
-        if (byId.TryGetValue(roleId, out stats)) { return stats; }
+        if (byId.TryGetValue(variantId, out stats)) { return stats; }
 
-        Debug.LogError($"[PlayerTableRepository] 없는 roleId: {roleId}");
+        Debug.LogError($"[PlayerTableRepository] 없는 variantId: {variantId}");
         return null;
     }
 
@@ -42,7 +43,7 @@ public static class PlayerTableRepository
         var map = new Dictionary<string, PlayerStats>(StringComparer.OrdinalIgnoreCase);   // 파서의 중복 검사(대소문자 무시)와 같은 기준
         foreach (PlayerStats stats in parsed)
         {
-            map.Add(stats.RoleId, stats);
+            map.Add(stats.VariantId, stats);
         }
 
         ordered = parsed;

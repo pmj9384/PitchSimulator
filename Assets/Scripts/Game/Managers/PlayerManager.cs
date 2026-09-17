@@ -19,13 +19,13 @@ public class PlayerManager : InGameManager
     private readonly Dictionary<int, PlayerController> byId = new Dictionary<int, PlayerController>();
     private int nextPlayerId;     // 스폰 순서로 발급하는 선수 번호. 타이브레이크의 근원(GetInstanceID 금지)
 
-    public PlayerController Spawn(string roleId, int team, Vector3 position)
+    public PlayerController Spawn(string variantId, int team, Vector3 position)
     {
-        PlayerStats stats = PlayerTableRepository.Get(roleId);
+        PlayerStats stats = PlayerTableRepository.Get(variantId);
         if (stats == null)
         {
             // 풀에서 빌리기 전에 막는다. 빌린 뒤 터지면 몸이 반환되지 않고 NRE로 데이터 오류가 가려진다
-            throw new InvalidOperationException($"[PlayerManager] PlayerTable에 없는 roleId: {roleId}");
+            throw new InvalidOperationException($"[PlayerManager] PlayerTable에 없는 variantId: {variantId}");
         }
 
         GameObject body = Pool().Get();

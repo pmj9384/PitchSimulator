@@ -7,7 +7,7 @@ using CsvHelper.Configuration;
 
 namespace Game.Core.Data
 {
-    // PlayerTable.csv 텍스트 → 역할 프리셋 목록. 순수 함수. 파일/Resources 접근은 호출측(PlayerTableRepository) 몫.
+    // PlayerTable.csv 텍스트 → 역할 프리셋(자리 × 변형) 목록. 순수 함수. 파일/Resources 접근은 호출측(PlayerTableRepository) 몫.
     // 파싱은 CsvHelper에 위임하고, 스키마 매핑과 게임 규칙 검증만 여기서 통제한다.
     // 실패는 전부 FormatException으로 감싼다. 호출측과 테스트가 CsvHelper 타입을 몰라도 되게.
     public static class PlayerTableParser
@@ -20,7 +20,7 @@ namespace Game.Core.Data
             }
 
             var roles = new List<PlayerStats>();
-            var seenIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);   // 사람이 손으로 치는 값. ST/st를 같은 id로 본다
+            var seenIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);   // variantId가 프리셋 키. 사람이 손으로 치는 값이라 대소문자 무시
 
             try
             {
@@ -37,9 +37,13 @@ namespace Game.Core.Data
                     {
                         throw new FormatException($"PlayerTable {line}행: roleId가 비어 있다");
                     }
-                    if (!seenIds.Add(row.RoleId))
+                    if (string.IsNullOrWhiteSpace(row.VariantId))
                     {
-                        throw new FormatException($"PlayerTable {line}행: roleId 중복 ({row.RoleId})");
+                        throw new FormatException($"PlayerTable {line}행: variantId가 비어 있다");
+                    }
+                    if (!seenIds.Add(row.VariantId))
+                    {
+                        throw new FormatException($"PlayerTable {line}행: variantId 중복 ({row.VariantId})");
                     }
                     ValidateRanges(row, line);
 
@@ -94,9 +98,17 @@ namespace Game.Core.Data
             {
                 throw new FormatException($"PlayerTable {line}행: passLength는 양수 ({p.PassLength})");
             }
-            if (p.PushUp < 0f || p.Width < 0f || p.LineHeight < 0f)
+            if (p.PushUp < 0f || p.Width < 0f || p.LineHeight < 0f || p.RoamRadius < 0f || p.HoldUp < 0f || p.GkRushRadius < 0f)
             {
-                throw new FormatException($"PlayerTable {line}행: pushUp·width·lineHeight는 0 이상");
+                throw new FormatException($"PlayerTable {line}행: pushUp·width·lineHeight·roamRadius·holdUp·gkRushRadius는 0 이상");
+            }
+            if (p.PassRisk < 0f || p.PassRisk > 1f || p.Dribble < 0f || p.Dribble > 1f)
+            {
+                throw new FormatException($"PlayerTable {line}행: passRisk·dribble은 0~1");
+            }
+            if (p.Focus < 0 || p.Focus > 2)
+            {
+                throw new FormatException($"PlayerTable {line}행: focus는 0~2 ({p.Focus})");
             }
         }
 
@@ -123,6 +135,9 @@ namespace Game.Core.Data
             public PlayerStatsMap()
             {
                 Map(p => p.RoleId).Name("roleId");
+                Map(p => p.VariantId).Name("variantId");
+                Map(p => p.Exposed).Name("exposed");
+                Map(p => p.Focus).Name("focus");
                 Map(p => p.Speed).Name("speed");
                 Map(p => p.Stamina).Name("stamina");
                 Map(p => p.Pass).Name("pass");
@@ -138,6 +153,11 @@ namespace Game.Core.Data
                 Map(p => p.PassLength).Name("passLength");
                 Map(p => p.Width).Name("width");
                 Map(p => p.LineHeight).Name("lineHeight");
+                Map(p => p.RoamRadius).Name("roamRadius");
+                Map(p => p.PassRisk).Name("passRisk");
+                Map(p => p.Dribble).Name("dribble");
+                Map(p => p.HoldUp).Name("holdUp");
+                Map(p => p.GkRushRadius).Name("gkRushRadius");
                 Map(p => p.DisplayName).Name("displayName");
                 Map(p => p.Description).Name("description");
                 Map(p => p.Icon).Name("icon");

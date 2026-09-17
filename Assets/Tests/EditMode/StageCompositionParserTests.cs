@@ -114,7 +114,7 @@ public class StageCompositionParserTests
         {
             List<StageEntry> side = rows.FindAll(r => r.Team == team);
             Assert.AreEqual(11, side.Count, $"팀 {team} 11명");
-            Assert.AreEqual(1, side.FindAll(r => r.Id == "GK").Count, $"팀 {team} GK 1명");
+            Assert.AreEqual(1, side.FindAll(r => r.Id.StartsWith("gk_")).Count, $"팀 {team} GK 1명");
             Assert.IsTrue(side.TrueForAll(r => r.Count == 1), "템플릿은 한 자리 한 명");
 
             // 자기 진영(팀 0은 x<0, 팀 1은 x>0), 폭 안, 최소 간격 유지
