@@ -103,16 +103,43 @@ public class StageCompositionParserTests
     }
 
     [Test]
-    public void 실제_Resources_CSV는_스테이지1에_ST와_GK가_있다()
+    public void 실제_Resources_CSV는_1번_편성이_11대11이고_GK가_팀마다_1명이다()
     {
-        // 1주차 리트머스 편성(ST 1 vs GK 1). 파일이 바뀌면 여기서 잡힌다
+        // 포메이션 템플릿 1호: 4-4-2 대 4-4-2 미러(09-17). 리그 팀 생성기(09-27)가 이 형식으로 팀을 뽑는다
         string csv = File.ReadAllText("Assets/Resources/Tables/StageComposition.csv");
         List<StageEntry> rows = StageCompositionParser.Parse(csv).FindAll(r => r.Stage == 1);
 
-        Assert.AreEqual(2, rows.Count, "스테이지 1은 ST 1명 vs GK 1명");
-        Assert.AreEqual("ST", rows[0].Id);
-        Assert.AreEqual(0, rows[0].Team);
-        Assert.AreEqual("GK", rows[1].Id);
-        Assert.AreEqual(1, rows[1].Team);
+        Assert.AreEqual(22, rows.Count, "11 대 11");
+        for (int team = 0; team < 2; team++)
+        {
+            List<StageEntry> side = rows.FindAll(r => r.Team == team);
+            Assert.AreEqual(11, side.Count, $"팀 {team} 11명");
+            Assert.AreEqual(1, side.FindAll(r => r.Id == "GK").Count, $"팀 {team} GK 1명");
+            Assert.IsTrue(side.TrueForAll(r => r.Count == 1), "템플릿은 한 자리 한 명");
+
+            // 자기 진영(팀 0은 x<0, 팀 1은 x>0), 폭 안, 최소 간격 유지
+            int sign = team == 0 ? -1 : +1;
+            Assert.IsTrue(side.TrueForAll(r => r.PosX * sign > 0f), $"팀 {team} 자기 진영");
+            Assert.IsTrue(side.TrueForAll(r => System.Math.Abs(r.PosZ) <= Game.Core.Placement.FieldBounds.HalfWidth - Game.Core.Placement.FieldBounds.EdgeMargin), "폭 안");
+            for (int i = 0; i < side.Count; i++)
+            {
+                for (int j = i + 1; j < side.Count; j++)
+                {
+                    float dx = side[i].PosX - side[j].PosX;
+                    float dz = side[i].PosZ - side[j].PosZ;
+                    Assert.GreaterOrEqual(dx * dx + dz * dz, Game.Core.Placement.FieldBounds.MinSpacing * Game.Core.Placement.FieldBounds.MinSpacing, $"팀 {team} {i}-{j} 간격");
+                }
+            }
+        }
+
+        // 미러: 상대는 부호만 반전
+        List<StageEntry> home = rows.FindAll(r => r.Team == 0);
+        List<StageEntry> away = rows.FindAll(r => r.Team == 1);
+        for (int i = 0; i < home.Count; i++)
+        {
+            Assert.AreEqual(home[i].Id, away[i].Id, $"{i}번째 역할");
+            Assert.AreEqual(-home[i].PosX, away[i].PosX, 1e-4f, $"{i}번째 X 미러");
+            Assert.AreEqual(home[i].PosZ, away[i].PosZ, 1e-4f, $"{i}번째 Z 동일");
+        }
     }
 }
