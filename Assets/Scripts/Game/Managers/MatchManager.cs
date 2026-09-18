@@ -23,7 +23,7 @@ public class MatchManager : InGameManager
     // 경기가 끝났음을 알린다(승리 팀 0/1, 무승부 -1). 결과 화면(3주차)과 검증 도구가 구독한다
     public event Action<int> MatchEnded;
 
-    private static readonly BehaviorNode SharedTree = PlayerTreeBuilder.BuildLitmus();   // 22명이 공유하는 트리 하나(무상태)
+    private static readonly BehaviorNode SharedTree = PlayerTreeBuilder.Build();   // 22명이 공유하는 트리 하나(무상태). 4국면(09-18)
     private System.Random rng;
 
     public override void Initialize()
@@ -42,12 +42,13 @@ public class MatchManager : InGameManager
         rng = new System.Random(GameManager.Stage.StageNumber);
         Simulation = new MatchSimulation(NextRoll, SharedTree)
         {
-            ResetAfterEveryShot = true   // 1주차 리트머스: 슛마다 킥오프로 되돌린다. 트리 4분기가 붙으면 끈다
+            ResetAfterEveryShot = false   // 4국면 트리(09-18): 세이브 뒤 GK가 배급한다. 리트머스 때만 true였다
         };
         // 팀 전술 프리셋(스타일 카드). 배치 UI가 오기 전까지 양 팀 "균형". 세팅 화면이 생기면 세이브에서 읽는다
         Simulation.SetTactics(0, TeamTacticsRepository.Get(homePreset));
         Simulation.SetTactics(1, TeamTacticsRepository.Get(awayPreset));
         Simulation.ShotResolved += LogShot;
+        Simulation.PossessionChanged += LogPossession;
     }
 
     private float NextRoll()
@@ -111,6 +112,13 @@ public class MatchManager : InGameManager
         if (Simulation.HomeGoals > Simulation.AwayGoals) { return 0; }
         if (Simulation.AwayGoals > Simulation.HomeGoals) { return 1; }
         return Draw;
+    }
+
+    // 경합·패스·가로채기가 실제로 나는지 보는 로그. 밸런스 잡을 때 끈다
+    private void LogPossession(PossessionReport r)
+    {
+        string prev = r.PreviousOwnerId == BallState.NoOwner ? "자유공" : $"#{r.PreviousOwnerId}";
+        Debug.Log($"[Match] {r.Kind} {prev} → #{r.NewOwnerId}(팀{r.NewOwnerTeam}) at ({r.X:0.0},{r.Z:0.0})  t={Elapsed:0.0}s");
     }
 
     private void LogShot(ShotReport report)

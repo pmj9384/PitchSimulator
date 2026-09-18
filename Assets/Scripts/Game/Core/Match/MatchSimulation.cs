@@ -8,6 +8,29 @@ namespace Game.Core.Match
 {
     public enum ShotOutcome { Goal, Caught, Parried, Missed }
 
+    public enum PossessionChange { Capture, PassReceived, Intercepted, Turnover }
+
+    // 소유가 바뀐 틱의 보고. 경합·패스·가로채기가 실제로 나는지 콘솔에서 보려고(09-18)
+    public readonly struct PossessionReport
+    {
+        public readonly int NewOwnerId;
+        public readonly int NewOwnerTeam;
+        public readonly int PreviousOwnerId;   // NoOwner면 자유 공에서 잡음
+        public readonly PossessionChange Kind;
+        public readonly float X;
+        public readonly float Z;
+
+        public PossessionReport(int newOwnerId, int newOwnerTeam, int previousOwnerId, PossessionChange kind, float x, float z)
+        {
+            NewOwnerId = newOwnerId;
+            NewOwnerTeam = newOwnerTeam;
+            PreviousOwnerId = previousOwnerId;
+            Kind = kind;
+            X = x;
+            Z = z;
+        }
+    }
+
     // 슛 하나의 결과 보고. MatchManager가 콘솔에 찍고 테스트가 대조한다
     public readonly struct ShotReport
     {
@@ -39,6 +62,8 @@ namespace Game.Core.Match
         public bool ResetAfterEveryShot { get; set; }
 
         public event Action<ShotReport>? ShotResolved;
+        public event Action<PossessionReport>? PossessionChanged;
+        public int TurnoverCount { get; private set; }
 
         private readonly List<PlayerState> players = new List<PlayerState>();
         private readonly List<TargetInfo> captureCandidates = new List<TargetInfo>();
@@ -358,19 +383,28 @@ namespace Game.Core.Match
         {
             int ownerNow = Ball.Phase == BallPhase.Owned ? Ball.OwnerId : BallState.NoOwner;
             if (ownerNow == ballOwnerAtLastTick) { return; }
+            int previousOwnerId = ballOwnerAtLastTick;
             ballOwnerAtLastTick = ownerNow;
 
             if (ownerNow == BallState.NoOwner) { return; }
 
+            PlayerState owner = FindPlayer(ownerNow);
+            PossessionChange kind = PossessionChange.Capture;
             if (passInFlight)
             {
-                if (ownerNow != passReceiverId) { InterceptCount++; }
+                kind = ownerNow == passReceiverId ? PossessionChange.PassReceived : PossessionChange.Intercepted;
+                if (kind == PossessionChange.Intercepted) { InterceptCount++; }
                 passInFlight = false;
                 passReceiverId = -1;
             }
+            else if (previousOwnerId != BallState.NoOwner && FindPlayer(previousOwnerId).Team != owner.Team)
+            {
+                kind = PossessionChange.Turnover;   // 소유 중이던 공을 상대가 발치에서 뺏음(경합)
+                TurnoverCount++;
+            }
 
-            PlayerState owner = FindPlayer(ownerNow);
             holdUpTicksLeft = (int)Math.Round(owner.Stats.HoldUp / MatchTuning.FixedStep);
+            PossessionChanged?.Invoke(new PossessionReport(ownerNow, owner.Team, previousOwnerId, kind, Ball.X, Ball.Z));
         }
 
         // GK 배급 대상(트리가 부른다). "섞어"는 부를 때마다 교대
