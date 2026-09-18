@@ -56,8 +56,9 @@ public class MatchSimulationTests
     [Test]
     public void 리트머스_슛_10회_결과는_각각_Resolve_p_roll과_같다()
     {
-        // 슛마다 골 주사위 1개, 골이 아니면 캐치 주사위 1개. 20개면 넉넉하다
-        float[] sequence = { 0.10f, 0.50f, 0.90f, 0.20f, 0.35f, 0.70f, 0.05f, 0.60f, 0.99f, 0.40f, 0.30f, 0.80f, 0.15f, 0.55f, 0.25f, 0.65f, 0.45f, 0.75f, 0.33f, 0.66f };
+        // 슛마다 골 주사위 1 + 조준 주사위 1(09-18 슛 오차), 골이 아니고 골문 안이면 캐치 주사위 1. 30개면 넉넉하다.
+        // 조준 roll은 0.5(정중앙)로 고정해 골문 안이 되게 한다(오차 자체는 ShotDirectionTests가 검증)
+        float[] sequence = { 0.10f,0.5f, 0.50f,0.5f,0.50f, 0.90f,0.5f,0.20f, 0.35f,0.5f,0.70f, 0.05f,0.5f, 0.60f,0.5f,0.99f, 0.40f,0.5f,0.30f, 0.80f,0.5f,0.15f, 0.55f,0.5f,0.25f, 0.65f,0.5f,0.45f, 0.75f,0.5f,0.33f, 0.66f,0.5f,0.11f };
         var rolls = new RollQueue(sequence);
         MatchSimulation sim = LitmusMatch(rolls);
 
@@ -71,6 +72,8 @@ public class MatchSimulationTests
             Assert.AreEqual(0, r.ShooterId, "쏘는 건 ST뿐");
             expectedGoals += r.Probability;
             float goalRoll = sequence[cursor++];
+            float aimRoll = sequence[cursor++];
+            Assert.AreEqual(0.5f, aimRoll, "테스트 수열의 조준 roll 자리");
             if (MatchRules.Resolve(r.Probability, goalRoll))
             {
                 Assert.AreEqual(ShotOutcome.Goal, r.Outcome);
@@ -95,7 +98,7 @@ public class MatchSimulationTests
     [Test]
     public void 같은_주사위_수열이면_같은_경기다()
     {
-        float[] sequence = { 0.10f, 0.50f, 0.90f, 0.20f, 0.35f, 0.70f, 0.05f, 0.60f, 0.99f, 0.40f, 0.30f, 0.80f, 0.15f, 0.55f, 0.25f, 0.65f, 0.45f, 0.75f, 0.33f, 0.66f };
+        float[] sequence = { 0.10f,0.5f, 0.50f,0.5f,0.50f, 0.90f,0.5f,0.20f, 0.35f,0.5f,0.70f, 0.05f,0.5f, 0.60f,0.5f,0.99f, 0.40f,0.5f,0.30f, 0.80f,0.5f,0.15f, 0.55f,0.5f,0.25f, 0.65f,0.5f,0.45f, 0.75f,0.5f,0.33f, 0.66f,0.5f,0.11f };
         List<ShotReport> a = RunShots(LitmusMatch(new RollQueue(sequence)), 10);
         List<ShotReport> b = RunShots(LitmusMatch(new RollQueue(sequence)), 10);
 

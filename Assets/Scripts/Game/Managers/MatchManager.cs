@@ -13,7 +13,9 @@ public class MatchManager : InGameManager
     public const int Draw = -1;                 // EndMatch의 무승부 표식
 
     [SerializeField] private BallView ballView;   // 씬의 공(구). 순수 BallState를 비춘다
-    [SerializeField] private bool autoKickoff = true;   // 1주차 임시: 선수 세팅 UI(2주차 배치 UI)가 없어 스폰이 끝나면 바로 킥오프한다. UI가 붙으면 지운다
+    [SerializeField] private bool autoKickoff = true;
+    [SerializeField] private string homePreset = "balanced";   // TacticPresets.csv presetId. 세팅 화면(3주차)이 오면 세이브에서
+    [SerializeField] private string awayPreset = "balanced";   // 1주차 임시: 선수 세팅 UI(2주차 배치 UI)가 없어 스폰이 끝나면 바로 킥오프한다. UI가 붙으면 지운다
 
     public float Elapsed { get; private set; }
     public MatchSimulation Simulation { get; private set; }
@@ -40,8 +42,11 @@ public class MatchManager : InGameManager
         rng = new System.Random(GameManager.Stage.StageNumber);
         Simulation = new MatchSimulation(NextRoll, SharedTree)
         {
-            ResetAfterEveryShot = true   // 1주차 리트머스: 슛마다 킥오프로 되돌린다. 2주차 GK 배급이 생기면 끈다
+            ResetAfterEveryShot = true   // 1주차 리트머스: 슛마다 킥오프로 되돌린다. 트리 4분기가 붙으면 끈다
         };
+        // 팀 전술 프리셋(스타일 카드). 배치 UI가 오기 전까지 양 팀 "균형". 세팅 화면이 생기면 세이브에서 읽는다
+        Simulation.SetTactics(0, TeamTacticsRepository.Get(homePreset));
+        Simulation.SetTactics(1, TeamTacticsRepository.Get(awayPreset));
         Simulation.ShotResolved += LogShot;
     }
 
