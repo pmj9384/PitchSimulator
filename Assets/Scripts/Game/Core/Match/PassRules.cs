@@ -35,7 +35,7 @@ namespace Game.Core.Match
 
                 // Simple Soccer의 이진 판정(닿으면 위험)을 여유폭으로 편다: 잡기 반경 안에 들어오면 1(확실),
                 // 달려서 겨우 닿는 범위 끝에서 0. 그 사이는 선형. 리스크 허용(0.2/0.5/0.8)이 이 여유폭 어디까지 감수하나를 정한다
-                float margin = perp - MatchTuning.CaptureRadius;   // 잡기 반경을 뺀 "달려야 하는" 거리
+                float margin = perp - MatchTuning.InterceptReach;  // 발 뻗는 범위를 뺀 "달려야 하는" 거리
                 float risk;
                 if (margin <= 0f) { risk = 1f; }
                 else if (reach <= 0f) { risk = 0f; }

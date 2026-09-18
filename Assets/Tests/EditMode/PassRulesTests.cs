@@ -13,7 +13,7 @@ public class PassRulesTests
     public void 상대가_패스_방향_뒤에_있으면_안전하다()
     {
         var behind = new List<TargetInfo> { new TargetInfo(playerId: 11, x: -5f, z: 1f) };
-        float risk = PassRules.InterceptRisk(0f, 0f, 20f, 0f, behind, opponentSpeed: 7f, ballSpeed: 15f);
+        float risk = PassRules.InterceptRisk(0f, 0f, 20f, 0f, behind, opponentSpeed: 5f, ballSpeed: 15f);
         Assert.AreEqual(0f, risk, "뒤에 있는 상대는 위험도 0");
     }
 
@@ -22,29 +22,26 @@ public class PassRulesTests
     {
         // 패스 20m, 공 15m/s → 도착 1.33초. 상대는 x=10(공이 0.67초 뒤 지나감), z=1. 0.67초에 7m/s면 4.7m > 1m
         var near = new List<TargetInfo> { new TargetInfo(playerId: 11, x: 10f, z: 1f) };
-        float risk = PassRules.InterceptRisk(0f, 0f, 20f, 0f, near, opponentSpeed: 7f, ballSpeed: 15f);
-        Assert.GreaterOrEqual(risk, 0.9f, "잡기 반경 0.8 바깥 0.2m라 1은 아니지만 거의 확실");
+        float risk = PassRules.InterceptRisk(0f, 0f, 20f, 0f, near, opponentSpeed: 5f, ballSpeed: 15f);
+        Assert.AreEqual(1f, risk, "발 뻗는 범위 1.2 안이라 확실히 1");
         Assert.IsFalse(PassRules.IsPassSafe(risk, MatchTuning.PassRiskAllow[2]), "모험(0.8)이어도 안 함");
-
-        var onAxis = new List<TargetInfo> { new TargetInfo(playerId: 11, x: 10f, z: 0.5f) };
-        Assert.AreEqual(1f, PassRules.InterceptRisk(0f, 0f, 20f, 0f, onAxis, 7f, 15f), "잡기 반경 안이면 확실히 1");
     }
 
     [Test]
     public void 경로에서_충분히_먼_상대는_못_닿는다()
     {
-        // 상대 x=10, z=8. 공이 지나가는 0.67초에 7m/s면 4.7 + 0.8 = 5.5 < 8
+        // 상대 x=10, z=8. 공이 지나가는 0.67초에 5m/s면 3.3 + 1.2 = 4.5 < 8
         var far = new List<TargetInfo> { new TargetInfo(playerId: 11, x: 10f, z: 8f) };
-        float risk = PassRules.InterceptRisk(0f, 0f, 20f, 0f, far, opponentSpeed: 7f, ballSpeed: 15f);
+        float risk = PassRules.InterceptRisk(0f, 0f, 20f, 0f, far, opponentSpeed: 5f, ballSpeed: 15f);
         Assert.AreEqual(0f, risk);
     }
 
     [Test]
     public void 위험도는_가까울수록_1에_가깝고_리스크_허용치가_판정을_가른다()
     {
-        // 상대 z=4.5: 닿는 거리 5.5 대비 0.82 → 위험도 약 0.55 (1 - (4.5-0.8)/(4.7))... 정확한 식은 구현이 정함, 여기선 단조성과 허용치만
-        var mid = new List<TargetInfo> { new TargetInfo(playerId: 11, x: 10f, z: 4.5f) };
-        float risk = PassRules.InterceptRisk(0f, 0f, 20f, 0f, mid, 7f, 15f);
+        // 상대 z=3: 달려야 하는 거리 3-1.2=1.8, 0.67초에 5m/s면 3.3 → 위험도 1-1.8/3.3 ≈ 0.45. 여기선 단조성과 허용치만
+        var mid = new List<TargetInfo> { new TargetInfo(playerId: 11, x: 10f, z: 3f) };
+        float risk = PassRules.InterceptRisk(0f, 0f, 20f, 0f, mid, 5f, 15f);
         Assert.That(risk, Is.InRange(0.01f, 0.99f), "닿을락 말락은 중간값");
 
         Assert.IsFalse(PassRules.IsPassSafe(risk, riskAllow: MatchTuning.PassRiskAllow[0]), "안전(0.2)이면 막힘");
@@ -57,7 +54,7 @@ public class PassRulesTests
     public void 위험도는_여러_상대_중_최대값이다()
     {
         var two = new List<TargetInfo> { new TargetInfo(11, 10f, 8f), new TargetInfo(12, 10f, 0.5f) };
-        Assert.AreEqual(1f, PassRules.InterceptRisk(0f, 0f, 20f, 0f, two, 7f, 15f), "8m 상대는 0, 축 위 상대는 1 → 최대 1");
+        Assert.AreEqual(1f, PassRules.InterceptRisk(0f, 0f, 20f, 0f, two, 5f, 15f), "8m 상대는 0, 축 위 상대는 1 → 최대 1");
     }
 
     [Test]

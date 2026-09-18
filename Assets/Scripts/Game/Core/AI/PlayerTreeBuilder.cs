@@ -123,7 +123,7 @@ namespace Game.Core.AI
                 float score = PassRules.ScoreReceiver(ctx.X, ctx.Z, m.X, m.Z, ctx.AttackSign, t.PassStyle[third], ctx.Stats.PassLength, t.Width[third]);
                 if (score <= bestScore) { continue; }
 
-                float risk = PassRules.InterceptRisk(ctx.X, ctx.Z, m.X, m.Z, ctx.Opponents, MatchTuning.AverageRunSpeed, ballSpeed);
+                float risk = PassRules.InterceptRisk(ctx.X, ctx.Z, m.X, m.Z, ctx.Opponents, MatchTuning.InterceptRunSpeed, ballSpeed);
                 if (!PassRules.IsPassSafe(risk, riskAllow)) { continue; }
 
                 best = m.PlayerId;

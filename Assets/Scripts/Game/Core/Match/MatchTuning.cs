@@ -26,7 +26,8 @@ namespace Game.Core.Match
         public static readonly float[] PassRiskAllow = { 0.2f, 0.5f, 0.8f };   // 패스 리스크(안전·균형·모험) → 허용하는 가로채기 위험도
         public static readonly float[] PassStyleLengthScale = { 0.6f, 1f, 1.8f }; // 패스 방식(짧게·직접·롱볼) → 개인 선호 패스 거리에 곱함
         public static readonly float[] PassSpeed = { 12f, 15f, 18f };           // 속도(느리게·표준·빠르게) → 패스 초속 m/s
-        public const float AverageRunSpeed = 7f;                                // 상대 스탯을 모를 때 가로채기 판정에 쓰는 달리기 속도(speed 50)
+        public const float InterceptRunSpeed = 5f;                              // 가로채기 판정의 상대 달리기 속도. 정지 상태에서 반응·가속이 있어 전력(7)보다 낮게(밸런스 값)
+        public const float InterceptReach = 1.2f;                               // 달려와서 발을 뻗어 공을 건드리는 범위(m). 잡기 반경 0.8보다 넓다(밸런스 값)
         public static readonly float[] PressStartScale = { 0f, 1f, 1.5f };      // 압박 시작(안 감·표준·적극) → 개인 압박 거리 배율. 0은 안 씀(ShouldPress가 먼저 거름)
         public const float CounterPressScale = 2f;                              // 역압박 중 개인 압박 거리 배율
         public static readonly int[] CounterPressThreshold = { int.MaxValue, 3, 2 }; // 역압박 성향(안 함·상황 봐서·적극) → 뺏긴 순간 우리 뒤 수비 수 문턱
