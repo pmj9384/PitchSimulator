@@ -61,6 +61,26 @@ namespace Game.Core.Match
             return 1f / (1f + (float)Math.Exp(-logit));
         }
 
+        // ── 슛 방향 오차(09-18 확정: 빗나감). 골 확률(xG)과 별개로 "어디로 날아가나"를 정한다.
+        // shot이 낮을수록 조준 반폭이 넓어 골문 밖(포스트 3.66m 밖)으로도 간다. Simple Soccer PlayerKickingAccuracy의 역할
+        public static float ShotSpread(int shot)
+        {
+            float t = Clamp01(shot / 100f);
+            return MatchTuning.ShotSpreadMax + (MatchTuning.ShotSpreadMin - MatchTuning.ShotSpreadMax) * t;
+        }
+
+        // roll [0,1] → 조준 Z(골라인 위 지점, 골 중심 기준). 0.5가 정중앙, 양 끝이 ±반폭
+        public static float ShotAimZ(int shot, float roll)
+        {
+            return (roll * 2f - 1f) * ShotSpread(shot);
+        }
+
+        // 조준 Z가 두 포스트 사이면 골문 안(경계 포함). 밖이면 빗나감
+        public static bool IsOnTarget(float aimZ)
+        {
+            return Math.Abs(aimZ) <= FieldBounds.GoalHalfWidth;
+        }
+
         // ── 세이브 뒤 캐치 확률. 기본 0.65에 handling이 ±0.2. 캐치면 GK 소유, 아니면 앞으로 튕겨 자유 공(스펙 §5)
         public static float CatchProbability(int handling)
         {
