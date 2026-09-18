@@ -53,7 +53,8 @@ public class PassFlightTests
 
         sim.Tick(Dt);   // 다음 틱 스냅샷에서 리시버가 IsPassTarget
         Assert.IsTrue(b.IsPassTarget);
-        Assert.AreEqual(15f, b.PassTargetX, 1e-4f);
+        Assert.Greater(b.PassTargetX, 15f, "리드 패스: 리시버(15)보다 앞쪽 점");
+        Assert.LessOrEqual(b.PassTargetX, 15f + MatchTuning.PassLeadMax, "리드 상한");
         Assert.IsFalse(a.IsPassTarget);
 
         for (int i = 0; i < 100 && sim.Ball.Phase != BallPhase.Owned; i++) { sim.Tick(Dt); }

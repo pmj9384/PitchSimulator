@@ -70,6 +70,20 @@ namespace Game.Core.Match
             return forward * 0.05f + distFit + lateral;
         }
 
+        // 리드 패스 목표(09-18 Play 진단): 리시버의 지금 위치로 차면 리시버는 이미 움직여 공이 뒤에 떨어진다.
+        // 공이 도착하는 시간 동안 리시버가 앞(공격 방향)으로 갈 수 있는 거리만큼 앞선 점을 목표로 한다. 상한은 리드 최대치.
+        // Simple Soccer의 "리시버 도달 원" 판정의 단순형. 결과는 필드 안으로 클램프
+        public static (float x, float z) LeadTarget(float receiverX, float receiverZ, int attackSign, float passDistance, float ballSpeed, float receiverSpeed)
+        {
+            float travel = passDistance / ballSpeed;                       // 공 도착 시간
+            float lead = Math.Min(receiverSpeed * travel, MatchTuning.PassLeadMax);
+            float x = receiverX + lead * attackSign;
+            float limit = Placement.FieldBounds.HalfLength - Placement.FieldBounds.EdgeMargin;
+            if (x > limit) { x = limit; }
+            if (x < -limit) { x = -limit; }
+            return (x, receiverZ);
+        }
+
         // 역습 리시버: 가장 앞선 아군 1명(자기 자신 제외). 없으면 -1
         public static int CounterReceiver(IReadOnlyList<TargetInfo> teammates, int attackSign, int passerId)
         {

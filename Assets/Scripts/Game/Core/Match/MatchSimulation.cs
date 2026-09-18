@@ -368,14 +368,20 @@ namespace Game.Core.Match
             Third third = PositionRules.ThirdOf(Ball.X, passer.AttackSign);
             float speed = MatchTuning.PassSpeed[tactics[passer.Team].Tempo[(int)third]];
 
+            // 리드 패스: 리시버가 공 도착 때 있을 앞쪽 점으로. 리시버 속도는 그 선수 speed 스탯
+            float dx0 = receiver.X - passer.X;
+            float dz0 = receiver.Z - passer.Z;
+            float dist = (float)Math.Sqrt(dx0 * dx0 + dz0 * dz0);
+            (float x, float z) target = PassRules.LeadTarget(receiver.X, receiver.Z, receiver.AttackSign, dist, speed, MatchRules.SpeedMps(receiver.Stats.Speed));
+
             passInFlight = true;
             passReceiverId = receiverId;
-            passTargetX = receiver.X;
-            passTargetZ = receiver.Z;
+            passTargetX = target.x;
+            passTargetZ = target.z;
             PassCount++;
             lastKickerId = passer.PlayerId;
 
-            Ball = BallRules.Kick(Ball, receiver.X - passer.X, receiver.Z - passer.Z, speed);
+            Ball = BallRules.Kick(Ball, target.x - passer.X, target.z - passer.Z, speed);
         }
 
         // 소유자가 바뀐 틱: 패스 비행 마감(받았거나 가로챘거나), 볼 끌기 대기 시작

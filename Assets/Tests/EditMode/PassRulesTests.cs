@@ -92,6 +92,27 @@ public class PassRulesTests
     }
 
     [Test]
+    public void 리드_패스_목표는_리시버_앞쪽이고_상한과_필드_안으로_잘린다()
+    {
+        // 20m 패스를 15m/s로 → 1.33초. 리시버 7m/s면 9.3m 앞이지만 상한 8m
+        (float x, float z) lead = PassRules.LeadTarget(10f, 5f, +1, passDistance: 20f, ballSpeed: 15f, receiverSpeed: 7f);
+        Assert.AreEqual(18f, lead.x, 1e-4f);
+        Assert.AreEqual(5f, lead.z, 1e-4f, "Z는 그대로");
+
+        lead = PassRules.LeadTarget(10f, 0f, +1, 20f, 15f, receiverSpeed: 3f);
+        Assert.AreEqual(14f, lead.x, 1e-4f, "느린 리시버는 4m 앞");
+
+        lead = PassRules.LeadTarget(10f, 0f, -1, 20f, 15f, 3f);
+        Assert.AreEqual(6f, lead.x, 1e-4f, "팀 1은 -X 앞");
+
+        lead = PassRules.LeadTarget(50f, 0f, +1, 20f, 15f, 7f);
+        Assert.AreEqual(52f, lead.x, 1e-4f, "골라인 안(52.5 - 0.5)으로 클램프");
+
+        lead = PassRules.LeadTarget(10f, 0f, +1, 20f, 15f, receiverSpeed: 0f);
+        Assert.AreEqual(10f, lead.x, 1e-4f, "정지 리시버는 제자리");
+    }
+
+    [Test]
     public void 역습_리시버는_가장_앞선_아군_1명이다()
     {
         var mates = new List<TargetInfo> { new TargetInfo(1, 5f, 0f), new TargetInfo(2, 25f, -10f), new TargetInfo(3, 18f, 4f) };
