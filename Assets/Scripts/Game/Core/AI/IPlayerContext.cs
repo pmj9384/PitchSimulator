@@ -1,11 +1,14 @@
+using System.Collections.Generic;
 using Game.Core.Data;
 using Game.Core.Match;
+using Game.Core.Tactics;
 
 namespace Game.Core.AI
 {
     // BT가 선수에게 묻고(읽기) 시키는(행동) 유일한 창구. 트리는 MonoBehaviour를 모르고 이 계약만 본다.
     // 가짜 구현만 있으면 엔진 없이 트리를 테스트한다(CompositeNodeTests). 실제 구현은 순수 PlayerState(MatchSimulation 안).
-    // 멤버는 09-16 공·소유·슛 설계에서 리트머스(ST 1 vs GK 1)에 필요한 것만 채웠다. 패스·압박(2주차)은 그때 늘린다.
+    // 09-18 확장: 4국면 트리(스펙 §6)가 팀 전술·서드·역습·아군/상대·상대 GK·자리 2쌍을 읽고 Pass를 시킨다.
+    // 스냅샷은 시뮬이 틱마다 한 번 채운다. 22명이 같은 스냅샷을 보고 판단해야 결정성이 선다.
     public interface IPlayerContext
     {
         // ── 나
@@ -22,9 +25,34 @@ namespace Game.Core.AI
         bool OwnsBall { get; }
         float BallX { get; }
         float BallZ { get; }
+        int BallOwnerTeam { get; }     // 소유 팀 0/1, 없으면 -1
+
+        // ── 팀 전술·국면(시뮬이 계산해 넣음)
+        TeamTactics Tactics { get; }
+        Third BallThird { get; }       // 내 팀 기준 공이 있는 서드
+        bool IsCountering { get; }     // 우리 팀이 역습 중(공 앞쪽 상대 수비 수 ≤ 문턱)
+        bool IsCounterPressing { get; } // 우리 팀이 역압박 중(뺏긴 직후 창 안 + 뒤 수비 충분)
+
+        // ── 동료·상대·상대 GK(위치 스냅샷, 판정 함수 입력)
+        IReadOnlyList<TargetInfo> Teammates { get; }   // 나 제외
+        IReadOnlyList<TargetInfo> Opponents { get; }
+        int OpponentKeeperId { get; }                  // 없으면 -1
+        PlayerStats? OpponentKeeper { get; }
+
+        // ── 자리 2쌍(배치 좌표. 오프셋은 PositionRules가 붙임)
+        float AttackHomeX { get; }
+        float AttackHomeZ { get; }
+        float DefendHomeX { get; }
+        float DefendHomeZ { get; }
+
+        // ── 패스 받기
+        bool IsPassTarget { get; }     // 지금 날아오는 패스의 리시버가 나인가
+        float PassTargetX { get; }     // 그 패스의 도착점
+        float PassTargetZ { get; }
 
         // ── 시키기. 실행(속도·판정)은 시뮬 몫, 트리는 의도만 남긴다
         void MoveToward(float x, float z);
         void Shoot();
+        void Pass(int receiverId);
     }
 }

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Game.Core.AI;
 using Game.Core.Placement;
+using Game.Core.Tactics;
 
 namespace Game.Core.Match
 {
@@ -44,6 +45,16 @@ namespace Game.Core.Match
         private readonly Func<float> nextRoll;
         private readonly BehaviorNode tree;
 
+        // 팀 전술 2개(스타일 카드). 기본은 "균형"과 같은 빈 값(전부 0)이고 MatchManager가 프리셋을 주입한다
+        private readonly TeamTactics[] tactics = { new TeamTactics(), new TeamTactics() };
+
+        // 틱마다 한 번 계산하는 팀 단위 국면(09-18): 공은 하나라 서드·역습도 팀당 하나. 22명이 같은 값을 본다
+        private readonly List<TargetInfo>[] rosterSnapshot = { new List<TargetInfo>(), new List<TargetInfo>() };
+        private readonly int[] keeperIds = { -1, -1 };
+        private int lastOwnerTeam = -1;       // 직전 틱 소유 팀. 바뀌면 턴오버
+        private int ticksSinceTurnover = int.MaxValue;
+        private int turnoverLoserTeam = -1;   // 방금 공을 잃은 팀(역압박 판정 대상)
+
         // 비행 중인 슛의 결정된 운명. 골이면 GK 접촉을 무시하고 골라인을 넘긴다
         private bool shotInFlight;
         private bool shotWillScore;
@@ -61,13 +72,61 @@ namespace Game.Core.Match
         public PlayerState AddPlayer(PlayerState player)
         {
             players.Add(player);
+            if (player.IsGoalkeeper) { keeperIds[player.Team] = player.PlayerId; }
             return player;
+        }
+
+        public void SetTactics(int team, TeamTactics teamTactics)
+        {
+            tactics[team] = teamTactics;
+        }
+
+        public TeamTactics TacticsOf(int team)
+        {
+            return tactics[team];
+        }
+
+        // 팀 기준 공이 있는 서드·역습 여부. 결과 화면·테스트가 읽는다
+        public Third BallThirdOf(int team)
+        {
+            return PositionRules.ThirdOf(Ball.X, team == 0 ? +1 : -1);
+        }
+
+        public bool IsCountering(int team)
+        {
+            if (Ball.Phase == BallPhase.Free || OwnerTeam() != team) { return false; }
+
+            int threshold = tactics[team].CounterThreshold;
+            if (threshold < 0) { return false; }
+
+            int sign = team == 0 ? +1 : -1;
+            int ahead = PositionRules.CountDefendersAhead(Ball.X, rosterSnapshot[1 - team], sign, keeperIds[1 - team]);
+            return ahead <= threshold;
+        }
+
+        public bool IsCounterPressing(int team)
+        {
+            if (turnoverLoserTeam != team) { return false; }
+
+            int sign = team == 0 ? +1 : -1;
+            // 뺏긴 순간 우리 골 쪽에 남은 우리 수비 수 = 공보다 우리 골 쪽에 있는 우리 필드 플레이어(GK 제외)
+            int behind = PositionRules.CountDefendersAhead(Ball.X, rosterSnapshot[team], -sign, keeperIds[team]);
+            return PressRules.IsCounterPressing(behind, tactics[team].CounterPress, ticksSinceTurnover);
+        }
+
+        public int OwnerTeam()
+        {
+            if (Ball.Phase != BallPhase.Owned) { return -1; }
+            return FindPlayer(Ball.OwnerId).Team;
         }
 
         public void Kickoff()
         {
             Ball = BallState.FreeAt(0f, 0f);
             shotInFlight = false;
+            lastOwnerTeam = -1;
+            ticksSinceTurnover = int.MaxValue;
+            turnoverLoserTeam = -1;
             for (int i = 0; i < players.Count; i++)
             {
                 players[i].ReturnHome();
@@ -99,11 +158,12 @@ namespace Game.Core.Match
                 if (ResolveSaveOnContact()) { return; }
             }
 
+            FillSnapshots();
+
             for (int i = 0; i < players.Count; i++)
             {
                 PlayerState p = players[i];
                 p.ClearIntent();
-                p.Ball = Ball;
                 tree.Tick(p);
             }
 
@@ -111,6 +171,70 @@ namespace Game.Core.Match
             {
                 Apply(players[i], deltaTime);
             }
+        }
+
+        // 틱마다 한 번: 명부 위치 스냅샷 → 턴오버 감지 → 팀 국면(서드·역습·역압박) → 22명에게 같은 값을 넣는다
+        private void FillSnapshots()
+        {
+            rosterSnapshot[0].Clear();
+            rosterSnapshot[1].Clear();
+            for (int i = 0; i < players.Count; i++)
+            {
+                PlayerState p = players[i];
+                rosterSnapshot[p.Team].Add(new TargetInfo(p.PlayerId, p.X, p.Z));
+            }
+
+            int ownerTeam = OwnerTeam();
+            if (ownerTeam != -1 && lastOwnerTeam != -1 && ownerTeam != lastOwnerTeam)
+            {
+                ticksSinceTurnover = 0;
+                turnoverLoserTeam = lastOwnerTeam;
+            }
+            else if (ticksSinceTurnover < int.MaxValue)
+            {
+                ticksSinceTurnover++;
+            }
+            if (ownerTeam != -1) { lastOwnerTeam = ownerTeam; }
+
+            bool[] countering = { IsCountering(0), IsCountering(1) };
+            bool[] counterPressing = { IsCounterPressing(0), IsCounterPressing(1) };
+            Third[] thirds = { BallThirdOf(0), BallThirdOf(1) };
+
+            for (int i = 0; i < players.Count; i++)
+            {
+                PlayerState p = players[i];
+                int other = 1 - p.Team;
+                p.Ball = Ball;
+                p.BallOwnerTeam = ownerTeam;
+                p.Tactics = tactics[p.Team];
+                p.BallThird = thirds[p.Team];
+                p.IsCountering = countering[p.Team];
+                p.IsCounterPressing = counterPressing[p.Team];
+                p.Teammates = TeammatesExcluding(p);
+                p.Opponents = rosterSnapshot[other];
+                p.OpponentKeeperId = keeperIds[other];
+                p.OpponentKeeper = keeperIds[other] == -1 ? null : FindPlayer(keeperIds[other]).Stats;
+            }
+        }
+
+        // 동료 목록에서 나를 뺀 뷰. 22명 × 틱마다 새 리스트는 GC를 부르므로 선수마다 버퍼를 갖는다
+        private readonly Dictionary<int, List<TargetInfo>> teammateBuffers = new Dictionary<int, List<TargetInfo>>();
+
+        private IReadOnlyList<TargetInfo> TeammatesExcluding(PlayerState p)
+        {
+            List<TargetInfo> buffer;
+            if (!teammateBuffers.TryGetValue(p.PlayerId, out buffer))
+            {
+                buffer = new List<TargetInfo>();
+                teammateBuffers[p.PlayerId] = buffer;
+            }
+            buffer.Clear();
+            List<TargetInfo> roster = rosterSnapshot[p.Team];
+            for (int i = 0; i < roster.Count; i++)
+            {
+                if (roster[i].PlayerId != p.PlayerId) { buffer.Add(roster[i]); }
+            }
+            return buffer;
         }
 
         // ── 선수 실행
