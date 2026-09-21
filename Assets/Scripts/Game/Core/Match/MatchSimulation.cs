@@ -208,9 +208,11 @@ namespace Game.Core.Match
             {
                 if (ResolveSaveOnContact()) { return; }
             }
-            else if (Ball.Phase == BallPhase.Flight && passInFlight)
+            else if (Ball.Phase == BallPhase.Flight && !shotInFlight)
             {
-                TryCapture();   // 리시버가 받거나 상대가 가로챈다. 잡기 규칙은 같다(거리 ≤ 0.8)
+                // 패스 비행: 리시버가 받거나 상대가 가로챈다. 슛도 패스도 아닌 비행(세이브 뒤 튕긴 공): 누구든 줍는다.
+                // 09-21 리뷰: 튕긴 공에 잡기 분기가 없어 멈출 때까지 2초(8m)를 아무도 못 잡았다. 잡기 규칙은 같다(거리 ≤ 0.8)
+                TryCapture();
             }
 
             OnOwnerChanged();
@@ -521,7 +523,7 @@ namespace Game.Core.Match
                 captureCandidates.Add(new TargetInfo(p.PlayerId, p.X, p.Z));
             }
 
-            int ownerId = BallRules.TryCapture(Ball, captureCandidates, MatchTuning.CaptureRadius, allowFlight: passInFlight);
+            int ownerId = BallRules.TryCapture(Ball, captureCandidates, MatchTuning.CaptureRadius, allowFlight: !shotInFlight);
             if (ownerId == BallState.NoOwner) { return; }
 
             PlayerState owner = FindPlayer(ownerId);

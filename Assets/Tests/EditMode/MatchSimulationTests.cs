@@ -155,6 +155,21 @@ public class MatchSimulationTests
     }
 
     [Test]
+    public void 세이브_뒤_튕긴_공은_멈추기_전에도_잡을_수_있다()
+    {
+        // 09-21 리뷰: 파링(8m/s, 감속 4)은 슛도 패스도 아닌 비행이라 잡기 분기가 없어 2초(100틱) 동안 아무도 못 잡았다
+        var sim = new MatchSimulation(() => 0.5f, PlayerTreeBuilder.BuildLitmus());
+        sim.AddPlayer(new PlayerState(0, 0, Striker(), 3f, 0f));   // 튕긴 공의 경로 위 3m 앞
+        sim.Kickoff();
+        sim.Ball = BallRules.Kick(BallState.FreeAt(0f, 0f), 1f, 0f, MatchTuning.ParrySpeed);
+
+        int ticks = 0;
+        while (sim.Ball.Phase != BallPhase.Owned && ticks < 100) { sim.Tick(Dt); ticks++; }
+        Assert.AreEqual(0, sim.Ball.OwnerId, "경로 위 선수가 잡는다");
+        Assert.Less(ticks, 100, "공이 멈추기(100틱) 전에 잡아야 한다");
+    }
+
+    [Test]
     public void GK는_박스_밖_자유_공을_쫓지_않는다()
     {
         var sim = new MatchSimulation(() => 0.5f, PlayerTreeBuilder.BuildLitmus());
