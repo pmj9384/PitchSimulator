@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Game.Core.AI;
 using Game.Core.Match;
+using Game.Core.Tactics;
 using UnityEngine;
 
 // 경기 실행자이자 심판. 고정 스텝마다 순수 MatchSimulation을 한 틱 돌리고 그 결과를 화면(선수·공 뷰)에 비춘다.
@@ -45,10 +46,21 @@ public class MatchManager : InGameManager
             ResetAfterEveryShot = false   // 4국면 트리(09-18): 세이브 뒤 GK가 배급한다. 리트머스 때만 true였다
         };
         // 팀 전술 프리셋(스타일 카드). 배치 UI가 오기 전까지 양 팀 "균형". 세팅 화면이 생기면 세이브에서 읽는다
-        Simulation.SetTactics(0, TeamTacticsRepository.Get(homePreset));
-        Simulation.SetTactics(1, TeamTacticsRepository.Get(awayPreset));
+        Simulation.SetTactics(0, RequirePreset(homePreset));
+        Simulation.SetTactics(1, RequirePreset(awayPreset));
         Simulation.ShotResolved += LogShot;
         Simulation.PossessionChanged += LogPossession;
+    }
+
+    // 프리셋 이름이 틀리면 여기서 터뜨린다. null을 시뮬에 넘기면 첫 틱 트리에서 NRE로 데이터 오류가 가려진다(PlayerManager.Spawn과 같은 관례)
+    private static TeamTactics RequirePreset(string presetId)
+    {
+        TeamTactics preset = TeamTacticsRepository.Get(presetId);
+        if (preset == null)
+        {
+            throw new System.InvalidOperationException($"[MatchManager] TacticPresets에 없는 presetId: {presetId}");
+        }
+        return preset;
     }
 
     private float NextRoll()
