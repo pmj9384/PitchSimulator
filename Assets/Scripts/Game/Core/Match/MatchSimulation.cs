@@ -75,6 +75,10 @@ namespace Game.Core.Match
 
         // 틱마다 한 번 계산하는 팀 단위 국면(09-18): 공은 하나라 서드·역습도 팀당 하나. 22명이 같은 값을 본다
         private readonly List<TargetInfo>[] rosterSnapshot = { new List<TargetInfo>(), new List<TargetInfo>() };
+        // 팀 국면 스냅샷 버퍼. 틱마다 새 배열을 만들면 3분에 9,000 × 3번 할당(09-21 전수조사 S5)
+        private readonly bool[] counteringByTeam = new bool[2];
+        private readonly bool[] counterPressingByTeam = new bool[2];
+        private readonly Third[] thirdByTeam = new Third[2];
         private readonly int[] keeperIds = { -1, -1 };
         private int lastOwnerTeam = -1;       // 직전 틱 소유 팀. 바뀌면 턴오버
         private int ticksSinceTurnover = int.MaxValue;
@@ -255,9 +259,12 @@ namespace Game.Core.Match
             }
             if (ownerTeam != -1) { lastOwnerTeam = ownerTeam; }
 
-            bool[] countering = { IsCountering(0), IsCountering(1) };
-            bool[] counterPressing = { IsCounterPressing(0), IsCounterPressing(1) };
-            Third[] thirds = { BallThirdOf(0), BallThirdOf(1) };
+            for (int team = 0; team < 2; team++)
+            {
+                counteringByTeam[team] = IsCountering(team);
+                counterPressingByTeam[team] = IsCounterPressing(team);
+                thirdByTeam[team] = BallThirdOf(team);
+            }
 
             for (int i = 0; i < players.Count; i++)
             {
@@ -266,9 +273,9 @@ namespace Game.Core.Match
                 p.Ball = Ball;
                 p.BallOwnerTeam = ownerTeam;
                 p.Tactics = tactics[p.Team];
-                p.BallThird = thirds[p.Team];
-                p.IsCountering = countering[p.Team];
-                p.IsCounterPressing = counterPressing[p.Team];
+                p.BallThird = thirdByTeam[p.Team];
+                p.IsCountering = counteringByTeam[p.Team];
+                p.IsCounterPressing = counterPressingByTeam[p.Team];
                 p.Teammates = TeammatesExcluding(p);
                 p.Opponents = rosterSnapshot[other];
                 p.OpponentKeeperId = keeperIds[other];
