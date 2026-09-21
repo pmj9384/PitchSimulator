@@ -25,13 +25,13 @@ namespace Game.Core.AI
 
                 // ② 슛 확률(진짜 상대 GK 스탯) ≥ 슛 성향 → 슛
                 new SequenceNode(
-                    new ConditionNode(ctx => ctx.OwnsBall && ShotChance(ctx) >= ctx.Stats.ShotBias),
+                    new ConditionNode(ctx => ctx.OwnsBall && WantsShot(ctx)),
                     new ActionNode(ctx => ctx.Shoot())),
 
-                // ③ 역습 중 → 가장 앞선 아군에게, 안전 검사 없이
+                // ③ 역습 중 → 나보다 확실히 앞선 아군 중 가장 앞선 이에게, 안전 검사 없이(스펙 §6 "첫 패스 전방"). 앞선 아군이 없으면 ④·⑤로
                 new SequenceNode(
-                    new ConditionNode(ctx => ctx.OwnsBall && ctx.IsCountering),
-                    new ActionNode(ctx => PassTo(ctx, PassRules.CounterReceiver(ctx.Teammates, ctx.AttackSign, ctx.PlayerId)))),
+                    new ConditionNode(ctx => ctx.OwnsBall && ctx.IsCountering && PassRules.CounterReceiver(ctx.X, ctx.Teammates, ctx.AttackSign, ctx.PlayerId) != -1),
+                    new ActionNode(ctx => PassTo(ctx, PassRules.CounterReceiver(ctx.X, ctx.Teammates, ctx.AttackSign, ctx.PlayerId)))),
 
                 // ④ 안전한 앞선 아군이 있으면 최고점에 패스
                 new SequenceNode(
@@ -80,6 +80,7 @@ namespace Game.Core.AI
         {
             return new SelectorNode(
                 new SequenceNode(
+                    // 리트머스는 옛 비교식 그대로(테스트 전용. 주사위 수열 테스트가 슛 위치에 묶여 있어 스케일을 안 건다)
                     new ConditionNode(ctx => ctx.OwnsBall && ShotChance(ctx) >= ctx.Stats.ShotBias),
                     new ActionNode(ctx => ctx.Shoot())),
                 new SequenceNode(
@@ -93,6 +94,12 @@ namespace Game.Core.AI
         }
 
         // ── 판정 어댑터. 컨텍스트 값을 순수 함수 인자로 옮기기만 한다
+
+        // 슛 성향은 0~1 다이얼, xG는 0~0.3이 실용 범위라 스케일을 맞춰 비교한다(MatchTuning.ShotBiasXgScale)
+        private static bool WantsShot(IPlayerContext ctx)
+        {
+            return ShotChance(ctx) >= ctx.Stats.ShotBias * MatchTuning.ShotBiasXgScale;
+        }
 
         private static float ShotChance(IPlayerContext ctx)
         {

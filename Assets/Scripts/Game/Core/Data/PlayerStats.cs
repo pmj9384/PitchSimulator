@@ -34,7 +34,7 @@ namespace Game.Core.Data
         // ── 지시(행동) 다이얼 11. 트리의 판정값. 팀 전술 값을 덮어쓴다(FM26 개인 지시 기준, 전술-기획.md 3-2)
         public float PushUp { get; set; }        // 전진 폭: 아군 소유 때 자리에서 앞으로 얼마나(m)
         public float PressRange { get; set; }    // 압박 거리: 상대 소유 때 공이 몇 m 안이면 달려드나. 역할마다 달라 "누가 압박하나"의 답
-        public float ShotBias { get; set; }      // 슛 성향: 슛 확률이 얼마 이상이면 쏘나(0~1)
+        public float ShotBias { get; set; }      // 슛 성향(0~1): xG ≥ 성향 × MatchTuning.ShotBiasXgScale(0.3)이면 쏜다. 포처 0.2 → xG 0.06
         public float PassLength { get; set; }    // 패스 길이: 우선 패스 거리(m)
         public float Width { get; set; }         // 측면 쏠림: 자리 기준 좌우로 얼마나(m)
         public float LineHeight { get; set; }    // 라인 높이: 수비 때 후퇴 한계(m)

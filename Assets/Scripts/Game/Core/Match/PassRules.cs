@@ -94,14 +94,18 @@ namespace Game.Core.Match
         }
 
         // 역습 리시버: 가장 앞선 아군 1명(자기 자신 제외). 없으면 -1
-        public static int CounterReceiver(IReadOnlyList<TargetInfo> teammates, int attackSign, int passerId)
+        // 09-21 리뷰: 자기만 빼면 최전방 선수가 공을 가졌을 때 뒤 선수에게 주고, 그 선수가 다시 앞으로 주는 핑퐁(3분에 158·157)이 됐다.
+        // 패서보다 CounterForwardMargin 이상 앞선 아군만 후보. 없으면 -1(트리는 ④·⑤로 떨어진다)
+        public static int CounterReceiver(float passerX, IReadOnlyList<TargetInfo> teammates, int attackSign, int passerId)
         {
             int best = -1;
             float bestForward = float.MinValue;
+            float minForward = passerX * attackSign + MatchTuning.CounterForwardMargin;
             for (int i = 0; i < teammates.Count; i++)
             {
                 if (teammates[i].PlayerId == passerId) { continue; }
                 float forward = teammates[i].X * attackSign;
+                if (forward < minForward) { continue; }
                 if (forward > bestForward || (forward == bestForward && teammates[i].PlayerId < best))
                 {
                     bestForward = forward;
@@ -115,7 +119,7 @@ namespace Game.Core.Match
         public static int KeeperDistributionTarget(float gkX, float gkZ, IReadOnlyList<TargetInfo> teammates, int attackSign, int level, int keeperId, bool alternate)
         {
             bool goLong = level == 2 || (level == 1 && alternate);
-            if (goLong) { return CounterReceiver(teammates, attackSign, keeperId); }
+            if (goLong) { return CounterReceiver(gkX, teammates, attackSign, keeperId); }   // GK가 가장 뒤라 앞선 아군 중 최전방
 
             int best = -1;
             float bestDistSq = float.MaxValue;
