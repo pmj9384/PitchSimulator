@@ -93,6 +93,10 @@ namespace Game.Core.Match
             PassReceiverId = receiverId;
         }
 
+        // 태클(09-21). 시뮬이 틱마다 줄인다. 정지 중엔 이동 안 함(제쳐짐), 쿨다운 중엔 재시도 안 함
+        public int FrozenTicks { get; set; }
+        public int TackleCooldownTicks { get; set; }
+
         public void ClearIntent()
         {
             WantsMove = false;

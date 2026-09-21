@@ -36,6 +36,11 @@ public class FullMatchTests
         public float MaxShotChance;         // 소유자 위치에서의 xG 최대(ST shotBias 0.2 이상이면 슛이 나야 함)
         public int TicksOwnerNearGoal;      // 소유자가 상대 골라인 20m 안에 있던 틱
         public int DribbleTicks;            // 소유 중 이동한 틱(패스 대기 아님)
+        public int ContactTicks;            // 상대가 소유자 태클 사거리 안에 있던 틱
+        public int ContactTicksNotImmune;   // 그중 면역이 아닌 틱(= 태클 시도가 가능했던 틱)
+        public int OwnedTicks;
+        public float MinOppDist = 999f;     // 소유 중 상대와의 최소 거리
+        public int Within3mTicks;           // 상대가 3m 안에 있던 소유 틱
     }
 
     private static MatchSimulation FullMatch(int seed, Summary summary)
@@ -95,6 +100,13 @@ public class FullMatchTests
                 if (chance > summary.MaxShotChance) { summary.MaxShotChance = chance; }
                 if (52.5f - o.X * sign <= 20f) { summary.TicksOwnerNearGoal++; }
                 if (prevOwned && prevOwnerId == o.PlayerId && Math.Abs(o.X - prevOwnerX) > 0.01f) { summary.DribbleTicks++; }
+                summary.OwnedTicks++;
+                float r2 = MatchTuning.TackleRange * MatchTuning.TackleRange;
+                float minD2 = sim.Players.Where(q => q.Team != o.Team).Min(q => (q.X - o.X) * (q.X - o.X) + (q.Z - o.Z) * (q.Z - o.Z));
+                if (minD2 < summary.MinOppDist * summary.MinOppDist) { summary.MinOppDist = (float)Math.Sqrt(minD2); }
+                if (minD2 <= 9f) { summary.Within3mTicks++; }
+                bool contact = minD2 <= r2;
+                if (contact) { summary.ContactTicks++; if (!sim.OwnerImmune) { summary.ContactTicksNotImmune++; } }
                 prevOwnerId = o.PlayerId; prevOwnerX = o.X;
             }
             prevOwned = owned; prevBallX = sim.Ball.X;
@@ -111,7 +123,7 @@ public class FullMatchTests
         var parts = new List<string>();
         foreach (KeyValuePair<PossessionChange, int> kv in s.Possession) { parts.Add($"{kv.Key} {kv.Value}"); }
         float avgFlight = s.FlightSamples == 0 ? 0f : (float)s.FlightTicksSum / s.FlightSamples;
-        return $"스코어 {sim.HomeGoals}:{sim.AwayGoals}, 슛 {s.Shots}(골 {s.Goals}), 패스 {sim.PassCount}(앞 {s.ForwardPasses}·뒤 {s.BackPasses}), 가로채기 {sim.InterceptCount}, 턴오버 {sim.TurnoverCount}, 팀1 소유 {s.Team1Possessions}회, 소유 변경 [{string.Join(", ", parts)}], 비행 평균 {avgFlight:0.0}틱, 상대 서드 {s.TicksBallOppThird}틱, 골라인 20m 안 소유 {s.TicksOwnerNearGoal}틱, 드리블 {s.DribbleTicks}틱, 최대 슛 확률 {s.MaxShotChance:0.000}, 팀0 최대 X {s.MaxBallXTeam0:0.0}, 팀1 최소 X {s.MinBallXTeam1:0.0}, 공 ({sim.Ball.X:0.0},{sim.Ball.Z:0.0}) {sim.Ball.Phase}";
+        return $"스코어 {sim.HomeGoals}:{sim.AwayGoals}, 슛 {s.Shots}(골 {s.Goals}), 패스 {sim.PassCount}(앞 {s.ForwardPasses}·뒤 {s.BackPasses}), 가로채기 {sim.InterceptCount}, 태클 {sim.TackleAttemptCount}회(성공 {sim.TackleSuccessCount}), 턴오버 {sim.TurnoverCount}, 팀1 소유 {s.Team1Possessions}회, 소유 변경 [{string.Join(", ", parts)}], 비행 평균 {avgFlight:0.0}틱, 상대 서드 {s.TicksBallOppThird}틱, 골라인 20m 안 소유 {s.TicksOwnerNearGoal}틱, 드리블 {s.DribbleTicks}틱, 소유 {s.OwnedTicks}틱(3m 안 {s.Within3mTicks}·접촉 {s.ContactTicks}·면역 밖 {s.ContactTicksNotImmune}·최소 거리 {s.MinOppDist:0.0}), 최대 슛 확률 {s.MaxShotChance:0.000}, 팀0 최대 X {s.MaxBallXTeam0:0.0}, 팀1 최소 X {s.MinBallXTeam1:0.0}, 공 ({sim.Ball.X:0.0},{sim.Ball.Z:0.0}) {sim.Ball.Phase}";
     }
 
     [Test]

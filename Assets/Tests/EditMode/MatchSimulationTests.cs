@@ -7,6 +7,13 @@ using NUnit.Framework;
 
 // 경기 루프 검증(엔진 없음). 리트머스: ST 1 vs GK 1, 슛 10회의 결과가 각각 MatchRules.Resolve(p_i, roll_i)와 같고
 // 같은 주사위 수열이면 같은 경기가 나온다. 그 외 잡기·라인 아웃·GK 출격 한계.
+// 태클 시나리오용 최소 트리: 아무 의도 없음 / 공을 향해 이동
+internal static class PassFlightTestsHelper
+{
+    internal sealed class NoOp : BehaviorNode { public override NodeState Tick(IPlayerContext ctx) { return NodeState.Success; } }
+    internal sealed class ChaseBall : BehaviorNode { public override NodeState Tick(IPlayerContext ctx) { if (!ctx.OwnsBall) { ctx.MoveToward(ctx.BallX, ctx.BallZ); } return NodeState.Success; } }
+}
+
 public class MatchSimulationTests
 {
     private const float Dt = 0.02f;
@@ -152,6 +159,62 @@ public class MatchSimulationTests
         Assert.AreEqual(0f, reports[0].Probability, "40m 밖은 확률 0");
         Assert.AreEqual(BallPhase.Free, sim.Ball.Phase);
         Assert.AreEqual(0f, sim.Ball.X, "킥오프로 돌아옴");
+    }
+
+    private static PlayerStats Defender(int tackle)
+    {
+        return new PlayerStats { RoleId = "CB", VariantId = "cb_centreback", Speed = 40, Stamina = 50, Pass = 40, Shot = 20, Tackle = tackle, Positioning = 60, PressRange = 6f, ShotBias = 0.8f, PassLength = 20f };
+    }
+
+    [Test]
+    public void 태클_확률은_tackle_스탯에_단조_증가하고_기본_확률_아래다()
+    {
+        Assert.Less(MatchRules.TackleProbability(20), MatchRules.TackleProbability(50));
+        Assert.Less(MatchRules.TackleProbability(50), MatchRules.TackleProbability(80));
+        Assert.Less(MatchRules.TackleProbability(100), MatchTuning.TackleBaseChance);
+        Assert.AreEqual(MatchTuning.TackleBaseChance * 0.5f, MatchRules.TackleProbability(50), 1e-5f, "50이면 기본의 절반");
+    }
+
+    [Test]
+    public void 붙은_상대는_면역이_끝난_뒤_태클해_성공하면_공을_뺏고_Turnover가_난다()
+    {
+        // 주사위 0 = 항상 성공. 소유자(팀0)는 가만히, 태클러(팀1, tackle 100)가 0.8m에 붙어 있다
+        var sim = new MatchSimulation(() => 0f, new PassFlightTestsHelper.ChaseBall());   // 자유 공이 되면 둘 다 쫓는다
+        sim.AddPlayer(new PlayerState(0, 0, Striker(), 0f, 0f));
+        sim.AddPlayer(new PlayerState(1, 1, Defender(100), 0.8f, 0f));
+        var kinds = new List<PossessionChange>();
+        sim.PossessionChanged += r => kinds.Add(r.Kind);
+        sim.Kickoff();
+        sim.Ball = BallRules.Own(sim.Ball, 0, 0f, 0f);
+
+        for (int i = 0; i < MatchTuning.PossessionImmunityTicks - 1; i++) { sim.Tick(Dt); }
+        Assert.AreEqual(0, sim.TackleAttemptCount, "면역 중엔 시도 없음");
+        Assert.AreEqual(0, sim.Ball.OwnerId);
+
+        for (int i = 0; i < 100 && sim.TurnoverCount == 0; i++) { sim.Tick(Dt); }
+        Assert.AreEqual(1, sim.TackleSuccessCount, "면역이 끝나면 태클이 성공한다(주사위 0)");
+        Assert.AreEqual(1, sim.Ball.OwnerId, "태클러가 공을 가진다(깔끔한 탈취)");
+        Assert.AreEqual(1, sim.TurnoverCount);
+        Assert.IsTrue(kinds.Contains(PossessionChange.Turnover));
+    }
+
+    [Test]
+    public void 태클에_실패하면_태클러는_정지하고_쿨다운_동안_재시도하지_않는다()
+    {
+        var sim = new MatchSimulation(() => 0.99f, new PassFlightTestsHelper.ChaseBall());   // 주사위 0.99 = 항상 실패
+        sim.AddPlayer(new PlayerState(0, 0, Striker(), 0f, 0f));
+        PlayerState t = sim.AddPlayer(new PlayerState(1, 1, Defender(80), 0.8f, 0f));
+        sim.Kickoff();
+        sim.Ball = BallRules.Own(sim.Ball, 0, 0f, 0f);
+
+        for (int i = 0; i < MatchTuning.PossessionImmunityTicks + 2; i++) { sim.Tick(Dt); }
+        Assert.AreEqual(1, sim.TackleAttemptCount, "면역 끝나면 한 번 시도");
+        Assert.AreEqual(0, sim.TackleSuccessCount);
+        Assert.Greater(t.FrozenTicks, MatchTuning.TackleFailFreezeTicks - 5, "실패 → 정지");
+        float x = t.X;
+        for (int i = 0; i < 10; i++) { sim.Tick(Dt); }
+        Assert.AreEqual(x, t.X, 1e-5f, "정지 중엔 공을 쫓아도 안 움직인다");
+        Assert.AreEqual(1, sim.TackleAttemptCount, "쿨다운 중 재시도 없음");
     }
 
     [Test]

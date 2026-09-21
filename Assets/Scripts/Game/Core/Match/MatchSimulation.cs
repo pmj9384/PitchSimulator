@@ -64,6 +64,9 @@ namespace Game.Core.Match
         public event Action<ShotReport>? ShotResolved;
         public event Action<PossessionReport>? PossessionChanged;
         public int TurnoverCount { get; private set; }
+        public int TackleAttemptCount { get; private set; }
+        public int TackleSuccessCount { get; private set; }
+        public bool OwnerImmune => immunityTicksLeft > 0;   // 계측용
 
         private readonly List<PlayerState> players = new List<PlayerState>();
         private readonly List<TargetInfo> captureCandidates = new List<TargetInfo>();
@@ -98,6 +101,7 @@ namespace Game.Core.Match
         private float passTargetX;
         private float passTargetZ;
         private int ballOwnerAtLastTick = BallState.NoOwner;
+        private int immunityTicksLeft;        // 소유 면역(09-21): 소유 뒤 이 틱 동안 태클 불가
         private int holdUpTicksLeft;          // 볼 끌기(개인 holdUp): 소유 뒤 킥까지 대기 틱
         private bool keeperAlternate;         // GK 배급 "섞어"의 교대 스위치
         // 킥 릴리스(09-21 Play 진단): 찬 공은 킥 원점에서 잡기 반경을 벗어난 뒤에야 누구든 잡을 수 있다.
@@ -180,8 +184,14 @@ namespace Game.Core.Match
             passReceiverId = -1;
             ballOwnerAtLastTick = BallState.NoOwner;
             holdUpTicksLeft = 0;
+            immunityTicksLeft = 0;
             passReleased = true;
             lastKickerId = BallState.NoOwner;
+            for (int i = 0; i < players.Count; i++)
+            {
+                players[i].FrozenTicks = 0;
+                players[i].TackleCooldownTicks = 0;
+            }
             for (int i = 0; i < players.Count; i++)
             {
                 players[i].ReturnHome();
@@ -220,6 +230,7 @@ namespace Game.Core.Match
             }
 
             OnOwnerChanged();
+            ResolveTackles();   // 소유 변경 뒤에: 방금 잡은 선수는 같은 틱에 면역을 받는다
 
             FillSnapshots();
 
@@ -309,6 +320,8 @@ namespace Game.Core.Match
         // ── 선수 실행
         private void Apply(PlayerState p, float deltaTime)
         {
+            if (p.FrozenTicks > 0) { return; }   // 실패한 태클러는 제쳐져 있다(09-21)
+
             bool owner = Ball.Phase == BallPhase.Owned && Ball.OwnerId == p.PlayerId;
 
             // 볼 끌기(개인 holdUp): 소유 직후엔 킥 의도를 대기 틱 동안 무시한다. 타깃맨이 버티는 시간
@@ -425,11 +438,12 @@ namespace Game.Core.Match
             }
             else if (previousOwnerId != BallState.NoOwner && FindPlayer(previousOwnerId).Team != owner.Team)
             {
-                kind = PossessionChange.Turnover;   // 소유 중이던 공을 상대가 발치에서 뺏음(경합)
+                kind = PossessionChange.Turnover;   // 소유 중이던 공을 상대가 태클로 뺏음(09-21부터 실제로 난다)
                 TurnoverCount++;
             }
 
             holdUpTicksLeft = (int)Math.Round(owner.Stats.HoldUp / MatchTuning.FixedStep);
+            immunityTicksLeft = MatchTuning.PossessionImmunityTicks;
             PossessionChanged?.Invoke(new PossessionReport(ownerNow, owner.Team, previousOwnerId, kind, Ball.X, Ball.Z));
         }
 
@@ -504,6 +518,46 @@ namespace Game.Core.Match
         {
             shotInFlight = false;
             ShotResolved?.Invoke(new ShotReport(shooterId, shotProbability, outcome));
+        }
+
+        // 태클(09-21): 소유자 태클 사거리(TackleRange) 안의 상대가 쿨다운이 끝났으면 시도. 성공하면 태클러 소유(깔끔한 탈취), 실패하면 태클러 정지.
+        // 루즈볼 방식은 버렸다: 붙어 있으면 공이 소유자 뒤로 떨어지고 되찾기 경주에서 빠른 쪽(대개 원래 소유자)이 늘 이겨 태클이 무의미했다(테스트 트레이스)
+        // 주사위 1개 소비 → 시드가 다르면 결과가 갈리는 두 번째 지점(첫째는 슛). 면역 중엔 시도 자체가 없다
+        private void ResolveTackles()
+        {
+            for (int i = 0; i < players.Count; i++)
+            {
+                PlayerState p = players[i];
+                if (p.FrozenTicks > 0) { p.FrozenTicks--; }
+                if (p.TackleCooldownTicks > 0) { p.TackleCooldownTicks--; }
+            }
+            if (immunityTicksLeft > 0) { immunityTicksLeft--; }
+            if (Ball.Phase != BallPhase.Owned || immunityTicksLeft > 0) { return; }
+
+            PlayerState owner = FindPlayer(Ball.OwnerId);
+            float reach2 = MatchTuning.TackleRange * MatchTuning.TackleRange;
+            for (int i = 0; i < players.Count; i++)
+            {
+                PlayerState t = players[i];
+                if (t.Team == owner.Team || t.FrozenTicks > 0 || t.TackleCooldownTicks > 0) { continue; }
+                float dx = t.X - owner.X;
+                float dz = t.Z - owner.Z;
+                float d2 = dx * dx + dz * dz;
+                if (d2 > reach2) { continue; }
+
+                TackleAttemptCount++;
+                t.TackleCooldownTicks = MatchTuning.TackleCooldownTicks;
+                if (!MatchRules.Resolve(MatchRules.TackleProbability(t.Stats.Tackle), nextRoll()))
+                {
+                    t.FrozenTicks = MatchTuning.TackleFailFreezeTicks;
+                    continue;
+                }
+
+                TackleSuccessCount++;
+                Ball = BallRules.Own(Ball, t.PlayerId, t.X, t.Z);
+                OnOwnerChanged();   // 같은 틱에 Turnover 기록 + 새 소유자 면역
+                return;   // 한 틱에 태클은 하나
+            }
         }
 
         private void TryCapture()

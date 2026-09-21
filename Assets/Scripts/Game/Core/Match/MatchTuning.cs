@@ -47,6 +47,12 @@ namespace Game.Core.Match
         public const float SlideVerticalAttack = 0.4f;
         public const float SlideVerticalMaxAttack = 15f;
         public const float SlideLateralKeeper = 0.15f;                           // GK는 가로만 조금. 라인을 따라 나오면 안 된다
+        // 태클(09-21 설계, 유저 승인): 소유자 발 뻗는 범위(InterceptReach) 안의 상대가 시도. FM은 tackling 대 dribbling 대결, 우리는 공이 발에 붙어 대결 판정이 필요
+        public const float TackleRange = 2f;                                     // 태클 사거리(런지·슬라이딩). 발 뻗는 1.2m로는 3분에 접촉 0틱(압박 선수가 3m에 오면 소유자가 먼저 돌림)
+        public const float TackleBaseChance = 0.3f;                              // 시도 1회 성공 확률의 기본. × 로지스틱(tackle 스탯). 소유자 저항(볼 컨트롤)은 스탯이 없어 1차 제외
+        public const int TackleCooldownTicks = 25;                              // 태클러당 재시도 간격 0.5초. 틱마다 굴리면 확률이 폭주한다
+        public const int PossessionImmunityTicks = 25;                          // 소유 뒤 0.5초는 못 뺏김(유저 09-21 "뺏고 나서 몇 초는 바로 못 뺏게"). 붙은 둘이 틱마다 뒤집는 것 방지, 첫 터치에 해당
+        public const int TackleFailFreezeTicks = 25;                            // 실패한 태클러는 0.5초 정지(제쳐짐). 실패 비용이 없으면 압박이 공짜다
         public const float ShotBiasXgScale = 0.3f;                              // 슛 판정 = xG ≥ 슛 성향(0~1) × 이 값. xG는 정면 11m가 0.18이라 0~0.3이 실용 범위(09-21: 성향 0.2를 그대로 비교하니 3분 슛 0). 리그 평균 슛 xG 0.10 → 포처(0.2) 문턱 0.06
         public const float CounterForwardMargin = 3f;                           // 역습 리시버는 패서보다 이만큼 앞선 아군만(09-21 리뷰: 자기만 빼면 뒤로 돌려 핑퐁)
         public const float PressedRadius = 3f;                                  // 상대가 이 거리 안이면 "압박받는 중". 옆·뒤 돌리기는 이때만(09-21: 압박 없이도 돌리니 앞·뒤 핑퐁으로 드리블 0)

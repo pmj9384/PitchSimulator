@@ -56,6 +56,13 @@ namespace Game.Core.Match
                 && Math.Abs(z) <= FieldBounds.PenaltyBoxHalfWidth;
         }
 
+        // 태클 성공 확률(09-21): 기본 확률 × 로지스틱((tackle − 50)/50 × 보정 폭). tackle 80 → 0.19, 50 → 0.15, 20 → 0.11
+        public static float TackleProbability(int tackle)
+        {
+            float logit = (tackle - 50) / 50f * MatchTuning.StatLogitScale;
+            return MatchTuning.TackleBaseChance * Logistic(logit);
+        }
+
         public static float Logistic(float logit)
         {
             return 1f / (1f + (float)Math.Exp(-logit));
