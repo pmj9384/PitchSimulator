@@ -35,7 +35,14 @@ namespace Game.Core.Match
         // 경계 포함(<=): "반경 안"이니 정확히 반경에 닿아도 잡는다. 후보 목록(정의역)은 호출자가 정한다.
         public static int TryCapture(in BallState ball, IReadOnlyList<TargetInfo>? candidates, float radius)
         {
-            if (ball.Phase != BallPhase.Free) { return BallState.NoOwner; }
+            return TryCapture(ball, candidates, radius, allowFlight: false);
+        }
+
+        // allowFlight = 비행 중(패스)에도 잡는다. 슛 비행은 골라인·세이브 판정이 따로 있어 호출자가 끈다
+        public static int TryCapture(in BallState ball, IReadOnlyList<TargetInfo>? candidates, float radius, bool allowFlight)
+        {
+            if (ball.Phase == BallPhase.Owned) { return BallState.NoOwner; }
+            if (ball.Phase == BallPhase.Flight && !allowFlight) { return BallState.NoOwner; }
 
             int nearest = TargetSelector.SelectNearest(ball.X, ball.Z, candidates);
             if (nearest == BallState.NoOwner) { return BallState.NoOwner; }

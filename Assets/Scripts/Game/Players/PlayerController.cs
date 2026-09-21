@@ -12,7 +12,7 @@ public class PlayerController : MonoBehaviour
     public void Setup(PlayerState state)
     {
         State = state;
-        name = $"Player_{state.Team}_{state.Stats.RoleId}_{state.PlayerId}";   // 하이어라키에서 바로 읽히게
+        name = $"Player_{state.Team}_{state.Stats.VariantId}_{state.PlayerId}";   // 하이어라키에서 바로 읽히게
         SyncView();
     }
 

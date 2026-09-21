@@ -4,15 +4,15 @@ using System.IO;
 using Game.Core.Data;
 using NUnit.Framework;
 
-// PlayerTableParser 검증. ①정상 매핑(GK 3열 포함) ②실제 Resources CSV 전건 대조(역할 8종·총점 300) ③헤더 불일치 ④빈 텍스트
+// PlayerTableParser 검증. ①정상 매핑(변형·노출·포커스·다이얼 11) ②실제 Resources CSV 전건 대조(자리 8 × 변형 54·총점 300·노출 17) ③헤더 불일치 ④빈 텍스트
 // ⑤깨진 숫자(행 번호) ⑥중복 roleId(대소문자 무시) ⑦열 부족 ⑧범위 검증 경계값 ⑨총점 불일치
 public class PlayerTableParserTests
 {
     private const string ValidHeader =
-        "roleId,speed,stamina,pass,shot,tackle,positioning,reflexes,handling,diving,pushUp,pressRange,shotBias,passLength,width,lineHeight,displayName,description,icon";
+        "roleId,variantId,exposed,focus,speed,stamina,pass,shot,tackle,positioning,reflexes,handling,diving,pushUp,pressRange,shotBias,passLength,width,lineHeight,roamRadius,passRisk,dribble,holdUp,gkRushRadius,displayName,description,icon";
 
-    private const string StRow = "ST,60,45,40,90,20,45,0,0,0,25,8,0.3,15,10,0,스트라이커,,";
-    private const string GkRow = "GK,30,30,30,5,10,15,80,60,40,0,3,0.9,25,0,0,골키퍼,,";
+    private const string StRow = "ST,st_poacher,true,2,60,45,40,90,20,45,0,0,0,30,8,0.2,15,10,0,3,0.5,0.5,0.1,0,포처,박스 안에서 골만 노린다,";
+    private const string GkRow = "GK,gk_standard,true,1,30,30,30,5,10,15,80,60,40,0,3,0.9,25,0,0,2,0.3,0,0.5,12,골키퍼,박스 안에서 골문을 지킨다,";
 
     private const string ValidCsv = ValidHeader + "\n" + StRow + "\n" + GkRow + "\n";
 
@@ -24,42 +24,56 @@ public class PlayerTableParserTests
         Assert.AreEqual(2, roles.Count);
         PlayerStats st = roles[0];
         Assert.AreEqual("ST", st.RoleId);
+        Assert.AreEqual("st_poacher", st.VariantId);
+        Assert.IsTrue(st.Exposed);
+        Assert.AreEqual(2, st.Focus);
         Assert.AreEqual(60, st.Speed);
-        Assert.AreEqual(45, st.Stamina);
-        Assert.AreEqual(40, st.Pass);
         Assert.AreEqual(90, st.Shot);
-        Assert.AreEqual(20, st.Tackle);
-        Assert.AreEqual(45, st.Positioning);
         Assert.AreEqual(0, st.Reflexes, "필드 플레이어는 GK 스탯 0 허용");
-        Assert.AreEqual(0, st.Handling);
-        Assert.AreEqual(0, st.Diving);
-        PlayerStats gk = roles[1];
-        Assert.AreEqual(80, gk.Reflexes);
-        Assert.AreEqual(60, gk.Handling);
-        Assert.AreEqual(40, gk.Diving);
-        Assert.AreEqual(25f, st.PushUp);
+        Assert.AreEqual(30f, st.PushUp);
         Assert.AreEqual(8f, st.PressRange);
-        Assert.AreEqual(0.3f, st.ShotBias);
-        Assert.AreEqual(15f, st.PassLength);
-        Assert.AreEqual(10f, st.Width);
-        Assert.AreEqual(0f, st.LineHeight);
-        Assert.AreEqual("스트라이커", st.DisplayName);
-        Assert.AreEqual("", st.Description, "빈칸 허용. 3주차에 채움");
+        Assert.AreEqual(0.2f, st.ShotBias);
+        Assert.AreEqual(3f, st.RoamRadius);
+        Assert.AreEqual(0.5f, st.PassRisk);
+        Assert.AreEqual(0.5f, st.Dribble);
+        Assert.AreEqual(0.1f, st.HoldUp);
+        Assert.AreEqual(0f, st.GkRushRadius);
+        Assert.AreEqual("포처", st.DisplayName);
         Assert.AreEqual(PlayerStats.TotalPoints, st.BuildTotal);
+
+        PlayerStats gk = roles[1];
+        Assert.AreEqual("gk_standard", gk.VariantId);
+        Assert.AreEqual(80, gk.Reflexes);
+        Assert.AreEqual(12f, gk.GkRushRadius);
     }
 
     [Test]
-    public void 실제_Resources_CSV가_역할_8종이고_전부_총점_300이다()
+    public void 실제_Resources_CSV는_자리_8종_변형_54개_전부_총점_300이고_노출_17개다()
     {
+        // 역할 마스터(전술-기획.md 3-1, 09-17): FM26 중심 + FC26·현실 용어. 전부 넣고 구현하며 뺀다
         string csv = File.ReadAllText("Assets/Resources/Tables/PlayerTable.csv");
         List<PlayerStats> roles = PlayerTableParser.Parse(csv);
 
-        string[] expected = { "GK", "CB", "FB", "DM", "CM", "AM", "W", "ST" };   // 스펙 §4-2 순서
-        Assert.AreEqual(expected.Length, roles.Count, "역할 8종");
-        for (int i = 0; i < expected.Length; i++)
+        string[] positions = { "GK", "CB", "FB", "DM", "CM", "AM", "W", "ST" };
+        Assert.AreEqual(54, roles.Count, "변형 합계");
+        Assert.AreEqual(17, roles.FindAll(r => r.Exposed).Count, "1차 노출");
+        foreach (string pos in positions)
         {
-            Assert.AreEqual(expected[i], roles[i].RoleId, $"{i + 1}번째 역할");
-            Assert.AreEqual(PlayerStats.TotalPoints, roles[i].BuildTotal, $"{roles[i].RoleId} 총점");
+            List<PlayerStats> variants = roles.FindAll(r => r.RoleId == pos);
+            Assert.GreaterOrEqual(variants.Count, 4, $"{pos} 변형 수");
+            Assert.GreaterOrEqual(variants.FindAll(r => r.Exposed).Count, 2, $"{pos} 1차 노출 2개 이상");
+            for (int i = 1; i < variants.Count; i++)
+            {
+                Assert.AreEqual(variants[0].BuildTotal, variants[i].BuildTotal, $"{pos} 변형은 빌드가 같다");
+                Assert.AreEqual(variants[0].Speed, variants[i].Speed, $"{pos} 변형은 빌드가 같다(speed)");
+            }
+        }
+        foreach (PlayerStats r in roles)
+        {
+            Assert.AreEqual(PlayerStats.TotalPoints, r.BuildTotal, $"{r.VariantId} 총점");
+            bool isGk = r.RoleId == "GK";
+            Assert.AreEqual(isGk, r.GkRushRadius > 0f, $"{r.VariantId} GK 출격 반경은 GK만");
+            Assert.AreEqual(isGk, r.Reflexes > 0, $"{r.VariantId} GK 스탯은 GK만");
         }
     }
 
@@ -90,7 +104,7 @@ public class PlayerTableParserTests
     public void 숫자가_깨진_행은_행번호를_알려준다()
     {
         string csv = ValidHeader + "\n" + StRow + "\n" +
-                     "GK,30,30,30,abc,10,15,80,60,40,0,3,0.9,25,0,0,골키퍼,,\n";   // 3행 shot 깨짐
+                     "GK,gk_standard,true,1,30,30,30,abc,10,15,80,60,40,0,3,0.9,25,0,0,2,0.3,0,0.5,12,골키퍼,,\n";   // 3행 shot 깨짐
 
         var ex = Assert.Throws<FormatException>(() => PlayerTableParser.Parse(csv));
         StringAssert.Contains("3행", ex.Message);
@@ -104,10 +118,10 @@ public class PlayerTableParserTests
     }
 
     [Test]
-    public void 중복_roleId는_대소문자를_무시하고_행번호를_알려준다()
+    public void 중복_variantId는_대소문자를_무시하고_행번호를_알려준다()
     {
         string csv = ValidHeader + "\n" + StRow + "\n" +
-                     "st,60,45,40,90,20,45,0,0,0,25,8,0.3,15,10,0,,,\n";   // 3행 = 2행과 대소문자만 다른 중복
+                     "ST,ST_POACHER,true,2,60,45,40,90,20,45,0,0,0,30,8,0.2,15,10,0,3,0.5,0.5,0.1,0,,,\n";   // 3행 = 2행과 대소문자만 다른 중복
 
         var ex = Assert.Throws<FormatException>(() => PlayerTableParser.Parse(csv));
         StringAssert.Contains("3행", ex.Message);
@@ -115,14 +129,17 @@ public class PlayerTableParserTests
     }
 
     // 범위 검증 경계값. 총점 고정과 다이얼 정의역이 조용히 무너지는 값을 로드에서 막는지
-    [TestCase("ST,0,105,40,90,20,45,0,0,0,25,8,0.3,15,10,0,,,",   "speed")]        // 스탯 0 (합계는 300)
-    [TestCase("ST,60,45,40,90,20,46,0,0,0,25,8,0.3,15,10,0,,,",   "합계")]         // 총점 301
-    [TestCase("ST,60,45,40,90,20,45,0,0,0,25,0,0.3,15,10,0,,,",   "pressRange")]   // 압박 거리 0
-    [TestCase("ST,60,45,40,90,20,45,0,0,0,25,8,1.5,15,10,0,,,",   "shotBias")]     // 확률 밖
-    [TestCase("ST,60,45,40,90,20,45,0,0,0,25,8,0.3,0,10,0,,,",    "passLength")]   // 패스 길이 0
-    [TestCase(",60,45,40,90,20,45,0,0,0,25,8,0.3,15,10,0,,,",     "roleId")]       // id 공백
-    [TestCase("ST,60,45,40,90,20,45,0,0,0,-1,8,0.3,15,10,0,,,",   "pushUp")]       // 전진 폭 음수
-    [TestCase("ST,60,45,40,90,20,45,-1,1,0,25,8,0.3,15,10,0,,,",   "reflexes")]     // GK 스탯 음수(합계는 300)
+    [TestCase("ST,st_poacher,true,2,0,105,40,90,20,45,0,0,0,30,8,0.2,15,10,0,3,0.5,0.5,0.1,0,,,",   "speed")]        // 스탯 0 (합계는 300)
+    [TestCase("ST,st_poacher,true,2,60,45,40,90,20,46,0,0,0,30,8,0.2,15,10,0,3,0.5,0.5,0.1,0,,,",   "합계")]         // 총점 301
+    [TestCase("ST,st_poacher,true,2,60,45,40,90,20,45,0,0,0,30,0,0.2,15,10,0,3,0.5,0.5,0.1,0,,,",   "pressRange")]   // 압박 거리 0
+    [TestCase("ST,st_poacher,true,2,60,45,40,90,20,45,0,0,0,30,8,1.5,15,10,0,3,0.5,0.5,0.1,0,,,",   "shotBias")]     // 확률 밖
+    [TestCase("ST,st_poacher,true,2,60,45,40,90,20,45,0,0,0,30,8,0.2,0,10,0,3,0.5,0.5,0.1,0,,,",    "passLength")]   // 패스 길이 0
+    [TestCase(",st_poacher,true,2,60,45,40,90,20,45,0,0,0,30,8,0.2,15,10,0,3,0.5,0.5,0.1,0,,,",     "roleId")]       // 자리 공백
+    [TestCase("ST,,true,2,60,45,40,90,20,45,0,0,0,30,8,0.2,15,10,0,3,0.5,0.5,0.1,0,,,",             "variantId")]    // 변형 공백
+    [TestCase("ST,st_poacher,true,2,60,45,40,90,20,45,0,0,0,-1,8,0.2,15,10,0,3,0.5,0.5,0.1,0,,,",   "pushUp")]       // 전진 폭 음수
+    [TestCase("ST,st_poacher,true,2,60,45,40,90,20,45,-1,1,0,30,8,0.2,15,10,0,3,0.5,0.5,0.1,0,,,",  "reflexes")]     // GK 스탯 음수(합계는 300)
+    [TestCase("ST,st_poacher,true,2,60,45,40,90,20,45,0,0,0,30,8,0.2,15,10,0,3,1.2,0.5,0.1,0,,,",   "passRisk")]     // 리스크 1 초과
+    [TestCase("ST,st_poacher,true,3,60,45,40,90,20,45,0,0,0,30,8,0.2,15,10,0,3,0.5,0.5,0.1,0,,,",   "focus")]        // 포커스 3
     public void 범위를_벗어난_값은_필드명과_행번호를_알려준다(string badRow, string fieldName)
     {
         string csv = ValidHeader + "\n" + badRow + "\n";

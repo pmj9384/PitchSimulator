@@ -2,10 +2,34 @@ using System;
 using System.Collections.Generic;
 using Game.Core.AI;
 using Game.Core.Placement;
+using Game.Core.Tactics;
 
 namespace Game.Core.Match
 {
     public enum ShotOutcome { Goal, Caught, Parried, Missed }
+
+    public enum PossessionChange { Capture, PassReceived, Intercepted, Turnover }
+
+    // 소유가 바뀐 틱의 보고. 경합·패스·가로채기가 실제로 나는지 콘솔에서 보려고(09-18)
+    public readonly struct PossessionReport
+    {
+        public readonly int NewOwnerId;
+        public readonly int NewOwnerTeam;
+        public readonly int PreviousOwnerId;   // NoOwner면 자유 공에서 잡음
+        public readonly PossessionChange Kind;
+        public readonly float X;
+        public readonly float Z;
+
+        public PossessionReport(int newOwnerId, int newOwnerTeam, int previousOwnerId, PossessionChange kind, float x, float z)
+        {
+            NewOwnerId = newOwnerId;
+            NewOwnerTeam = newOwnerTeam;
+            PreviousOwnerId = previousOwnerId;
+            Kind = kind;
+            X = x;
+            Z = z;
+        }
+    }
 
     // 슛 하나의 결과 보고. MatchManager가 콘솔에 찍고 테스트가 대조한다
     public readonly struct ShotReport
@@ -38,11 +62,30 @@ namespace Game.Core.Match
         public bool ResetAfterEveryShot { get; set; }
 
         public event Action<ShotReport>? ShotResolved;
+        public event Action<PossessionReport>? PossessionChanged;
+        public int TurnoverCount { get; private set; }
+        public int TackleAttemptCount { get; private set; }
+        public int TackleSuccessCount { get; private set; }
+        public bool OwnerImmune => immunityTicksLeft > 0;   // 계측용
 
         private readonly List<PlayerState> players = new List<PlayerState>();
         private readonly List<TargetInfo> captureCandidates = new List<TargetInfo>();
         private readonly Func<float> nextRoll;
         private readonly BehaviorNode tree;
+
+        // 팀 전술 2개(스타일 카드). 기본은 "균형"과 같은 빈 값(전부 0)이고 MatchManager가 프리셋을 주입한다
+        private readonly TeamTactics[] tactics = { new TeamTactics(), new TeamTactics() };
+
+        // 틱마다 한 번 계산하는 팀 단위 국면(09-18): 공은 하나라 서드·역습도 팀당 하나. 22명이 같은 값을 본다
+        private readonly List<TargetInfo>[] rosterSnapshot = { new List<TargetInfo>(), new List<TargetInfo>() };
+        // 팀 국면 스냅샷 버퍼. 틱마다 새 배열을 만들면 3분에 9,000 × 3번 할당(09-21 전수조사 S5)
+        private readonly bool[] counteringByTeam = new bool[2];
+        private readonly bool[] counterPressingByTeam = new bool[2];
+        private readonly Third[] thirdByTeam = new Third[2];
+        private readonly int[] keeperIds = { -1, -1 };
+        private int lastOwnerTeam = -1;       // 직전 틱 소유 팀. 바뀌면 턴오버
+        private int ticksSinceTurnover = int.MaxValue;
+        private int turnoverLoserTeam = -1;   // 방금 공을 잃은 팀(역압박 판정 대상)
 
         // 비행 중인 슛의 결정된 운명. 골이면 GK 접촉을 무시하고 골라인을 넘긴다
         private bool shotInFlight;
@@ -50,6 +93,27 @@ namespace Game.Core.Match
         private int shooterId;
         private int shooterAttackSign;
         private float shotProbability;
+        private float shotAimZ;               // 조준 Z(골 중심 기준). 골문 밖이면 골라인에서 Missed
+
+        // 비행 중인 패스(09-18). 리시버는 스냅샷으로 "나한테 온다"를 알고 마중 나간다
+        private bool passInFlight;
+        private int passReceiverId = -1;
+        private float passTargetX;
+        private float passTargetZ;
+        private int ballOwnerAtLastTick = BallState.NoOwner;
+        private int immunityTicksLeft;        // 소유 면역(09-21): 소유 뒤 이 틱 동안 태클 불가
+        private int holdUpTicksLeft;          // 볼 끌기(개인 holdUp): 소유 뒤 킥까지 대기 틱
+        private bool keeperAlternate;         // GK 배급 "섞어"의 교대 스위치
+        // 킥 릴리스(09-21 Play 진단): 찬 공은 킥 원점에서 잡기 반경을 벗어난 뒤에야 누구든 잡을 수 있다.
+        // 발치에 붙은 상대가 첫 틱(0.3m)에 그 자리에서 가로채 소유가 0.4초마다 뒤집히던 잠금을 막는다
+        private float kickOriginX;
+        private float kickOriginZ;
+        private bool passReleased = true;
+        // 찬 선수 가드(09-18, 09-21 재확인): 비행 중엔 소유 팀이 없어 자유 공 분기로 패서가 자기 공을 쫓는다.
+        // 릴리스만 있으면 3틱째(공 0.9m, 패서 0.42m 따라옴)에 도로 잡아 0.15초마다 반복됐다. 공이 패서 반경을 벗어날 때까지 패서는 후보에서 뺀다
+        private int lastKickerId = BallState.NoOwner;
+        public int PassCount { get; private set; }
+        public int InterceptCount { get; private set; }
 
         public MatchSimulation(Func<float> nextRoll, BehaviorNode tree)
         {
@@ -61,13 +125,73 @@ namespace Game.Core.Match
         public PlayerState AddPlayer(PlayerState player)
         {
             players.Add(player);
+            if (player.IsGoalkeeper) { keeperIds[player.Team] = player.PlayerId; }
             return player;
+        }
+
+        public void SetTactics(int team, TeamTactics teamTactics)
+        {
+            tactics[team] = teamTactics;
+        }
+
+        public TeamTactics TacticsOf(int team)
+        {
+            return tactics[team];
+        }
+
+        // 팀 기준 공이 있는 서드·역습 여부. 결과 화면·테스트가 읽는다
+        public Third BallThirdOf(int team)
+        {
+            return PositionRules.ThirdOf(Ball.X, team == 0 ? +1 : -1);
+        }
+
+        public bool IsCountering(int team)
+        {
+            if (Ball.Phase == BallPhase.Free || OwnerTeam() != team) { return false; }
+
+            int threshold = tactics[team].CounterThreshold;
+            if (threshold < 0) { return false; }
+
+            int sign = team == 0 ? +1 : -1;
+            int ahead = PositionRules.CountDefendersAhead(Ball.X, rosterSnapshot[1 - team], sign, keeperIds[1 - team]);
+            return ahead <= threshold;
+        }
+
+        public bool IsCounterPressing(int team)
+        {
+            if (turnoverLoserTeam != team) { return false; }
+
+            int sign = team == 0 ? +1 : -1;
+            // 뺏긴 순간 우리 골 쪽에 남은 우리 수비 수 = 공보다 우리 골 쪽에 있는 우리 필드 플레이어(GK 제외)
+            int behind = PositionRules.CountDefendersAhead(Ball.X, rosterSnapshot[team], -sign, keeperIds[team]);
+            return PressRules.IsCounterPressing(behind, tactics[team].CounterPress, ticksSinceTurnover);
+        }
+
+        public int OwnerTeam()
+        {
+            if (Ball.Phase != BallPhase.Owned) { return -1; }
+            return FindPlayer(Ball.OwnerId).Team;
         }
 
         public void Kickoff()
         {
             Ball = BallState.FreeAt(0f, 0f);
             shotInFlight = false;
+            lastOwnerTeam = -1;
+            ticksSinceTurnover = int.MaxValue;
+            turnoverLoserTeam = -1;
+            passInFlight = false;
+            passReceiverId = -1;
+            ballOwnerAtLastTick = BallState.NoOwner;
+            holdUpTicksLeft = 0;
+            immunityTicksLeft = 0;
+            passReleased = true;
+            lastKickerId = BallState.NoOwner;
+            for (int i = 0; i < players.Count; i++)
+            {
+                players[i].FrozenTicks = 0;
+                players[i].TackleCooldownTicks = 0;
+            }
             for (int i = 0; i < players.Count; i++)
             {
                 players[i].ReturnHome();
@@ -98,12 +222,22 @@ namespace Game.Core.Match
             {
                 if (ResolveSaveOnContact()) { return; }
             }
+            else if (Ball.Phase == BallPhase.Flight && !shotInFlight)
+            {
+                // 패스 비행: 리시버가 받거나 상대가 가로챈다. 슛도 패스도 아닌 비행(세이브 뒤 튕긴 공): 누구든 줍는다.
+                // 09-21 리뷰: 튕긴 공에 잡기 분기가 없어 멈출 때까지 2초(8m)를 아무도 못 잡았다. 잡기 규칙은 같다(거리 ≤ 0.8)
+                TryCapture();
+            }
+
+            OnOwnerChanged();
+            ResolveTackles();   // 소유 변경 뒤에: 방금 잡은 선수는 같은 틱에 면역을 받는다
+
+            FillSnapshots();
 
             for (int i = 0; i < players.Count; i++)
             {
                 PlayerState p = players[i];
                 p.ClearIntent();
-                p.Ball = Ball;
                 tree.Tick(p);
             }
 
@@ -113,12 +247,99 @@ namespace Game.Core.Match
             }
         }
 
+        // 틱마다 한 번: 명부 위치 스냅샷 → 턴오버 감지 → 팀 국면(서드·역습·역압박) → 22명에게 같은 값을 넣는다
+        private void FillSnapshots()
+        {
+            rosterSnapshot[0].Clear();
+            rosterSnapshot[1].Clear();
+            for (int i = 0; i < players.Count; i++)
+            {
+                PlayerState p = players[i];
+                rosterSnapshot[p.Team].Add(new TargetInfo(p.PlayerId, p.X, p.Z));
+            }
+
+            int ownerTeam = OwnerTeam();
+            if (ownerTeam != -1 && lastOwnerTeam != -1 && ownerTeam != lastOwnerTeam)
+            {
+                ticksSinceTurnover = 0;
+                turnoverLoserTeam = lastOwnerTeam;
+            }
+            else if (ticksSinceTurnover < int.MaxValue)
+            {
+                ticksSinceTurnover++;
+            }
+            if (ownerTeam != -1) { lastOwnerTeam = ownerTeam; }
+
+            for (int team = 0; team < 2; team++)
+            {
+                counteringByTeam[team] = IsCountering(team);
+                counterPressingByTeam[team] = IsCounterPressing(team);
+                thirdByTeam[team] = BallThirdOf(team);
+            }
+
+            for (int i = 0; i < players.Count; i++)
+            {
+                PlayerState p = players[i];
+                int other = 1 - p.Team;
+                p.Ball = Ball;
+                p.BallOwnerTeam = ownerTeam;
+                p.Tactics = tactics[p.Team];
+                p.BallThird = thirdByTeam[p.Team];
+                p.IsCountering = counteringByTeam[p.Team];
+                p.IsCounterPressing = counterPressingByTeam[p.Team];
+                p.Teammates = TeammatesExcluding(p);
+                p.Opponents = rosterSnapshot[other];
+                p.OpponentKeeperId = keeperIds[other];
+                p.OpponentKeeper = keeperIds[other] == -1 ? null : FindPlayer(keeperIds[other]).Stats;
+                p.IsPassTarget = passInFlight && passReceiverId == p.PlayerId;
+                p.PassTargetX = passTargetX;
+                p.PassTargetZ = passTargetZ;
+            }
+        }
+
+        // 동료 목록에서 나를 뺀 뷰. 22명 × 틱마다 새 리스트는 GC를 부르므로 선수마다 버퍼를 갖는다
+        private readonly Dictionary<int, List<TargetInfo>> teammateBuffers = new Dictionary<int, List<TargetInfo>>();
+
+        private IReadOnlyList<TargetInfo> TeammatesExcluding(PlayerState p)
+        {
+            List<TargetInfo> buffer;
+            if (!teammateBuffers.TryGetValue(p.PlayerId, out buffer))
+            {
+                buffer = new List<TargetInfo>();
+                teammateBuffers[p.PlayerId] = buffer;
+            }
+            buffer.Clear();
+            List<TargetInfo> roster = rosterSnapshot[p.Team];
+            for (int i = 0; i < roster.Count; i++)
+            {
+                if (roster[i].PlayerId != p.PlayerId) { buffer.Add(roster[i]); }
+            }
+            return buffer;
+        }
+
         // ── 선수 실행
         private void Apply(PlayerState p, float deltaTime)
         {
-            if (p.WantsShoot && Ball.Phase == BallPhase.Owned && Ball.OwnerId == p.PlayerId)
+            if (p.FrozenTicks > 0) { return; }   // 실패한 태클러는 제쳐져 있다(09-21)
+
+            bool owner = Ball.Phase == BallPhase.Owned && Ball.OwnerId == p.PlayerId;
+
+            // 볼 끌기(개인 holdUp): 소유 직후엔 킥 의도를 대기 틱 동안 무시한다. 타깃맨이 버티는 시간
+            if (owner && holdUpTicksLeft > 0 && (p.WantsShoot || p.WantsPass))
+            {
+                holdUpTicksLeft--;
+                return;
+            }
+
+            if (p.WantsShoot && owner)
             {
                 Shoot(p);
+                return;
+            }
+
+            if (p.WantsPass && owner && p.PassReceiverId != BallState.NoOwner && p.PassReceiverId != p.PlayerId)
+            {
+                Pass(p, p.PassReceiverId);
                 return;
             }
 
@@ -162,8 +383,86 @@ namespace Game.Core.Match
             shooterId = shooter.PlayerId;
             shooterAttackSign = shooter.AttackSign;
 
+            // 조준: 골 중심이 아니라 shot 스탯에 따라 퍼진 지점(09-18). 골문 밖이면 골라인에서 빗나감으로 마감
+            shotAimZ = MatchRules.ShotAimZ(shooter.Stats.Shot, nextRoll());
+            if (!MatchRules.IsOnTarget(shotAimZ)) { shotWillScore = false; }
+
             float goalX = FieldBounds.HalfLength * shooter.AttackSign;
-            Ball = BallRules.Kick(Ball, goalX - shooter.X, 0f - shooter.Z, MatchTuning.ShotSpeed);
+            Ball = BallRules.Kick(Ball, goalX - shooter.X, shotAimZ - shooter.Z, MatchTuning.ShotSpeed);
+        }
+
+        // 패스: 리시버 현재 위치로 직선 비행. 속도는 공이 있는 서드의 팀 속도. 리시버는 스냅샷으로 알고 마중 나간다
+        private void Pass(PlayerState passer, int receiverId)
+        {
+            PlayerState receiver = FindPlayer(receiverId);
+            Third third = PositionRules.ThirdOf(Ball.X, passer.AttackSign);
+            float speed = MatchTuning.PassSpeed[tactics[passer.Team].Tempo[(int)third]];
+
+            // 리드 패스: 리시버가 공 도착 때 있을 앞쪽 점으로. 리시버 속도는 그 선수 speed 스탯
+            float dx0 = receiver.X - passer.X;
+            float dz0 = receiver.Z - passer.Z;
+            float dist = (float)Math.Sqrt(dx0 * dx0 + dz0 * dz0);
+            (float x, float z) target = PassRules.LeadTarget(passer.X, receiver.X, receiver.Z, receiver.AttackSign, dist, speed, MatchRules.SpeedMps(receiver.Stats.Speed));
+
+            passInFlight = true;
+            passReceiverId = receiverId;
+            passTargetX = target.x;
+            passTargetZ = target.z;
+            PassCount++;
+            kickOriginX = Ball.X;
+            kickOriginZ = Ball.Z;
+            passReleased = false;
+            lastKickerId = passer.PlayerId;
+
+            Ball = BallRules.Kick(Ball, target.x - passer.X, target.z - passer.Z, speed);
+        }
+
+        // 소유자가 바뀐 틱: 패스 비행 마감(받았거나 가로챘거나), 볼 끌기 대기 시작
+        private void OnOwnerChanged()
+        {
+            int ownerNow = Ball.Phase == BallPhase.Owned ? Ball.OwnerId : BallState.NoOwner;
+            if (ownerNow == ballOwnerAtLastTick) { return; }
+            int previousOwnerId = ballOwnerAtLastTick;
+            ballOwnerAtLastTick = ownerNow;
+
+            if (ownerNow == BallState.NoOwner) { return; }
+
+            PlayerState owner = FindPlayer(ownerNow);
+            PossessionChange kind = PossessionChange.Capture;
+            if (passInFlight)
+            {
+                kind = ownerNow == passReceiverId ? PossessionChange.PassReceived : PossessionChange.Intercepted;
+                if (kind == PossessionChange.Intercepted) { InterceptCount++; }
+                passInFlight = false;
+                passReceiverId = -1;
+            }
+            else if (previousOwnerId != BallState.NoOwner && FindPlayer(previousOwnerId).Team != owner.Team)
+            {
+                kind = PossessionChange.Turnover;   // 소유 중이던 공을 상대가 태클로 뺏음(09-21부터 실제로 난다)
+                TurnoverCount++;
+            }
+
+            holdUpTicksLeft = (int)Math.Round(owner.Stats.HoldUp / MatchTuning.FixedStep);
+            immunityTicksLeft = MatchTuning.PossessionImmunityTicks;
+            PossessionChanged?.Invoke(new PossessionReport(ownerNow, owner.Team, previousOwnerId, kind, Ball.X, Ball.Z));
+        }
+
+        // GK 배급 대상(트리가 부른다). "섞어"는 부를 때마다 교대
+        public int KeeperDistributionTarget(PlayerState keeper)
+        {
+            int level = tactics[keeper.Team].GkDistribution;
+            List<TargetInfo> mates = rosterSnapshot[keeper.Team];
+            if (mates.Count == 0)
+            {
+                // 스냅샷 전(테스트·킥오프 직후)엔 명부에서 직접 만든다
+                for (int i = 0; i < players.Count; i++)
+                {
+                    if (players[i].Team == keeper.Team) { mates.Add(new TargetInfo(players[i].PlayerId, players[i].X, players[i].Z)); }
+                }
+            }
+            int target = PassRules.KeeperDistributionTarget(keeper.X, keeper.Z, mates, keeper.AttackSign, level, keeper.PlayerId, keeperAlternate);
+            if (level == 1) { keeperAlternate = !keeperAlternate; }
+            return target;
         }
 
         // 골라인을 넘은 슛: 골이면 득점, 아니면(GK가 못 건드렸으면) 빗나감. 둘 다 킥오프
@@ -180,7 +479,7 @@ namespace Game.Core.Match
                 return true;
             }
 
-            Finish(ShotOutcome.Missed);
+            Finish(ShotOutcome.Missed);   // 골문 밖 조준이거나(shotAimZ) GK를 지나쳤거나
             Kickoff();
             return true;
         }
@@ -221,15 +520,71 @@ namespace Game.Core.Match
             ShotResolved?.Invoke(new ShotReport(shooterId, shotProbability, outcome));
         }
 
+        // 태클(09-21): 소유자 태클 사거리(TackleRange) 안의 상대가 쿨다운이 끝났으면 시도. 성공하면 태클러 소유(깔끔한 탈취), 실패하면 태클러 정지.
+        // 루즈볼 방식은 버렸다: 붙어 있으면 공이 소유자 뒤로 떨어지고 되찾기 경주에서 빠른 쪽(대개 원래 소유자)이 늘 이겨 태클이 무의미했다(테스트 트레이스)
+        // 주사위 1개 소비 → 시드가 다르면 결과가 갈리는 두 번째 지점(첫째는 슛). 면역 중엔 시도 자체가 없다
+        private void ResolveTackles()
+        {
+            for (int i = 0; i < players.Count; i++)
+            {
+                PlayerState p = players[i];
+                if (p.FrozenTicks > 0) { p.FrozenTicks--; }
+                if (p.TackleCooldownTicks > 0) { p.TackleCooldownTicks--; }
+            }
+            if (immunityTicksLeft > 0) { immunityTicksLeft--; }
+            if (Ball.Phase != BallPhase.Owned || immunityTicksLeft > 0) { return; }
+
+            PlayerState owner = FindPlayer(Ball.OwnerId);
+            float reach2 = MatchTuning.TackleRange * MatchTuning.TackleRange;
+            for (int i = 0; i < players.Count; i++)
+            {
+                PlayerState t = players[i];
+                if (t.Team == owner.Team || t.FrozenTicks > 0 || t.TackleCooldownTicks > 0) { continue; }
+                float dx = t.X - owner.X;
+                float dz = t.Z - owner.Z;
+                float d2 = dx * dx + dz * dz;
+                if (d2 > reach2) { continue; }
+
+                TackleAttemptCount++;
+                t.TackleCooldownTicks = MatchTuning.TackleCooldownTicks;
+                if (!MatchRules.Resolve(MatchRules.TackleProbability(t.Stats.Tackle), nextRoll()))
+                {
+                    t.FrozenTicks = MatchTuning.TackleFailFreezeTicks;
+                    continue;
+                }
+
+                TackleSuccessCount++;
+                Ball = BallRules.Own(Ball, t.PlayerId, t.X, t.Z);
+                OnOwnerChanged();   // 같은 틱에 Turnover 기록 + 새 소유자 면역
+                return;   // 한 틱에 태클은 하나
+            }
+        }
+
         private void TryCapture()
         {
+            if (passInFlight && !passReleased)
+            {
+                float odx = Ball.X - kickOriginX;
+                float odz = Ball.Z - kickOriginZ;
+                if (odx * odx + odz * odz <= MatchTuning.CaptureRadius * MatchTuning.CaptureRadius) { return; }   // 아직 발치. 아무도 못 잡는다
+                passReleased = true;
+            }
+
             captureCandidates.Clear();
             for (int i = 0; i < players.Count; i++)
             {
-                captureCandidates.Add(new TargetInfo(players[i].PlayerId, players[i].X, players[i].Z));
+                PlayerState p = players[i];
+                if (p.PlayerId == lastKickerId)
+                {
+                    float kdx = p.X - Ball.X;
+                    float kdz = p.Z - Ball.Z;
+                    if (kdx * kdx + kdz * kdz <= MatchTuning.CaptureRadius * MatchTuning.CaptureRadius) { continue; }
+                    lastKickerId = BallState.NoOwner;
+                }
+                captureCandidates.Add(new TargetInfo(p.PlayerId, p.X, p.Z));
             }
 
-            int ownerId = BallRules.TryCapture(Ball, captureCandidates, MatchTuning.CaptureRadius);
+            int ownerId = BallRules.TryCapture(Ball, captureCandidates, MatchTuning.CaptureRadius, allowFlight: !shotInFlight);
             if (ownerId == BallState.NoOwner) { return; }
 
             PlayerState owner = FindPlayer(ownerId);
@@ -240,6 +595,11 @@ namespace Game.Core.Match
         private bool ResetIfOut()
         {
             if (Ball.Phase == BallPhase.Owned || shotInFlight) { return false; }
+            if (passInFlight && (Math.Abs(Ball.X) > FieldBounds.HalfLength || Math.Abs(Ball.Z) > FieldBounds.HalfWidth))
+            {
+                passInFlight = false;   // 나간 패스는 실패. 리셋은 아래가 한다
+                passReceiverId = -1;
+            }
 
             if (Math.Abs(Ball.X) > FieldBounds.HalfLength)
             {

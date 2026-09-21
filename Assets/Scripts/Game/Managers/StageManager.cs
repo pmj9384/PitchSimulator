@@ -49,16 +49,18 @@ public class StageManager : InGameManager
         }
     }
 
-    // count가 1보다 크면 폭(Z) 방향으로 최소 간격씩 벌려 세운다
+    // count가 1보다 크면 폭(Z) 방향으로 최소 간격씩 벌려 세운다. 공격 시·수비 시 자리를 같은 간격으로 벌린다
     private void SpawnRow(StageEntry row)
     {
         float spread = FieldBounds.MinSpacing;
-        float startZ = row.PosZ - (row.Count - 1) * spread * 0.5f;
+        float attackStartZ = row.PosZ - (row.Count - 1) * spread * 0.5f;
+        float defendStartZ = row.DefendZ - (row.Count - 1) * spread * 0.5f;
 
         for (int i = 0; i < row.Count; i++)
         {
-            Vector3 position = new Vector3(row.PosX, 0f, startZ + i * spread);
-            GameManager.Players.Spawn(row.Id, row.Team, position);
+            Vector3 attackHome = new Vector3(row.PosX, 0f, attackStartZ + i * spread);
+            Vector3 defendHome = new Vector3(row.DefendX, 0f, defendStartZ + i * spread);
+            GameManager.Players.Spawn(row.Id, row.Team, attackHome, defendHome);
         }
     }
 

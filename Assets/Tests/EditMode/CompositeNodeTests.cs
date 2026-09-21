@@ -1,6 +1,8 @@
+using System.Collections.Generic;
 using Game.Core.AI;
 using Game.Core.Data;
 using Game.Core.Match;
+using Game.Core.Tactics;
 using NUnit.Framework;
 
 // BT 엔진 검증. 가짜 선수(FakePlayer)에게 노드를 틱해 "어떤 명령을 내렸는가"만 본다.
@@ -27,8 +29,25 @@ public class CompositeNodeTests
         public bool OwnsBall => false;
         public float BallX => 0f;
         public float BallZ => 0f;
+        public int BallOwnerTeam => -1;
+        public TeamTactics Tactics => new TeamTactics();
+        public Third BallThird => Third.Middle;
+        public bool IsCountering => false;
+        public bool IsCounterPressing => false;
+        public IReadOnlyList<TargetInfo> Teammates => System.Array.Empty<TargetInfo>();
+        public IReadOnlyList<TargetInfo> Opponents => System.Array.Empty<TargetInfo>();
+        public int OpponentKeeperId => -1;
+        public PlayerStats OpponentKeeper => null;   // 테스트 asmdef는 nullable 미적용. 계약은 PlayerStats?
+        public float AttackHomeX => 0f;
+        public float AttackHomeZ => 0f;
+        public float DefendHomeX => 0f;
+        public float DefendHomeZ => 0f;
+        public bool IsPassTarget => false;
+        public float PassTargetX => 0f;
+        public float PassTargetZ => 0f;
         public void MoveToward(float x, float z) { }
         public void Shoot() { }
+        public void Pass(int receiverId) { }
     }
 
     private static BehaviorNode Cond(bool value)
