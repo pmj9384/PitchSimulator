@@ -55,7 +55,7 @@ namespace Game.Core.Match
         public bool WantsPass { get; private set; }
         public int PassReceiverId { get; private set; } = -1;
 
-        // 수비 시 자리를 따로 안 주면 공격 시 자리와 같다(편성 CSV의 posX2·posZ2는 09-22)
+        // 수비 시 자리를 따로 안 주면 공격 시 자리와 같다. 편성 스폰은 자리 2쌍 생성자를 쓰고(09-21), 이 오버로드는 테스트·리트머스용
         public PlayerState(int playerId, int team, PlayerStats stats, float x, float z)
             : this(playerId, team, stats, x, z, x, z)
         {

@@ -79,6 +79,10 @@ namespace Game.Core.Data
             {
                 throw new FormatException($"StageComposition {line}행: count는 1 이상 ({e.Count})");
             }
+            if (e.PosX2.HasValue != e.PosZ2.HasValue)
+            {
+                throw new FormatException($"StageComposition {line}행: posX2·posZ2는 둘 다 쓰거나 둘 다 비워야 한다");
+            }
         }
 
 
@@ -93,6 +97,8 @@ namespace Game.Core.Data
                 Map(e => e.Count).Name("count");
                 Map(e => e.PosX).Name("posX");
                 Map(e => e.PosZ).Name("posZ");
+                Map(e => e.PosX2).Name("posX2").Optional();   // 09-21 추가 열. 없으면 null(공격 시 자리로 대체)
+                Map(e => e.PosZ2).Name("posZ2").Optional();
             }
         }
     }

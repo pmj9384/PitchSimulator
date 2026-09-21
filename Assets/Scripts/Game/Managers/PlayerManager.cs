@@ -19,7 +19,8 @@ public class PlayerManager : InGameManager
     private readonly Dictionary<int, PlayerController> byId = new Dictionary<int, PlayerController>();
     private int nextPlayerId;     // 스폰 순서로 발급하는 선수 번호. 타이브레이크의 근원(GetInstanceID 금지)
 
-    public PlayerController Spawn(string variantId, int team, Vector3 position)
+    // attackHome = 아군 소유 때 자리(킥오프 위치이기도 하다), defendHome = 상대 소유 때 자리(스펙 §4-3 자리 2쌍)
+    public PlayerController Spawn(string variantId, int team, Vector3 attackHome, Vector3 defendHome)
     {
         PlayerStats stats = PlayerTableRepository.Get(variantId);
         if (stats == null)
@@ -31,7 +32,7 @@ public class PlayerManager : InGameManager
         GameObject body = Pool().Get();
 
         // 경기 상태는 순수 PlayerState가 갖고 시뮬(MatchManager)에 등록한다. 컨트롤러는 그 값을 비추는 뷰
-        var state = new PlayerState(nextPlayerId++, team, stats, position.x, position.z);
+        var state = new PlayerState(nextPlayerId++, team, stats, attackHome.x, attackHome.z, defendHome.x, defendHome.z);
         GameManager.Match.Register(state);
 
         PlayerController player = body.GetComponent<PlayerController>();

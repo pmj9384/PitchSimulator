@@ -71,12 +71,35 @@ public class StageCompositionParserTests
     }
 
     [Test]
+    public void 수비_시_자리_열은_있으면_읽고_없으면_공격_시_자리로_대체한다()
+    {
+        // 09-21 자리 2쌍. 옛 파일(열 없음)·세팅 초기값(빈 칸)은 null → DefendX가 PosX를 돌려준다
+        List<StageEntry> with = StageCompositionParser.Parse(Header + ",posX2,posZ2\n1,player,player,CB,1,-36,7,-41,7\n1,player,player,ST,1,-8,6,,\n");
+        Assert.AreEqual(-41f, with[0].PosX2);
+        Assert.AreEqual(-41f, with[0].DefendX);
+        Assert.IsNull(with[1].PosX2, "빈 칸은 null");
+        Assert.AreEqual(-8f, with[1].DefendX, "비면 공격 시 자리");
+
+        List<StageEntry> without = StageCompositionParser.Parse(Header + "\n1,player,player,CB,1,-36,7\n");
+        Assert.IsNull(without[0].PosX2, "열이 없어도 읽힌다");
+        Assert.AreEqual(-36f, without[0].DefendX);
+        Assert.AreEqual(7f, without[0].DefendZ);
+    }
+
+    [Test]
+    public void 수비_시_자리는_한쪽만_쓰면_오류다()
+    {
+        var ex = Assert.Throws<FormatException>(() => StageCompositionParser.Parse(Header + ",posX2,posZ2\n1,player,player,CB,1,-36,7,-41,\n"));
+        StringAssert.Contains("posX2", ex.Message);
+    }
+
+    [Test]
     public void 쓰고_다시_읽으면_같다()
     {
         var original = new List<StageEntry>
         {
-            new StageEntry { Stage = 1, Side = "player", Kind = "player", Id = "ST", Count = 1, PosX = -10f, PosZ = 2f },
-            new StageEntry { Stage = 1, Side = "player", Kind = "player", Id = "GK", Count = 1, PosX = -50f, PosZ = -3.25f },
+            new StageEntry { Stage = 1, Side = "player", Kind = "player", Id = "ST", Count = 1, PosX = -10f, PosZ = 2f, PosX2 = -15f, PosZ2 = 2.5f },
+            new StageEntry { Stage = 1, Side = "player", Kind = "player", Id = "GK", Count = 1, PosX = -50f, PosZ = -3.25f },   // 수비 자리 없음(null)도 왕복
         };
 
         string csv = StageCompositionParser.Serialize(original);
@@ -100,6 +123,8 @@ public class StageCompositionParserTests
         Assert.AreEqual(expected.Count, actual.Count, $"[{i}].Count");
         Assert.AreEqual(expected.PosX, actual.PosX, $"[{i}].PosX");
         Assert.AreEqual(expected.PosZ, actual.PosZ, $"[{i}].PosZ");
+        Assert.AreEqual(expected.PosX2, actual.PosX2, $"[{i}].PosX2");
+        Assert.AreEqual(expected.PosZ2, actual.PosZ2, $"[{i}].PosZ2");
     }
 
     [Test]
