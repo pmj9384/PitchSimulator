@@ -33,29 +33,24 @@ namespace Game.Core.Match
         }
 
         // 아군 소유 때 서는 자리. 배치(공격 시 자리) + X 전진(팀 전진 정도 + 개인 전진 폭) + Z 폭(서드별 팀 폭 배율 × 개인 측면 쏠림).
-        // 폭은 선수가 선 쪽(z 부호)으로 벌린다. 중앙(z=0)은 안 벌린다. 오프셋 벡터 길이는 자리 이탈 반경으로 자른다
-        public static (float x, float z) AttackHome(float baseX, float baseZ, int attackSign, int mentality, float pushUp, int widthLevel, float width, float roamRadius)
+        // 폭은 선수가 선 쪽(z 부호)으로 벌린다. 중앙(z=0)은 안 벌린다. 필드 안으로만 자른다.
+        // 이탈 반경(roamRadius)으로는 안 자른다(09-21): 전진 폭은 공격 자리를 정의하는 값이고 이탈 반경은 그 자리에서 벗어나는 허용치라 다른 축이다.
+        // 09-18 첫 구현이 둘을 묶어 ST(전진 30, 이탈 3)가 3m만 올라가 공격 형태가 자기 진영에 갇혔고 3분 동안 슛이 0이었다
+        public static (float x, float z) AttackHome(float baseX, float baseZ, int attackSign, int mentality, float pushUp, int widthLevel, float width)
         {
             float dx = (MatchTuning.MentalityOffset[mentality] + pushUp) * attackSign;
             float dz = width * MatchTuning.WidthScale[widthLevel] * Math.Sign(baseZ);
-            return Offset(baseX, baseZ, dx, dz, roamRadius);
+            return Offset(baseX, baseZ, dx, dz);
         }
 
         // 상대 소유 때 서는 자리. 배치(수비 시 자리)에서 개인 라인 높이만큼 앞으로
         public static (float x, float z) DefendHome(float baseX, float baseZ, int attackSign, float lineHeight)
         {
-            return Offset(baseX, baseZ, lineHeight * attackSign, 0f, float.MaxValue);
+            return Offset(baseX, baseZ, lineHeight * attackSign, 0f);
         }
 
-        private static (float x, float z) Offset(float baseX, float baseZ, float dx, float dz, float roamRadius)
+        private static (float x, float z) Offset(float baseX, float baseZ, float dx, float dz)
         {
-            float len = (float)Math.Sqrt(dx * dx + dz * dz);
-            if (len > roamRadius && len > 0f)
-            {
-                float scale = roamRadius / len;
-                dx *= scale;
-                dz *= scale;
-            }
             return (Clamp(baseX + dx, FieldBounds.HalfLength), Clamp(baseZ + dz, FieldBounds.HalfWidth));
         }
 

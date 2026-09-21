@@ -166,7 +166,7 @@ namespace Game.Core.AI
         {
             int third = Third(ctx);
             (float x, float z) home = PositionRules.AttackHome(ctx.AttackHomeX, ctx.AttackHomeZ, ctx.AttackSign,
-                ctx.Tactics.Mentality, ctx.Stats.PushUp, ctx.Tactics.Width[third], ctx.Stats.Width, ctx.Stats.RoamRadius);
+                ctx.Tactics.Mentality, ctx.Stats.PushUp, ctx.Tactics.Width[third], ctx.Stats.Width);
             ctx.MoveToward(home.x, home.z);
         }
 

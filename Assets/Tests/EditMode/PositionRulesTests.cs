@@ -5,7 +5,7 @@ using Game.Core.Tactics;
 using NUnit.Framework;
 
 // PositionRules 검증(09-18 확정 스펙 §6). ①서드 경계 ±17.5와 팀 1 부호 반전 ②공 앞쪽 상대 수(GK 제외)
-// ③공격 시 자리 = 배치 + 전진(팀 −5/0/+5 + 개인 pushUp) + 폭(서드 배율 × 개인 width), 이탈 반경 클램프 ④수비 시 자리 + 라인 높이
+// ③공격 시 자리 = 배치 + 전진(팀 −5/0/+5 + 개인 pushUp) + 폭(서드 배율 × 개인 width), 필드 안 클램프(이탈 반경과 무관) ④수비 시 자리 + 라인 높이
 public class PositionRulesTests
 {
     [TestCase(-30f, +1, Third.Own)]
@@ -46,26 +46,28 @@ public class PositionRulesTests
     public void 공격_시_자리는_배치에_전진과_폭_오프셋을_더한다()
     {
         // 배치 (-20, 8), 팀 0. 전진 정도 균형(1) → 0, pushUp 15 → X +15. 폭 표준(1) → 배율 1.0, width 10 → Z는 부호 방향으로 +10
-        (float x, float z) home = PositionRules.AttackHome(baseX: -20f, baseZ: 8f, attackSign: +1, mentality: 1, pushUp: 15f, widthLevel: 1, width: 10f, roamRadius: 100f);
+        (float x, float z) home = PositionRules.AttackHome(baseX: -20f, baseZ: 8f, attackSign: +1, mentality: 1, pushUp: 15f, widthLevel: 1, width: 10f);
         Assert.AreEqual(-5f, home.x, 1e-4f);
         Assert.AreEqual(18f, home.z, 1e-4f, "오른쪽에 선 선수는 더 오른쪽으로");
 
         // 왼쪽 선수(z<0)는 더 왼쪽으로. 공격적(2) → +5. 폭 넓게(2) → 배율 1.5
-        home = PositionRules.AttackHome(-20f, -8f, +1, mentality: 2, pushUp: 15f, widthLevel: 2, width: 10f, roamRadius: 100f);
+        home = PositionRules.AttackHome(-20f, -8f, +1, mentality: 2, pushUp: 15f, widthLevel: 2, width: 10f);
         Assert.AreEqual(0f, home.x, 1e-4f);
         Assert.AreEqual(-23f, home.z, 1e-4f, "-8 - 10×1.5");
 
         // 팀 1은 전진이 -X
-        home = PositionRules.AttackHome(20f, 0f, -1, mentality: 0, pushUp: 10f, widthLevel: 0, width: 10f, roamRadius: 100f);
+        home = PositionRules.AttackHome(20f, 0f, -1, mentality: 0, pushUp: 10f, widthLevel: 0, width: 10f);
         Assert.AreEqual(15f, home.x, 1e-4f, "20 - (−5 + 10)");
         Assert.AreEqual(0f, home.z, 1e-4f, "중앙(z=0) 선수는 폭 오프셋 없음");
     }
 
     [Test]
-    public void 자리_이탈_반경이_오프셋을_클램프한다()
+    public void 전진_폭은_이탈_반경과_무관하게_그대로_올라간다()
     {
-        (float x, float z) home = PositionRules.AttackHome(-20f, 0f, +1, mentality: 2, pushUp: 25f, widthLevel: 1, width: 0f, roamRadius: 10f);
-        Assert.AreEqual(-10f, home.x, 1e-4f, "+30이 반경 10으로 잘림");
+        // 09-21: 이탈 반경(ST 3m)이 전진 폭(30m)을 잘라 공격 형태가 자기 진영에 갇혀 3분 슛 0이었다. 전진 폭은 자리를 정의하는 값이라 안 자른다
+        (float x, float z) home = PositionRules.AttackHome(-8f, 6f, +1, mentality: 1, pushUp: 30f, widthLevel: 1, width: 10f);
+        Assert.AreEqual(22f, home.x, 1e-4f, "ST 배치 -8 + 전진 30");
+        Assert.AreEqual(16f, home.z, 1e-4f);
     }
 
     [Test]
@@ -82,7 +84,7 @@ public class PositionRulesTests
     [Test]
     public void 자리는_필드_안으로_클램프된다()
     {
-        (float x, float z) home = PositionRules.AttackHome(48f, 30f, +1, mentality: 2, pushUp: 25f, widthLevel: 2, width: 20f, roamRadius: 100f);
+        (float x, float z) home = PositionRules.AttackHome(48f, 30f, +1, mentality: 2, pushUp: 25f, widthLevel: 2, width: 20f);
         Assert.LessOrEqual(home.x, FieldBounds.HalfLength - FieldBounds.EdgeMargin);
         Assert.LessOrEqual(home.z, FieldBounds.HalfWidth - FieldBounds.EdgeMargin);
     }
