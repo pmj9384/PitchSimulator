@@ -38,6 +38,15 @@ namespace Game.Core.Match
         public const float PassLeadMax = 8f;                                    // 리드 패스가 리시버보다 앞설 수 있는 최대 거리(m). 너무 앞이면 상대 라인 뒤로 나간다
         public const float DribbleReluctance = 0.3f;                            // 개인 드리블 성향이 이 미만이면 골 대신 가까운 아군 쪽으로 몰아 패스를 노린다
         public const float BackPassScale = 0.3f;                                // 옆·뒤 아군 후보 점수 배율(플랜 09-22 칸). 전진 5m 이상 앞 후보는 못 이기고, 1~3m 앞 찔끔 후보에겐 이길 수 있다(의도: 핑퐁 방지)
+        // 공 지향 슬라이드(09-21 유저: "자리가 완전 고정은 아닌 것 같다"): 자리에 공 좌표 × 계수를 더해 블록이 공을 따라 평행이동한다.
+        // 지역 방어는 공 기준(Spielverlagerung ball-oriented zonal marking). 수비는 컴팩트(가로 큼), 공격은 침투(세로 큼). 출발값, 러너로 조정
+        public const float SlideLateralDefend = 0.4f;
+        public const float SlideVerticalDefend = 0.3f;
+        public const float SlideVerticalMaxDefend = 10f;
+        public const float SlideLateralAttack = 0.2f;
+        public const float SlideVerticalAttack = 0.4f;
+        public const float SlideVerticalMaxAttack = 15f;
+        public const float SlideLateralKeeper = 0.15f;                           // GK는 가로만 조금. 라인을 따라 나오면 안 된다
         public const float ShotBiasXgScale = 0.3f;                              // 슛 판정 = xG ≥ 슛 성향(0~1) × 이 값. xG는 정면 11m가 0.18이라 0~0.3이 실용 범위(09-21: 성향 0.2를 그대로 비교하니 3분 슛 0). 리그 평균 슛 xG 0.10 → 포처(0.2) 문턱 0.06
         public const float CounterForwardMargin = 3f;                           // 역습 리시버는 패서보다 이만큼 앞선 아군만(09-21 리뷰: 자기만 빼면 뒤로 돌려 핑퐁)
         public const float PressedRadius = 3f;                                  // 상대가 이 거리 안이면 "압박받는 중". 옆·뒤 돌리기는 이때만(09-21: 압박 없이도 돌리니 앞·뒤 핑퐁으로 드리블 0)

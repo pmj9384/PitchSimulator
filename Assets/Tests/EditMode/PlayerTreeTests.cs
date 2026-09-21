@@ -173,7 +173,7 @@ public class PlayerTreeTests
         var cb = new Fake { PlayerId = 2, BallPhase = BallPhase.Owned, BallOwnerTeam = 1, X = -36f, BallX = 10f, BallZ = 0f, DefendHomeX = -36f, DefendHomeZ = 7f };
         cb.Stats.PressRange = 3f; cb.Stats.LineHeight = 6f;
         Tree.Tick(cb);
-        Assert.AreEqual(-30f, cb.MoveX, 1e-4f, "수비 자리 + 라인 높이");
+        Assert.AreEqual(-27f, cb.MoveX, 1e-4f, "수비 자리 + 라인 높이 + 공 지향 슬라이드(공 X 10 × 0.3)");
     }
 
     [Test]
@@ -182,7 +182,7 @@ public class PlayerTreeTests
         var st = new Fake { PlayerId = 9, BallPhase = BallPhase.Owned, BallOwnerTeam = 1, X = 9f, BallX = 10f, DefendHomeX = -10f };
         st.Tactics.PressStart = new[] { 0, 0, 0 };
         Tree.Tick(st);
-        Assert.AreEqual(-10f, st.MoveX, "1m 앞인데도 자리로");
+        Assert.AreEqual(-7f, st.MoveX, 1e-4f, "1m 앞인데도 자리로(+ 슬라이드 공 X 10 × 0.3)");
     }
 
     [Test]

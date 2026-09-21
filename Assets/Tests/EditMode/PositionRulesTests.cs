@@ -82,6 +82,29 @@ public class PositionRulesTests
     }
 
     [Test]
+    public void 공_지향_슬라이드는_공_쪽으로_평행이동하고_세로는_상한으로_잘린다()
+    {
+        // 수비 시: 공 (30, -20) → 세로 30×0.3 = 9, 가로 -20×0.4 = -8
+        (float x, float z) d = PositionRules.SlideTowardBall(-20f, 5f, ballX: 30f, ballZ: -20f, defending: true, goalkeeper: false);
+        Assert.AreEqual(-11f, d.x, 1e-4f, "공이 멀면 라인이 올라간다");
+        Assert.AreEqual(-3f, d.z, 1e-4f, "공이 왼쪽이면 왼쪽으로");
+
+        // 세로 상한: 공 X 45 × 0.3 = 13.5 → 10으로 잘림
+        d = PositionRules.SlideTowardBall(-20f, 0f, 45f, 0f, defending: true, goalkeeper: false);
+        Assert.AreEqual(-10f, d.x, 1e-4f);
+
+        // 공격 시: 세로 0.4·상한 15, 가로 0.2
+        (float x, float z) a = PositionRules.SlideTowardBall(22f, 6f, 45f, 10f, defending: false, goalkeeper: false);
+        Assert.AreEqual(37f, a.x, 1e-4f, "45×0.4 = 18 → 15로 잘림");
+        Assert.AreEqual(8f, a.z, 1e-4f);
+
+        // GK: 세로 0, 가로 0.15
+        (float x, float z) gk = PositionRules.SlideTowardBall(-48f, 0f, 30f, 20f, defending: true, goalkeeper: true);
+        Assert.AreEqual(-48f, gk.x, 1e-4f);
+        Assert.AreEqual(3f, gk.z, 1e-4f);
+    }
+
+    [Test]
     public void 자리는_필드_안으로_클램프된다()
     {
         (float x, float z) home = PositionRules.AttackHome(48f, 30f, +1, mentality: 2, pushUp: 25f, widthLevel: 2, width: 20f);

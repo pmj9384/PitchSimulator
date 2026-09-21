@@ -49,6 +49,26 @@ namespace Game.Core.Match
             return Offset(baseX, baseZ, lineHeight * attackSign, 0f);
         }
 
+        // 공 지향 슬라이드: 자리(공격 시/수비 시 계산 결과)에 공 좌표 × 계수를 더한다. 공 좌표를 그대로 쓰므로 팀 부호가 필요 없다:
+        // 공이 상대 진영이면 양 팀 다 그쪽으로(공격 팀은 침투, 수비 팀은 라인 상승), 공이 왼쪽이면 전원 왼쪽으로. 세로는 상한으로 자른다.
+        // GK는 가로만 조금(SlideLateralKeeper), 세로 0. 결과는 필드 안으로 클램프
+        public static (float x, float z) SlideTowardBall(float homeX, float homeZ, float ballX, float ballZ, bool defending, bool goalkeeper)
+        {
+            if (goalkeeper)
+            {
+                return Offset(homeX, homeZ, 0f, ballZ * MatchTuning.SlideLateralKeeper);
+            }
+
+            float lateral = defending ? MatchTuning.SlideLateralDefend : MatchTuning.SlideLateralAttack;
+            float vertical = defending ? MatchTuning.SlideVerticalDefend : MatchTuning.SlideVerticalAttack;
+            float verticalMax = defending ? MatchTuning.SlideVerticalMaxDefend : MatchTuning.SlideVerticalMaxAttack;
+
+            float dx = ballX * vertical;
+            if (dx > verticalMax) { dx = verticalMax; }
+            if (dx < -verticalMax) { dx = -verticalMax; }
+            return Offset(homeX, homeZ, dx, ballZ * lateral);
+        }
+
         private static (float x, float z) Offset(float baseX, float baseZ, float dx, float dz)
         {
             return (Clamp(baseX + dx, FieldBounds.HalfLength), Clamp(baseZ + dz, FieldBounds.HalfWidth));
