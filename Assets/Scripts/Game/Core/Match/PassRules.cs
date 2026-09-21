@@ -26,6 +26,9 @@ namespace Game.Core.Match
             {
                 float ox = opponents[i].X - fromX;
                 float oz = opponents[i].Z - fromZ;
+                // 킥 원점에서 발 뻗는 범위 안에 붙은 상대는 방향과 무관하게 확실히 닿는다(09-21 3분 계측: 붙은 압박 선수를 뒤라고 무시하고
+                // 찼더니 릴리스 지점에서 96%가 끊겼다). Simple Soccer엔 이 경우가 없다(그 게임은 태클로 뺏어서 붙은 채로 차는 상황이 안 남)
+                if (ox * ox + oz * oz <= MatchTuning.InterceptReach * MatchTuning.InterceptReach) { return 1f; }
                 float along = ox * ux + oz * uz;              // 패스 축 위 투영(앞뒤)
                 if (along <= 0f || along > len) { continue; } // 뒤에 있거나 리시버보다 멀면 무관
 
@@ -74,9 +77,13 @@ namespace Game.Core.Match
 
         // 리드 패스 목표(09-18 Play 진단): 리시버의 지금 위치로 차면 리시버는 이미 움직여 공이 뒤에 떨어진다.
         // 공이 도착하는 시간 동안 리시버가 앞(공격 방향)으로 갈 수 있는 거리만큼 앞선 점을 목표로 한다. 상한은 리드 최대치.
+        // 리드는 앞선 리시버(패서보다 공격 방향)에게만(09-21): 옆·뒤 아군에게 앞으로 8m 리드하면 착지점이 패서 앞이 되어
+        // 판정은 짧은 앞 패스로 늘 안전, 실제 공은 리시버가 없는 곳으로 가서 먹혔다(3분 계측: 드리블 0·완성률 50%).
         // Simple Soccer의 "리시버 도달 원" 판정의 단순형. 결과는 필드 안으로 클램프
-        public static (float x, float z) LeadTarget(float receiverX, float receiverZ, int attackSign, float passDistance, float ballSpeed, float receiverSpeed)
+        public static (float x, float z) LeadTarget(float passerX, float receiverX, float receiverZ, int attackSign, float passDistance, float ballSpeed, float receiverSpeed)
         {
+            if ((receiverX - passerX) * attackSign <= 0f) { return (receiverX, receiverZ); }   // 옆·뒤 리시버는 지금 위치로. 어차피 마중 나온다
+
             float travel = passDistance / ballSpeed;                       // 공 도착 시간
             float lead = Math.Min(receiverSpeed * travel, MatchTuning.PassLeadMax);
             float x = receiverX + lead * attackSign;

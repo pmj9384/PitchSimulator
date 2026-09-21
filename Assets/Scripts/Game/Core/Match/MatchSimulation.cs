@@ -380,7 +380,7 @@ namespace Game.Core.Match
             float dx0 = receiver.X - passer.X;
             float dz0 = receiver.Z - passer.Z;
             float dist = (float)Math.Sqrt(dx0 * dx0 + dz0 * dz0);
-            (float x, float z) target = PassRules.LeadTarget(receiver.X, receiver.Z, receiver.AttackSign, dist, speed, MatchRules.SpeedMps(receiver.Stats.Speed));
+            (float x, float z) target = PassRules.LeadTarget(passer.X, receiver.X, receiver.Z, receiver.AttackSign, dist, speed, MatchRules.SpeedMps(receiver.Stats.Speed));
 
             passInFlight = true;
             passReceiverId = receiverId;

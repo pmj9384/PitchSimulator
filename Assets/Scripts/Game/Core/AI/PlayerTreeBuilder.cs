@@ -114,22 +114,46 @@ namespace Game.Core.AI
             float riskAllow = Math.Max(MatchTuning.PassRiskAllow[t.PassRisk[third]], ctx.Stats.PassRisk);
             float ballSpeed = MatchTuning.PassSpeed[t.Tempo[third]];
 
+            // 옆·뒤 돌리기는 압박받을 때만(09-21 3분 계측: 압박 없이도 돌리니 앞·뒤 패스가 158·157로 교대하고 아무도 몰지 않아 박스에 못 들어감).
+            // 압박이 없으면 앞 후보가 없을 때 ⑤ 드리블로 떨어진다
+            bool pressed = IsPressed(ctx);
+
             int best = -1;
             float bestScore = 0f;
             IReadOnlyList<TargetInfo> mates = ctx.Teammates;
             for (int i = 0; i < mates.Count; i++)
             {
                 TargetInfo m = mates[i];
+                if (!pressed && (m.X - ctx.X) * ctx.AttackSign <= 0f) { continue; }
                 float score = PassRules.ScoreReceiver(ctx.X, ctx.Z, m.X, m.Z, ctx.AttackSign, t.PassStyle[third], ctx.Stats.PassLength, t.Width[third]);
                 if (score <= bestScore) { continue; }
 
-                float risk = PassRules.InterceptRisk(ctx.X, ctx.Z, m.X, m.Z, ctx.Opponents, MatchTuning.InterceptRunSpeed, ballSpeed);
+                // 안전 판정은 실제 착지점(리드 목표)까지(09-21 3분 계측: 리시버 위치까지만 보면 그 앞 8m에 선 수비수가 걸러져
+                // 롱패스가 늘 먹혔다). 리시버 속도는 트리가 개인 스탯을 모르니 평균(speed 50)으로, 킥은 시뮬이 실제 스탯으로 찬다
+                float ddx = m.X - ctx.X;
+                float ddz = m.Z - ctx.Z;
+                float passDistance = (float)Math.Sqrt(ddx * ddx + ddz * ddz);
+                (float x, float z) landing = PassRules.LeadTarget(ctx.X, m.X, m.Z, ctx.AttackSign, passDistance, ballSpeed, MatchTuning.SpeedMpsAt50);
+                float risk = PassRules.InterceptRisk(ctx.X, ctx.Z, landing.x, landing.z, ctx.Opponents, MatchTuning.InterceptRunSpeed, ballSpeed);
                 if (!PassRules.IsPassSafe(risk, riskAllow)) { continue; }
 
                 best = m.PlayerId;
                 bestScore = score;
             }
             return best;
+        }
+
+        private static bool IsPressed(IPlayerContext ctx)
+        {
+            IReadOnlyList<TargetInfo> opp = ctx.Opponents;
+            float r2 = MatchTuning.PressedRadius * MatchTuning.PressedRadius;
+            for (int i = 0; i < opp.Count; i++)
+            {
+                float dx = opp[i].X - ctx.X;
+                float dz = opp[i].Z - ctx.Z;
+                if (dx * dx + dz * dz <= r2) { return true; }
+            }
+            return false;
         }
 
         private static int KeeperTarget(IPlayerContext ctx)

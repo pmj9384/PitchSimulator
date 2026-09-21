@@ -108,15 +108,36 @@ public class PlayerTreeTests
     }
 
     [Test]
-    public void 앞_아군이_막히면_뒤_아군에게_돌린다()
+    public void 리시버_앞_착지점까지_수비수가_있으면_안전한_패스가_아니다()
     {
-        // 09-18 Play 진단 C: 앞 후보가 전부 불안전하면 드리블로 벽에 걸어가던 것을 옆·뒤 후보로 돌린다
+        // 09-21: 리시버(1)는 (15,0), 리드 목표는 그보다 앞. 상대는 리시버 너머 (19, 0.3)에 서 있다.
+        // 리시버 위치까지만 보면 "리시버보다 멀어서 무관"이라 안전이지만, 공은 착지점까지 날아가 그 상대가 먹는다
         var mid = new Fake { PlayerId = 0, OwnsBall = true, BallPhase = BallPhase.Owned, BallOwnerTeam = 0, X = 0f,
-            Teammates = new List<TargetInfo> { new TargetInfo(1, 15f, 0f), new TargetInfo(2, -6f, 8f) },
-            Opponents = new List<TargetInfo> { new TargetInfo(11, 7f, 0.2f) } };   // 앞 경로 위 상대 → 앞 후보 위험도 1
+            Teammates = new List<TargetInfo> { new TargetInfo(1, 15f, 0f) },
+            Opponents = new List<TargetInfo> { new TargetInfo(11, 19f, 0.3f) } };
         mid.Stats.ShotBias = 1f;
         Tree.Tick(mid);
-        Assert.AreEqual("pass", mid.Did, "드리블 대신 패스");
+        Assert.AreEqual("move", mid.Did, "패스 대신 드리블");
+    }
+
+    [Test]
+    public void 앞_아군이_막히면_압박받을_때만_뒤_아군에게_돌리고_아니면_드리블한다()
+    {
+        // 09-18 Play 진단 C: 앞 후보가 전부 불안전하면 옆·뒤 후보로 돌린다. 09-21: 단 압박(상대 3m 안)받을 때만.
+        // 앞 경로 위 상대(7, 0.2)는 앞 후보를 막지만 7m 떨어져 압박은 아니다 → 드리블
+        var mid = new Fake { PlayerId = 0, OwnsBall = true, BallPhase = BallPhase.Owned, BallOwnerTeam = 0, X = 0f,
+            Teammates = new List<TargetInfo> { new TargetInfo(1, 15f, 0f), new TargetInfo(2, -6f, 8f) },
+            Opponents = new List<TargetInfo> { new TargetInfo(11, 7f, 0.2f) } };
+        mid.Stats.ShotBias = 1f;
+        Tree.Tick(mid);
+        Assert.AreEqual("move", mid.Did, "압박이 없으면 뒤로 안 돌리고 몬다");
+        Assert.Greater(mid.MoveX, 0f, "골 쪽으로");
+
+        // 상대가 2.5m 뒤에 붙으면(압박) 뒤 아군에게 돌린다. 그 상대는 뒤 패스 경로 밖(z 반대)
+        mid.Opponents = new List<TargetInfo> { new TargetInfo(11, 7f, 0.2f), new TargetInfo(12, -2.5f, -0.5f) };
+        mid.Did = "";
+        Tree.Tick(mid);
+        Assert.AreEqual("pass", mid.Did, "압박받으면 돌린다");
         Assert.AreEqual(2, mid.PassedTo, "뒤 아군에게");
     }
 

@@ -58,6 +58,16 @@ public class PassRulesTests
     }
 
     [Test]
+    public void 발치에_붙은_상대는_등_뒤로_차도_위험도_1이다()
+    {
+        // 패서 (0,0)이 +X로 찬다. 상대는 (-0.5, 0.3): 축 뒤(along < 0)지만 발 뻗는 범위 1.2 안
+        var glued = new List<TargetInfo> { new TargetInfo(11, -0.5f, 0.3f) };
+        Assert.AreEqual(1f, PassRules.InterceptRisk(0f, 0f, 20f, 0f, glued, 5f, 15f));
+        var justOutside = new List<TargetInfo> { new TargetInfo(11, -1.5f, 0f) };
+        Assert.AreEqual(0f, PassRules.InterceptRisk(0f, 0f, 20f, 0f, justOutside, 5f, 15f), "범위 밖 뒤쪽 상대는 예전처럼 무관");
+    }
+
+    [Test]
     public void 리시버_점수는_앞선_선수가_높고_선호_거리에_가까울수록_높다()
     {
         // 팀 0(+X). 패서 (0,0). 후보 A (15, 0) 전진 15, B (5, 0) 전진 5, C (-5, 0) 뒤
@@ -105,23 +115,34 @@ public class PassRulesTests
     }
 
     [Test]
+    public void 옆_뒤_리시버에겐_리드를_주지_않는다()
+    {
+        // 09-21: 뒤 5m 아군에게 앞으로 8m 리드하면 착지점이 패서보다 앞이 된다. 옆·뒤는 지금 위치가 목표
+        (float x, float z) back = PassRules.LeadTarget(passerX: 0f, receiverX: -5f, receiverZ: 8f, attackSign: +1, passDistance: 9.4f, ballSpeed: 15f, receiverSpeed: 7f);
+        Assert.AreEqual(-5f, back.x, 1e-4f);
+        Assert.AreEqual(8f, back.z, 1e-4f);
+        (float x, float z) side = PassRules.LeadTarget(0f, 0f, 10f, +1, 10f, 15f, 7f);
+        Assert.AreEqual(0f, side.x, 1e-4f, "전진 0도 리드 없음");
+    }
+
+    [Test]
     public void 리드_패스_목표는_리시버_앞쪽이고_상한과_필드_안으로_잘린다()
     {
         // 20m 패스를 15m/s로 → 1.33초. 리시버 7m/s면 9.3m 앞이지만 상한 8m
-        (float x, float z) lead = PassRules.LeadTarget(10f, 5f, +1, passDistance: 20f, ballSpeed: 15f, receiverSpeed: 7f);
+        (float x, float z) lead = PassRules.LeadTarget(passerX: 0f, 10f, 5f, +1, passDistance: 20f, ballSpeed: 15f, receiverSpeed: 7f);
         Assert.AreEqual(18f, lead.x, 1e-4f);
         Assert.AreEqual(5f, lead.z, 1e-4f, "Z는 그대로");
 
-        lead = PassRules.LeadTarget(10f, 0f, +1, 20f, 15f, receiverSpeed: 3f);
+        lead = PassRules.LeadTarget(0f, 10f, 0f, +1, 20f, 15f, receiverSpeed: 3f);
         Assert.AreEqual(14f, lead.x, 1e-4f, "느린 리시버는 4m 앞");
 
-        lead = PassRules.LeadTarget(10f, 0f, -1, 20f, 15f, 3f);
+        lead = PassRules.LeadTarget(20f, 10f, 0f, -1, 20f, 15f, 3f);
         Assert.AreEqual(6f, lead.x, 1e-4f, "팀 1은 -X 앞");
 
-        lead = PassRules.LeadTarget(50f, 0f, +1, 20f, 15f, 7f);
+        lead = PassRules.LeadTarget(30f, 50f, 0f, +1, 20f, 15f, 7f);
         Assert.AreEqual(52f, lead.x, 1e-4f, "골라인 안(52.5 - 0.5)으로 클램프");
 
-        lead = PassRules.LeadTarget(10f, 0f, +1, 20f, 15f, receiverSpeed: 0f);
+        lead = PassRules.LeadTarget(0f, 10f, 0f, +1, 20f, 15f, receiverSpeed: 0f);
         Assert.AreEqual(10f, lead.x, 1e-4f, "정지 리시버는 제자리");
     }
 
