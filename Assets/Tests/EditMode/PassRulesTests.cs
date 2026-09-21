@@ -66,7 +66,23 @@ public class PassRulesTests
         float c = PassRules.ScoreReceiver(0f, 0f, -5f, 0f, +1, passStyle: 1, passLength: 15f, widthLevel: 1);
 
         Assert.Greater(a, b, "더 앞선 A");
-        Assert.Less(c, 0f, "뒤에 있는 후보는 음수(후보 아님)");
+        Assert.Greater(c, 0f, "5m 뒤 후보도 후보다(09-21 C)");
+        Assert.Less(c, b, "뒤 후보는 어떤 앞 후보보다 낮다");
+    }
+
+    [Test]
+    public void 옆_후보는_양수지만_앞_후보를_못_이기고_깊은_뒤_후보는_빠진다()
+    {
+        // 패서 (0,0). 옆 (0, 8) 전진 0, 앞 후보 (5, 0) 전진 5, 깊은 뒤 (-25, 0)
+        // 경계: 옆·뒤 최대치는 0.3 × (근접 1 + 측면). 1~3m 앞처럼 전진이 거의 없는 후보는 근접 항이 낮아 좋은 옆 후보에게 질 수 있고
+        // 그게 의도다(찔끔 패스 핑퐁 방지). 전진 5m 정도부터는 앞 후보가 확실히 이긴다
+        float side = PassRules.ScoreReceiver(0f, 0f, 0f, 8f, +1, passStyle: 1, passLength: 15f, widthLevel: 1);
+        float forward5 = PassRules.ScoreReceiver(0f, 0f, 5f, 0f, +1, passStyle: 1, passLength: 15f, widthLevel: 1);
+        float deepBack = PassRules.ScoreReceiver(0f, 0f, -25f, 0f, +1, passStyle: 1, passLength: 15f, widthLevel: 1);
+
+        Assert.Greater(side, 0f, "옆 아군은 후보");
+        Assert.Less(side, forward5, "전진 5m 앞 후보에게 진다");
+        Assert.LessOrEqual(deepBack, 0f, "25m 뒤는 감점으로 후보에서 빠진다");
     }
 
     [Test]

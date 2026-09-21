@@ -52,13 +52,13 @@ namespace Game.Core.Match
             return interceptRisk <= riskAllow;
         }
 
-        // 리시버 후보 점수. 앞선(공격 방향) 아군만 양수. 전진 거리 + 선호 거리 근접 + 측면 가중.
+        // 리시버 후보 점수. 앞선(공격 방향) 아군은 전진 거리 + 선호 거리 근접 + 측면 가중.
+        // 옆·뒤 아군(09-21, C)은 같은 근접·측면 항에 배율 0.3을 곱하고 뒤 거리만큼 깎는다: 앞 후보를 절대 못 이기므로 앞이 전부
+        // 막혔을 때만 돌릴 곳이 되고, 깊은 백패스는 0 이하로 떨어져 후보에서 빠진다(호출자는 0 초과만 본다).
         // passStyle(짧게 0·직접 1·롱볼 2)이 "먼 후보를 얼마나 선호하나"를, widthLevel이 "측면 후보를 얼마나 선호하나"를 정한다
         public static float ScoreReceiver(float passerX, float passerZ, float candX, float candZ, int attackSign, int passStyle, float passLength, int widthLevel)
         {
             float forward = (candX - passerX) * attackSign;
-            if (forward <= 0f) { return -1f; }   // 뒤나 옆은 후보 아님(1주차. 백패스는 2차)
-
             float dx = candX - passerX;
             float dz = candZ - passerZ;
             float dist = (float)Math.Sqrt(dx * dx + dz * dz);
@@ -67,7 +67,9 @@ namespace Game.Core.Match
             float distFit = 1f - Math.Abs(dist - preferred) / (preferred + dist);         // 0~1, 선호 거리에 가까울수록 1
             float lateral = Math.Abs(candZ) * MatchTuning.WidthScale[widthLevel] * 0.02f; // 측면 가중(폭 넓게일수록)
 
-            return forward * 0.05f + distFit + lateral;
+            if (forward > 0f) { return forward * 0.05f + distFit + lateral; }
+
+            return (distFit + lateral) * MatchTuning.BackPassScale + forward * MatchTuning.BackPassDepthPenalty;   // forward ≤ 0이라 감점
         }
 
         // 리드 패스 목표(09-18 Play 진단): 리시버의 지금 위치로 차면 리시버는 이미 움직여 공이 뒤에 떨어진다.

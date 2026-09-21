@@ -99,12 +99,25 @@ public class PlayerTreeTests
     public void 드리블_성향이_낮으면_가까운_아군_쪽으로_몬다()
     {
         var mid = new Fake { PlayerId = 0, OwnsBall = true, BallPhase = BallPhase.Owned, BallOwnerTeam = 0, X = 0f,
-            Teammates = new List<TargetInfo> { new TargetInfo(1, -5f, 10f) },   // 뒤에 있어 패스 후보 아님
+            Teammates = new List<TargetInfo> { new TargetInfo(1, -30f, 10f) },  // 30m 뒤라 감점으로 패스 후보 아님(09-21 C)
             Opponents = new List<TargetInfo>() };
         mid.Stats.ShotBias = 1f; mid.Stats.Dribble = 0.1f;
         Tree.Tick(mid);
         Assert.AreEqual("move", mid.Did);
-        Assert.AreEqual(-5f, mid.MoveX, 1e-4f, "가까운 아군 쪽");
+        Assert.AreEqual(-30f, mid.MoveX, 1e-4f, "가까운 아군 쪽");
+    }
+
+    [Test]
+    public void 앞_아군이_막히면_뒤_아군에게_돌린다()
+    {
+        // 09-18 Play 진단 C: 앞 후보가 전부 불안전하면 드리블로 벽에 걸어가던 것을 옆·뒤 후보로 돌린다
+        var mid = new Fake { PlayerId = 0, OwnsBall = true, BallPhase = BallPhase.Owned, BallOwnerTeam = 0, X = 0f,
+            Teammates = new List<TargetInfo> { new TargetInfo(1, 15f, 0f), new TargetInfo(2, -6f, 8f) },
+            Opponents = new List<TargetInfo> { new TargetInfo(11, 7f, 0.2f) } };   // 앞 경로 위 상대 → 앞 후보 위험도 1
+        mid.Stats.ShotBias = 1f;
+        Tree.Tick(mid);
+        Assert.AreEqual("pass", mid.Did, "드리블 대신 패스");
+        Assert.AreEqual(2, mid.PassedTo, "뒤 아군에게");
     }
 
     [Test]
