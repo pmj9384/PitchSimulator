@@ -28,6 +28,20 @@ public class PassFlightTests
         }
     }
 
+    // 찬 뒤 자기 공을 쫓아가는 패서(실제 트리 ⑩ 자유 공 분기와 같은 움직임)
+    private sealed class PassThenChase : BehaviorNode
+    {
+        private readonly int passer; private readonly int receiver; private bool done;
+        public PassThenChase(int passer, int receiver) { this.passer = passer; this.receiver = receiver; }
+        public override NodeState Tick(IPlayerContext ctx)
+        {
+            if (ctx.PlayerId != passer) { return NodeState.Success; }
+            if (!done && ctx.OwnsBall) { ctx.Pass(receiver); done = true; return NodeState.Success; }
+            ctx.MoveToward(ctx.BallX, ctx.BallZ);
+            return NodeState.Success;
+        }
+    }
+
     private sealed class ShootOnce : BehaviorNode
     {
         private bool done;
@@ -76,6 +90,43 @@ public class PassFlightTests
         sim.Tick(Dt);   // 킥
         sim.Tick(Dt);   // 공은 0.3m 이동, 아직 패서 반경 안
         Assert.AreEqual(BallPhase.Flight, sim.Ball.Phase, "패서가 도로 잡으면 안 된다");
+    }
+
+    [Test]
+    public void 찬_선수가_자기_공을_쫓아가도_공이_앞서면_못_잡는다()
+    {
+        // 09-21 Play: 릴리스만 있으면 3틱째(공 0.9m, 패서 0.42m 따라옴)에 패서가 도로 잡아 0.15초마다 반복됐다
+        var sim = new MatchSimulation(() => 0.5f, new PassThenChase(0, 1));
+        sim.AddPlayer(new PlayerState(0, 0, Mid(), 0f, 0f));
+        sim.AddPlayer(new PlayerState(1, 0, Mid(), 15f, 0f));
+        sim.Kickoff();
+        sim.Ball = BallRules.Own(sim.Ball, 0, 0f, 0f);
+
+        for (int i = 0; i < 150 && !(sim.Ball.Phase == BallPhase.Owned && sim.Ball.OwnerId != 0); i++) { sim.Tick(Dt); }
+        Assert.AreEqual(BallPhase.Owned, sim.Ball.Phase, "150틱 안에 누군가 받는다");
+        Assert.AreEqual(1, sim.Ball.OwnerId, "쫓아간 패서가 아니라 리시버가 받는다");
+        Assert.AreEqual(0, sim.InterceptCount);
+    }
+
+    [Test]
+    public void 발치에_붙은_상대는_등_뒤로_찬_패스를_그_자리에서_못_잡는다()
+    {
+        // 09-21 Play 잠금: 압박 상대가 소유자 발치(0.5m)에 서 있고 소유자는 반대쪽 아군에게 찬다.
+        // 킥 릴리스 전엔 아무도 못 잡으므로 공은 발치를 떠나고, 상대는 경로 밖이라 끝까지 못 잡는다
+        var sim = new MatchSimulation(() => 0.5f, new PassOnce(0, 1));
+        sim.AddPlayer(new PlayerState(0, 0, Mid(), 0f, 0f));
+        sim.AddPlayer(new PlayerState(1, 0, Mid(), -12f, 0f));    // 뒤쪽 아군(리시버)
+        sim.AddPlayer(new PlayerState(2, 1, Mid(), 0.5f, 0f));    // 발치에 붙은 상대, 패스 축의 반대편
+        sim.Kickoff();
+        sim.Ball = BallRules.Own(sim.Ball, 0, 0f, 0f);
+
+        sim.Tick(Dt);   // 킥
+        sim.Tick(Dt);   // 공 0.3m 이동. 릴리스 전
+        Assert.AreEqual(BallPhase.Flight, sim.Ball.Phase, "발치 상대가 그 자리에서 잡으면 안 된다");
+
+        for (int i = 0; i < 100 && sim.Ball.Phase != BallPhase.Owned; i++) { sim.Tick(Dt); }
+        Assert.AreEqual(1, sim.Ball.OwnerId, "뒤쪽 아군이 받음");
+        Assert.AreEqual(0, sim.InterceptCount);
     }
 
     [Test]

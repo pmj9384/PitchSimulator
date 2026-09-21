@@ -96,7 +96,14 @@ namespace Game.Core.Match
         private int ballOwnerAtLastTick = BallState.NoOwner;
         private int holdUpTicksLeft;          // 볼 끌기(개인 holdUp): 소유 뒤 킥까지 대기 틱
         private bool keeperAlternate;         // GK 배급 "섞어"의 교대 스위치
-        private int lastKickerId = BallState.NoOwner;   // 방금 찬 선수. 공이 발치를 벗어날 때까지 자기 공을 다시 못 잡는다
+        // 킥 릴리스(09-21 Play 진단): 찬 공은 킥 원점에서 잡기 반경을 벗어난 뒤에야 누구든 잡을 수 있다.
+        // 발치에 붙은 상대가 첫 틱(0.3m)에 그 자리에서 가로채 소유가 0.4초마다 뒤집히던 잠금을 막는다
+        private float kickOriginX;
+        private float kickOriginZ;
+        private bool passReleased = true;
+        // 찬 선수 가드(09-18, 09-21 재확인): 비행 중엔 소유 팀이 없어 자유 공 분기로 패서가 자기 공을 쫓는다.
+        // 릴리스만 있으면 3틱째(공 0.9m, 패서 0.42m 따라옴)에 도로 잡아 0.15초마다 반복됐다. 공이 패서 반경을 벗어날 때까지 패서는 후보에서 뺀다
+        private int lastKickerId = BallState.NoOwner;
         public int PassCount { get; private set; }
         public int InterceptCount { get; private set; }
 
@@ -169,6 +176,7 @@ namespace Game.Core.Match
             passReceiverId = -1;
             ballOwnerAtLastTick = BallState.NoOwner;
             holdUpTicksLeft = 0;
+            passReleased = true;
             lastKickerId = BallState.NoOwner;
             for (int i = 0; i < players.Count; i++)
             {
@@ -379,6 +387,9 @@ namespace Game.Core.Match
             passTargetX = target.x;
             passTargetZ = target.z;
             PassCount++;
+            kickOriginX = Ball.X;
+            kickOriginZ = Ball.Z;
+            passReleased = false;
             lastKickerId = passer.PlayerId;
 
             Ball = BallRules.Kick(Ball, target.x - passer.X, target.z - passer.Z, speed);
@@ -488,13 +499,20 @@ namespace Game.Core.Match
 
         private void TryCapture()
         {
+            if (passInFlight && !passReleased)
+            {
+                float odx = Ball.X - kickOriginX;
+                float odz = Ball.Z - kickOriginZ;
+                if (odx * odx + odz * odz <= MatchTuning.CaptureRadius * MatchTuning.CaptureRadius) { return; }   // 아직 발치. 아무도 못 잡는다
+                passReleased = true;
+            }
+
             captureCandidates.Clear();
             for (int i = 0; i < players.Count; i++)
             {
                 PlayerState p = players[i];
                 if (p.PlayerId == lastKickerId)
                 {
-                    // 찬 직후엔 공이 아직 발치라 자기 공을 도로 잡는다. 반경을 벗어나면 다시 후보
                     float kdx = p.X - Ball.X;
                     float kdz = p.Z - Ball.Z;
                     if (kdx * kdx + kdz * kdz <= MatchTuning.CaptureRadius * MatchTuning.CaptureRadius) { continue; }
