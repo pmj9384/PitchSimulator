@@ -140,7 +140,7 @@ public class MatchSimulationTests
     }
 
     [Test]
-    public void 골라인에_못_미치고_멈춘_슛은_빗나감으로_마감되고_킥오프한다()
+    public void 골라인에_못_미치고_멈춘_슛은_빗나감으로_마감되고_상대_GK가_공을_갖는다()
     {
         PlayerStats farShooter = Striker();
         farShooter.ShotBias = 0f;   // 확률 0이어도 쏜다(다이얼 하한이 0)
@@ -157,8 +157,8 @@ public class MatchSimulationTests
         Assert.AreEqual(1, reports.Count);
         Assert.AreEqual(ShotOutcome.Missed, reports[0].Outcome);
         Assert.AreEqual(0f, reports[0].Probability, "40m 밖은 확률 0");
-        Assert.AreEqual(BallPhase.Free, sim.Ball.Phase);
-        Assert.AreEqual(0f, sim.Ball.X, "킥오프로 돌아옴");
+        Assert.AreEqual(BallPhase.Owned, sim.Ball.Phase, "골킥: 수비 팀 GK 소유(09-23)");
+        Assert.AreEqual(1, sim.Ball.OwnerId, "상대 GK");
     }
 
     private static PlayerStats Defender(int tackle)

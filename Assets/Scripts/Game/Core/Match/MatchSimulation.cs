@@ -207,7 +207,7 @@ namespace Game.Core.Match
             if (shotInFlight && Ball.Phase != BallPhase.Flight)
             {
                 Finish(ShotOutcome.Missed);
-                Kickoff();
+                RestartAfterMiss();
                 return;
             }
 
@@ -487,7 +487,7 @@ namespace Game.Core.Match
             }
 
             Finish(ShotOutcome.Missed);   // 골문 밖 조준이거나(shotAimZ) GK를 지나쳤거나
-            Kickoff();
+            RestartAfterMiss();
             return true;
         }
 
@@ -519,6 +519,15 @@ namespace Game.Core.Match
                 return true;
             }
             return false;
+        }
+
+        // 빗나간 슛은 골킥: 수비 팀 GK가 자기 자리에서 공을 갖고 배급한다(09-23). 킥오프로 리셋하면 같은 공격이 9.6초 주기로 그대로 재생됐고
+        // 상대 팀이 공을 가질 기회가 없었다. GK가 없는 시뮬(리트머스·일부 테스트)과 ResetAfterEveryShot은 예전처럼 킥오프
+        private void RestartAfterMiss()
+        {
+            PlayerState? keeper = ResetAfterEveryShot ? null : FindGoalkeeper(shooterAttackSign > 0 ? 1 : 0);
+            if (keeper == null) { Kickoff(); return; }
+            Ball = BallRules.Own(Ball, keeper.PlayerId, keeper.X, keeper.Z);
         }
 
         private void Finish(ShotOutcome outcome)
