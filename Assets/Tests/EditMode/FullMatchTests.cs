@@ -3,13 +3,14 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Game.Core.AI;
+using Game.Core.AutoMatch;
 using Game.Core.Data;
 using Game.Core.Match;
 using Game.Core.Tactics;
 using NUnit.Framework;
 
-// 22명 3분 경기를 엔진 없이 끝까지 돌린다(09-21 태스크 ③). 매니저(MatchManager.ResetMatch + StageManager 스폰)와 같은 재료:
-// 실제 CSV 3개(PlayerTable·StageComposition 1번·TacticPresets balanced) + Build() 트리 + System.Random(시드).
+// 22명 3분 경기를 엔진 없이 끝까지 돌린다(09-21 태스크 ③). 조립은 MatchAssembler(러너·매니저와 같은 재료: 실제 CSV 3개 + Build() 트리 + 시드).
+// 여기 Summary는 규칙을 고칠 때 보는 진단 지표(접촉·최소 거리·|z| 등)다. 밸런스용 결과 한 줄은 MatchProbe/MatchSummary가 따로 낸다.
 // ①같은 시드 = 같은 경기(CLAUDE.md "기기가 달라도 결과가 같아야 한다"의 첫 실증, 09-23 자동 대전 러너의 전제)
 // ②9,000틱(3분 ÷ 0.02)이 예외 없이 돈다 ③결과 요약을 출력해 Play 없이 기준선 로그를 본다
 public class FullMatchTests
@@ -51,19 +52,7 @@ public class FullMatchTests
         TeamTactics balanced = TeamTacticsParser.Parse(File.ReadAllText("Assets/Resources/Tables/TacticPresets.csv")).Find(t => t.PresetId == "balanced");
         Assert.IsNotNull(balanced, "TacticPresets에 balanced");
 
-        var rng = new Random(seed);
-        var sim = new MatchSimulation(() => (float)rng.NextDouble(), PlayerTreeBuilder.Build()) { ResetAfterEveryShot = false };
-        sim.SetTactics(0, balanced);
-        sim.SetTactics(1, balanced);
-
-        int nextId = 0;
-        for (int i = 0; i < rows.Count; i++)
-        {
-            StageEntry row = rows[i];
-            PlayerStats stats = table.Find(s => s.VariantId == row.Id);
-            Assert.IsNotNull(stats, $"PlayerTable에 {row.Id}");
-            sim.AddPlayer(new PlayerState(nextId++, row.Team, stats, row.PosX, row.PosZ, row.DefendX, row.DefendZ));
-        }
+        MatchSimulation sim = MatchAssembler.Create(table, rows, balanced, balanced, seed);   // 러너·매니저와 같은 조립(09-23)
 
         sim.ShotResolved += r => { summary.Shots++; if (r.Outcome == ShotOutcome.Goal) { summary.Goals++; } };
         sim.PossessionChanged += r =>
@@ -77,7 +66,6 @@ public class FullMatchTests
                 if (prevTeam == r.NewOwnerTeam) { summary.InterceptedBySameTeam++; } else { summary.InterceptedByOpponent++; }
             }
         };
-        sim.Kickoff();
         return sim;
     }
 

@@ -44,3 +44,6 @@ ProjectSettings/AndroidResolverDependencies.xml
 # 파이프라인 capture_game_view 산출물 (Assets 안에만 저장됨)
 /Assets/Temp/
 /Assets/Temp.meta
+
+# 자동 대전 러너 산출물(Tools/Match 메뉴)
+/Reports/
