@@ -76,7 +76,7 @@ public class MatchManager : InGameManager
 
     private void StartMatch()
     {
-        Simulation.Kickoff();
+        Simulation.KickoffBy(0);   // 인게임 한 판은 홈(내 팀)이 킥오프. 골 뒤엔 시뮬이 실점 팀에게 준다(09-23)
         SyncViews();
     }
 

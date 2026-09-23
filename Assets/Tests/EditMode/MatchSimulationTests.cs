@@ -11,6 +11,7 @@ using NUnit.Framework;
 internal static class PassFlightTestsHelper
 {
     internal sealed class NoOp : BehaviorNode { public override NodeState Tick(IPlayerContext ctx) { return NodeState.Success; } }
+    internal sealed class ShootOnce : BehaviorNode { private bool done; public override NodeState Tick(IPlayerContext ctx) { if (!done && ctx.OwnsBall) { ctx.Shoot(); done = true; } return NodeState.Success; } }
     internal sealed class ChaseBall : BehaviorNode { public override NodeState Tick(IPlayerContext ctx) { if (!ctx.OwnsBall) { ctx.MoveToward(ctx.BallX, ctx.BallZ); } return NodeState.Success; } }
 }
 
@@ -215,6 +216,35 @@ public class MatchSimulationTests
         for (int i = 0; i < 10; i++) { sim.Tick(Dt); }
         Assert.AreEqual(x, t.X, 1e-5f, "정지 중엔 공을 쫓아도 안 움직인다");
         Assert.AreEqual(1, sim.TackleAttemptCount, "쿨다운 중 재시도 없음");
+    }
+
+    [Test]
+    public void 킥오프는_지정_팀의_중앙_최근접_필드_플레이어가_공을_갖고_골_뒤엔_실점_팀이_킥오프한다()
+    {
+        // 팀0 ST(-8,0)·GK(-48,0), 팀1 ST(8,0)·GK(48,0). 주사위 0 = 슛은 항상 골
+        var sim = new MatchSimulation(() => 0f, new PassFlightTestsHelper.NoOp());
+        sim.AddPlayer(new PlayerState(0, 0, Keeper(), -48f, 0f));
+        sim.AddPlayer(new PlayerState(1, 0, Striker(), -8f, 0f));
+        sim.AddPlayer(new PlayerState(2, 1, Keeper(), 48f, 0f));
+        sim.AddPlayer(new PlayerState(3, 1, Striker(), 8f, 0f));
+
+        sim.KickoffBy(1);
+        Assert.AreEqual(BallPhase.Owned, sim.Ball.Phase);
+        Assert.AreEqual(3, sim.Ball.OwnerId, "팀1 ST가 킥오프(GK 제외)");
+
+        sim.KickoffBy(0);
+        Assert.AreEqual(1, sim.Ball.OwnerId, "팀0 ST");
+
+        // 팀0이 골을 넣으면 팀1이 킥오프
+        var shooter = new MatchSimulation(() => 0f, new PassFlightTestsHelper.ShootOnce());
+        shooter.AddPlayer(new PlayerState(0, 0, Striker(), 40f, 0f));
+        shooter.AddPlayer(new PlayerState(1, 1, Keeper(), 48f, 0f));
+        shooter.AddPlayer(new PlayerState(2, 1, Striker(), 8f, 0f));
+        shooter.Kickoff();
+        shooter.Ball = BallRules.Own(shooter.Ball, 0, 40f, 0f);
+        for (int i = 0; i < 300 && shooter.HomeGoals == 0; i++) { shooter.Tick(Dt); }
+        Assert.AreEqual(1, shooter.HomeGoals);
+        Assert.AreEqual(2, shooter.Ball.OwnerId, "실점한 팀1의 ST가 킥오프");
     }
 
     [Test]

@@ -173,6 +173,26 @@ namespace Game.Core.Match
             return FindPlayer(Ball.OwnerId).Team;
         }
 
+        // 킥오프를 하는 팀(09-23): 중앙 리셋 뒤 그 팀에서 중앙에 가장 가까운 필드 플레이어가 공을 갖는다. 실제 규칙(시작은 동전, 골 뒤엔
+        // 실점 팀)과 같다. 자유 공 경합으로 두면 양 팀 ST가 등거리라 PlayerId 타이브레이크가 매 킥오프를 한 팀에 줬고(먼저 스폰된 팀이
+        // 미러 세팅에서 75% 승·상대 0%), 스폰 순서를 뒤집으면 결과가 거울로 뒤집혔다. Kickoff()(자유 공)는 리트머스·테스트용으로 남긴다
+        public void KickoffBy(int team)
+        {
+            Kickoff();
+            int best = BallState.NoOwner;
+            float bestD2 = float.MaxValue;
+            for (int i = 0; i < players.Count; i++)
+            {
+                PlayerState p = players[i];
+                if (p.Team != team || p.IsGoalkeeper) { continue; }
+                float d2 = p.X * p.X + p.Z * p.Z;
+                if (d2 < bestD2) { bestD2 = d2; best = p.PlayerId; }
+            }
+            if (best == BallState.NoOwner) { return; }   // 그 팀 필드 플레이어가 없으면 자유 공
+            PlayerState kicker = FindPlayer(best);
+            Ball = BallRules.Own(Ball, best, kicker.X, kicker.Z);
+        }
+
         public void Kickoff()
         {
             Ball = BallState.FreeAt(0f, 0f);
@@ -482,7 +502,7 @@ namespace Game.Core.Match
             {
                 if (shooterAttackSign > 0) { HomeGoals++; } else { AwayGoals++; }
                 Finish(ShotOutcome.Goal);
-                Kickoff();
+                if (ResetAfterEveryShot) { Kickoff(); } else { KickoffBy(shooterAttackSign > 0 ? 1 : 0); }   // 실점한 팀이 킥오프
                 return true;
             }
 
