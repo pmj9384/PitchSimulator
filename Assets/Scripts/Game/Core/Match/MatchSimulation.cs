@@ -457,18 +457,22 @@ namespace Game.Core.Match
             Ball = BallRules.Kick(Ball, goalX - shooter.X, shotAimZ - shooter.Z, MatchTuning.ShotSpeed);
         }
 
-        // 패스: 리시버 현재 위치로 직선 비행. 속도는 공이 있는 서드의 팀 속도. 리시버는 스냅샷으로 알고 마중 나간다
+        // 패스: 리드 목표점으로 직선 비행. 초속은 목표까지 거리로 역산(도착 속도 = 공이 있는 서드의 팀 템포). 리시버는 스냅샷으로 알고 마중 나간다
         private void Pass(PlayerState passer, int receiverId)
         {
             PlayerState receiver = FindPlayer(receiverId);
             Third third = PositionRules.ThirdOf(Ball.X, passer.AttackSign);
-            float speed = MatchTuning.PassSpeed[tactics[passer.Team].Tempo[(int)third]];
+            float arrival = MatchTuning.PassArrivalSpeed[tactics[passer.Team].Tempo[(int)third]];
 
-            // 리드 패스: 리시버가 공 도착 때 있을 앞쪽 점으로. 리시버 속도는 그 선수 speed 스탯
+            // 리드 패스: 리시버가 공 도착 때 있을 앞쪽 점으로. 리시버 속도는 그 선수 speed 스탯. 비행 시간은 리시버 거리 기준 평균 속도로
             float dx0 = receiver.X - passer.X;
             float dz0 = receiver.Z - passer.Z;
             float dist = (float)Math.Sqrt(dx0 * dx0 + dz0 * dz0);
-            (float x, float z) target = PassRules.LeadTarget(passer.X, receiver.X, receiver.Z, receiver.AttackSign, dist, speed, MatchRules.SpeedMps(receiver.Stats.Speed));
+            float average = PassRules.AverageSpeed(PassRules.KickSpeed(dist, arrival, MatchTuning.BallDeceleration, MatchTuning.PassSpeedMax), dist, MatchTuning.BallDeceleration);
+            (float x, float z) target = PassRules.LeadTarget(passer.X, receiver.X, receiver.Z, receiver.AttackSign, dist, average, MatchRules.SpeedMps(receiver.Stats.Speed));
+            float dx1 = target.x - passer.X;
+            float dz1 = target.z - passer.Z;
+            float speed = PassRules.KickSpeed((float)Math.Sqrt(dx1 * dx1 + dz1 * dz1), arrival, MatchTuning.BallDeceleration, MatchTuning.PassSpeedMax);
 
             passInFlight = true;
             passReceiverId = receiverId;

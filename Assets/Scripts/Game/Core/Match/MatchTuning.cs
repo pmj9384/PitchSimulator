@@ -25,8 +25,9 @@ namespace Game.Core.Match
         public static readonly float[] WidthScale = { 0.5f, 1f, 1.5f };        // 폭(좁게·표준·넓게) → 개인 측면 쏠림에 곱하는 배율
         public static readonly float[] PassRiskAllow = { 0.2f, 0.5f, 0.8f };   // 패스 리스크(안전·균형·모험) → 허용하는 가로채기 위험도
         public static readonly float[] PassStyleLengthScale = { 0.6f, 1f, 1.8f }; // 패스 방식(짧게·직접·롱볼) → 개인 선호 패스 거리에 곱함
-        public static readonly float[] PassSpeed = { 12f, 15f, 18f };           // 속도(느리게·표준·빠르게) → 패스 초속 m/s
-        public const float InterceptRunSpeed = 5f;                              // 가로채기 판정의 상대 달리기 속도. 정지 상태에서 반응·가속이 있어 전력(7)보다 낮게(밸런스 값)
+        public static readonly float[] PassArrivalSpeed = { 2f, 5f, 8f };       // 속도(느리게·표준·빠르게) → 패스가 목표점에 닿을 때 남는 속도 m/s. 초속은 거리로 역산(PassRules.KickSpeed). 09-23 전엔 초속 12/15/18 고정이라 정지 거리 18/28/40m 밖은 못 미치고 5m 패스는 받는 순간 15→0으로 꺾였다
+        public const float PassSpeedMax = 22f;                                  // 패스 초속 상한(강한 킥, 슛 25 아래). 도착 속도 5·감속 4면 57m까지 닿고 그 밖은 못 미쳐 멈춘다
+        public const float InterceptRunSpeed = SpeedMpsAt50;                    // 가로채기 판정의 상대 달리기 속도. 09-23 밤까지 5(반응·가속 가정)였는데 이 시뮬의 선수는 가속 없이 즉시 전력이고 추격 예측까지 하니 판정이 실제보다 낙관적이었다. 킥 속도 역산으로 공이 느려지자 "안전" 패스를 압박 선수가 매번 끊는 결정적 왕복(100판 전부 0:0)이 됐다. 시뮬과 같은 값(7)으로
         public const float InterceptReach = 1.2f;                               // 달려와서 발을 뻗어 공을 건드리는 범위(m). 잡기 반경 0.8보다 넓다(밸런스 값)
         public static readonly float[] PressStartScale = { 0f, 1f, 1.5f };      // 압박 시작(안 감·표준·적극) → 개인 압박 거리 배율. 0은 안 씀(ShouldPress가 먼저 거름)
         public const float CounterPressScale = 2f;                              // 역압박 중 개인 압박 거리 배율

@@ -160,8 +160,9 @@ public class PlayerTreeTests
     [Test]
     public void 오프사이드_위치_아군에겐_안_주고_공격_자리는_온사이드_선_뒤로_잡는다()
     {
-        // 팀0 패서 (10,0). 상대 GK 48, CB 31, CB 30 → 온사이드 선 31. 아군 A (35,0)은 오프사이드 위치, B (25,0)은 온사이드
-        var opp = new List<TargetInfo> { new TargetInfo(20, 48f, 0f), new TargetInfo(21, 31f, 8f), new TargetInfo(22, 30f, -8f) };
+        // 팀0 패서 (10,0). 상대 GK 48, CB 31, CB 30 → 온사이드 선 31. 아군 A (35,0)은 오프사이드 위치, B (25,0)은 온사이드.
+        // CB는 경로에서 12m 옆(가로채기 판정 밖: 09-24 상대 속도 7·평균 공 속도 9.7이면 8m 옆은 위험도 0.55라 안전 판정에 걸린다. 이 테스트는 오프사이드만 본다)
+        var opp = new List<TargetInfo> { new TargetInfo(20, 48f, 0f), new TargetInfo(21, 31f, 12f), new TargetInfo(22, 30f, -12f) };
         var mid = new Fake { PlayerId = 0, OwnsBall = true, BallPhase = BallPhase.Owned, BallOwnerTeam = 0, X = 10f, BallX = 10f,
             Teammates = new List<TargetInfo> { new TargetInfo(1, 35f, 0f), new TargetInfo(2, 25f, 0f) }, Opponents = opp };
         mid.Stats.ShotBias = 1f;

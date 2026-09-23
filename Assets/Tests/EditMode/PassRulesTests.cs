@@ -147,6 +147,18 @@ public class PassRulesTests
     }
 
     [Test]
+    public void 킥_초속은_도착_속도와_거리로_역산하고_상한을_넘지_않는다()
+    {
+        // 감속 4, 도착 5: 5m → √(25 + 40) = 8.06, 30m → √(25 + 240) = 16.28, 100m → √(825) = 28.7은 상한 22로
+        Assert.AreEqual(8.062f, PassRules.KickSpeed(5f, 5f, 4f, 22f), 1e-3f, "짧은 패스는 살살");
+        Assert.AreEqual(16.279f, PassRules.KickSpeed(30f, 5f, 4f, 22f), 1e-3f, "긴 패스는 세게");
+        Assert.AreEqual(22f, PassRules.KickSpeed(100f, 5f, 4f, 22f), "상한");
+        // 평균 속도 = (초속 + 도착) / 2. 상한에 걸려 못 미치면 도착 0
+        Assert.AreEqual(6.531f, PassRules.AverageSpeed(8.062f, 5f, 4f), 1e-3f);
+        Assert.AreEqual(11f, PassRules.AverageSpeed(22f, 100f, 4f), 1e-3f, "484 − 800 < 0 → 도착 0 → 평균 11");
+    }
+
+    [Test]
     public void 역습_리시버는_가장_앞선_아군_1명이다()
     {
         var mates = new List<TargetInfo> { new TargetInfo(1, 5f, 0f), new TargetInfo(2, 25f, -10f), new TargetInfo(3, 18f, 4f) };

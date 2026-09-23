@@ -121,7 +121,7 @@ namespace Game.Core.AI
             int third = Third(ctx);
             TeamTactics t = ctx.Tactics;
             float riskAllow = Math.Max(MatchTuning.PassRiskAllow[t.PassRisk[third]], ctx.Stats.PassRisk);
-            float ballSpeed = MatchTuning.PassSpeed[t.Tempo[third]];
+            float arrival = MatchTuning.PassArrivalSpeed[t.Tempo[third]];   // 킥 초속은 후보마다 거리로 역산(시뮬 Pass와 같은 식)
 
             // 옆·뒤 돌리기는 압박받을 때만(09-21 3분 계측: 압박 없이도 돌리니 앞·뒤 패스가 158·157로 교대하고 아무도 몰지 않아 박스에 못 들어감).
             // 압박이 없으면 앞 후보가 없을 때 ⑤ 드리블로 떨어진다
@@ -148,8 +148,13 @@ namespace Game.Core.AI
                 float ddx = m.X - ctx.X;
                 float ddz = m.Z - ctx.Z;
                 float passDistance = (float)Math.Sqrt(ddx * ddx + ddz * ddz);
-                (float x, float z) landing = PassRules.LeadTarget(ctx.X, m.X, m.Z, ctx.AttackSign, passDistance, ballSpeed, MatchTuning.SpeedMpsAt50);
-                float risk = PassRules.InterceptRisk(ctx.X, ctx.Z, landing.x, landing.z, ctx.Opponents, MatchTuning.InterceptRunSpeed, ballSpeed);
+                float average = PassRules.AverageSpeed(PassRules.KickSpeed(passDistance, arrival, MatchTuning.BallDeceleration, MatchTuning.PassSpeedMax), passDistance, MatchTuning.BallDeceleration);
+                (float x, float z) landing = PassRules.LeadTarget(ctx.X, m.X, m.Z, ctx.AttackSign, passDistance, average, MatchTuning.SpeedMpsAt50);
+                float lx = landing.x - ctx.X;
+                float lz = landing.z - ctx.Z;
+                float landingDistance = (float)Math.Sqrt(lx * lx + lz * lz);
+                float landingAverage = PassRules.AverageSpeed(PassRules.KickSpeed(landingDistance, arrival, MatchTuning.BallDeceleration, MatchTuning.PassSpeedMax), landingDistance, MatchTuning.BallDeceleration);
+                float risk = PassRules.InterceptRisk(ctx.X, ctx.Z, landing.x, landing.z, ctx.Opponents, MatchTuning.InterceptRunSpeed, landingAverage);
                 if (!PassRules.IsPassSafe(risk, riskAllow)) { continue; }
 
                 if (isReturn) { if (returnFallback == -1) { returnFallback = m.PlayerId; } continue; }

@@ -79,6 +79,32 @@ public class PassFlightTests
     }
 
     [Test]
+    public void 짧은_패스는_살살_긴_패스는_세게_차서_둘_다_리시버에게_닿는다()
+    {
+        // 09-23 Play: 초속이 거리 무관 고정이라 5m 패스는 15m/s로 날아가 받는 순간 0으로 꺾이고, 먼 패스는 못 미쳐 멈췄다
+        float Kick(float receiverX, out int ownerId)
+        {
+            var sim = new MatchSimulation(() => 0.5f, new PassOnce(0, 1));
+            sim.AddPlayer(new PlayerState(0, 0, Mid(), 0f, 0f));
+            sim.AddPlayer(new PlayerState(1, 0, Mid(), receiverX, 0f));
+            sim.Kickoff();
+            sim.Ball = BallRules.Own(sim.Ball, 0, 0f, 0f);
+            sim.Tick(Dt);
+            float v0 = (float)System.Math.Sqrt(sim.Ball.VelX * sim.Ball.VelX + sim.Ball.VelZ * sim.Ball.VelZ);
+            for (int i = 0; i < 300 && sim.Ball.Phase != BallPhase.Owned; i++) { sim.Tick(Dt); }
+            ownerId = sim.Ball.OwnerId;
+            return v0;
+        }
+
+        float shortKick = Kick(5f, out int shortOwner);
+        float longKick = Kick(35f, out int longOwner);
+        Assert.Less(shortKick, 12f, "5m(+리드)는 12m/s 아래");
+        Assert.Greater(longKick, shortKick + 5f, "35m(+리드)는 확실히 세게");
+        Assert.AreEqual(1, shortOwner, "짧은 패스를 리시버가 받음");
+        Assert.AreEqual(1, longOwner, "긴 패스도 리시버가 받음(못 미쳐 멈추지 않는다)");
+    }
+
+    [Test]
     public void 찬_선수는_공이_발치를_벗어나기_전엔_자기_공을_도로_잡지_않는다()
     {
         var sim = new MatchSimulation(() => 0.5f, new PassOnce(0, 1));
@@ -111,11 +137,12 @@ public class PassFlightTests
     [Test]
     public void 리드_목표에_못_미쳐_멈춘_패스는_끝난_것이라_리시버가_공으로_간다()
     {
-        // 09-23 Play 잠금. 리시버 40m 앞(리드 목표는 그보다 앞), 공 15m/s는 감속 4로 28m에서 멈춘다. 실전 트리로: 리시버가 목표점이 아니라 공을 잡아야 한다
+        // 09-23 Play 잠금. 리시버 62m 앞(리드 목표는 그보다 앞): 초속 상한 22는 감속 4로 60.5m에서 멈춰 목표에 못 미친다(09-23 밤 킥 속도
+        // 역산 뒤엔 상한을 넘는 거리로만 재현된다). 실전 트리로: 리시버가 목표점이 아니라 공을 잡아야 한다
         var sim = new MatchSimulation(() => 0.5f, PlayerTreeBuilder.Build());
         PlayerStats slow = Mid(); slow.Speed = 30;   // 리시버가 느려 공보다 먼저 목표에 못 감
-        PlayerState passer = sim.AddPlayer(new PlayerState(0, 0, Mid(), -20f, 0f));
-        PlayerState receiver = sim.AddPlayer(new PlayerState(1, 0, slow, 20f, 0f));
+        PlayerState passer = sim.AddPlayer(new PlayerState(0, 0, Mid(), -30f, 0f));
+        PlayerState receiver = sim.AddPlayer(new PlayerState(1, 0, slow, 32f, 0f));
         sim.AddPlayer(new PlayerState(2, 1, Mid(), 45f, 20f));   // 상대 1명(경로 밖)
         sim.SetTactics(0, new TeamTactics { PassRisk = new[] { 1, 1, 1 }, PressStart = new[] { 1, 1, 1 }, Width = new[] { 1, 1, 1 }, Tempo = new[] { 1, 1, 1 }, PassStyle = new[] { 2, 2, 2 }, Mentality = 1 });
         sim.SetTactics(1, new TeamTactics { PassRisk = new[] { 1, 1, 1 }, PressStart = new[] { 0, 0, 0 }, Width = new[] { 1, 1, 1 }, Tempo = new[] { 1, 1, 1 }, PassStyle = new[] { 1, 1, 1 }, Mentality = 1 });

@@ -49,6 +49,24 @@ namespace Game.Core.Match
             return worst < 0f ? 0f : (worst > 1f ? 1f : worst);
         }
 
+        // 킥 초속(09-23 Play "공이 너무 쉽게 멈춤"): 거리와 무관하게 서드 템포로 차니 먼 패스는 목표에 못 미쳐 멈추고 리시버는 리드 점으로 뛰어
+        // 공을 지나쳤다. 등감속 운동의 역산: 목표점에 도착 속도 arrival로 닿으려면 v0 = √(arrival² + 2·a·d). 상한을 넘으면 상한으로 차고
+        // 못 미친다(느린 템포로 롱볼을 시키면 결과에 보인다: 세팅의 차이가 결과에 보이는 게 이 게임의 축)
+        public static float KickSpeed(float distance, float arrivalSpeed, float deceleration, float maxSpeed)
+        {
+            float v0 = (float)Math.Sqrt(arrivalSpeed * arrivalSpeed + 2f * deceleration * distance);
+            return v0 > maxSpeed ? maxSpeed : v0;
+        }
+
+        // 등감속 비행의 평균 속도 = (초속 + 도착 속도) ÷ 2. 비행 시간 = 거리 ÷ 평균 속도가 정확히 성립해서 리드·가로채기 판정이
+        // "일정 속도"로 쓰는 값이다. 상한에 걸려 못 미치면 도착 속도 0으로 본다
+        public static float AverageSpeed(float kickSpeed, float distance, float deceleration)
+        {
+            float remaining = kickSpeed * kickSpeed - 2f * deceleration * distance;
+            float arrival = remaining > 0f ? (float)Math.Sqrt(remaining) : 0f;
+            return (kickSpeed + arrival) * 0.5f;
+        }
+
         // 리스크 허용치 이하면 안전. 경계 포함(허용치와 같으면 통과). 위험도 1은 허용치가 1이 아닌 한 안 함
         public static bool IsPassSafe(float interceptRisk, float riskAllow)
         {
