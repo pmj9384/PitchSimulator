@@ -135,8 +135,8 @@ public class PlayerTreeTests
         Assert.AreEqual("move", mid.Did, "압박이 없으면 뒤로 안 돌리고 몬다");
         Assert.Greater(mid.MoveX, 0f, "골 쪽으로");
 
-        // 상대가 2.5m 뒤에 붙으면(압박) 뒤 아군에게 돌린다. 그 상대는 뒤 패스 경로 밖(z 반대)
-        mid.Opponents = new List<TargetInfo> { new TargetInfo(11, 7f, 0.2f), new TargetInfo(12, -2.5f, -0.5f) };
+        // 상대가 1.5m 뒤에 붙으면(압박 = 태클 사거리 안) 뒤 아군에게 돌린다. 그 상대는 뒤 패스 경로 밖(z 반대, 발 뻗는 1.2m 밖)
+        mid.Opponents = new List<TargetInfo> { new TargetInfo(11, 7f, 0.2f), new TargetInfo(12, -1.4f, -0.8f) };
         mid.Did = "";
         Tree.Tick(mid);
         Assert.AreEqual("pass", mid.Did, "압박받으면 돌린다");

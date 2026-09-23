@@ -8,7 +8,7 @@ namespace Game.Core.Match
         public const float CaptureRadius = 0.8f;      // 공과 선수 거리가 이 안이면 소유(유저 결정. 발이 닿는 범위)
         public const float BallDeceleration = 4f;     // 비행·굴림 감속 m/s². 잔디 위 15m/s 패스가 30~40m 가서 멈추는 값
         public const float ShotSpeed = 25f;           // 슛 초속 m/s(프로 강슛 약 100km/h)
-        public const float DribbleFactor = 0.75f;     // 공을 몰면 이동 속도의 이 비율(엘리트 70~80%)
+        public const float DribbleFactor = 0.75f;     // 공을 몰면 이동 속도의 이 비율(엘리트 70~80%). 09-23 계측: 0.6으로 낮춰도 접촉은 안 늘었다(원인은 압박 반경 3m). 그대로 둔다
         public const float SpeedMpsAt50 = 7f;         // speed 스탯 50 = 7m/s(경기 중 달리기). 선형 변환의 기준점
         public const float Tempo = 1f;                // 이동 속도 전체 배율. 3분 경기에 공격 횟수를 맞추는 손잡이
         public const float CatchBase = 0.65f;         // 세이브 중 캐치(GK 소유) 비율. 나머지는 앞으로 튕겨 자유 공
@@ -56,7 +56,7 @@ namespace Game.Core.Match
         public const int TackleFailFreezeTicks = 25;                            // 실패한 태클러는 0.5초 정지(제쳐짐). 실패 비용이 없으면 압박이 공짜다
         public const float ShotBiasXgScale = 0.3f;                              // 슛 판정 = xG ≥ 슛 성향(0~1) × 이 값. xG는 정면 11m가 0.18이라 0~0.3이 실용 범위(09-21: 성향 0.2를 그대로 비교하니 3분 슛 0). 리그 평균 슛 xG 0.10 → 포처(0.2) 문턱 0.06
         public const float CounterForwardMargin = 3f;                           // 역습 리시버는 패서보다 이만큼 앞선 아군만(09-21 리뷰: 자기만 빼면 뒤로 돌려 핑퐁)
-        public const float PressedRadius = 3f;                                  // 상대가 이 거리 안이면 "압박받는 중". 옆·뒤 돌리기는 이때만(09-21: 압박 없이도 돌리니 앞·뒤 핑퐁으로 드리블 0)
+        public const float PressedRadius = TackleRange;                         // 상대가 이 거리 안이면 "압박받는 중". 옆·뒤 돌리기는 이때만(09-21). 09-23: 3m였을 땐 압박이 3m 선을 넘는 순간 3틱 만에 안전한 뒤 패스로 도망가 접촉이 0이었다. 태클 사거리와 같게 두면 같은 틱에 태클이 먼저 시도되고 실패해야 돌린다
         public const float BackPassDepthPenalty = 0.01f;                        // 뒤로 1m마다 깎는 점수. 20m 뒤면 -0.2라 깊은 백패스(GK 등)는 0 이하로 떨어져 별도 컷 없이 후보에서 빠진다
     }
 }
