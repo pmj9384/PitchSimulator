@@ -23,6 +23,14 @@ public class FullMatchTests
         public int Ticks;
         public int Shots;
         public int Goals;
+        public int ShotsClose;   // xG ≥ 0.3
+        public int ShotsMid;     // 0.1 ≤ xG < 0.3
+        public int ShotsLong;    // xG < 0.1
+        public int ReboundShots; // 파링 뒤 100틱(2초) 안의 슛
+        public int Parries;
+        public int LastParryTick = -1000;
+        public int TickNow;
+        public int GoalsFromRebound;
         public readonly Dictionary<PossessionChange, int> Possession = new Dictionary<PossessionChange, int>();
         public int Team1Possessions;    // 팀1이 공을 가진 횟수(0이면 팀0이 독점)
         public int InterceptedBySameTeam;   // 가로채기 중 같은 팀(리시버 아닌 아군)이 주운 수
@@ -54,7 +62,15 @@ public class FullMatchTests
 
         MatchSimulation sim = MatchAssembler.Create(table, rows, balanced, balanced, seed);   // 러너·매니저와 같은 조립(09-23)
 
-        sim.ShotResolved += r => { summary.Shots++; if (r.Outcome == ShotOutcome.Goal) { summary.Goals++; } };
+        sim.ShotResolved += r =>
+        {
+            summary.Shots++;
+            bool rebound = summary.TickNow - summary.LastParryTick <= 100;
+            if (rebound) { summary.ReboundShots++; }
+            if (r.Outcome == ShotOutcome.Goal) { summary.Goals++; if (rebound) { summary.GoalsFromRebound++; } }
+            if (r.Outcome == ShotOutcome.Parried) { summary.Parries++; summary.LastParryTick = summary.TickNow; }
+            if (r.Probability >= 0.3f) { summary.ShotsClose++; } else if (r.Probability >= 0.1f) { summary.ShotsMid++; } else { summary.ShotsLong++; }
+        };
         sim.PossessionChanged += r =>
         {
             summary.Possession.TryGetValue(r.Kind, out int n);
@@ -75,6 +91,7 @@ public class FullMatchTests
         int kickTeam = -1; float kickX = 0f; bool prevOwned = false; float prevBallX = 0f; int prevOwnerId = -1; float prevOwnerX = 0f;
         for (int i = 0; i < ThreeMinutesTicks; i++)
         {
+            summary.TickNow = i;
             sim.Tick(Dt);
             summary.Ticks++;
             bool owned = sim.Ball.Phase == BallPhase.Owned;
@@ -112,7 +129,7 @@ public class FullMatchTests
         var parts = new List<string>();
         foreach (KeyValuePair<PossessionChange, int> kv in s.Possession) { parts.Add($"{kv.Key} {kv.Value}"); }
         float avgFlight = s.FlightSamples == 0 ? 0f : (float)s.FlightTicksSum / s.FlightSamples;
-        return $"스코어 {sim.HomeGoals}:{sim.AwayGoals}, 슛 {s.Shots}(골 {s.Goals}), 패스 {sim.PassCount}(앞 {s.ForwardPasses}·뒤 {s.BackPasses}), 가로채기 {sim.InterceptCount}, 태클 {sim.TackleAttemptCount}회(성공 {sim.TackleSuccessCount}), 턴오버 {sim.TurnoverCount}, 팀1 소유 {s.Team1Possessions}회, 소유 변경 [{string.Join(", ", parts)}], 비행 평균 {avgFlight:0.0}틱, 상대 서드 {s.TicksBallOppThird}틱, 골라인 20m 안 소유 {s.TicksOwnerNearGoal}틱(평균 |z| {(s.TicksOwnerNearGoal == 0 ? 0f : s.NearGoalAbsZSum / s.TicksOwnerNearGoal):0.0}), 드리블 {s.DribbleTicks}틱, 소유 {s.OwnedTicks}틱(3m 안 {s.Within3mTicks}·접촉 {s.ContactTicks}·면역 밖 {s.ContactTicksNotImmune}·최소 거리 {s.MinOppDist:0.0}), 최대 슛 확률 {s.MaxShotChance:0.000}, 팀0 최대 X {s.MaxBallXTeam0:0.0}, 팀1 최소 X {s.MinBallXTeam1:0.0}, 공 ({sim.Ball.X:0.0},{sim.Ball.Z:0.0}) {sim.Ball.Phase}";
+        return $"스코어 {sim.HomeGoals}:{sim.AwayGoals}, 슛 {s.Shots}(골 {s.Goals}; xG≥0.3 {s.ShotsClose}·0.1~0.3 {s.ShotsMid}·<0.1 {s.ShotsLong}; 파링 {s.Parries}·리바운드 슛 {s.ReboundShots}·리바운드 골 {s.GoalsFromRebound}), 패스 {sim.PassCount}(앞 {s.ForwardPasses}·뒤 {s.BackPasses}), 가로채기 {sim.InterceptCount}, 태클 {sim.TackleAttemptCount}회(성공 {sim.TackleSuccessCount}), 턴오버 {sim.TurnoverCount}, 팀1 소유 {s.Team1Possessions}회, 소유 변경 [{string.Join(", ", parts)}], 비행 평균 {avgFlight:0.0}틱, 상대 서드 {s.TicksBallOppThird}틱, 골라인 20m 안 소유 {s.TicksOwnerNearGoal}틱(평균 |z| {(s.TicksOwnerNearGoal == 0 ? 0f : s.NearGoalAbsZSum / s.TicksOwnerNearGoal):0.0}), 드리블 {s.DribbleTicks}틱, 소유 {s.OwnedTicks}틱(3m 안 {s.Within3mTicks}·접촉 {s.ContactTicks}·면역 밖 {s.ContactTicksNotImmune}·최소 거리 {s.MinOppDist:0.0}), 최대 슛 확률 {s.MaxShotChance:0.000}, 팀0 최대 X {s.MaxBallXTeam0:0.0}, 팀1 최소 X {s.MinBallXTeam1:0.0}, 공 ({sim.Ball.X:0.0},{sim.Ball.Z:0.0}) {sim.Ball.Phase}";
     }
 
     [Test]
