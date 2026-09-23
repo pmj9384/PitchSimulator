@@ -40,6 +40,7 @@ namespace Game.Core.AI
         IReadOnlyList<TargetInfo> Opponents { get; }
         int OpponentKeeperId { get; }                  // 없으면 -1
         int TeamKeeperId { get; }                      // 내 팀 GK. 자유 공 추격에서 GK를 최근접 경쟁에서 빼려고(09-23)
+        bool KeeperAlternate { get; }                  // GK 배급 "섞어"의 교대 스위치(팀별, 시뮬이 GK 패스마다 뒤집음). 09-23 R2
         PlayerStats? OpponentKeeper { get; }
 
         // ── 자리 2쌍(배치 좌표. 오프셋은 PositionRules가 붙임)

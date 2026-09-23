@@ -103,7 +103,7 @@ namespace Game.Core.Match
         private int ballOwnerAtLastTick = BallState.NoOwner;
         private int immunityTicksLeft;        // 소유 면역(09-21): 소유 뒤 이 틱 동안 태클 불가
         private int holdUpTicksLeft;          // 볼 끌기(개인 holdUp): 소유 뒤 킥까지 대기 틱
-        private bool keeperAlternate;         // GK 배급 "섞어"의 교대 스위치
+        private readonly bool[] keeperAlternate = new bool[2];   // GK 배급 "섞어"의 교대 스위치(팀별). GK 패스가 실행될 때 뒤집고 스냅샷으로 트리에 준다(09-23 R2)
         // 킥 릴리스(09-21 Play 진단): 찬 공은 킥 원점에서 잡기 반경을 벗어난 뒤에야 누구든 잡을 수 있다.
         // 발치에 붙은 상대가 첫 틱(0.3m)에 그 자리에서 가로채 소유가 0.4초마다 뒤집히던 잠금을 막는다
         private float kickOriginX;
@@ -318,6 +318,7 @@ namespace Game.Core.Match
                 p.Opponents = rosterSnapshot[other];
                 p.OpponentKeeperId = keeperIds[other];
                 p.TeamKeeperId = keeperIds[p.Team];
+                p.KeeperAlternate = keeperAlternate[p.Team];
                 p.OpponentKeeper = keeperIds[other] == -1 ? null : FindPlayer(keeperIds[other]).Stats;
                 p.IsPassTarget = passInFlight && passReceiverId == p.PlayerId;
                 p.PassTargetX = passTargetX;
@@ -437,6 +438,7 @@ namespace Game.Core.Match
             passTargetX = target.x;
             passTargetZ = target.z;
             PassCount++;
+            if (passer.IsGoalkeeper && tactics[passer.Team].GkDistribution == 1) { keeperAlternate[passer.Team] = !keeperAlternate[passer.Team]; }   // 섞어: 다음 배급은 반대
             kickOriginX = Ball.X;
             kickOriginZ = Ball.Z;
             passReleased = false;
@@ -473,24 +475,6 @@ namespace Game.Core.Match
             holdUpTicksLeft = (int)Math.Round(owner.Stats.HoldUp / MatchTuning.FixedStep);
             immunityTicksLeft = MatchTuning.PossessionImmunityTicks;
             PossessionChanged?.Invoke(new PossessionReport(ownerNow, owner.Team, previousOwnerId, kind, Ball.X, Ball.Z));
-        }
-
-        // GK 배급 대상(트리가 부른다). "섞어"는 부를 때마다 교대
-        public int KeeperDistributionTarget(PlayerState keeper)
-        {
-            int level = tactics[keeper.Team].GkDistribution;
-            List<TargetInfo> mates = rosterSnapshot[keeper.Team];
-            if (mates.Count == 0)
-            {
-                // 스냅샷 전(테스트·킥오프 직후)엔 명부에서 직접 만든다
-                for (int i = 0; i < players.Count; i++)
-                {
-                    if (players[i].Team == keeper.Team) { mates.Add(new TargetInfo(players[i].PlayerId, players[i].X, players[i].Z)); }
-                }
-            }
-            int target = PassRules.KeeperDistributionTarget(keeper.X, keeper.Z, mates, keeper.AttackSign, level, keeper.PlayerId, keeperAlternate);
-            if (level == 1) { keeperAlternate = !keeperAlternate; }
-            return target;
         }
 
         // 골라인을 넘은 슛: 골이면 득점, 아니면(GK가 못 건드렸으면) 빗나감. 둘 다 킥오프

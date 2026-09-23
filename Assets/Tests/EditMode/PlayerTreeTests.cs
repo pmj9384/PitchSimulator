@@ -32,6 +32,7 @@ public class PlayerTreeTests
         public IReadOnlyList<TargetInfo> Opponents { get; set; } = new List<TargetInfo>();
         public int OpponentKeeperId { get; set; } = -1;
         public int TeamKeeperId { get; set; } = -1;
+        public bool KeeperAlternate { get; set; }
         public PlayerStats OpponentKeeper { get; set; } = null;
         public float AttackHomeX { get; set; }
         public float AttackHomeZ { get; set; }

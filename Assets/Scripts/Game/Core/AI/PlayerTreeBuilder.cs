@@ -173,10 +173,8 @@ namespace Game.Core.AI
 
         private static int KeeperTarget(IPlayerContext ctx)
         {
-            // 배급 대상 선정은 팀 설정(짧게·섞어·길게)이 필요한데 "섞어"의 교대는 상태라 시뮬이 든다.
-            // 트리는 팀 값으로 짧게/길게만 고르고, 섞어면 가까운 쪽(안전)으로 둔다. 교대는 시뮬 KeeperDistributionTarget이 맡는다(2차)
-            int level = ctx.Tactics.GkDistribution;
-            return PassRules.KeeperDistributionTarget(ctx.X, ctx.Z, ctx.Teammates, ctx.AttackSign, level == 1 ? 0 : level, ctx.PlayerId, alternate: false);
+            // 팀 설정(짧게·섞어·길게). "섞어"의 교대 스위치는 상태라 시뮬이 들고 스냅샷(KeeperAlternate)으로 준다(09-23 R2. 그전엔 섞어가 짧게로 고정)
+            return PassRules.KeeperDistributionTarget(ctx.X, ctx.Z, ctx.Teammates, ctx.AttackSign, ctx.Tactics.GkDistribution, ctx.PlayerId, ctx.KeeperAlternate);
         }
 
         private static void PassTo(IPlayerContext ctx, int receiverId)

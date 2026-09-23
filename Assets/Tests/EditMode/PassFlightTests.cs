@@ -180,16 +180,23 @@ public class PassFlightTests
     [Test]
     public void GK_배급은_팀_설정을_따르고_섞어는_교대한다()
     {
-        var sim = new MatchSimulation(() => 0.5f, new ShootOnce());
+        // 실전 트리 ①(GK 배급)로. 섞어(1)면 첫 배급은 짧게(CB), GK가 다시 잡으면 길게(ST). 09-23 R2 전엔 섞어가 짧게로 고정이었다
+        var sim = new MatchSimulation(() => 0.5f, PlayerTreeBuilder.Build());
         PlayerStats gk = Mid(); gk.RoleId = "GK";
         PlayerState keeper = sim.AddPlayer(new PlayerState(0, 0, gk, -48f, 0f));
-        sim.AddPlayer(new PlayerState(1, 0, Mid(), -36f, 7f));
-        sim.AddPlayer(new PlayerState(2, 0, Mid(), -8f, 0f));
-        sim.SetTactics(0, new TeamTactics { GkDistribution = 1 });
+        PlayerState cb = sim.AddPlayer(new PlayerState(1, 0, Mid(), -36f, 7f));
+        PlayerState st = sim.AddPlayer(new PlayerState(2, 0, Mid(), -8f, 0f));
+        sim.SetTactics(0, new TeamTactics { GkDistribution = 1, PassRisk = new[] { 1, 1, 1 }, PressStart = new[] { 1, 1, 1 }, Width = new[] { 1, 1, 1 }, Tempo = new[] { 1, 1, 1 }, PassStyle = new[] { 1, 1, 1 } });
+        sim.Kickoff();
 
-        Assert.AreEqual(1, sim.KeeperDistributionTarget(keeper), "섞어: 짧게");
-        Assert.AreEqual(2, sim.KeeperDistributionTarget(keeper), "섞어: 길게");
-        sim.SetTactics(0, new TeamTactics { GkDistribution = 2 });
-        Assert.AreEqual(2, sim.KeeperDistributionTarget(keeper), "길게");
+        sim.Ball = BallRules.Own(sim.Ball, keeper.PlayerId, keeper.X, keeper.Z);
+        sim.Tick(Dt);   // 배급 킥
+        sim.Tick(Dt);   // 다음 스냅샷에 리시버 표시
+        Assert.IsTrue(cb.IsPassTarget, "섞어: 첫 배급은 짧게(가까운 CB)");
+
+        sim.Ball = BallRules.Own(sim.Ball, keeper.PlayerId, keeper.X, keeper.Z);
+        sim.Tick(Dt);
+        sim.Tick(Dt);
+        Assert.IsTrue(st.IsPassTarget, "섞어: 다음 배급은 길게(가장 앞선 ST)");
     }
 }
