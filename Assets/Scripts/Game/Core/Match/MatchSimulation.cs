@@ -234,6 +234,14 @@ namespace Game.Core.Match
             if (ResolveShotAtGoalLine()) { return; }
             if (ResetIfOut()) { return; }
 
+            // 패스가 리드 목표에 못 미쳐 감속으로 멈추면 패스는 끝난 것이다(09-23 Play 잠금: 리시버가 ⑥으로 목표점에 서서 공 0.82m 옆에 멈추고,
+            // 다른 선수는 그가 최근접이라 안 와서 26초 동안 아무도 못 잡았다). 자유 공으로 넘겨 ⑩ 최근접 추격이 잡게 한다
+            if (passInFlight && Ball.Phase == BallPhase.Free)
+            {
+                passInFlight = false;
+                passReceiverId = -1;
+            }
+
             if (Ball.Phase == BallPhase.Free)
             {
                 TryCapture();

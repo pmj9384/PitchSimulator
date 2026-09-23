@@ -109,6 +109,25 @@ public class PassFlightTests
     }
 
     [Test]
+    public void 리드_목표에_못_미쳐_멈춘_패스는_끝난_것이라_리시버가_공으로_간다()
+    {
+        // 09-23 Play 잠금. 리시버 40m 앞(리드 목표는 그보다 앞), 공 15m/s는 감속 4로 28m에서 멈춘다. 실전 트리로: 리시버가 목표점이 아니라 공을 잡아야 한다
+        var sim = new MatchSimulation(() => 0.5f, PlayerTreeBuilder.Build());
+        PlayerStats slow = Mid(); slow.Speed = 30;   // 리시버가 느려 공보다 먼저 목표에 못 감
+        PlayerState passer = sim.AddPlayer(new PlayerState(0, 0, Mid(), -20f, 0f));
+        PlayerState receiver = sim.AddPlayer(new PlayerState(1, 0, slow, 20f, 0f));
+        sim.AddPlayer(new PlayerState(2, 1, Mid(), 45f, 20f));   // 상대 1명(경로 밖)
+        sim.SetTactics(0, new TeamTactics { PassRisk = new[] { 1, 1, 1 }, PressStart = new[] { 1, 1, 1 }, Width = new[] { 1, 1, 1 }, Tempo = new[] { 1, 1, 1 }, PassStyle = new[] { 2, 2, 2 }, Mentality = 1 });
+        sim.SetTactics(1, new TeamTactics { PassRisk = new[] { 1, 1, 1 }, PressStart = new[] { 0, 0, 0 }, Width = new[] { 1, 1, 1 }, Tempo = new[] { 1, 1, 1 }, PassStyle = new[] { 1, 1, 1 }, Mentality = 1 });
+        sim.Kickoff();
+        sim.Ball = BallRules.Own(sim.Ball, passer.PlayerId, passer.X, passer.Z);
+
+        int ticks = 0;
+        while (ticks < 600 && !(sim.Ball.Phase == BallPhase.Owned && sim.Ball.OwnerId == receiver.PlayerId)) { sim.Tick(Dt); ticks++; }
+        Assert.AreEqual(receiver.PlayerId, sim.Ball.OwnerId, $"12초 안에 리시버가 멈춘 공을 잡는다(공 {sim.Ball.Phase} ({sim.Ball.X:0.0},{sim.Ball.Z:0.0}), 리시버 ({receiver.X:0.0},{receiver.Z:0.0}))");
+    }
+
+    [Test]
     public void 발치에_붙은_상대는_등_뒤로_찬_패스를_그_자리에서_못_잡는다()
     {
         // 09-21 Play 잠금: 압박 상대가 소유자 발치(0.5m)에 서 있고 소유자는 반대쪽 아군에게 찬다.
