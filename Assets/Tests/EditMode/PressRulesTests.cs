@@ -6,6 +6,23 @@ using NUnit.Framework;
 public class PressRulesTests
 {
     [Test]
+    public void 추격_예측은_공_속도_방향_앞을_노리고_서_있는_공은_그_자리다()
+    {
+        // 나 (0,0) 7m/s, 공 (10,0)이 +X로 5m/s → 거리 10 ÷ (7+5) = 0.83초 → 10 + 5×0.83 = 14.17
+        (float x, float z) aim = PressRules.PursuitPoint(0f, 0f, 7f, 10f, 0f, 5f, 0f);
+        Assert.AreEqual(14.1667f, aim.x, 1e-3f);
+        Assert.AreEqual(0f, aim.z, 1e-4f);
+
+        (float x, float z) still = PressRules.PursuitPoint(0f, 0f, 7f, 10f, 3f, 0f, 0f);
+        Assert.AreEqual(10f, still.x, 1e-4f, "서 있는 공은 지금 위치");
+        Assert.AreEqual(3f, still.z, 1e-4f);
+
+        // 멀면 예측 시간 상한(1초): 공 (40,0) 5m/s → 40 ÷ 12 = 3.3초 → 1초로 잘려 45
+        (float x, float z) far = PressRules.PursuitPoint(0f, 0f, 7f, 40f, 0f, 5f, 0f);
+        Assert.AreEqual(45f, far.x, 1e-3f);
+    }
+
+    [Test]
     public void 압박_시작이_안_감이면_거리와_무관하게_안_간다()
     {
         Assert.IsFalse(PressRules.ShouldPress(distToBall: 1f, pressRange: 12f, pressStartLevel: 0, counterPressing: false));

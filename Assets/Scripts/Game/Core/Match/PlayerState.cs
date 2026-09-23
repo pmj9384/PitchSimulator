@@ -31,6 +31,8 @@ namespace Game.Core.Match
         public bool OwnsBall => Ball.Phase == BallPhase.Owned && Ball.OwnerId == PlayerId;
         public float BallX => Ball.X;
         public float BallZ => Ball.Z;
+        public float BallVelX => Ball.VelX;
+        public float BallVelZ => Ball.VelZ;
         public int BallOwnerTeam { get; set; } = -1;
 
         public TeamTactics Tactics { get; set; } = new TeamTactics();

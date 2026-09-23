@@ -241,6 +241,13 @@ namespace Game.Core.Match
                 tree.Tick(p);
             }
 
+            if (Ball.Phase == BallPhase.Owned)
+            {
+                BallState still = Ball;   // 소유자가 이번 틱에 안 움직이면 속도 0. 움직이면 Apply의 Carry가 다시 채운다
+                still.VelX = 0f;
+                still.VelZ = 0f;
+                Ball = still;
+            }
             for (int i = 0; i < players.Count; i++)
             {
                 Apply(players[i], deltaTime);

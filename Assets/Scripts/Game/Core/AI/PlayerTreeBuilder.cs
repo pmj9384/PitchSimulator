@@ -58,7 +58,7 @@ namespace Game.Core.AI
                 // ⑧ 압박: 팀 압박 시작[상대 공 서드] × 개인 압박 거리(역압박 중 배율 ↑) 안이면 공으로
                 new SequenceNode(
                     new ConditionNode(ctx => ctx.BallOwnerTeam == 1 - ctx.Team && ShouldPress(ctx)),
-                    new ActionNode(ctx => ctx.MoveToward(ctx.BallX, ctx.BallZ))),
+                    new ActionNode(ctx => ChaseBall(ctx))),
 
                 // ⑨ 아니면 수비 시 자리(+ 라인 높이)로
                 new SequenceNode(
@@ -69,7 +69,7 @@ namespace Game.Core.AI
                 // ⑩ 가장 가까운 선수가 쫓는다. GK는 개인 출격 반경 안(박스 상한) 공만
                 new SequenceNode(
                     new ConditionNode(ctx => ctx.BallPhase != BallPhase.Owned && IsNearestToBall(ctx) && KeeperMayRush(ctx)),
-                    new ActionNode(ctx => ctx.MoveToward(ctx.BallX, ctx.BallZ))),
+                    new ActionNode(ctx => ChaseBall(ctx))),
 
                 // ⑪ 나머지는 자리 유지(공격 시 자리 기준)
                 new ActionNode(ctx => MoveToAttackHome(ctx)));
@@ -148,6 +148,13 @@ namespace Game.Core.AI
                 bestScore = score;
             }
             return best;
+        }
+
+        // 공을 쫓을 땐 공의 앞을 향해(추격 예측). 압박(⑧)과 자유 공(⑩)이 같이 쓴다
+        private static void ChaseBall(IPlayerContext ctx)
+        {
+            (float x, float z) aim = PressRules.PursuitPoint(ctx.X, ctx.Z, MatchRules.SpeedMps(ctx.Stats.Speed), ctx.BallX, ctx.BallZ, ctx.BallVelX, ctx.BallVelZ);
+            ctx.MoveToward(aim.x, aim.z);
         }
 
         private static bool IsPressed(IPlayerContext ctx)

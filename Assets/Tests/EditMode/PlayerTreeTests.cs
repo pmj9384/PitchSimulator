@@ -21,6 +21,8 @@ public class PlayerTreeTests
         public bool OwnsBall { get; set; }
         public float BallX { get; set; }
         public float BallZ { get; set; }
+        public float BallVelX { get; set; }
+        public float BallVelZ { get; set; }
         public int BallOwnerTeam { get; set; } = -1;
         public TeamTactics Tactics { get; set; } = new TeamTactics { PassRisk = new[] { 1, 1, 1 }, PressStart = new[] { 1, 1, 1 }, Width = new[] { 1, 1, 1 }, Tempo = new[] { 1, 1, 1 }, Mentality = 1 };
         public Third BallThird { get; set; } = Third.Middle;

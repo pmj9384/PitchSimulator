@@ -87,6 +87,16 @@ public class BallRulesTests
     }
 
     [Test]
+    public void Carry는_소유자_이동_속도를_공_속도로_기록한다()
+    {
+        BallState ball = BallRules.Own(BallState.FreeAt(0f, 0f), 0, 0f, 0f);
+        ball = BallRules.Carry(ball, 0.1f, 0f);   // 한 틱(0.02s)에 0.1m → 5m/s
+        Assert.AreEqual(5f, ball.VelX, 1e-3f);
+        Assert.AreEqual(0f, ball.VelZ, 1e-4f);
+        Assert.AreEqual(BallPhase.Owned, ball.Phase, "국면은 그대로");
+    }
+
+    [Test]
     public void Own과_Carry는_공을_소유자_위치에_붙인다()
     {
         BallState ball = BallRules.Own(BallState.FreeAt(0f, 0f), ownerId: 3, ownerX: 10f, ownerZ: -2f);

@@ -29,6 +29,8 @@ public class CompositeNodeTests
         public bool OwnsBall => false;
         public float BallX => 0f;
         public float BallZ => 0f;
+        public float BallVelX => 0f;
+        public float BallVelZ => 0f;
         public int BallOwnerTeam => -1;
         public TeamTactics Tactics => new TeamTactics();
         public Third BallThird => Third.Middle;

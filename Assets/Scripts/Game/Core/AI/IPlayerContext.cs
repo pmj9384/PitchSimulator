@@ -25,6 +25,8 @@ namespace Game.Core.AI
         bool OwnsBall { get; }
         float BallX { get; }
         float BallZ { get; }
+        float BallVelX { get; }        // 공 속도(m/s). 비행·굴림은 물리, 소유 중은 소유자 이동 속도(09-23). 추격 예측용
+        float BallVelZ { get; }
         int BallOwnerTeam { get; }     // 소유 팀 0/1, 없으면 -1
 
         // ── 팀 전술·국면(시뮬이 계산해 넣음)

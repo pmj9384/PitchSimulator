@@ -13,7 +13,7 @@ namespace Game.Core.Match
         public int OwnerId;
         public float X;
         public float Z;
-        public float VelX;   // 비행 중에만 의미. Owned에선 0
+        public float VelX;   // 비행·굴림 속도. Owned에선 소유자 이동 속도(09-23, Carry가 기록). 서 있으면 0
         public float VelZ;
 
         public static BallState FreeAt(float x, float z)
