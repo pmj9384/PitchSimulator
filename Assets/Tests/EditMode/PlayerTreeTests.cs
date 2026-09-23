@@ -125,6 +125,26 @@ public class PlayerTreeTests
     }
 
     [Test]
+    public void 오프사이드_위치_아군에겐_안_주고_공격_자리는_온사이드_선_뒤로_잡는다()
+    {
+        // 팀0 패서 (10,0). 상대 GK 48, CB 31, CB 30 → 온사이드 선 31. 아군 A (35,0)은 오프사이드 위치, B (25,0)은 온사이드
+        var opp = new List<TargetInfo> { new TargetInfo(20, 48f, 0f), new TargetInfo(21, 31f, 8f), new TargetInfo(22, 30f, -8f) };
+        var mid = new Fake { PlayerId = 0, OwnsBall = true, BallPhase = BallPhase.Owned, BallOwnerTeam = 0, X = 10f, BallX = 10f,
+            Teammates = new List<TargetInfo> { new TargetInfo(1, 35f, 0f), new TargetInfo(2, 25f, 0f) }, Opponents = opp };
+        mid.Stats.ShotBias = 1f;
+        Tree.Tick(mid);
+        Assert.AreEqual("pass", mid.Did);
+        Assert.AreEqual(2, mid.PassedTo, "온사이드인 B에게. 더 앞선 A는 오프사이드 위치");
+
+        // 아군 소유 중 ST의 공격 자리가 37이어도 선(31) − 0.5 = 30.5까지만
+        var st = new Fake { PlayerId = 9, BallPhase = BallPhase.Owned, BallOwnerTeam = 0, X = 30f, BallX = 10f, AttackHomeX = 37f, AttackHomeZ = 0f, Opponents = opp };
+        st.Stats.PushUp = 0f;
+        Tree.Tick(st);
+        Assert.AreEqual("move", st.Did);
+        Assert.LessOrEqual(st.MoveX, 30.5f + 1e-4f, "온사이드 선 뒤");
+    }
+
+    [Test]
     public void 앞_아군이_막히면_압박받을_때만_뒤_아군에게_돌리고_아니면_드리블한다()
     {
         // 09-18 Play 진단 C: 앞 후보가 전부 불안전하면 옆·뒤 후보로 돌린다. 09-21: 단 압박(상대 3m 안)받을 때만.

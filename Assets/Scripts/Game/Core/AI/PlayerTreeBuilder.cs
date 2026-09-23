@@ -30,8 +30,8 @@ namespace Game.Core.AI
 
                 // ③ 역습 중 → 나보다 확실히 앞선 아군 중 가장 앞선 이에게, 안전 검사 없이(스펙 §6 "첫 패스 전방"). 앞선 아군이 없으면 ④·⑤로
                 new SequenceNode(
-                    new ConditionNode(ctx => ctx.OwnsBall && ctx.IsCountering && PassRules.CounterReceiver(ctx.X, ctx.Teammates, ctx.AttackSign, ctx.PlayerId) != -1),
-                    new ActionNode(ctx => PassTo(ctx, PassRules.CounterReceiver(ctx.X, ctx.Teammates, ctx.AttackSign, ctx.PlayerId)))),
+                    new ConditionNode(ctx => ctx.OwnsBall && ctx.IsCountering && CounterTarget(ctx) != -1),
+                    new ActionNode(ctx => PassTo(ctx, CounterTarget(ctx)))),
 
                 // ④ 안전한 앞선 아군이 있으면 최고점에 패스
                 new SequenceNode(
@@ -126,6 +126,8 @@ namespace Game.Core.AI
             // 압박이 없으면 앞 후보가 없을 때 ⑤ 드리블로 떨어진다
             bool pressed = IsPressed(ctx);
 
+            float onsideLine = OnsideLine(ctx);
+
             int best = -1;
             float bestScore = 0f;
             IReadOnlyList<TargetInfo> mates = ctx.Teammates;
@@ -133,6 +135,7 @@ namespace Game.Core.AI
             {
                 TargetInfo m = mates[i];
                 if (!pressed && (m.X - ctx.X) * ctx.AttackSign <= 0f) { continue; }
+                if (OffsideRules.IsOffsidePosition(m.X, ctx.AttackSign, onsideLine)) { continue; }   // 오프사이드 위치 아군에겐 안 준다(09-23)
                 float score = PassRules.ScoreReceiver(ctx.X, ctx.Z, m.X, m.Z, ctx.AttackSign, t.PassStyle[third], ctx.Stats.PassLength, t.Width[third]);
                 if (score <= bestScore) { continue; }
 
@@ -156,6 +159,17 @@ namespace Game.Core.AI
         {
             (float x, float z) aim = PressRules.PursuitPoint(ctx.X, ctx.Z, MatchRules.SpeedMps(ctx.Stats.Speed), ctx.BallX, ctx.BallZ, ctx.BallVelX, ctx.BallVelZ);
             ctx.MoveToward(aim.x, aim.z);
+        }
+
+        // 온사이드 선(공격 방향 좌표). GK 배급은 골킥이라 오프사이드가 없다
+        private static float OnsideLine(IPlayerContext ctx)
+        {
+            return ctx.IsGoalkeeper ? OffsideRules.NoLine : OffsideRules.OnsideLine(ctx.Opponents, ctx.AttackSign, ctx.BallX);
+        }
+
+        private static int CounterTarget(IPlayerContext ctx)
+        {
+            return PassRules.CounterReceiver(ctx.X, ctx.Teammates, ctx.AttackSign, ctx.PlayerId, OnsideLine(ctx));
         }
 
         private static bool IsPressed(IPlayerContext ctx)
@@ -205,7 +219,13 @@ namespace Game.Core.AI
             (float x, float z) home = PositionRules.AttackHome(ctx.AttackHomeX, ctx.AttackHomeZ, ctx.AttackSign,
                 ctx.Tactics.Mentality, ctx.Stats.PushUp, ctx.Tactics.Width[third], ctx.Stats.Width);
             (float x, float z) slid = PositionRules.SlideTowardBall(home.x, home.z, ctx.BallX, ctx.BallZ, defending: false, ctx.IsGoalkeeper);
-            ctx.MoveToward(slid.x, slid.z);
+            float x = slid.x;
+            if (ctx.BallOwnerTeam == ctx.Team && !ctx.OwnsBall && !ctx.IsGoalkeeper)
+            {
+                // 아군 소유 중엔 온사이드 선 뒤에 선다(09-23). 라인 뒤에 서 있으면 받아도 오프사이드라 애초에 안 간다
+                x = OffsideRules.ClampOnside(x, ctx.AttackSign, OffsideRules.OnsideLine(ctx.Opponents, ctx.AttackSign, ctx.BallX), MatchTuning.OnsideMargin);
+            }
+            ctx.MoveToward(x, slid.z);
         }
 
         private static void MoveToDefendHome(IPlayerContext ctx)

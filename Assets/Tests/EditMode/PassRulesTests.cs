@@ -150,13 +150,14 @@ public class PassRulesTests
     public void 역습_리시버는_가장_앞선_아군_1명이다()
     {
         var mates = new List<TargetInfo> { new TargetInfo(1, 5f, 0f), new TargetInfo(2, 25f, -10f), new TargetInfo(3, 18f, 4f) };
-        Assert.AreEqual(2, PassRules.CounterReceiver(0f, mates, +1, passerId: 0));
-        Assert.AreEqual(-1, PassRules.CounterReceiver(0f, mates, -1, passerId: 0), "팀 1은 -X가 앞이라 셋 다 뒤 → 없음");
-        Assert.AreEqual(-1, PassRules.CounterReceiver(0f, new List<TargetInfo>(), +1, 0));
-        Assert.AreEqual(-1, PassRules.CounterReceiver(25f, mates, +1, passerId: 2), "최전방(25)이 가지면 뒤로 안 돌린다(09-21 핑퐁 수정)");
-        Assert.AreEqual(2, PassRules.CounterReceiver(5f, mates, +1, passerId: 1), "패서(5)보다 3m 이상 앞선 후보(18·25) 중 가장 앞");
+        Assert.AreEqual(2, PassRules.CounterReceiver(0f, mates, +1, passerId: 0, OffsideRules.NoLine));
+        Assert.AreEqual(-1, PassRules.CounterReceiver(0f, mates, -1, passerId: 0, OffsideRules.NoLine), "팀 1은 -X가 앞이라 셋 다 뒤 → 없음");
+        Assert.AreEqual(-1, PassRules.CounterReceiver(0f, new List<TargetInfo>(), +1, 0, OffsideRules.NoLine));
+        Assert.AreEqual(-1, PassRules.CounterReceiver(25f, mates, +1, passerId: 2, OffsideRules.NoLine), "최전방(25)이 가지면 뒤로 안 돌린다(09-21 핑퐁 수정)");
+        Assert.AreEqual(2, PassRules.CounterReceiver(5f, mates, +1, passerId: 1, OffsideRules.NoLine), "패서(5)보다 3m 이상 앞선 후보(18·25) 중 가장 앞");
         var tooClose = new List<TargetInfo> { new TargetInfo(1, 2f, 0f) };
-        Assert.AreEqual(-1, PassRules.CounterReceiver(0f, tooClose, +1, passerId: 0), "2m 앞은 마진(3m) 미만");
+        Assert.AreEqual(-1, PassRules.CounterReceiver(0f, tooClose, +1, passerId: 0, OffsideRules.NoLine), "2m 앞은 마진(3m) 미만");
+        Assert.AreEqual(3, PassRules.CounterReceiver(0f, mates, +1, passerId: 0, onsideLine: 20f), "온사이드 선 20: 25는 오프사이드 위치라 제외, 18이 최전방");
     }
 
     [Test]
