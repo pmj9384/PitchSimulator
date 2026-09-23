@@ -16,10 +16,17 @@ public static class AutoMatchMenu
     [MenuItem("Tools/Match/자동 대전 100판 CSV (balanced vs balanced)")]
     public static void RunBalancedVsBalanced()
     {
-        Run("balanced", "balanced");
+        Run("balanced", "balanced", Matches, firstSeed: 1);
     }
 
-    public static string Run(string homePreset, string awayPreset)
+    // 밸런스 판단용 큰 표본. 100판은 승률 ±10%p가 흔들린다(09-23 실측 30/24/46). 시드는 100판과 겹치지 않게 101부터
+    [MenuItem("Tools/Match/자동 대전 300판 CSV (balanced vs balanced, 시드 101~)")]
+    public static void RunBalancedVsBalanced300()
+    {
+        Run("balanced", "balanced", 300, firstSeed: 101);
+    }
+
+    public static string Run(string homePreset, string awayPreset, int matches, int firstSeed)
     {
         List<PlayerStats> table = PlayerTableParser.Parse(LoadTable("PlayerTable"));
         List<StageEntry> rows = StageCompositionParser.Parse(LoadTable("StageComposition")).FindAll(r => r.Stage == 1);
@@ -28,12 +35,12 @@ public static class AutoMatchMenu
         TeamTactics away = presets.Find(t => t.PresetId == awayPreset) ?? throw new InvalidOperationException($"프리셋 없음: {awayPreset}");
 
         var watch = System.Diagnostics.Stopwatch.StartNew();
-        List<MatchSummary> results = AutoMatchRunner.Run(table, rows, home, away, firstSeed: 1, matches: Matches);
+        List<MatchSummary> results = AutoMatchRunner.Run(table, rows, home, away, firstSeed, matches);
         watch.Stop();
 
         string dir = Path.Combine(Directory.GetParent(Application.dataPath)!.FullName, "Reports");
         Directory.CreateDirectory(dir);
-        string path = Path.Combine(dir, $"automatch-{homePreset}-vs-{awayPreset}-{DateTime.Now:yyyyMMdd-HHmm}.csv");
+        string path = Path.Combine(dir, $"automatch-{homePreset}-vs-{awayPreset}-{matches}-{DateTime.Now:yyyyMMdd-HHmm}.csv");
         File.WriteAllText(path, AutoMatchCsv.Serialize(results));
 
         AutoMatchStats stats = AutoMatchRunner.Aggregate(results);

@@ -8,7 +8,7 @@ namespace Game.Core.Match
         public const float CaptureRadius = 0.8f;      // 공과 선수 거리가 이 안이면 소유(유저 결정. 발이 닿는 범위)
         public const float BallDeceleration = 4f;     // 비행·굴림 감속 m/s². 잔디 위 15m/s 패스가 30~40m 가서 멈추는 값
         public const float ShotSpeed = 25f;           // 슛 초속 m/s(프로 강슛 약 100km/h)
-        public const float DribbleFactor = 0.75f;     // 공을 몰면 이동 속도의 이 비율(엘리트 70~80%). 09-23 계측: 0.6으로 낮춰도 접촉은 안 늘었다(원인은 압박 반경 3m). 그대로 둔다
+        public const float DribbleFactor = 0.6f;      // 공을 몰면 이동 속도의 이 비율. 0.75(엘리트 70~80%)는 ST(6.3m/s)가 CB(5.6)를 늘 따돌려 드리블 돌파로 경기당 10골. 추격 예측·반경 통일 뒤 0.6이면 CB가 잡아 100판 평균 골 2.95(목표 2~4). 개인차는 dribble 다이얼 몫(나중)
         public const float SpeedMpsAt50 = 7f;         // speed 스탯 50 = 7m/s(경기 중 달리기). 선형 변환의 기준점
         public const float Tempo = 1f;                // 이동 속도 전체 배율. 3분 경기에 공격 횟수를 맞추는 손잡이
         public const float CatchBase = 0.65f;         // 세이브 중 캐치(GK 소유) 비율. 나머지는 앞으로 튕겨 자유 공
