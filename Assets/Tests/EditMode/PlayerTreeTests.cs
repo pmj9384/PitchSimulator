@@ -208,6 +208,30 @@ public class PlayerTreeTests
     }
 
     [Test]
+    public void 아군_패스_비행_중_리시버가_아니면_공을_안_쫓고_공격_시_자리로_간다()
+    {
+        // 09-23: 비행 중 소유 팀이 -1이던 때는 최근접 아군이 ⑩으로 날아가는 공을 쫓아 "아군끼리 가로채기"가 절반이었다
+        var cm = new Fake { PlayerId = 4, BallPhase = BallPhase.Flight, BallOwnerTeam = 0, X = 10f, BallX = 11f, BallZ = 0f, AttackHomeX = -20f, AttackHomeZ = 8f };
+        Tree.Tick(cm);
+        Assert.AreEqual("move", cm.Did);
+        Assert.AreEqual(-20f + 11f * MatchTuning.SlideVerticalAttack, cm.MoveX, 1e-4f, "공격 자리 + 슬라이드. 공(11)으로 가지 않는다");
+    }
+
+    [Test]
+    public void 상대_패스_비행_중_압박_거리_안이면_공을_쫓고_아니면_수비_자리로_간다()
+    {
+        var st = new Fake { PlayerId = 9, BallPhase = BallPhase.Flight, BallOwnerTeam = 1, X = 0f, BallX = 10f, BallZ = 0f, DefendHomeX = -10f };
+        st.Stats.PressRange = 12f;
+        Tree.Tick(st);
+        Assert.AreEqual(10f, st.MoveX, "압박: 공으로");
+
+        var cb = new Fake { PlayerId = 2, BallPhase = BallPhase.Flight, BallOwnerTeam = 1, X = -36f, BallX = 10f, BallZ = 0f, DefendHomeX = -36f };
+        cb.Stats.PressRange = 3f;
+        Tree.Tick(cb);
+        Assert.AreEqual(-36f + 10f * MatchTuning.SlideVerticalDefend, cb.MoveX, 1e-4f, "수비 자리 + 슬라이드. 비행 중이라고 공격 자리(⑪)로 안 간다");
+    }
+
+    [Test]
     public void 아군_소유면_공격_시_자리로_전진_오프셋을_더해_간다()
     {
         var cm = new Fake { PlayerId = 4, BallPhase = BallPhase.Owned, BallOwnerTeam = 0, AttackHomeX = -20f, AttackHomeZ = 8f };

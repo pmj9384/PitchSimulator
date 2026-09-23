@@ -168,10 +168,15 @@ namespace Game.Core.Match
             return PressRules.IsCounterPressing(behind, tactics[team].CounterPress, ticksSinceTurnover);
         }
 
+        // 소유 팀. 비행 중인 패스는 찬 팀의 것이다(09-23): -1로 두면 22명 전부 자유 공으로 봐서 최근접 1명이 날아가는 공을 쫓고
+        // 나머지는 양 팀 다 공격 자리(⑪)로 갔다가 받으면 돌아오는 왕복이 생겼다(Play: 상대 패스마다 수비 블록이 무너짐).
+        // 찬 팀으로 두면 리시버만 마중(⑥), 아군은 자리(⑦), 상대는 압박·수비 자리(⑧·⑨)로 갈리고, 가로채기가 팀 전환으로 잡혀 역압박이 켜진다.
+        // 슛·파링 비행은 여전히 -1(누구든 줍는다)
         public int OwnerTeam()
         {
-            if (Ball.Phase != BallPhase.Owned) { return -1; }
-            return FindPlayer(Ball.OwnerId).Team;
+            if (Ball.Phase == BallPhase.Owned) { return FindPlayer(Ball.OwnerId).Team; }
+            if (passInFlight) { return FindPlayer(passPasserId).Team; }
+            return -1;
         }
 
         // 킥오프를 하는 팀(09-23): 중앙 리셋 뒤 그 팀에서 중앙에 가장 가까운 필드 플레이어가 공을 갖는다. 실제 규칙(시작은 동전, 골 뒤엔

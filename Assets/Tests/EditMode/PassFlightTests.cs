@@ -164,6 +164,31 @@ public class PassFlightTests
     }
 
     [Test]
+    public void 비행_중_패스는_찬_팀_소유이고_가로채이면_턴오버로_역압박이_켜진다()
+    {
+        var sim = new MatchSimulation(() => 0.5f, new PassOnce(0, 1));
+        sim.AddPlayer(new PlayerState(0, 0, Mid(), 0f, 0f));
+        sim.AddPlayer(new PlayerState(1, 0, Mid(), 20f, 0f));
+        sim.AddPlayer(new PlayerState(3, 0, Mid(), -10f, 5f));    // 뒤에 남은 아군 2명: 역압박 문턱(적극 = 2)을 채운다
+        sim.AddPlayer(new PlayerState(4, 0, Mid(), -20f, -5f));
+        sim.AddPlayer(new PlayerState(2, 1, Mid(), 10f, 0.3f));   // 경로 위 상대
+        sim.SetTactics(0, new TeamTactics { CounterPress = 2, PassRisk = new[] { 1, 1, 1 }, PressStart = new[] { 1, 1, 1 }, Width = new[] { 1, 1, 1 }, Tempo = new[] { 1, 1, 1 }, PassStyle = new[] { 1, 1, 1 } });
+        sim.Kickoff();
+        sim.Ball = BallRules.Own(sim.Ball, 0, 0f, 0f);
+
+        sim.Tick(Dt);
+        Assert.AreEqual(BallPhase.Flight, sim.Ball.Phase);
+        Assert.AreEqual(0, sim.OwnerTeam(), "비행 중엔 찬 팀(0)의 공. -1이면 22명이 자유 공으로 본다");
+        Assert.IsFalse(sim.IsCounterPressing(0), "아직 안 뺏김");
+
+        for (int i = 0; i < 100 && sim.Ball.Phase != BallPhase.Owned; i++) { sim.Tick(Dt); }
+        Assert.AreEqual(2, sim.Ball.OwnerId, "상대가 가로챔");
+        Assert.AreEqual(1, sim.OwnerTeam());
+        Assert.IsTrue(sim.IsCounterPressing(0), "가로채기 = 팀 전환이라 찬 팀의 역압박 창이 열린다");
+        Assert.IsFalse(sim.IsCounterPressing(1));
+    }
+
+    [Test]
     public void 조준이_골문_밖이면_GK가_있어도_빗나감이다()
     {
         // roll 0.0 → 조준 Z = -반폭. shot 30이면 반폭 4.95 > 3.66이라 골문 밖
