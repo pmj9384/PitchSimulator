@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace Game.Core.Match
 {
     // 압박 판정 순수 함수(09-18 확정 스펙 §6). "누가 압박하나"는 팀 항목이 아니라 역할별 개인 압박 거리가 정한다(ST 12·CB 3).
@@ -11,6 +13,34 @@ namespace Game.Core.Match
 
             float scale = counterPressing ? MatchTuning.CounterPressScale : MatchTuning.PressStartScale[pressStartLevel];
             return distToBall <= pressRange * scale;
+        }
+
+        // 압박 순위(09-23): 압박 거리 안인 우리 팀 선수(eligible, 나 포함) 중 공에 더 가까운 사람 수. 0이면 내가 첫 압박자.
+        // 동률은 PlayerId 작은 쪽이 앞(잡기 타이브레이크와 같은 규칙). 내가 목록에 없으면(압박 거리 밖) int.MaxValue.
+        // 트리는 이 값이 MatchTuning.MaxPressers 미만일 때만 ⑧로 간다. 시뮬이 틱마다 팀별로 계산해 스냅샷에 넣는다
+        public static int PressRank(int playerId, IReadOnlyList<TargetInfo> eligible, float ballX, float ballZ)
+        {
+            float myDist2 = -1f;
+            for (int i = 0; i < eligible.Count; i++)
+            {
+                if (eligible[i].PlayerId != playerId) { continue; }
+                float dx = eligible[i].X - ballX;
+                float dz = eligible[i].Z - ballZ;
+                myDist2 = dx * dx + dz * dz;
+                break;
+            }
+            if (myDist2 < 0f) { return int.MaxValue; }
+
+            int closer = 0;
+            for (int i = 0; i < eligible.Count; i++)
+            {
+                if (eligible[i].PlayerId == playerId) { continue; }
+                float dx = eligible[i].X - ballX;
+                float dz = eligible[i].Z - ballZ;
+                float d2 = dx * dx + dz * dz;
+                if (d2 < myDist2 || (d2 == myDist2 && eligible[i].PlayerId < playerId)) { closer++; }
+            }
+            return closer;
         }
 
         // 추격 예측(09-23, Simple Soccer pursuit): 공의 지금 위치가 아니라 "공 + 공 속도 × 예측 시간"을 향해 달린다.

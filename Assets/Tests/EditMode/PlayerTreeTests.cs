@@ -28,6 +28,7 @@ public class PlayerTreeTests
         public Third BallThird { get; set; } = Third.Middle;
         public bool IsCountering { get; set; }
         public bool IsCounterPressing { get; set; }
+        public int PressRank { get; set; }   // 기본 0 = 첫 압박자
         public IReadOnlyList<TargetInfo> Teammates { get; set; } = new List<TargetInfo>();
         public IReadOnlyList<TargetInfo> Opponents { get; set; } = new List<TargetInfo>();
         public int OpponentKeeperId { get; set; } = -1;
@@ -254,6 +255,16 @@ public class PlayerTreeTests
         cb.Stats.PressRange = 3f; cb.Stats.LineHeight = 6f;
         Tree.Tick(cb);
         Assert.AreEqual(-27f, cb.MoveX, 1e-4f, "수비 자리 + 라인 높이 + 공 지향 슬라이드(공 X 10 × 0.3)");
+    }
+
+    [Test]
+    public void 압박_거리_안이어도_팀_안_순위가_상한_밖이면_수비_자리로_간다()
+    {
+        // 09-23 뭉침: 인원 제한이 없으면 압박 거리 안 4~6명이 동시에 공으로 갔다. 순위 1(두 번째)은 상한 1 밖이라 자리로
+        var cm = new Fake { PlayerId = 6, BallPhase = BallPhase.Owned, BallOwnerTeam = 1, X = 0f, BallX = 10f, BallZ = 0f, DefendHomeX = -20f, PressRank = 1 };
+        cm.Stats.PressRange = 12f;
+        Tree.Tick(cm);
+        Assert.AreEqual(-20f + 10f * MatchTuning.SlideVerticalDefend, cm.MoveX, 1e-4f, "수비 자리 + 슬라이드. 공(10)으로 안 간다");
     }
 
     [Test]

@@ -78,6 +78,7 @@ namespace Game.Core.Match
 
         // 틱마다 한 번 계산하는 팀 단위 국면(09-18): 공은 하나라 서드·역습도 팀당 하나. 22명이 같은 값을 본다
         private readonly List<TargetInfo>[] rosterSnapshot = { new List<TargetInfo>(), new List<TargetInfo>() };
+        private readonly List<TargetInfo>[] pressEligible = { new List<TargetInfo>(), new List<TargetInfo>() };   // 팀별 압박 거리 안 선수(압박 순위 계산용)
         // 팀 국면 스냅샷 버퍼. 틱마다 새 배열을 만들면 3분에 9,000 × 3번 할당(09-21 전수조사 S5)
         private readonly bool[] counteringByTeam = new bool[2];
         private readonly bool[] counterPressingByTeam = new bool[2];
@@ -172,6 +173,26 @@ namespace Game.Core.Match
         // 나머지는 양 팀 다 공격 자리(⑪)로 갔다가 받으면 돌아오는 왕복이 생겼다(Play: 상대 패스마다 수비 블록이 무너짐).
         // 찬 팀으로 두면 리시버만 마중(⑥), 아군은 자리(⑦), 상대는 압박·수비 자리(⑧·⑨)로 갈리고, 가로채기가 팀 전환으로 잡혀 역압박이 켜진다.
         // 슛·파링 비행은 여전히 -1(누구든 줍는다)
+        // 팀별 "압박 거리 안" 선수 목록. 트리 ⑧의 ShouldPress와 같은 판정(개인 압박 거리 × 팀 배율, 역압박 ×2)을 시뮬이 미리 돌려
+        // 팀 안에서 공 거리순 순위를 매긴다. 트리는 자기 순위만 보고 상한(MaxPressers) 안일 때만 간다(09-23 뭉침)
+        private void FillPressEligible()
+        {
+            pressEligible[0].Clear();
+            pressEligible[1].Clear();
+            for (int i = 0; i < players.Count; i++)
+            {
+                PlayerState p = players[i];
+                float dx = Ball.X - p.X;
+                float dz = Ball.Z - p.Z;
+                float dist = (float)Math.Sqrt(dx * dx + dz * dz);
+                int level = tactics[p.Team].PressStart[(int)thirdByTeam[p.Team]];
+                if (PressRules.ShouldPress(dist, p.Stats.PressRange, level, counterPressingByTeam[p.Team]))
+                {
+                    pressEligible[p.Team].Add(new TargetInfo(p.PlayerId, p.X, p.Z));
+                }
+            }
+        }
+
         public int OwnerTeam()
         {
             if (Ball.Phase == BallPhase.Owned) { return FindPlayer(Ball.OwnerId).Team; }
@@ -317,6 +338,7 @@ namespace Game.Core.Match
                 counterPressingByTeam[team] = IsCounterPressing(team);
                 thirdByTeam[team] = BallThirdOf(team);
             }
+            FillPressEligible();
 
             for (int i = 0; i < players.Count; i++)
             {
@@ -328,6 +350,7 @@ namespace Game.Core.Match
                 p.BallThird = thirdByTeam[p.Team];
                 p.IsCountering = counteringByTeam[p.Team];
                 p.IsCounterPressing = counterPressingByTeam[p.Team];
+                p.PressRank = PressRules.PressRank(p.PlayerId, pressEligible[p.Team], Ball.X, Ball.Z);
                 p.Teammates = TeammatesExcluding(p);
                 p.Opponents = rosterSnapshot[other];
                 p.OpponentKeeperId = keeperIds[other];

@@ -55,9 +55,10 @@ namespace Game.Core.AI
                     new ActionNode(ctx => MoveToAttackHome(ctx))),
 
                 // ── 상대 소유 ────────────────────────────────────────────
-                // ⑧ 압박: 팀 압박 시작[상대 공 서드] × 개인 압박 거리(역압박 중 배율 ↑) 안이면 공으로
+                // ⑧ 압박: 팀 압박 시작[상대 공 서드] × 개인 압박 거리(역압박 중 배율 ↑) 안이면서 팀 안 공 거리 순위가 상한 안이면 공으로.
+                // 순위(PressRank)는 시뮬이 같은 판정으로 팀 전체를 세어 넣는다. 나머지는 ⑨ 수비 자리(슬라이드가 블록을 좁힌다)(09-23 뭉침)
                 new SequenceNode(
-                    new ConditionNode(ctx => ctx.BallOwnerTeam == 1 - ctx.Team && ShouldPress(ctx)),
+                    new ConditionNode(ctx => ctx.BallOwnerTeam == 1 - ctx.Team && ShouldPress(ctx) && ctx.PressRank < MatchTuning.MaxPressers),
                     new ActionNode(ctx => ChaseBall(ctx))),
 
                 // ⑨ 아니면 수비 시 자리(+ 라인 높이)로

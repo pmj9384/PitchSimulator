@@ -36,6 +36,7 @@ public class CompositeNodeTests
         public Third BallThird => Third.Middle;
         public bool IsCountering => false;
         public bool IsCounterPressing => false;
+        public int PressRank => 0;
         public IReadOnlyList<TargetInfo> Teammates => System.Array.Empty<TargetInfo>();
         public IReadOnlyList<TargetInfo> Opponents => System.Array.Empty<TargetInfo>();
         public int OpponentKeeperId => -1;

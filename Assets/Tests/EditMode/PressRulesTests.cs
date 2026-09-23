@@ -42,6 +42,17 @@ public class PressRulesTests
     }
 
     [Test]
+    public void 압박_순위는_압박_거리_안_아군_중_공에_더_가까운_수이고_거리_밖이면_최대값이다()
+    {
+        // 공 (0,0). 후보: 1번 5m, 2번 10m, 3번 5m(1번과 동률 → id 작은 1번이 앞)
+        var eligible = new[] { new TargetInfo(2, 10f, 0f), new TargetInfo(1, 5f, 0f), new TargetInfo(3, 0f, 5f) };
+        Assert.AreEqual(0, PressRules.PressRank(1, eligible, 0f, 0f), "가장 가까움");
+        Assert.AreEqual(1, PressRules.PressRank(3, eligible, 0f, 0f), "동률은 id 작은 쪽이 앞");
+        Assert.AreEqual(2, PressRules.PressRank(2, eligible, 0f, 0f));
+        Assert.AreEqual(int.MaxValue, PressRules.PressRank(9, eligible, 0f, 0f), "압박 거리 밖(목록에 없음)");
+    }
+
+    [Test]
     public void 역압박_중이면_배율_2다()
     {
         Assert.IsTrue(PressRules.ShouldPress(20f, 12f, 1, counterPressing: true), "12 × 2.0 = 24 ≥ 20");

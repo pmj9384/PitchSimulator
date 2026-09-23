@@ -39,6 +39,7 @@ namespace Game.Core.Match
         public Third BallThird { get; set; }
         public bool IsCountering { get; set; }
         public bool IsCounterPressing { get; set; }
+        public int PressRank { get; set; } = int.MaxValue;   // 압박 거리 안인 우리 팀 중 공에 더 가까운 수. 상한(MaxPressers) 안만 압박(09-23)
 
         public IReadOnlyList<TargetInfo> Teammates { get; set; } = System.Array.Empty<TargetInfo>();
         public IReadOnlyList<TargetInfo> Opponents { get; set; } = System.Array.Empty<TargetInfo>();
