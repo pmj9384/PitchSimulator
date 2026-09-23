@@ -200,6 +200,21 @@ public class MatchSimulationTests
     }
 
     [Test]
+    public void 빗나간_슛_뒤_골킥이면_박스_안_상대는_박스_밖으로_나간다()
+    {
+        var sim = new MatchSimulation(() => 0.99f, new PassFlightTestsHelper.ShootOnce());   // 0.99 = 골 안 됨·조준은 빗나감
+        PlayerState st = sim.AddPlayer(new PlayerState(0, 0, Striker(), 44f, 0f));
+        sim.AddPlayer(new PlayerState(1, 1, Keeper(), 48f, 0f));
+        sim.AddPlayer(new PlayerState(2, 0, Striker(), 46f, 10f));   // 박스 안(깊이 6.5m, z 10)
+        sim.Kickoff();
+        sim.Ball = BallRules.Own(sim.Ball, 0, 44f, 0f);
+        for (int i = 0; i < 300 && !(sim.Ball.Phase == BallPhase.Owned && sim.Ball.OwnerId == 1); i++) { sim.Tick(Dt); }
+        Assert.AreEqual(1, sim.Ball.OwnerId, "GK 소유(골킥)");
+        Assert.LessOrEqual(sim.Players[2].X, 35f + 1e-3f, "박스 밖(x ≤ 35)으로");
+        Assert.LessOrEqual(st.X, 35f + 1e-3f);
+    }
+
+    [Test]
     public void 공을_잡은_GK는_태클당하지_않는다()
     {
         // 규칙 12조. 주사위 0 = 시도하면 항상 성공인데도 GK 소유 중엔 시도 자체가 없어야 한다

@@ -45,6 +45,7 @@ namespace Game.Core.Match
         public int OpponentKeeperId { get; set; } = -1;
         public int TeamKeeperId { get; set; } = -1;
         public bool KeeperAlternate { get; set; }
+        public int LastPasserId { get; set; } = -1;   // 방금 나에게 패스한 아군. 곧바로 뒤로 되돌리지 않는다(09-23 측면 왕복 22회)
         public PlayerStats? OpponentKeeper { get; set; }
 
         public bool IsPassTarget { get; set; }

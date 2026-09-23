@@ -98,6 +98,7 @@ namespace Game.Core.Match
         // 비행 중인 패스(09-18). 리시버는 스냅샷으로 "나한테 온다"를 알고 마중 나간다
         private bool passInFlight;
         private int passReceiverId = -1;
+        private int passPasserId = -1;        // 되돌림 금지(09-23)용: 받은 선수의 LastPasserId에 기록
         private float passTargetX;
         private float passTargetZ;
         private int ballOwnerAtLastTick = BallState.NoOwner;
@@ -443,6 +444,7 @@ namespace Game.Core.Match
 
             passInFlight = true;
             passReceiverId = receiverId;
+            passPasserId = passer.PlayerId;
             passTargetX = target.x;
             passTargetZ = target.z;
             PassCount++;
@@ -470,6 +472,7 @@ namespace Game.Core.Match
             if (passInFlight)
             {
                 kind = ownerNow == passReceiverId ? PossessionChange.PassReceived : PossessionChange.Intercepted;
+                owner.LastPasserId = kind == PossessionChange.PassReceived ? passPasserId : BallState.NoOwner;
                 if (kind == PossessionChange.Intercepted) { InterceptCount++; }
                 passInFlight = false;
                 passReceiverId = -1;
@@ -541,6 +544,13 @@ namespace Game.Core.Match
             PlayerState? keeper = ResetAfterEveryShot ? null : FindGoalkeeper(shooterAttackSign > 0 ? 1 : 0);
             if (keeper == null) { Kickoff(); return; }
             Ball = BallRules.Own(Ball, keeper.PlayerId, keeper.X, keeper.Z);
+            // 골킥 때 상대는 박스 밖(규칙 16조). 09-23 Play: 빗나감 → GK 소유 → 붙은 ST가 배급을 릴리스 지점에서 가로채 7m 슛, 4회 만에 골
+            float outsideX = -(FieldBounds.HalfLength - FieldBounds.PenaltyBoxDepth - 1f) * keeper.AttackSign;
+            for (int i = 0; i < players.Count; i++)
+            {
+                PlayerState p = players[i];
+                if (p.Team != keeper.Team && MatchRules.IsInOwnPenaltyBox(p.X, p.Z, keeper.AttackSign)) { p.X = outsideX; }
+            }
         }
 
         private void Finish(ShotOutcome outcome)

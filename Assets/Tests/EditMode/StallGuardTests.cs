@@ -32,7 +32,7 @@ public class StallGuardTests
             sim.PossessionChanged += r =>
             {
                 lastEventTick = -1;   // 아래 루프가 현재 틱으로 채운다
-                if (owners.Count == 0 || owners[owners.Count - 1] != r.NewOwnerId) { owners.Add(r.NewOwnerId); if (owners.Count > 6) { owners.RemoveAt(0); } }
+                if (owners.Count == 0 || owners[owners.Count - 1] != r.NewOwnerId) { owners.Add(r.NewOwnerId); if (owners.Count > 10) { owners.RemoveAt(0); } }
                 if (owners.Count == 1) { pingPongStartX = r.X; }
             };
             sim.ShotResolved += r => { lastEventTick = -1; owners.Clear(); };
@@ -73,9 +73,13 @@ public class StallGuardTests
                 }
                 else { ownerId = -1; ownerTicks = 0; }
                 // E
-                if (owners.Count == 6 && owners[0] == owners[2] && owners[2] == owners[4] && owners[1] == owners[3] && owners[3] == owners[5] && System.Math.Abs(sim.Ball.X - pingPongStartX) < 3f)
+                int alt = 0;
+                for (int k = 2; k < owners.Count; k++) { if (owners[k] == owners[k - 2] && owners[k] != owners[k - 1]) { alt++; } else { alt = 0; } }
+                bool tight = alt >= 4 && System.Math.Abs(sim.Ball.X - pingPongStartX) < 3f;   // 6회 교대 + 공 X 3m 안(골문 앞 태클전)
+                bool longRun = alt >= 8;                                                          // 10회 교대는 거리 무관(측면 패스 왕복, 09-23 Play 22회)
+                if (tight || longRun)
                 {
-                    found.Add($"E 시드{seed} t={tick * 0.02f:0.0} 핑퐁 #{owners[0]}↔#{owners[1]} 공 ({sim.Ball.X:0.0},{sim.Ball.Z:0.0})"); break;
+                    found.Add($"E 시드{seed} t={tick * 0.02f:0.0} 핑퐁 #{owners[owners.Count - 2]}↔#{owners[owners.Count - 1]} {alt + 2}회 공 ({sim.Ball.X:0.0},{sim.Ball.Z:0.0})"); break;
                 }
             }
         }

@@ -33,6 +33,7 @@ public class PlayerTreeTests
         public int OpponentKeeperId { get; set; } = -1;
         public int TeamKeeperId { get; set; } = -1;
         public bool KeeperAlternate { get; set; }
+        public int LastPasserId { get; set; } = -1;
         public PlayerStats OpponentKeeper { get; set; } = null;
         public float AttackHomeX { get; set; }
         public float AttackHomeZ { get; set; }
@@ -134,6 +135,25 @@ public class PlayerTreeTests
         mid.Stats.ShotBias = 1f;
         Tree.Tick(mid);
         Assert.AreEqual("move", mid.Did, "패스 대신 드리블");
+    }
+
+    [Test]
+    public void 방금_나에게_준_선수에게_곧바로_뒤로_되돌리지_않는다_다른_후보가_없을_때만()
+    {
+        // 압박(2m 안 상대) 중, 앞은 막힘. 뒤 후보 A(직전 패서)와 B. A는 되돌림이라 B로. B가 없으면 A로
+        var mid = new Fake { PlayerId = 0, OwnsBall = true, BallPhase = BallPhase.Owned, BallOwnerTeam = 0, X = 20f, BallX = 20f, LastPasserId = 1,
+            Teammates = new List<TargetInfo> { new TargetInfo(1, 12f, 8f), new TargetInfo(2, 12f, -8f) },
+            Opponents = new List<TargetInfo> { new TargetInfo(11, 21.5f, 0.3f) } };
+        mid.Stats.ShotBias = 1f;
+        Tree.Tick(mid);
+        Assert.AreEqual("pass", mid.Did);
+        Assert.AreEqual(2, mid.PassedTo, "직전 패서(1)가 아닌 B(2)");
+
+        mid.Teammates = new List<TargetInfo> { new TargetInfo(1, 12f, 8f) };
+        mid.Did = "";
+        Tree.Tick(mid);
+        Assert.AreEqual("pass", mid.Did);
+        Assert.AreEqual(1, mid.PassedTo, "다른 후보가 없으면 되돌림 허용");
     }
 
     [Test]

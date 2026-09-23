@@ -130,11 +130,14 @@ namespace Game.Core.AI
 
             int best = -1;
             float bestScore = 0f;
+            int returnFallback = -1;   // 방금 나에게 준 선수에게 곧바로 뒤로 되돌리는 패스는 다른 후보가 없을 때만(09-23: W↔ST 측면 왕복 22회)
             IReadOnlyList<TargetInfo> mates = ctx.Teammates;
             for (int i = 0; i < mates.Count; i++)
             {
                 TargetInfo m = mates[i];
-                if (!pressed && (m.X - ctx.X) * ctx.AttackSign <= 0f) { continue; }
+                bool backward = (m.X - ctx.X) * ctx.AttackSign <= 0f;
+                if (!pressed && backward) { continue; }
+                bool isReturn = backward && m.PlayerId == ctx.LastPasserId;
                 if (OffsideRules.IsOffsidePosition(m.X, ctx.AttackSign, onsideLine)) { continue; }   // 오프사이드 위치 아군에겐 안 준다(09-23)
                 float score = PassRules.ScoreReceiver(ctx.X, ctx.Z, m.X, m.Z, ctx.AttackSign, t.PassStyle[third], ctx.Stats.PassLength, t.Width[third]);
                 if (score <= bestScore) { continue; }
@@ -148,10 +151,11 @@ namespace Game.Core.AI
                 float risk = PassRules.InterceptRisk(ctx.X, ctx.Z, landing.x, landing.z, ctx.Opponents, MatchTuning.InterceptRunSpeed, ballSpeed);
                 if (!PassRules.IsPassSafe(risk, riskAllow)) { continue; }
 
+                if (isReturn) { if (returnFallback == -1) { returnFallback = m.PlayerId; } continue; }
                 best = m.PlayerId;
                 bestScore = score;
             }
-            return best;
+            return best != -1 ? best : returnFallback;
         }
 
         // 공을 쫓을 땐 공의 앞을 향해(추격 예측). 압박(⑧)과 자유 공(⑩)이 같이 쓴다
