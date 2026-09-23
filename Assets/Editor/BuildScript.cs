@@ -26,6 +26,16 @@ public static class BuildScript
     [MenuItem("Tools/Build/Android AAB (스토어 제출)")]
     public static void BuildAab() => Build(appBundle: true);
 
+    // 빌드 없이 Player Settings만 강제 적용해 ProjectSettings.asset 커밋값을 맞춘다(09-23 전수조사 B1: 커밋값이 URP Blank 템플릿
+    // 기본값이라 File > Build로 빌드하면 패키지명·세로 회전이 잘못 나간다). 새 프로젝트 세팅 직후에도 한 번 누른다
+    [MenuItem("Tools/Build/Player Settings만 적용 (빌드 없이)")]
+    public static void ApplyPlayerSettingsOnly()
+    {
+        ApplyPlayerSettings();
+        AssetDatabase.SaveAssets();
+        Debug.Log($"[BuildScript] Player Settings 적용: {ApplicationId} · {ProductName} · {DefaultOrientation}");
+    }
+
     private static void Build(bool appBundle)
     {
         ApplyPlayerSettings();
