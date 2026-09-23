@@ -39,6 +39,7 @@ namespace Game.Core.AI
         IReadOnlyList<TargetInfo> Teammates { get; }   // 나 제외
         IReadOnlyList<TargetInfo> Opponents { get; }
         int OpponentKeeperId { get; }                  // 없으면 -1
+        int TeamKeeperId { get; }                      // 내 팀 GK. 자유 공 추격에서 GK를 최근접 경쟁에서 빼려고(09-23)
         PlayerStats? OpponentKeeper { get; }
 
         // ── 자리 2쌍(배치 좌표. 오프셋은 PositionRules가 붙임)

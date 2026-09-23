@@ -31,6 +31,7 @@ public class PlayerTreeTests
         public IReadOnlyList<TargetInfo> Teammates { get; set; } = new List<TargetInfo>();
         public IReadOnlyList<TargetInfo> Opponents { get; set; } = new List<TargetInfo>();
         public int OpponentKeeperId { get; set; } = -1;
+        public int TeamKeeperId { get; set; } = -1;
         public PlayerStats OpponentKeeper { get; set; } = null;
         public float AttackHomeX { get; set; }
         public float AttackHomeZ { get; set; }
@@ -201,5 +202,11 @@ public class PlayerTreeTests
         var gk = new Fake { PlayerId = 0, IsGoalkeeper = true, BallPhase = BallPhase.Free, X = -48f, BallX = 0f, AttackHomeX = -48f };
         Tree.Tick(gk);
         Assert.AreEqual(-48f, gk.MoveX, 1e-4f, "GK는 반경 밖 공은 안 쫓음");
+
+        // 09-23 R3: 최근접이 출격 못 하는 GK(공 -33, GK -48 → 15m > 출격 12m)여도 GK를 뺀 최근접 필드 플레이어(-20)가 쫓는다
+        var field = new Fake { PlayerId = 2, BallPhase = BallPhase.Free, X = -20f, BallX = -33f, AttackHomeX = -20f, TeamKeeperId = 0,
+            Teammates = new List<TargetInfo> { new TargetInfo(0, -48f, 0f) } };
+        Tree.Tick(field);
+        Assert.AreEqual(-33f, field.MoveX, 1e-4f, "GK는 최근접 경쟁에서 빠진다");
     }
 }

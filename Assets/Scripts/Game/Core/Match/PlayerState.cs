@@ -43,6 +43,7 @@ namespace Game.Core.Match
         public IReadOnlyList<TargetInfo> Teammates { get; set; } = System.Array.Empty<TargetInfo>();
         public IReadOnlyList<TargetInfo> Opponents { get; set; } = System.Array.Empty<TargetInfo>();
         public int OpponentKeeperId { get; set; } = -1;
+        public int TeamKeeperId { get; set; } = -1;
         public PlayerStats? OpponentKeeper { get; set; }
 
         public bool IsPassTarget { get; set; }
