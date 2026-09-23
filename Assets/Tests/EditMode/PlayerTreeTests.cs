@@ -62,6 +62,18 @@ public class PlayerTreeTests
     }
 
     [Test]
+    public void GK_배급은_발치에_상대가_붙어_있으면_짧게_대신_길게_찬다()
+    {
+        // 09-23 탐지 E: 짧은 배급이 릴리스 지점에서 붙은 ST에게 끊겨 GK-ST 핑퐁. 상대가 1.2m 안이면 가장 앞선 아군에게
+        var gk = new Fake { PlayerId = 0, IsGoalkeeper = true, OwnsBall = true, BallPhase = BallPhase.Owned, BallOwnerTeam = 0, X = -48f,
+            Teammates = new List<TargetInfo> { new TargetInfo(1, -36f, 7f), new TargetInfo(2, -8f, 0f) },
+            Opponents = new List<TargetInfo> { new TargetInfo(20, -47f, 0.5f) } };
+        Tree.Tick(gk);
+        Assert.AreEqual("pass", gk.Did);
+        Assert.AreEqual(2, gk.PassedTo, "붙어 있으면 길게(가장 앞선 아군)");
+    }
+
+    [Test]
     public void 슛_확률이_성향_이상이면_쏜다()
     {
         var st = new Fake { PlayerId = 0, OwnsBall = true, BallPhase = BallPhase.Owned, BallOwnerTeam = 0, X = 41.5f, Z = 0f };

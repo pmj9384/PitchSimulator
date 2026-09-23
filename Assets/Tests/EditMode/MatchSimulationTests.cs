@@ -200,6 +200,20 @@ public class MatchSimulationTests
     }
 
     [Test]
+    public void 공을_잡은_GK는_태클당하지_않는다()
+    {
+        // 규칙 12조. 주사위 0 = 시도하면 항상 성공인데도 GK 소유 중엔 시도 자체가 없어야 한다
+        var sim = new MatchSimulation(() => 0f, new PassFlightTestsHelper.ChaseBall());
+        sim.AddPlayer(new PlayerState(0, 0, Keeper(), -48f, 0f));
+        sim.AddPlayer(new PlayerState(1, 1, Defender(100), -47.2f, 0f));
+        sim.Kickoff();
+        sim.Ball = BallRules.Own(sim.Ball, 0, -48f, 0f);
+        for (int i = 0; i < 100; i++) { sim.Tick(Dt); }
+        Assert.AreEqual(0, sim.TackleAttemptCount);
+        Assert.AreEqual(0, sim.Ball.OwnerId, "GK가 그대로 갖는다");
+    }
+
+    [Test]
     public void 태클에_실패하면_태클러는_정지하고_쿨다운_동안_재시도하지_않는다()
     {
         var sim = new MatchSimulation(() => 0.99f, new PassFlightTestsHelper.ChaseBall());   // 주사위 0.99 = 항상 실패

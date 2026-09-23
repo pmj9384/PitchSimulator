@@ -564,6 +564,7 @@ namespace Game.Core.Match
             if (Ball.Phase != BallPhase.Owned || immunityTicksLeft > 0) { return; }
 
             PlayerState owner = FindPlayer(Ball.OwnerId);
+            if (owner.IsGoalkeeper) { return; }   // 공을 잡은 GK는 경합 대상이 아니다(규칙 12조). 09-23 탐지: 골문 앞 GK-ST 태클 핑퐁 7/30경기의 뿌리
             float reach2 = MatchTuning.TackleRange * MatchTuning.TackleRange;
             for (int i = 0; i < players.Count; i++)
             {

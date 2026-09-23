@@ -174,8 +174,13 @@ namespace Game.Core.AI
 
         private static bool IsPressed(IPlayerContext ctx)
         {
+            return HasOpponentWithin(ctx, MatchTuning.PressedRadius);
+        }
+
+        private static bool HasOpponentWithin(IPlayerContext ctx, float radius)
+        {
             IReadOnlyList<TargetInfo> opp = ctx.Opponents;
-            float r2 = MatchTuning.PressedRadius * MatchTuning.PressedRadius;
+            float r2 = radius * radius;
             for (int i = 0; i < opp.Count; i++)
             {
                 float dx = opp[i].X - ctx.X;
@@ -187,8 +192,10 @@ namespace Game.Core.AI
 
         private static int KeeperTarget(IPlayerContext ctx)
         {
-            // 팀 설정(짧게·섞어·길게). "섞어"의 교대 스위치는 상태라 시뮬이 들고 스냅샷(KeeperAlternate)으로 준다(09-23 R2. 그전엔 섞어가 짧게로 고정)
-            return PassRules.KeeperDistributionTarget(ctx.X, ctx.Z, ctx.Teammates, ctx.AttackSign, ctx.Tactics.GkDistribution, ctx.PlayerId, ctx.KeeperAlternate);
+            // 팀 설정(짧게·섞어·길게). "섞어"의 교대 스위치는 상태라 시뮬이 들고 스냅샷(KeeperAlternate)으로 준다(09-23 R2. 그전엔 섞어가 짧게로 고정).
+            // 발 뻗는 범위 안에 상대가 붙어 있으면 짧은 배급은 릴리스 지점에서 끊긴다(GK 배급엔 안전 판정이 없다) → 길게 찬다(09-23 탐지 E)
+            int level = HasOpponentWithin(ctx, MatchTuning.InterceptReach) ? 2 : ctx.Tactics.GkDistribution;
+            return PassRules.KeeperDistributionTarget(ctx.X, ctx.Z, ctx.Teammates, ctx.AttackSign, level, ctx.PlayerId, ctx.KeeperAlternate);
         }
 
         private static void PassTo(IPlayerContext ctx, int receiverId)
