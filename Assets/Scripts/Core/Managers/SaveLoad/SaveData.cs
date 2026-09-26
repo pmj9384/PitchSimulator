@@ -12,6 +12,7 @@ public class SaveDataV1 : SaveData
 {
     public PlayerAccountDataSave playerAccountDataSave;
     // 스태미나·스킨 모듈은 이 게임에서 제거(2026-09-15) — 진행도·선수 세팅 저장은 게임 전용 세이브로 추가한다
+    public Game.Core.League.SeasonSave seasonSave;   // 4부제 시즌(스펙 §11, 09-26). 옛 세이브엔 없어 null = 시즌 없음. 상대 팀은 시드로 재생성
 
     // [AnimalBreakOut] 게임 전용 시스템
     //public GoldAnimalTokenKeySystemSave goldAnimalTokenKeySystemSave;
