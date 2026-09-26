@@ -72,12 +72,13 @@ namespace Game.Core.Match
 
         private static (float x, float z) Offset(float baseX, float baseZ, float dx, float dz)
         {
-            return (Clamp(baseX + dx, FieldBounds.HalfLength), Clamp(baseZ + dz, FieldBounds.HalfWidth));
+            // 세로는 필드 끝까지, 가로는 터치라인에서 TouchlineMargin 안쪽까지(09-26: 공 쪽 윙어가 라인 위에 붙어 빌드업하던 것)
+            return (Clamp(baseX + dx, FieldBounds.HalfLength, FieldBounds.EdgeMargin), Clamp(baseZ + dz, FieldBounds.HalfWidth, MatchTuning.TouchlineMargin));
         }
 
-        private static float Clamp(float v, float half)
+        private static float Clamp(float v, float half, float margin)
         {
-            float limit = half - FieldBounds.EdgeMargin;
+            float limit = half - margin;
             if (v > limit) { return limit; }
             if (v < -limit) { return -limit; }
             return v;

@@ -110,6 +110,14 @@ public class PositionRulesTests
     {
         (float x, float z) home = PositionRules.AttackHome(48f, 30f, +1, mentality: 2, pushUp: 25f, widthLevel: 2, width: 20f);
         Assert.LessOrEqual(home.x, FieldBounds.HalfLength - FieldBounds.EdgeMargin);
-        Assert.LessOrEqual(home.z, FieldBounds.HalfWidth - FieldBounds.EdgeMargin);
+        Assert.LessOrEqual(home.z, FieldBounds.HalfWidth - MatchTuning.TouchlineMargin, "가로는 터치라인 여유 3m 안쪽까지(09-26)");
+    }
+
+    [Test]
+    public void 공_쪽_윙어는_슬라이드로_밀려도_터치라인_여유_안에_선다()
+    {
+        // 09-26 Play: 윙어 자리 z 31.5에 공 z 30 → 슬라이드 +6 → 가장자리 33.5에 붙어 라인 위 빌드업. 여유 3m면 30.5에서 멈춘다
+        (float x, float z) slid = PositionRules.SlideTowardBall(7f, 31.5f, ballX: 10f, ballZ: 30f, defending: false, goalkeeper: false);
+        Assert.AreEqual(FieldBounds.HalfWidth - MatchTuning.TouchlineMargin, slid.z, 1e-4f);
     }
 }

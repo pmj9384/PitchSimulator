@@ -86,7 +86,7 @@ namespace Game.Core.Match
 
             float preferred = passLength * MatchTuning.PassStyleLengthScale[passStyle];   // 짧게 ×0.6 · 직접 ×1.0 · 롱볼 ×1.8
             float distFit = 1f - Math.Abs(dist - preferred) / (preferred + dist);         // 0~1, 선호 거리에 가까울수록 1
-            float lateral = Math.Abs(candZ) * MatchTuning.WidthScale[widthLevel] * 0.02f; // 측면 가중(폭 넓게일수록)
+            float lateral = Math.Abs(candZ) * MatchTuning.WidthScale[widthLevel] * MatchTuning.LateralScoreScale; // 측면 가중(폭 넓게일수록). 크기는 MatchTuning 주석
 
             if (forward > 0f) { return forward * 0.05f + distFit + lateral; }
 
