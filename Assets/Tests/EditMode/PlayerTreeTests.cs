@@ -255,7 +255,7 @@ public class PlayerTreeTests
         var cb = new Fake { PlayerId = 2, BallPhase = BallPhase.Owned, BallOwnerTeam = 1, X = -36f, BallX = 10f, BallZ = 0f, DefendHomeX = -36f, DefendHomeZ = 7f };
         cb.Stats.PressRange = 3f; cb.Stats.LineHeight = 6f;
         Tree.Tick(cb);
-        Assert.AreEqual(-27f, cb.MoveX, 1e-4f, "수비 자리 + 라인 높이 + 공 지향 슬라이드(공 X 10 × 0.3)");
+        Assert.AreEqual(-36f + 6f * MatchTuning.PositionDialScale + 10f * MatchTuning.SlideVerticalDefend, cb.MoveX, 1e-4f, "수비 자리 + 라인 높이 × 0.3 + 공 지향 슬라이드(공 X 10 × 0.3)");
     }
 
     [Test]

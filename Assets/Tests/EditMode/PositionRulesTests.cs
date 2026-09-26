@@ -45,15 +45,16 @@ public class PositionRulesTests
     [Test]
     public void 공격_시_자리는_배치에_전진과_폭_오프셋을_더한다()
     {
-        // 배치 (-20, 8), 팀 0. 전진 정도 균형(1) → 0, pushUp 15 → X +15. 폭 표준(1) → 배율 1.0, width 10 → Z는 부호 방향으로 +10
+        // 배치 (-20, 8), 팀 0. 전진 정도 균형(1) → 0, pushUp 15 → X +15(미터 그대로). 폭 표준(1) → 배율 1.0, width 10 × 0.3 → Z는 부호 방향으로 +3 (다이얼 배율 09-26, 폭·라인 높이만)
+        float s = MatchTuning.PositionDialScale;
         (float x, float z) home = PositionRules.AttackHome(baseX: -20f, baseZ: 8f, attackSign: +1, mentality: 1, pushUp: 15f, widthLevel: 1, width: 10f);
         Assert.AreEqual(-5f, home.x, 1e-4f);
-        Assert.AreEqual(18f, home.z, 1e-4f, "오른쪽에 선 선수는 더 오른쪽으로");
+        Assert.AreEqual(8f + 10f * s, home.z, 1e-4f, "오른쪽에 선 선수는 더 오른쪽으로");
 
-        // 왼쪽 선수(z<0)는 더 왼쪽으로. 공격적(2) → +5. 폭 넓게(2) → 배율 1.5
+        // 왼쪽 선수(z<0)는 더 왼쪽으로. 공격적(2) → +5(팀 오프셋은 미터 그대로). 폭 넓게(2) → 배율 1.5
         home = PositionRules.AttackHome(-20f, -8f, +1, mentality: 2, pushUp: 15f, widthLevel: 2, width: 10f);
         Assert.AreEqual(0f, home.x, 1e-4f);
-        Assert.AreEqual(-23f, home.z, 1e-4f, "-8 - 10×1.5");
+        Assert.AreEqual(-8f - 10f * s * 1.5f, home.z, 1e-4f, "-8 - 10×0.3×1.5");
 
         // 팀 1은 전진이 -X
         home = PositionRules.AttackHome(20f, 0f, -1, mentality: 0, pushUp: 10f, widthLevel: 0, width: 10f);
@@ -66,19 +67,19 @@ public class PositionRulesTests
     {
         // 09-21: 이탈 반경(ST 3m)이 전진 폭(30m)을 잘라 공격 형태가 자기 진영에 갇혀 3분 슛 0이었다. 전진 폭은 자리를 정의하는 값이라 안 자른다
         (float x, float z) home = PositionRules.AttackHome(-8f, 6f, +1, mentality: 1, pushUp: 30f, widthLevel: 1, width: 10f);
-        Assert.AreEqual(22f, home.x, 1e-4f, "ST 배치 -8 + 전진 30");
-        Assert.AreEqual(16f, home.z, 1e-4f);
+        Assert.AreEqual(22f, home.x, 1e-4f, "ST 배치 -8 + 전진 30(이탈 반경 3으로 안 잘림)");
+        Assert.AreEqual(6f + 10f * MatchTuning.PositionDialScale, home.z, 1e-4f);
     }
 
     [Test]
     public void 수비_시_자리는_배치에서_라인_높이만큼_앞으로_선다()
     {
         (float x, float z) home = PositionRules.DefendHome(baseX: -36f, baseZ: 7f, attackSign: +1, lineHeight: 6f);
-        Assert.AreEqual(-30f, home.x, 1e-4f);
+        Assert.AreEqual(-36f + 6f * MatchTuning.PositionDialScale, home.x, 1e-4f, "라인 높이 6 × 0.3 = 1.8");
         Assert.AreEqual(7f, home.z, 1e-4f);
 
         home = PositionRules.DefendHome(36f, 7f, -1, lineHeight: 6f);
-        Assert.AreEqual(30f, home.x, 1e-4f, "팀 1은 -X가 앞");
+        Assert.AreEqual(36f - 6f * MatchTuning.PositionDialScale, home.x, 1e-4f, "팀 1은 -X가 앞");
     }
 
     [Test]
