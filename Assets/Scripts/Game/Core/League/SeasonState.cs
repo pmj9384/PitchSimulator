@@ -173,16 +173,20 @@ namespace Game.Core.League
 
         public static SeasonState FromSave(SeasonSave save, IReadOnlyList<PlayerStats> table)
         {
+            if (save.lineup.Count != FormationTemplate.SlotCount) { throw new InvalidOperationException($"[SeasonState] 라인업은 {FormationTemplate.SlotCount}명이어야 한다({save.lineup.Count})"); }
             var roster = new List<RosterPlayer>(save.roster.Count);
+            var ids = new HashSet<int>();
             for (int i = 0; i < save.roster.Count; i++)
             {
                 SeasonSave.Player p = save.roster[i];
+                if (!ids.Add(p.playerId)) { throw new InvalidOperationException($"[SeasonState] 로스터 선수 id 중복 {p.playerId}"); }
                 PlayerStats? variant = FindVariant(table, p.variantId);
                 if (variant == null) { throw new InvalidOperationException($"[SeasonState] 세이브의 variantId가 PlayerTable에 없다: {p.variantId}"); }
                 if (p.build == null || p.build.Length != 9) { throw new InvalidOperationException($"[SeasonState] 선수 {p.playerId} 빌드가 9개가 아니다"); }
                 PlayerStats copy = BuildScaler.Copy(variant);   // 다이얼·문자열은 PlayerTable에서, 빌드는 세이브에서
                 copy.Speed = p.build[0]; copy.Stamina = p.build[1]; copy.Pass = p.build[2]; copy.Shot = p.build[3]; copy.Tackle = p.build[4];
                 copy.Positioning = p.build[5]; copy.Reflexes = p.build[6]; copy.Handling = p.build[7]; copy.Diving = p.build[8];
+                if (copy.BuildTotal != PlayerStats.TotalPoints) { throw new InvalidOperationException($"[SeasonState] 선수 {p.playerId} 빌드 합계가 {PlayerStats.TotalPoints}가 아니다({copy.BuildTotal}). 내 선수는 총점 고정(스펙 축: 강화 없음)"); }
                 roster.Add(new RosterPlayer(p.playerId, copy));
             }
             var lineup = new List<LineupEntry>(save.lineup.Count);

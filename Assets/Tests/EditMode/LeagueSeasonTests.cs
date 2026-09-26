@@ -113,6 +113,41 @@ public class LeagueSeasonTests
     }
 
     [Test]
+    public void 일부는_12팀_전_슬롯_무작위라도_100번_안에_유일하게_만들어진다()
+    {
+        for (int seed = 1; seed <= 5; seed++)
+        {
+            List<GeneratedTeam> teams = TeamGenerator.Generate(seed, Tier(1), table, formations, names);
+            Assert.AreEqual(11, teams.Count);
+            var signatures = new HashSet<string>(); var usedNames = new HashSet<string>();
+            foreach (GeneratedTeam team in teams)
+            {
+                Assert.IsTrue(signatures.Add(team.Signature)); Assert.IsTrue(usedNames.Add(team.Name));
+                foreach (PlayerStats p in team.Players) { Assert.AreEqual(300, p.BuildTotal); }
+            }
+        }
+    }
+
+    [Test]
+    public void 상대끼리_경기는_홈이_마이너스_진영에서_시작하고_같은_시드면_같은_결과다()
+    {
+        // 09-26 리뷰: 생성 팀 행은 전부 +X 관례라 홈 쪽을 안 뒤집으면 두 팀이 같은 자리에 겹쳐 스폰됐다
+        TierRule tier = Tier(4);
+        List<GeneratedTeam> opponents = TeamGenerator.Generate(3, tier, table, formations, names);
+        var fixture = new Fixture(0, 1, 2);
+        Game.Core.Match.MatchSimulation sim = SeasonRunner.Assemble(3, fixture, opponents, presets);
+        foreach (Game.Core.Match.PlayerState p in sim.Players)
+        {
+            if (p.Team == 0) { Assert.Less(p.AttackHomeX, 0f, $"홈 #{p.PlayerId}는 -X 진영"); Assert.Less(p.DefendHomeX, 0f); }
+            else { Assert.Greater(p.AttackHomeX, 0f, $"원정 #{p.PlayerId}는 +X 진영"); }
+        }
+        Game.Core.Match.MatchSimulation a = SeasonRunner.Assemble(3, fixture, opponents, presets);
+        Game.Core.Match.MatchSimulation b = SeasonRunner.Assemble(3, fixture, opponents, presets);
+        for (int i = 0; i < SeasonRunner.MatchTicks; i++) { a.Tick(0.02f); b.Tick(0.02f); }
+        Assert.AreEqual(a.HomeGoals, b.HomeGoals); Assert.AreEqual(a.AwayGoals, b.AwayGoals); Assert.AreEqual(a.PassCount, b.PassCount);
+    }
+
+    [Test]
     public void 총점_축소는_합계가_정확하고_다이얼은_그대로다()
     {
         PlayerStats st = TeamGenerator.DefaultVariant(table, "ST");
@@ -147,6 +182,10 @@ public class LeagueSeasonTests
                 }
                 Assert.AreEqual(n, seen.Count, $"{n}팀 라운드 {round}에 전원 출전");
             }
+            // 홈 횟수는 팀마다 (n-1)/2 ± 1(09-26 리뷰: 라운드 홀짝으로만 뒤집으면 6팀에서 4홈·1원정이 났다)
+            var homes = new int[n];
+            foreach (Fixture f in fixtures) { homes[f.HomeTeamId]++; }
+            for (int t = 0; t < n; t++) { Assert.That(homes[t], Is.InRange((n - 1) / 2, (n - 1) / 2 + 1), $"{n}팀 팀 {t} 홈 {homes[t]}회"); }
         }
         Assert.Throws<ArgumentException>(() => SeasonSchedule.RoundRobin(5));
     }
@@ -179,19 +218,6 @@ public class LeagueSeasonTests
         Assert.AreEqual(SeasonState.MyTeamId, decision.AutoPromoted);
         Assert.AreEqual(PromotionDecision.None, decision.Relegated, "4부는 강등 없음");
 
-        // 같은 시드로 다시 돌리면 상대끼리의 결과도 같다
-        SeasonState again = SeasonState.NewSeason(4, 11, myRows, table);
-        for (int round = 0; round < tier.Matches; round++)
-        {
-            Fixture mine = SeasonSchedule.MyFixture(schedule, round, SeasonState.MyTeamId);
-            bool home = mine.HomeTeamId == SeasonState.MyTeamId;
-            SeasonRunner.PlayRound(again, opponents, schedule, presets, new MatchResult(mine.HomeTeamId, mine.AwayTeamId, home ? 2 : 0, home ? 0 : 2));
-        }
-        for (int i = 0; i < state.Results.Count; i++)
-        {
-            Assert.AreEqual(state.Results[i].HomeGoals, again.Results[i].HomeGoals);
-            Assert.AreEqual(state.Results[i].AwayGoals, again.Results[i].AwayGoals);
-        }
     }
 
     [Test]
@@ -247,5 +273,17 @@ public class LeagueSeasonTests
         SeasonSave bad = SeasonState.NewSeason(4, 1, myRows, table).ToSave();
         bad.roster[0].variantId = "없는_변형";
         Assert.Throws<InvalidOperationException>(() => SeasonState.FromSave(bad, table));
+
+        SeasonSave dup = SeasonState.NewSeason(4, 1, myRows, table).ToSave();
+        dup.roster[1].playerId = dup.roster[0].playerId;
+        Assert.Throws<InvalidOperationException>(() => SeasonState.FromSave(dup, table), "선수 id 중복");
+
+        SeasonSave tampered = SeasonState.NewSeason(4, 1, myRows, table).ToSave();
+        tampered.roster[0].build[0] += 50;
+        Assert.Throws<InvalidOperationException>(() => SeasonState.FromSave(tampered, table), "빌드 합계 300 아님(강화 없음)");
+
+        SeasonSave shortLineup = SeasonState.NewSeason(4, 1, myRows, table).ToSave();
+        shortLineup.lineup.RemoveAt(0);
+        Assert.Throws<InvalidOperationException>(() => SeasonState.FromSave(shortLineup, table), "11명 아님");
     }
 }

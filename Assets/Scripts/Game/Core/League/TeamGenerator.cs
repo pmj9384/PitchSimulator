@@ -37,13 +37,15 @@ namespace Game.Core.League
             }
         }
 
-        public IReadOnlyList<LineupSlot> ToLineup()
+        // 행은 상대(+X 진영) 관례로 저장돼 있다. 홈으로 서면(팀 0, +X 공격) X를 뒤집어 -X 진영에서 시작한다(09-26 리뷰: 안 뒤집으면 두 팀이 같은 자리에 겹쳐 스폰)
+        public IReadOnlyList<LineupSlot> ToLineup(bool asHome)
         {
+            float sign = asHome ? -1f : 1f;
             var slots = new List<LineupSlot>(Rows.Count);
             for (int i = 0; i < Rows.Count; i++)
             {
                 StageEntry r = Rows[i];
-                slots.Add(new LineupSlot(Players[i], r.PosX, r.PosZ, r.DefendX, r.DefendZ));
+                slots.Add(new LineupSlot(Players[i], r.PosX * sign, r.PosZ, r.DefendX * sign, r.DefendZ));
             }
             return slots;
         }
@@ -191,6 +193,10 @@ namespace Game.Core.League
 
             int diff = totalPoints - p.BuildTotal;
             if (diff != 0) { AddToLargest(p, diff); }
+            if (p.Speed < 0 || p.Stamina < 0 || p.Pass < 0 || p.Shot < 0 || p.Tackle < 0 || p.Positioning < 0 || p.Reflexes < 0 || p.Handling < 0 || p.Diving < 0)
+            {
+                throw new InvalidOperationException($"[BuildScaler] {src.VariantId}를 {totalPoints}로 줄이니 음수 스탯이 생긴다");   // 지금 표(260~300)론 안 나지만 방어
+            }
             return p;
         }
 

@@ -18,7 +18,8 @@ namespace Game.Core.League
     }
 
     // 단판 라운드로빈 일정(스펙 §10: 4부 6팀 5경기 … 1부 12팀 11경기). 서클 방식: 0번을 고정하고 나머지를 한 칸씩 돌린다.
-    // 결정적이라 세이브에 안 넣는다. 홈·어웨이는 라운드 홀짝으로 뒤집어 한 팀이 계속 홈이 되지 않게 한다
+    // 결정적이라 세이브에 안 넣는다. 홈·어웨이: 고정 팀 0은 라운드 홀짝으로, 링 위의 쌍은 링 자리 홀짝으로 뒤집는다.
+    // 09-26 리뷰: 전부 라운드 홀짝으로 뒤집으면 링 자리별 편향이 안 상쇄돼 6팀에서 한 팀이 4홈·1원정, 12팀에서 4홈·7원정이 났다. 이 식이면 팀마다 ±1
     public static class SeasonSchedule
     {
         public static List<Fixture> RoundRobin(int teamCount)
@@ -37,7 +38,7 @@ namespace Game.Core.League
                 Add(fixtures, round, 0, ring[0], round % 2 == 1);
                 for (int k = 1; k < half; k++)
                 {
-                    Add(fixtures, round, ring[k], ring[ring.Length - k], round % 2 == 1);
+                    Add(fixtures, round, ring[k], ring[ring.Length - k], k % 2 == 1);
                 }
                 // 링을 한 칸 회전
                 int last = ring[ring.Length - 1];

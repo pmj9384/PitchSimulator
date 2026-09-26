@@ -35,12 +35,18 @@ namespace Game.Core.League
             state.CompleteRound();
         }
 
-        private static MatchResult Simulate(int seasonSeed, Fixture f, IReadOnlyList<GeneratedTeam> opponents, IReadOnlyList<TeamTactics> presets)
+        // 상대끼리 한 경기(헤드리스). 테스트가 결정성·스폰 진영을 이 단위로 본다
+        public static MatchSimulation Assemble(int seasonSeed, Fixture f, IReadOnlyList<GeneratedTeam> opponents, IReadOnlyList<TeamTactics> presets)
         {
             GeneratedTeam home = Find(opponents, f.HomeTeamId);
             GeneratedTeam away = Find(opponents, f.AwayTeamId);
             int seed = unchecked(seasonSeed * 1000003 + f.Round * 7919 + f.HomeTeamId * 104729 + f.AwayTeamId * 31);
-            MatchSimulation sim = MatchAssembler.Create(home.ToLineup(), away.ToLineup(), FindPreset(presets, home.PresetId), FindPreset(presets, away.PresetId), seed);
+            return MatchAssembler.Create(home.ToLineup(asHome: true), away.ToLineup(asHome: false), FindPreset(presets, home.PresetId), FindPreset(presets, away.PresetId), seed);
+        }
+
+        private static MatchResult Simulate(int seasonSeed, Fixture f, IReadOnlyList<GeneratedTeam> opponents, IReadOnlyList<TeamTactics> presets)
+        {
+            MatchSimulation sim = Assemble(seasonSeed, f, opponents, presets);
             var probe = new MatchProbe(sim);
             probe.Run(MatchTicks, MatchTuning.FixedStep);
             return new MatchResult(f.HomeTeamId, f.AwayTeamId, sim.HomeGoals, sim.AwayGoals);
