@@ -11,6 +11,14 @@ public class BallView : MonoBehaviour
     private Vector3 current;
     private Vector3 rendered;   // 직전 프레임에 그린 위치. 회전량은 이 차이로 잰다
 
+    // 씬에 미리 놓인 오브젝트라 스폰 훅이 없다. 첫 Snap(킥오프) 전 프레임에 원점(보간 값 기본 0)으로 튀지 않게 지금 자리로 시작
+    private void Awake()
+    {
+        current = transform.position;
+        previous = current;
+        rendered = current;
+    }
+
     // 고정 스텝 뒤 MatchManager가 부른다
     public void Apply(in BallState ball)
     {
