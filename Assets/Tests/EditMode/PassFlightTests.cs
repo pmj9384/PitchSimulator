@@ -237,6 +237,51 @@ public class PassFlightTests
     }
 
     [Test]
+    public void 압박_1순위가_태클_실패로_얼면_2순위가_대신_압박한다()
+    {
+        // 09-26 리뷰: 얼어 있는 선수가 순위 0을 차지한 채 못 움직이면 상한 1에 걸린 2순위도 안 가 그 팀 압박이 0.5초 빈다
+        var sim = new MatchSimulation(() => 0.5f, PlayerTreeBuilder.Build());
+        PlayerStats presser = Mid(); presser.PressRange = 20f;
+        sim.AddPlayer(new PlayerState(0, 1, Mid(), 0f, 0f));
+        PlayerState first = sim.AddPlayer(new PlayerState(1, 0, presser, -5f, 0f));
+        PlayerState second = sim.AddPlayer(new PlayerState(2, 0, presser, -10f, 0f));
+        sim.SetTactics(0, new TeamTactics { PassRisk = new[] { 1, 1, 1 }, PressStart = new[] { 1, 1, 1 }, Width = new[] { 1, 1, 1 }, Tempo = new[] { 1, 1, 1 }, PassStyle = new[] { 1, 1, 1 }, Mentality = 1 });
+        sim.SetTactics(1, new TeamTactics { PassRisk = new[] { 1, 1, 1 }, PressStart = new[] { 1, 1, 1 }, Width = new[] { 1, 1, 1 }, Tempo = new[] { 1, 1, 1 }, PassStyle = new[] { 1, 1, 1 }, Mentality = 1 });
+        sim.Kickoff();
+        sim.Ball = BallRules.Own(sim.Ball, 0, 0f, 0f);
+        first.FrozenTicks = 100;   // 태클 실패 직후 상태
+
+        for (int i = 0; i < 10; i++) { sim.Tick(Dt); }
+
+        Assert.AreEqual(-5f, first.X, 0.01f, "얼어 있으면 못 움직인다");
+        Assert.Greater(second.X, -9.5f, "2순위가 공으로 달린다(얼어 있는 1순위는 순위에서 빠짐)");
+    }
+
+    [Test]
+    public void 줍기나_태클로_잡은_공엔_방금_준_선수가_없다()
+    {
+        // 09-26 리뷰: LastPasserId가 패스 수신 때만 쓰여 옛 값이 남았다. A→B 패스 뒤 B가 자유 공을 다시 주우면 -1이어야 한다
+        var sim = new MatchSimulation(() => 0.5f, new PassOnce(0, 1));
+        sim.AddPlayer(new PlayerState(0, 0, Mid(), 0f, 0f));
+        PlayerState b = sim.AddPlayer(new PlayerState(1, 0, Mid(), 15f, 0f));
+        sim.Kickoff();
+        sim.Ball = BallRules.Own(sim.Ball, 0, 0f, 0f);
+        for (int i = 0; i < 200 && !(sim.Ball.Phase == BallPhase.Owned && sim.Ball.OwnerId == 1); i++) { sim.Tick(Dt); }
+        Assert.AreEqual(1, sim.Ball.OwnerId, $"리시버가 받는다(공 {sim.Ball.Phase} ({sim.Ball.X:0.0},{sim.Ball.Z:0.0}), B ({b.X:0.0},{b.Z:0.0}))");
+        Assert.AreEqual(0, b.LastPasserId, "패스로 받았으니 A");
+
+        sim.Ball = BallState.FreeAt(b.X + 3f, b.Z);   // 공을 놓침. 한 틱은 무소유로 지나야 시뮬이 "새로 잡았다"로 본다(같은 틱 재포획은 소유 변경이 아님)
+        sim.Tick(Dt);
+        sim.Ball = BallState.FreeAt(b.X + 0.5f, b.Z);   // 가짜 트리(PassOnce)는 공을 안 쫓으니 발치로 옮겨 줍게 한다
+        sim.Tick(Dt);
+        Assert.AreEqual(1, sim.Ball.OwnerId, "B가 다시 주움");
+        Assert.AreEqual(BallState.NoOwner, b.LastPasserId, "주운 공엔 방금 준 선수가 없다");
+
+        sim.KickoffBy(0);
+        Assert.AreEqual(BallState.NoOwner, b.LastPasserId, "킥오프 리셋에서도 지운다");
+    }
+
+    [Test]
     public void 조준이_골문_밖이면_GK가_있어도_빗나감이다()
     {
         // roll 0.0 → 조준 Z = -반폭. shot 30이면 반폭 4.95 > 3.66이라 골문 밖

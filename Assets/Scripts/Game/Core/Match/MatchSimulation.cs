@@ -182,6 +182,7 @@ namespace Game.Core.Match
             for (int i = 0; i < players.Count; i++)
             {
                 PlayerState p = players[i];
+                if (p.FrozenTicks > 0) { continue; }   // 태클 실패로 얼어 있는 선수는 순위에서 뺀다(09-26 리뷰): 남겨 두면 1순위를 차지한 채 못 움직여 그 팀 압박이 0.5초 빈다
                 float dx = Ball.X - p.X;
                 float dz = Ball.Z - p.Z;
                 float dist = (float)Math.Sqrt(dx * dx + dz * dz);
@@ -238,6 +239,7 @@ namespace Game.Core.Match
             {
                 players[i].FrozenTicks = 0;
                 players[i].TackleCooldownTicks = 0;
+                players[i].LastPasserId = BallState.NoOwner;
             }
             for (int i = 0; i < players.Count; i++)
             {
@@ -501,10 +503,11 @@ namespace Game.Core.Match
 
             PlayerState owner = FindPlayer(ownerNow);
             PossessionChange kind = PossessionChange.Capture;
+            owner.LastPasserId = BallState.NoOwner;   // 줍기·태클로 잡은 공엔 "방금 준 선수"가 없다(09-26 리뷰: 패스 수신 때만 쓰니 옛 값이 남아 되돌림 후보를 잘못 강등)
             if (passInFlight)
             {
                 kind = ownerNow == passReceiverId ? PossessionChange.PassReceived : PossessionChange.Intercepted;
-                owner.LastPasserId = kind == PossessionChange.PassReceived ? passPasserId : BallState.NoOwner;
+                if (kind == PossessionChange.PassReceived) { owner.LastPasserId = passPasserId; }
                 if (kind == PossessionChange.Intercepted) { InterceptCount++; }
                 passInFlight = false;
                 passReceiverId = -1;
