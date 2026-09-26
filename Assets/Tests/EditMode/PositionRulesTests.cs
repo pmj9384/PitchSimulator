@@ -84,10 +84,10 @@ public class PositionRulesTests
     [Test]
     public void 공_지향_슬라이드는_공_쪽으로_평행이동하고_세로는_상한으로_잘린다()
     {
-        // 수비 시: 공 (30, -20) → 세로 30×0.3 = 9, 가로 -20×0.4 = -8
+        // 수비 시: 공 (30, -20) → 세로 30×0.3 = 9, 가로 -20×0.3 = -6(09-26 0.4 → 0.3: 블록이 너무 촘촘해 골 0.6)
         (float x, float z) d = PositionRules.SlideTowardBall(-20f, 5f, ballX: 30f, ballZ: -20f, defending: true, goalkeeper: false);
         Assert.AreEqual(-11f, d.x, 1e-4f, "공이 멀면 라인이 올라간다");
-        Assert.AreEqual(-3f, d.z, 1e-4f, "공이 왼쪽이면 왼쪽으로");
+        Assert.AreEqual(-1f, d.z, 1e-4f, "공이 왼쪽이면 왼쪽으로");
 
         // 세로 상한: 공 X 45 × 0.3 = 13.5 → 10으로 잘림
         d = PositionRules.SlideTowardBall(-20f, 0f, 45f, 0f, defending: true, goalkeeper: false);
