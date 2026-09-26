@@ -21,6 +21,8 @@ public class StallGuardTests
         List<StageEntry> rows = StageCompositionParser.Parse(File.ReadAllText("Assets/Resources/Tables/StageComposition.csv")).FindAll(r => r.Stage == 1);
         TeamTactics balanced = TeamTacticsParser.Parse(File.ReadAllText("Assets/Resources/Tables/TacticPresets.csv")).Find(t => t.PresetId == "balanced");
         FieldInfo passInFlight = typeof(MatchSimulation).GetField("passInFlight", BindingFlags.NonPublic | BindingFlags.Instance);
+        const float WideShareMax = 0.25f;   // 09-26 수정 뒤 10경기 평균 13%. 31%였을 때가 터치라인 빌드업
+        const float RoleShareMax = 0.5f;    // 한 역할이 소유 절반 이상이면 형태 붕괴(09-26 전엔 W가 측면 소유의 86%)
 
         var found = new List<string>();
         for (int seed = 1; seed <= Seeds; seed++)
@@ -41,9 +43,17 @@ public class StallGuardTests
             float ballX = sim.Ball.X, ballZ = sim.Ball.Z; int freeTicks = 0; float freeMinDist = 999f; int ownerId = -1; int ownerTicks = 0; float ownerX = 0f;
             for (int i = 0; i < sim.Players.Count; i++) { px[i] = sim.Players[i].X; pz[i] = sim.Players[i].Z; }
             int quietSince = 0; float quietBallX = ballX, quietBallZ = ballZ; float quietMove = 0f;
+            int shapeOwned = 0, shapeWide = 0; var shapeByRole = new Dictionary<string, int>();
             for (int tick = 0; tick < Ticks; tick++)
             {
                 sim.Tick(MatchTuning.FixedStep);
+                if (sim.Ball.Phase == BallPhase.Owned)
+                {
+                    shapeOwned++;
+                    if (System.Math.Abs(sim.Ball.Z) >= MatchTuning.WideZoneZ) { shapeWide++; }
+                    string role = sim.Players[sim.Ball.OwnerId].Stats.RoleId;
+                    shapeByRole[role] = shapeByRole.TryGetValue(role, out int c) ? c + 1 : 1;
+                }
                 if (lastEventTick == -1) { lastEventTick = tick; quietSince = tick; quietBallX = sim.Ball.X; quietBallZ = sim.Ball.Z; quietMove = 0f; }
                 for (int i = 0; i < sim.Players.Count; i++) { quietMove += System.Math.Abs(sim.Players[i].X - px[i]) + System.Math.Abs(sim.Players[i].Z - pz[i]); px[i] = sim.Players[i].X; pz[i] = sim.Players[i].Z; }
 
@@ -80,6 +90,17 @@ public class StallGuardTests
                 if (tight || longRun)
                 {
                     found.Add($"E 시드{seed} t={tick * 0.02f:0.0} 핑퐁 #{owners[owners.Count - 2]}↔#{owners[owners.Count - 1]} {alt + 2}회 공 ({sim.Ball.X:0.0},{sim.Ball.Z:0.0})"); break;
+                }
+            }
+            // F·G 형태(09-26): 경기가 멀쩡히 돌아가는데 형태가 무너진 경우. 터치라인 빌드업(측면 소유 31%·W 86%)을 정지 탐지가 못 잡았다
+            if (shapeOwned > 0)
+            {
+                float wideShare = (float)shapeWide / shapeOwned;
+                if (wideShare > WideShareMax) { found.Add($"F 시드{seed} 측면 소유 {wideShare:P0} (상한 {WideShareMax:P0})"); }
+                foreach (KeyValuePair<string, int> kv in shapeByRole)
+                {
+                    float share = (float)kv.Value / shapeOwned;
+                    if (share > RoleShareMax) { found.Add($"G 시드{seed} 역할 {kv.Key}가 소유 {share:P0} (상한 {RoleShareMax:P0})"); }
                 }
             }
         }
