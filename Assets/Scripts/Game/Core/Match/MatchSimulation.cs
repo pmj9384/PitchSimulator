@@ -78,6 +78,7 @@ namespace Game.Core.Match
 
         // 틱마다 한 번 계산하는 팀 단위 국면(09-18): 공은 하나라 서드·역습도 팀당 하나. 22명이 같은 값을 본다
         private readonly List<TargetInfo>[] rosterSnapshot = { new List<TargetInfo>(), new List<TargetInfo>() };
+        private readonly List<TargetInfo>[] pressEligible = { new List<TargetInfo>(), new List<TargetInfo>() };   // 팀별 압박 거리 안 선수(압박 순위 계산용)
         // 팀 국면 스냅샷 버퍼. 틱마다 새 배열을 만들면 3분에 9,000 × 3번 할당(09-21 전수조사 S5)
         private readonly bool[] counteringByTeam = new bool[2];
         private readonly bool[] counterPressingByTeam = new bool[2];
@@ -98,12 +99,13 @@ namespace Game.Core.Match
         // 비행 중인 패스(09-18). 리시버는 스냅샷으로 "나한테 온다"를 알고 마중 나간다
         private bool passInFlight;
         private int passReceiverId = -1;
+        private int passPasserId = -1;        // 되돌림 금지(09-23)용: 받은 선수의 LastPasserId에 기록
         private float passTargetX;
         private float passTargetZ;
         private int ballOwnerAtLastTick = BallState.NoOwner;
         private int immunityTicksLeft;        // 소유 면역(09-21): 소유 뒤 이 틱 동안 태클 불가
         private int holdUpTicksLeft;          // 볼 끌기(개인 holdUp): 소유 뒤 킥까지 대기 틱
-        private bool keeperAlternate;         // GK 배급 "섞어"의 교대 스위치
+        private readonly bool[] keeperAlternate = new bool[2];   // GK 배급 "섞어"의 교대 스위치(팀별). GK 패스가 실행될 때 뒤집고 스냅샷으로 트리에 준다(09-23 R2)
         // 킥 릴리스(09-21 Play 진단): 찬 공은 킥 원점에서 잡기 반경을 벗어난 뒤에야 누구든 잡을 수 있다.
         // 발치에 붙은 상대가 첫 틱(0.3m)에 그 자리에서 가로채 소유가 0.4초마다 뒤집히던 잠금을 막는다
         private float kickOriginX;
@@ -167,10 +169,56 @@ namespace Game.Core.Match
             return PressRules.IsCounterPressing(behind, tactics[team].CounterPress, ticksSinceTurnover);
         }
 
+        // 소유 팀. 비행 중인 패스는 찬 팀의 것이다(09-23): -1로 두면 22명 전부 자유 공으로 봐서 최근접 1명이 날아가는 공을 쫓고
+        // 나머지는 양 팀 다 공격 자리(⑪)로 갔다가 받으면 돌아오는 왕복이 생겼다(Play: 상대 패스마다 수비 블록이 무너짐).
+        // 찬 팀으로 두면 리시버만 마중(⑥), 아군은 자리(⑦), 상대는 압박·수비 자리(⑧·⑨)로 갈리고, 가로채기가 팀 전환으로 잡혀 역압박이 켜진다.
+        // 슛·파링 비행은 여전히 -1(누구든 줍는다)
+        // 팀별 "압박 거리 안" 선수 목록. 트리 ⑧의 ShouldPress와 같은 판정(개인 압박 거리 × 팀 배율, 역압박 ×2)을 시뮬이 미리 돌려
+        // 팀 안에서 공 거리순 순위를 매긴다. 트리는 자기 순위만 보고 상한(MaxPressers) 안일 때만 간다(09-23 뭉침)
+        private void FillPressEligible()
+        {
+            pressEligible[0].Clear();
+            pressEligible[1].Clear();
+            for (int i = 0; i < players.Count; i++)
+            {
+                PlayerState p = players[i];
+                if (p.FrozenTicks > 0) { continue; }   // 태클 실패로 얼어 있는 선수는 순위에서 뺀다(09-26 리뷰): 남겨 두면 1순위를 차지한 채 못 움직여 그 팀 압박이 0.5초 빈다
+                float dx = Ball.X - p.X;
+                float dz = Ball.Z - p.Z;
+                float dist = (float)Math.Sqrt(dx * dx + dz * dz);
+                int level = tactics[p.Team].PressStart[(int)thirdByTeam[p.Team]];
+                if (PressRules.ShouldPress(dist, p.Stats.PressRange, level, counterPressingByTeam[p.Team]))
+                {
+                    pressEligible[p.Team].Add(new TargetInfo(p.PlayerId, p.X, p.Z));
+                }
+            }
+        }
+
         public int OwnerTeam()
         {
-            if (Ball.Phase != BallPhase.Owned) { return -1; }
-            return FindPlayer(Ball.OwnerId).Team;
+            if (Ball.Phase == BallPhase.Owned) { return FindPlayer(Ball.OwnerId).Team; }
+            if (passInFlight) { return FindPlayer(passPasserId).Team; }
+            return -1;
+        }
+
+        // 킥오프를 하는 팀(09-23): 중앙 리셋 뒤 그 팀에서 중앙에 가장 가까운 필드 플레이어가 공을 갖는다. 실제 규칙(시작은 동전, 골 뒤엔
+        // 실점 팀)과 같다. 자유 공 경합으로 두면 양 팀 ST가 등거리라 PlayerId 타이브레이크가 매 킥오프를 한 팀에 줬고(먼저 스폰된 팀이
+        // 미러 세팅에서 75% 승·상대 0%), 스폰 순서를 뒤집으면 결과가 거울로 뒤집혔다. Kickoff()(자유 공)는 리트머스·테스트용으로 남긴다
+        public void KickoffBy(int team)
+        {
+            Kickoff();
+            int best = BallState.NoOwner;
+            float bestD2 = float.MaxValue;
+            for (int i = 0; i < players.Count; i++)
+            {
+                PlayerState p = players[i];
+                if (p.Team != team || p.IsGoalkeeper) { continue; }
+                float d2 = p.X * p.X + p.Z * p.Z;
+                if (d2 < bestD2) { bestD2 = d2; best = p.PlayerId; }
+            }
+            if (best == BallState.NoOwner) { return; }   // 그 팀 필드 플레이어가 없으면 자유 공
+            PlayerState kicker = FindPlayer(best);
+            Ball = BallRules.Own(Ball, best, kicker.X, kicker.Z);
         }
 
         public void Kickoff()
@@ -191,6 +239,7 @@ namespace Game.Core.Match
             {
                 players[i].FrozenTicks = 0;
                 players[i].TackleCooldownTicks = 0;
+                players[i].LastPasserId = BallState.NoOwner;
             }
             for (int i = 0; i < players.Count; i++)
             {
@@ -207,12 +256,20 @@ namespace Game.Core.Match
             if (shotInFlight && Ball.Phase != BallPhase.Flight)
             {
                 Finish(ShotOutcome.Missed);
-                Kickoff();
+                RestartAfterMiss();
                 return;
             }
 
             if (ResolveShotAtGoalLine()) { return; }
             if (ResetIfOut()) { return; }
+
+            // 패스가 리드 목표에 못 미쳐 감속으로 멈추면 패스는 끝난 것이다(09-23 Play 잠금: 리시버가 ⑥으로 목표점에 서서 공 0.82m 옆에 멈추고,
+            // 다른 선수는 그가 최근접이라 안 와서 26초 동안 아무도 못 잡았다). 자유 공으로 넘겨 ⑩ 최근접 추격이 잡게 한다
+            if (passInFlight && Ball.Phase == BallPhase.Free)
+            {
+                passInFlight = false;
+                passReceiverId = -1;
+            }
 
             if (Ball.Phase == BallPhase.Free)
             {
@@ -241,6 +298,13 @@ namespace Game.Core.Match
                 tree.Tick(p);
             }
 
+            if (Ball.Phase == BallPhase.Owned)
+            {
+                BallState still = Ball;   // 소유자가 이번 틱에 안 움직이면 속도 0. 움직이면 Apply의 Carry가 다시 채운다
+                still.VelX = 0f;
+                still.VelZ = 0f;
+                Ball = still;
+            }
             for (int i = 0; i < players.Count; i++)
             {
                 Apply(players[i], deltaTime);
@@ -276,6 +340,7 @@ namespace Game.Core.Match
                 counterPressingByTeam[team] = IsCounterPressing(team);
                 thirdByTeam[team] = BallThirdOf(team);
             }
+            FillPressEligible();
 
             for (int i = 0; i < players.Count; i++)
             {
@@ -287,9 +352,12 @@ namespace Game.Core.Match
                 p.BallThird = thirdByTeam[p.Team];
                 p.IsCountering = counteringByTeam[p.Team];
                 p.IsCounterPressing = counterPressingByTeam[p.Team];
+                p.PressRank = PressRules.PressRank(p.PlayerId, pressEligible[p.Team], Ball.X, Ball.Z);
                 p.Teammates = TeammatesExcluding(p);
                 p.Opponents = rosterSnapshot[other];
                 p.OpponentKeeperId = keeperIds[other];
+                p.TeamKeeperId = keeperIds[p.Team];
+                p.KeeperAlternate = keeperAlternate[p.Team];
                 p.OpponentKeeper = keeperIds[other] == -1 ? null : FindPlayer(keeperIds[other]).Stats;
                 p.IsPassTarget = passInFlight && passReceiverId == p.PlayerId;
                 p.PassTargetX = passTargetX;
@@ -391,24 +459,30 @@ namespace Game.Core.Match
             Ball = BallRules.Kick(Ball, goalX - shooter.X, shotAimZ - shooter.Z, MatchTuning.ShotSpeed);
         }
 
-        // 패스: 리시버 현재 위치로 직선 비행. 속도는 공이 있는 서드의 팀 속도. 리시버는 스냅샷으로 알고 마중 나간다
+        // 패스: 리드 목표점으로 직선 비행. 초속은 목표까지 거리로 역산(도착 속도 = 공이 있는 서드의 팀 템포). 리시버는 스냅샷으로 알고 마중 나간다
         private void Pass(PlayerState passer, int receiverId)
         {
             PlayerState receiver = FindPlayer(receiverId);
             Third third = PositionRules.ThirdOf(Ball.X, passer.AttackSign);
-            float speed = MatchTuning.PassSpeed[tactics[passer.Team].Tempo[(int)third]];
+            float arrival = MatchTuning.PassArrivalSpeed[tactics[passer.Team].Tempo[(int)third]];
 
-            // 리드 패스: 리시버가 공 도착 때 있을 앞쪽 점으로. 리시버 속도는 그 선수 speed 스탯
+            // 리드 패스: 리시버가 공 도착 때 있을 앞쪽 점으로. 리시버 속도는 그 선수 speed 스탯. 비행 시간은 리시버 거리 기준 평균 속도로
             float dx0 = receiver.X - passer.X;
             float dz0 = receiver.Z - passer.Z;
             float dist = (float)Math.Sqrt(dx0 * dx0 + dz0 * dz0);
-            (float x, float z) target = PassRules.LeadTarget(passer.X, receiver.X, receiver.Z, receiver.AttackSign, dist, speed, MatchRules.SpeedMps(receiver.Stats.Speed));
+            float average = PassRules.AverageSpeed(PassRules.KickSpeed(dist, arrival, MatchTuning.BallDeceleration, MatchTuning.PassSpeedMax), dist, MatchTuning.BallDeceleration);
+            (float x, float z) target = PassRules.LeadTarget(passer.X, receiver.X, receiver.Z, receiver.AttackSign, dist, average, MatchRules.SpeedMps(receiver.Stats.Speed));
+            float dx1 = target.x - passer.X;
+            float dz1 = target.z - passer.Z;
+            float speed = PassRules.KickSpeed((float)Math.Sqrt(dx1 * dx1 + dz1 * dz1), arrival, MatchTuning.BallDeceleration, MatchTuning.PassSpeedMax);
 
             passInFlight = true;
             passReceiverId = receiverId;
+            passPasserId = passer.PlayerId;
             passTargetX = target.x;
             passTargetZ = target.z;
             PassCount++;
+            if (passer.IsGoalkeeper && tactics[passer.Team].GkDistribution == 1) { keeperAlternate[passer.Team] = !keeperAlternate[passer.Team]; }   // 섞어: 다음 배급은 반대
             kickOriginX = Ball.X;
             kickOriginZ = Ball.Z;
             passReleased = false;
@@ -429,9 +503,11 @@ namespace Game.Core.Match
 
             PlayerState owner = FindPlayer(ownerNow);
             PossessionChange kind = PossessionChange.Capture;
+            owner.LastPasserId = BallState.NoOwner;   // 줍기·태클로 잡은 공엔 "방금 준 선수"가 없다(09-26 리뷰: 패스 수신 때만 쓰니 옛 값이 남아 되돌림 후보를 잘못 강등)
             if (passInFlight)
             {
                 kind = ownerNow == passReceiverId ? PossessionChange.PassReceived : PossessionChange.Intercepted;
+                if (kind == PossessionChange.PassReceived) { owner.LastPasserId = passPasserId; }
                 if (kind == PossessionChange.Intercepted) { InterceptCount++; }
                 passInFlight = false;
                 passReceiverId = -1;
@@ -447,24 +523,6 @@ namespace Game.Core.Match
             PossessionChanged?.Invoke(new PossessionReport(ownerNow, owner.Team, previousOwnerId, kind, Ball.X, Ball.Z));
         }
 
-        // GK 배급 대상(트리가 부른다). "섞어"는 부를 때마다 교대
-        public int KeeperDistributionTarget(PlayerState keeper)
-        {
-            int level = tactics[keeper.Team].GkDistribution;
-            List<TargetInfo> mates = rosterSnapshot[keeper.Team];
-            if (mates.Count == 0)
-            {
-                // 스냅샷 전(테스트·킥오프 직후)엔 명부에서 직접 만든다
-                for (int i = 0; i < players.Count; i++)
-                {
-                    if (players[i].Team == keeper.Team) { mates.Add(new TargetInfo(players[i].PlayerId, players[i].X, players[i].Z)); }
-                }
-            }
-            int target = PassRules.KeeperDistributionTarget(keeper.X, keeper.Z, mates, keeper.AttackSign, level, keeper.PlayerId, keeperAlternate);
-            if (level == 1) { keeperAlternate = !keeperAlternate; }
-            return target;
-        }
-
         // 골라인을 넘은 슛: 골이면 득점, 아니면(GK가 못 건드렸으면) 빗나감. 둘 다 킥오프
         private bool ResolveShotAtGoalLine()
         {
@@ -475,12 +533,12 @@ namespace Game.Core.Match
             {
                 if (shooterAttackSign > 0) { HomeGoals++; } else { AwayGoals++; }
                 Finish(ShotOutcome.Goal);
-                Kickoff();
+                if (ResetAfterEveryShot) { Kickoff(); } else { KickoffBy(shooterAttackSign > 0 ? 1 : 0); }   // 실점한 팀이 킥오프
                 return true;
             }
 
             Finish(ShotOutcome.Missed);   // 골문 밖 조준이거나(shotAimZ) GK를 지나쳤거나
-            Kickoff();
+            RestartAfterMiss();
             return true;
         }
 
@@ -514,6 +572,22 @@ namespace Game.Core.Match
             return false;
         }
 
+        // 빗나간 슛은 골킥: 수비 팀 GK가 자기 자리에서 공을 갖고 배급한다(09-23). 킥오프로 리셋하면 같은 공격이 9.6초 주기로 그대로 재생됐고
+        // 상대 팀이 공을 가질 기회가 없었다. GK가 없는 시뮬(리트머스·일부 테스트)과 ResetAfterEveryShot은 예전처럼 킥오프
+        private void RestartAfterMiss()
+        {
+            PlayerState? keeper = ResetAfterEveryShot ? null : FindGoalkeeper(shooterAttackSign > 0 ? 1 : 0);
+            if (keeper == null) { Kickoff(); return; }
+            Ball = BallRules.Own(Ball, keeper.PlayerId, keeper.X, keeper.Z);
+            // 골킥 때 상대는 박스 밖(규칙 16조). 09-23 Play: 빗나감 → GK 소유 → 붙은 ST가 배급을 릴리스 지점에서 가로채 7m 슛, 4회 만에 골
+            float outsideX = -(FieldBounds.HalfLength - FieldBounds.PenaltyBoxDepth - 1f) * keeper.AttackSign;
+            for (int i = 0; i < players.Count; i++)
+            {
+                PlayerState p = players[i];
+                if (p.Team != keeper.Team && MatchRules.IsInOwnPenaltyBox(p.X, p.Z, keeper.AttackSign)) { p.X = outsideX; }
+            }
+        }
+
         private void Finish(ShotOutcome outcome)
         {
             shotInFlight = false;
@@ -535,6 +609,7 @@ namespace Game.Core.Match
             if (Ball.Phase != BallPhase.Owned || immunityTicksLeft > 0) { return; }
 
             PlayerState owner = FindPlayer(Ball.OwnerId);
+            if (owner.IsGoalkeeper) { return; }   // 공을 잡은 GK는 경합 대상이 아니다(규칙 12조). 09-23 탐지: 골문 앞 GK-ST 태클 핑퐁 7/30경기의 뿌리
             float reach2 = MatchTuning.TackleRange * MatchTuning.TackleRange;
             for (int i = 0; i < players.Count; i++)
             {

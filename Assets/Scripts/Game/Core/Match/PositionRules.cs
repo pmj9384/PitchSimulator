@@ -32,21 +32,22 @@ namespace Game.Core.Match
             return count;
         }
 
-        // 아군 소유 때 서는 자리. 배치(공격 시 자리) + X 전진(팀 전진 정도 + 개인 전진 폭) + Z 폭(서드별 팀 폭 배율 × 개인 측면 쏠림).
+        // 아군 소유 때 서는 자리. 배치(공격 시 자리) + X 전진(팀 전진 정도 + 개인 전진 폭) + Z 폭(서드별 팀 폭 배율 × 개인 측면 쏠림 × 다이얼 배율).
+        // 다이얼 배율(PositionDialScale 0.3, 09-26)은 측면 쏠림·라인 높이에만: 선수표 값을 미터로 그대로 더하면 폭이 필드 밖(FB 42·W 49)으로 나가고 수비 라인이 겹친다
         // 폭은 선수가 선 쪽(z 부호)으로 벌린다. 중앙(z=0)은 안 벌린다. 필드 안으로만 자른다.
         // 이탈 반경(roamRadius)으로는 안 자른다(09-21): 전진 폭은 공격 자리를 정의하는 값이고 이탈 반경은 그 자리에서 벗어나는 허용치라 다른 축이다.
         // 09-18 첫 구현이 둘을 묶어 ST(전진 30, 이탈 3)가 3m만 올라가 공격 형태가 자기 진영에 갇혔고 3분 동안 슛이 0이었다
         public static (float x, float z) AttackHome(float baseX, float baseZ, int attackSign, int mentality, float pushUp, int widthLevel, float width)
         {
-            float dx = (MatchTuning.MentalityOffset[mentality] + pushUp) * attackSign;
-            float dz = width * MatchTuning.WidthScale[widthLevel] * Math.Sign(baseZ);
+            float dx = (MatchTuning.MentalityOffset[mentality] + pushUp) * attackSign;   // 전진 폭은 미터 그대로: 편성 posX가 이 전제로 맞춰져 있다(09-21). 0.3을 걸면 공격이 상대 진영에 못 간다(09-26 100판 슛 0.1)
+            float dz = width * MatchTuning.PositionDialScale * MatchTuning.WidthScale[widthLevel] * Math.Sign(baseZ);
             return Offset(baseX, baseZ, dx, dz);
         }
 
-        // 상대 소유 때 서는 자리. 배치(수비 시 자리)에서 개인 라인 높이만큼 앞으로
+        // 상대 소유 때 서는 자리. 배치(수비 시 자리)에서 개인 라인 높이 × 다이얼 배율만큼 앞으로. 라인 간격 자체는 편성 posX2가 정한다(스펙 §6)
         public static (float x, float z) DefendHome(float baseX, float baseZ, int attackSign, float lineHeight)
         {
-            return Offset(baseX, baseZ, lineHeight * attackSign, 0f);
+            return Offset(baseX, baseZ, lineHeight * MatchTuning.PositionDialScale * attackSign, 0f);
         }
 
         // 공 지향 슬라이드: 자리(공격 시/수비 시 계산 결과)에 공 좌표 × 계수를 더한다. 공 좌표를 그대로 쓰므로 팀 부호가 필요 없다:

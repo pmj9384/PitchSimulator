@@ -30,8 +30,8 @@ namespace Game.Core.AI
 
                 // ③ 역습 중 → 나보다 확실히 앞선 아군 중 가장 앞선 이에게, 안전 검사 없이(스펙 §6 "첫 패스 전방"). 앞선 아군이 없으면 ④·⑤로
                 new SequenceNode(
-                    new ConditionNode(ctx => ctx.OwnsBall && ctx.IsCountering && PassRules.CounterReceiver(ctx.X, ctx.Teammates, ctx.AttackSign, ctx.PlayerId) != -1),
-                    new ActionNode(ctx => PassTo(ctx, PassRules.CounterReceiver(ctx.X, ctx.Teammates, ctx.AttackSign, ctx.PlayerId)))),
+                    new ConditionNode(ctx => ctx.OwnsBall && ctx.IsCountering && CounterTarget(ctx) != -1),
+                    new ActionNode(ctx => PassTo(ctx, CounterTarget(ctx)))),
 
                 // ④ 안전한 앞선 아군이 있으면 최고점에 패스
                 new SequenceNode(
@@ -55,10 +55,11 @@ namespace Game.Core.AI
                     new ActionNode(ctx => MoveToAttackHome(ctx))),
 
                 // ── 상대 소유 ────────────────────────────────────────────
-                // ⑧ 압박: 팀 압박 시작[상대 공 서드] × 개인 압박 거리(역압박 중 배율 ↑) 안이면 공으로
+                // ⑧ 압박: 팀 압박 시작[상대 공 서드] × 개인 압박 거리(역압박 중 배율 ↑) 안이면서 팀 안 공 거리 순위가 상한 안이면 공으로.
+                // 순위(PressRank)는 시뮬이 같은 판정으로 팀 전체를 세어 넣는다. 나머지는 ⑨ 수비 자리(슬라이드가 블록을 좁힌다)(09-23 뭉침)
                 new SequenceNode(
-                    new ConditionNode(ctx => ctx.BallOwnerTeam == 1 - ctx.Team && ShouldPress(ctx)),
-                    new ActionNode(ctx => ctx.MoveToward(ctx.BallX, ctx.BallZ))),
+                    new ConditionNode(ctx => ctx.BallOwnerTeam == 1 - ctx.Team && ShouldPress(ctx) && ctx.PressRank < MatchTuning.MaxPressers),
+                    new ActionNode(ctx => ChaseBall(ctx))),
 
                 // ⑨ 아니면 수비 시 자리(+ 라인 높이)로
                 new SequenceNode(
@@ -66,10 +67,11 @@ namespace Game.Core.AI
                     new ActionNode(ctx => MoveToDefendHome(ctx))),
 
                 // ── 자유 공 ──────────────────────────────────────────────
-                // ⑩ 가장 가까운 선수가 쫓는다. GK는 개인 출격 반경 안(박스 상한) 공만
+                // ⑩ 가장 가까운 선수가 쫓는다. GK는 개인 출격 반경 안(박스 상한) 공만.
+                // 필드 플레이어는 GK를 뺀 최근접이면 쫓는다(09-23 리뷰 R3): 최근접이 출격 못 하는 GK면 아무도 안 쫓아 파링 공이 박스 밖에 멈추면 영구 정지였다
                 new SequenceNode(
-                    new ConditionNode(ctx => ctx.BallPhase != BallPhase.Owned && IsNearestToBall(ctx) && KeeperMayRush(ctx)),
-                    new ActionNode(ctx => ctx.MoveToward(ctx.BallX, ctx.BallZ))),
+                    new ConditionNode(ctx => ctx.BallPhase != BallPhase.Owned && MayChaseFreeBall(ctx)),
+                    new ActionNode(ctx => ChaseBall(ctx))),
 
                 // ⑪ 나머지는 자리 유지(공격 시 자리 기준)
                 new ActionNode(ctx => MoveToAttackHome(ctx)));
@@ -119,19 +121,25 @@ namespace Game.Core.AI
             int third = Third(ctx);
             TeamTactics t = ctx.Tactics;
             float riskAllow = Math.Max(MatchTuning.PassRiskAllow[t.PassRisk[third]], ctx.Stats.PassRisk);
-            float ballSpeed = MatchTuning.PassSpeed[t.Tempo[third]];
+            float arrival = MatchTuning.PassArrivalSpeed[t.Tempo[third]];   // 킥 초속은 후보마다 거리로 역산(시뮬 Pass와 같은 식)
 
             // 옆·뒤 돌리기는 압박받을 때만(09-21 3분 계측: 압박 없이도 돌리니 앞·뒤 패스가 158·157로 교대하고 아무도 몰지 않아 박스에 못 들어감).
             // 압박이 없으면 앞 후보가 없을 때 ⑤ 드리블로 떨어진다
             bool pressed = IsPressed(ctx);
 
+            float onsideLine = OnsideLine(ctx);
+
             int best = -1;
             float bestScore = 0f;
+            int returnFallback = -1;   // 방금 나에게 준 선수에게 곧바로 뒤로 되돌리는 패스는 다른 후보가 없을 때만(09-23: W↔ST 측면 왕복 22회)
             IReadOnlyList<TargetInfo> mates = ctx.Teammates;
             for (int i = 0; i < mates.Count; i++)
             {
                 TargetInfo m = mates[i];
-                if (!pressed && (m.X - ctx.X) * ctx.AttackSign <= 0f) { continue; }
+                bool backward = (m.X - ctx.X) * ctx.AttackSign <= 0f;
+                if (!pressed && backward) { continue; }
+                bool isReturn = backward && m.PlayerId == ctx.LastPasserId;
+                if (OffsideRules.IsOffsidePosition(m.X, ctx.AttackSign, onsideLine)) { continue; }   // 오프사이드 위치 아군에겐 안 준다(09-23)
                 float score = PassRules.ScoreReceiver(ctx.X, ctx.Z, m.X, m.Z, ctx.AttackSign, t.PassStyle[third], ctx.Stats.PassLength, t.Width[third]);
                 if (score <= bestScore) { continue; }
 
@@ -140,20 +148,49 @@ namespace Game.Core.AI
                 float ddx = m.X - ctx.X;
                 float ddz = m.Z - ctx.Z;
                 float passDistance = (float)Math.Sqrt(ddx * ddx + ddz * ddz);
-                (float x, float z) landing = PassRules.LeadTarget(ctx.X, m.X, m.Z, ctx.AttackSign, passDistance, ballSpeed, MatchTuning.SpeedMpsAt50);
-                float risk = PassRules.InterceptRisk(ctx.X, ctx.Z, landing.x, landing.z, ctx.Opponents, MatchTuning.InterceptRunSpeed, ballSpeed);
+                float average = PassRules.AverageSpeed(PassRules.KickSpeed(passDistance, arrival, MatchTuning.BallDeceleration, MatchTuning.PassSpeedMax), passDistance, MatchTuning.BallDeceleration);
+                (float x, float z) landing = PassRules.LeadTarget(ctx.X, m.X, m.Z, ctx.AttackSign, passDistance, average, MatchTuning.SpeedMpsAt50);
+                float lx = landing.x - ctx.X;
+                float lz = landing.z - ctx.Z;
+                float landingDistance = (float)Math.Sqrt(lx * lx + lz * lz);
+                float landingAverage = PassRules.AverageSpeed(PassRules.KickSpeed(landingDistance, arrival, MatchTuning.BallDeceleration, MatchTuning.PassSpeedMax), landingDistance, MatchTuning.BallDeceleration);
+                float risk = PassRules.InterceptRisk(ctx.X, ctx.Z, landing.x, landing.z, ctx.Opponents, MatchTuning.InterceptRunSpeed, landingAverage);
                 if (!PassRules.IsPassSafe(risk, riskAllow)) { continue; }
 
+                if (isReturn) { if (returnFallback == -1) { returnFallback = m.PlayerId; } continue; }
                 best = m.PlayerId;
                 bestScore = score;
             }
-            return best;
+            return best != -1 ? best : returnFallback;
+        }
+
+        // 공을 쫓을 땐 공의 앞을 향해(추격 예측). 압박(⑧)과 자유 공(⑩)이 같이 쓴다
+        private static void ChaseBall(IPlayerContext ctx)
+        {
+            (float x, float z) aim = PressRules.PursuitPoint(ctx.X, ctx.Z, MatchRules.SpeedMps(ctx.Stats.Speed), ctx.BallX, ctx.BallZ, ctx.BallVelX, ctx.BallVelZ);
+            ctx.MoveToward(aim.x, aim.z);
+        }
+
+        // 온사이드 선(공격 방향 좌표). GK 배급은 골킥이라 오프사이드가 없다
+        private static float OnsideLine(IPlayerContext ctx)
+        {
+            return ctx.IsGoalkeeper ? OffsideRules.NoLine : OffsideRules.OnsideLine(ctx.Opponents, ctx.AttackSign, ctx.BallX);
+        }
+
+        private static int CounterTarget(IPlayerContext ctx)
+        {
+            return PassRules.CounterReceiver(ctx.X, ctx.Teammates, ctx.AttackSign, ctx.PlayerId, OnsideLine(ctx));
         }
 
         private static bool IsPressed(IPlayerContext ctx)
         {
+            return HasOpponentWithin(ctx, MatchTuning.PressedRadius);
+        }
+
+        private static bool HasOpponentWithin(IPlayerContext ctx, float radius)
+        {
             IReadOnlyList<TargetInfo> opp = ctx.Opponents;
-            float r2 = MatchTuning.PressedRadius * MatchTuning.PressedRadius;
+            float r2 = radius * radius;
             for (int i = 0; i < opp.Count; i++)
             {
                 float dx = opp[i].X - ctx.X;
@@ -165,10 +202,10 @@ namespace Game.Core.AI
 
         private static int KeeperTarget(IPlayerContext ctx)
         {
-            // 배급 대상 선정은 팀 설정(짧게·섞어·길게)이 필요한데 "섞어"의 교대는 상태라 시뮬이 든다.
-            // 트리는 팀 값으로 짧게/길게만 고르고, 섞어면 가까운 쪽(안전)으로 둔다. 교대는 시뮬 KeeperDistributionTarget이 맡는다(2차)
-            int level = ctx.Tactics.GkDistribution;
-            return PassRules.KeeperDistributionTarget(ctx.X, ctx.Z, ctx.Teammates, ctx.AttackSign, level == 1 ? 0 : level, ctx.PlayerId, alternate: false);
+            // 팀 설정(짧게·섞어·길게). "섞어"의 교대 스위치는 상태라 시뮬이 들고 스냅샷(KeeperAlternate)으로 준다(09-23 R2. 그전엔 섞어가 짧게로 고정).
+            // 발 뻗는 범위 안에 상대가 붙어 있으면 짧은 배급은 릴리스 지점에서 끊긴다(GK 배급엔 안전 판정이 없다) → 길게 찬다(09-23 탐지 E)
+            int level = HasOpponentWithin(ctx, MatchTuning.InterceptReach) ? 2 : ctx.Tactics.GkDistribution;
+            return PassRules.KeeperDistributionTarget(ctx.X, ctx.Z, ctx.Teammates, ctx.AttackSign, level, ctx.PlayerId, ctx.KeeperAlternate);
         }
 
         private static void PassTo(IPlayerContext ctx, int receiverId)
@@ -199,7 +236,13 @@ namespace Game.Core.AI
             (float x, float z) home = PositionRules.AttackHome(ctx.AttackHomeX, ctx.AttackHomeZ, ctx.AttackSign,
                 ctx.Tactics.Mentality, ctx.Stats.PushUp, ctx.Tactics.Width[third], ctx.Stats.Width);
             (float x, float z) slid = PositionRules.SlideTowardBall(home.x, home.z, ctx.BallX, ctx.BallZ, defending: false, ctx.IsGoalkeeper);
-            ctx.MoveToward(slid.x, slid.z);
+            float x = slid.x;
+            if (ctx.BallOwnerTeam == ctx.Team && !ctx.OwnsBall && !ctx.IsGoalkeeper)
+            {
+                // 아군 소유 중엔 온사이드 선 뒤에 선다(09-23). 라인 뒤에 서 있으면 받아도 오프사이드라 애초에 안 간다
+                x = OffsideRules.ClampOnside(x, ctx.AttackSign, OffsideRules.OnsideLine(ctx.Opponents, ctx.AttackSign, ctx.BallX), MatchTuning.OnsideMargin);
+            }
+            ctx.MoveToward(x, slid.z);
         }
 
         private static void MoveToDefendHome(IPlayerContext ctx)
@@ -218,13 +261,28 @@ namespace Game.Core.AI
             return PressRules.ShouldPress(dist, ctx.Stats.PressRange, ctx.Tactics.PressStart[Third(ctx)], ctx.IsCounterPressing);
         }
 
-        private static bool IsNearestToBall(IPlayerContext ctx)
+        // GK: 전원 중 최근접이고 출격 가능할 때. 필드 플레이어: 양 팀 GK를 뺀 전원 중 최근접일 때
+        private static bool MayChaseFreeBall(IPlayerContext ctx)
+        {
+            if (ctx.IsGoalkeeper) { return IsNearestToBall(ctx, excludeKeepers: false) && KeeperMayRush(ctx); }
+            return IsNearestToBall(ctx, excludeKeepers: true);
+        }
+
+        private static bool IsNearestToBall(IPlayerContext ctx, bool excludeKeepers)
         {
             List<TargetInfo> all = candidateBuffer ??= new List<TargetInfo>();
             all.Clear();
             all.Add(new TargetInfo(ctx.PlayerId, ctx.X, ctx.Z));
-            for (int i = 0; i < ctx.Teammates.Count; i++) { all.Add(ctx.Teammates[i]); }
-            for (int i = 0; i < ctx.Opponents.Count; i++) { all.Add(ctx.Opponents[i]); }
+            for (int i = 0; i < ctx.Teammates.Count; i++)
+            {
+                if (excludeKeepers && ctx.Teammates[i].PlayerId == ctx.TeamKeeperId) { continue; }
+                all.Add(ctx.Teammates[i]);
+            }
+            for (int i = 0; i < ctx.Opponents.Count; i++)
+            {
+                if (excludeKeepers && ctx.Opponents[i].PlayerId == ctx.OpponentKeeperId) { continue; }
+                all.Add(ctx.Opponents[i]);
+            }
             return TargetSelector.SelectNearest(ctx.BallX, ctx.BallZ, all) == ctx.PlayerId;
         }
 

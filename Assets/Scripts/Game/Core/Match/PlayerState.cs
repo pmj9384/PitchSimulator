@@ -31,16 +31,22 @@ namespace Game.Core.Match
         public bool OwnsBall => Ball.Phase == BallPhase.Owned && Ball.OwnerId == PlayerId;
         public float BallX => Ball.X;
         public float BallZ => Ball.Z;
+        public float BallVelX => Ball.VelX;
+        public float BallVelZ => Ball.VelZ;
         public int BallOwnerTeam { get; set; } = -1;
 
         public TeamTactics Tactics { get; set; } = new TeamTactics();
         public Third BallThird { get; set; }
         public bool IsCountering { get; set; }
         public bool IsCounterPressing { get; set; }
+        public int PressRank { get; set; } = int.MaxValue;   // 압박 거리 안인 우리 팀 중 공에 더 가까운 수. 상한(MaxPressers) 안만 압박(09-23)
 
         public IReadOnlyList<TargetInfo> Teammates { get; set; } = System.Array.Empty<TargetInfo>();
         public IReadOnlyList<TargetInfo> Opponents { get; set; } = System.Array.Empty<TargetInfo>();
         public int OpponentKeeperId { get; set; } = -1;
+        public int TeamKeeperId { get; set; } = -1;
+        public bool KeeperAlternate { get; set; }
+        public int LastPasserId { get; set; } = -1;   // 방금 나에게 패스한 아군. 곧바로 뒤로 되돌리지 않는다(09-23 측면 왕복 22회)
         public PlayerStats? OpponentKeeper { get; set; }
 
         public bool IsPassTarget { get; set; }

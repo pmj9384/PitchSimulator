@@ -13,12 +13,29 @@ public class PlayerController : MonoBehaviour
     {
         State = state;
         name = $"Player_{state.Team}_{state.Stats.VariantId}_{state.PlayerId}";   // 하이어라키에서 바로 읽히게
-        SyncView();
+        SnapView();
     }
+
+    private Vector3 previous;   // 직전 고정 스텝 위치
+    private Vector3 current;    // 마지막 고정 스텝 위치. Update가 둘 사이를 보간한다(09-26)
 
     // 고정 스텝 뒤 MatchManager가 부른다. 높이(y)는 발 높이 0
     public void SyncView()
     {
-        transform.position = new Vector3(State.X, 0f, State.Z);
+        previous = current;
+        current = new Vector3(State.X, 0f, State.Z);
+    }
+
+    // 배치·킥오프처럼 순간이동이 맞는 때: 보간 없이 바로 세운다
+    public void SnapView()
+    {
+        current = new Vector3(State.X, 0f, State.Z);
+        previous = current;
+        transform.position = current;
+    }
+
+    private void Update()
+    {
+        transform.position = Vector3.Lerp(previous, current, ViewInterpolation.Alpha());
     }
 }

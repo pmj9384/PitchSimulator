@@ -76,8 +76,8 @@ public class MatchManager : InGameManager
 
     private void StartMatch()
     {
-        Simulation.Kickoff();
-        SyncViews();
+        Simulation.KickoffBy(0);   // 인게임 한 판은 홈(내 팀)이 킥오프. 골 뒤엔 시뮬이 실점 팀에게 준다(09-23)
+        SnapViews();   // 킥오프 자리로 순간이동(보간하면 전 자리에서 미끄러져 온다)
     }
 
     #region 심장: 고정 스텝 틱
@@ -116,6 +116,24 @@ public class MatchManager : InGameManager
         if (ballView != null)
         {
             ballView.Apply(Simulation.Ball);
+        }
+    }
+
+    // 시뮬 값을 뷰에 바로 세운다(보간 없음). 배치·킥오프용
+    private void SnapViews()
+    {
+        for (int team = 0; team < 2; team++)
+        {
+            IReadOnlyList<PlayerController> roster = GameManager.Players.Roster(team);
+            for (int i = 0; i < roster.Count; i++)
+            {
+                roster[i].SnapView();
+            }
+        }
+
+        if (ballView != null)
+        {
+            ballView.Snap(Simulation.Ball);
         }
     }
 

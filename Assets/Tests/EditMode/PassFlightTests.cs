@@ -79,6 +79,32 @@ public class PassFlightTests
     }
 
     [Test]
+    public void 짧은_패스는_살살_긴_패스는_세게_차서_둘_다_리시버에게_닿는다()
+    {
+        // 09-23 Play: 초속이 거리 무관 고정이라 5m 패스는 15m/s로 날아가 받는 순간 0으로 꺾이고, 먼 패스는 못 미쳐 멈췄다
+        float Kick(float receiverX, out int ownerId)
+        {
+            var sim = new MatchSimulation(() => 0.5f, new PassOnce(0, 1));
+            sim.AddPlayer(new PlayerState(0, 0, Mid(), 0f, 0f));
+            sim.AddPlayer(new PlayerState(1, 0, Mid(), receiverX, 0f));
+            sim.Kickoff();
+            sim.Ball = BallRules.Own(sim.Ball, 0, 0f, 0f);
+            sim.Tick(Dt);
+            float v0 = (float)System.Math.Sqrt(sim.Ball.VelX * sim.Ball.VelX + sim.Ball.VelZ * sim.Ball.VelZ);
+            for (int i = 0; i < 300 && sim.Ball.Phase != BallPhase.Owned; i++) { sim.Tick(Dt); }
+            ownerId = sim.Ball.OwnerId;
+            return v0;
+        }
+
+        float shortKick = Kick(5f, out int shortOwner);
+        float longKick = Kick(35f, out int longOwner);
+        Assert.Less(shortKick, 12f, "5m(+리드)는 12m/s 아래");
+        Assert.Greater(longKick, shortKick + 5f, "35m(+리드)는 확실히 세게");
+        Assert.AreEqual(1, shortOwner, "짧은 패스를 리시버가 받음");
+        Assert.AreEqual(1, longOwner, "긴 패스도 리시버가 받음(못 미쳐 멈추지 않는다)");
+    }
+
+    [Test]
     public void 찬_선수는_공이_발치를_벗어나기_전엔_자기_공을_도로_잡지_않는다()
     {
         var sim = new MatchSimulation(() => 0.5f, new PassOnce(0, 1));
@@ -106,6 +132,26 @@ public class PassFlightTests
         Assert.AreEqual(BallPhase.Owned, sim.Ball.Phase, "150틱 안에 누군가 받는다");
         Assert.AreEqual(1, sim.Ball.OwnerId, "쫓아간 패서가 아니라 리시버가 받는다");
         Assert.AreEqual(0, sim.InterceptCount);
+    }
+
+    [Test]
+    public void 리드_목표에_못_미쳐_멈춘_패스는_끝난_것이라_리시버가_공으로_간다()
+    {
+        // 09-23 Play 잠금. 리시버 62m 앞(리드 목표는 그보다 앞): 초속 상한 22는 감속 4로 60.5m에서 멈춰 목표에 못 미친다(09-23 밤 킥 속도
+        // 역산 뒤엔 상한을 넘는 거리로만 재현된다). 실전 트리로: 리시버가 목표점이 아니라 공을 잡아야 한다
+        var sim = new MatchSimulation(() => 0.5f, PlayerTreeBuilder.Build());
+        PlayerStats slow = Mid(); slow.Speed = 30;   // 리시버가 느려 공보다 먼저 목표에 못 감
+        PlayerState passer = sim.AddPlayer(new PlayerState(0, 0, Mid(), -30f, 0f));
+        PlayerState receiver = sim.AddPlayer(new PlayerState(1, 0, slow, 32f, 0f));
+        sim.AddPlayer(new PlayerState(2, 1, Mid(), 45f, 20f));   // 상대 1명(경로 밖)
+        sim.SetTactics(0, new TeamTactics { PassRisk = new[] { 1, 1, 1 }, PressStart = new[] { 1, 1, 1 }, Width = new[] { 1, 1, 1 }, Tempo = new[] { 1, 1, 1 }, PassStyle = new[] { 2, 2, 2 }, Mentality = 1 });
+        sim.SetTactics(1, new TeamTactics { PassRisk = new[] { 1, 1, 1 }, PressStart = new[] { 0, 0, 0 }, Width = new[] { 1, 1, 1 }, Tempo = new[] { 1, 1, 1 }, PassStyle = new[] { 1, 1, 1 }, Mentality = 1 });
+        sim.Kickoff();
+        sim.Ball = BallRules.Own(sim.Ball, passer.PlayerId, passer.X, passer.Z);
+
+        int ticks = 0;
+        while (ticks < 600 && !(sim.Ball.Phase == BallPhase.Owned && sim.Ball.OwnerId == receiver.PlayerId)) { sim.Tick(Dt); ticks++; }
+        Assert.AreEqual(receiver.PlayerId, sim.Ball.OwnerId, $"12초 안에 리시버가 멈춘 공을 잡는다(공 {sim.Ball.Phase} ({sim.Ball.X:0.0},{sim.Ball.Z:0.0}), 리시버 ({receiver.X:0.0},{receiver.Z:0.0}))");
     }
 
     [Test]
@@ -145,6 +191,97 @@ public class PassFlightTests
     }
 
     [Test]
+    public void 비행_중_패스는_찬_팀_소유이고_가로채이면_턴오버로_역압박이_켜진다()
+    {
+        var sim = new MatchSimulation(() => 0.5f, new PassOnce(0, 1));
+        sim.AddPlayer(new PlayerState(0, 0, Mid(), 0f, 0f));
+        sim.AddPlayer(new PlayerState(1, 0, Mid(), 20f, 0f));
+        sim.AddPlayer(new PlayerState(3, 0, Mid(), -10f, 5f));    // 뒤에 남은 아군 2명: 역압박 문턱(적극 = 2)을 채운다
+        sim.AddPlayer(new PlayerState(4, 0, Mid(), -20f, -5f));
+        sim.AddPlayer(new PlayerState(2, 1, Mid(), 10f, 0.3f));   // 경로 위 상대
+        sim.SetTactics(0, new TeamTactics { CounterPress = 2, PassRisk = new[] { 1, 1, 1 }, PressStart = new[] { 1, 1, 1 }, Width = new[] { 1, 1, 1 }, Tempo = new[] { 1, 1, 1 }, PassStyle = new[] { 1, 1, 1 } });
+        sim.Kickoff();
+        sim.Ball = BallRules.Own(sim.Ball, 0, 0f, 0f);
+
+        sim.Tick(Dt);
+        Assert.AreEqual(BallPhase.Flight, sim.Ball.Phase);
+        Assert.AreEqual(0, sim.OwnerTeam(), "비행 중엔 찬 팀(0)의 공. -1이면 22명이 자유 공으로 본다");
+        Assert.IsFalse(sim.IsCounterPressing(0), "아직 안 뺏김");
+
+        for (int i = 0; i < 100 && sim.Ball.Phase != BallPhase.Owned; i++) { sim.Tick(Dt); }
+        Assert.AreEqual(2, sim.Ball.OwnerId, "상대가 가로챔");
+        Assert.AreEqual(1, sim.OwnerTeam());
+        Assert.IsTrue(sim.IsCounterPressing(0), "가로채기 = 팀 전환이라 찬 팀의 역압박 창이 열린다");
+        Assert.IsFalse(sim.IsCounterPressing(1));
+    }
+
+    [Test]
+    public void 압박_거리_안_여럿이어도_팀에서_공에_가장_가까운_1명만_달려들고_나머지는_자리를_지킨다()
+    {
+        var sim = new MatchSimulation(() => 0.5f, PlayerTreeBuilder.Build());
+        PlayerStats presser = Mid(); presser.PressRange = 20f;
+        sim.AddPlayer(new PlayerState(0, 1, Mid(), 0f, 0f));                            // 상대 소유자
+        PlayerState first = sim.AddPlayer(new PlayerState(1, 0, presser, -5f, 0f));     // 5m: 첫 압박자
+        PlayerState second = sim.AddPlayer(new PlayerState(2, 0, presser, -10f, 0f));   // 10m: 압박 거리 안이지만 순위 2
+        PlayerState third = sim.AddPlayer(new PlayerState(3, 0, presser, -15f, 0f));    // 15m: 순위 3
+        sim.SetTactics(0, new TeamTactics { PassRisk = new[] { 1, 1, 1 }, PressStart = new[] { 1, 1, 1 }, Width = new[] { 1, 1, 1 }, Tempo = new[] { 1, 1, 1 }, PassStyle = new[] { 1, 1, 1 }, Mentality = 1 });
+        sim.SetTactics(1, new TeamTactics { PassRisk = new[] { 1, 1, 1 }, PressStart = new[] { 1, 1, 1 }, Width = new[] { 1, 1, 1 }, Tempo = new[] { 1, 1, 1 }, PassStyle = new[] { 1, 1, 1 }, Mentality = 1 });
+        sim.Kickoff();
+        sim.Ball = BallRules.Own(sim.Ball, 0, 0f, 0f);
+
+        for (int i = 0; i < 10; i++) { sim.Tick(Dt); }
+
+        Assert.Greater(first.X, -4.5f, "첫 압박자는 공으로 달린다");
+        Assert.AreEqual(-10f, second.X, 0.5f, "두 번째는 수비 자리(스폰 자리 + 슬라이드)에 남는다");
+        Assert.AreEqual(-15f, third.X, 0.5f, "세 번째도");
+    }
+
+    [Test]
+    public void 압박_1순위가_태클_실패로_얼면_2순위가_대신_압박한다()
+    {
+        // 09-26 리뷰: 얼어 있는 선수가 순위 0을 차지한 채 못 움직이면 상한 1에 걸린 2순위도 안 가 그 팀 압박이 0.5초 빈다
+        var sim = new MatchSimulation(() => 0.5f, PlayerTreeBuilder.Build());
+        PlayerStats presser = Mid(); presser.PressRange = 20f;
+        sim.AddPlayer(new PlayerState(0, 1, Mid(), 0f, 0f));
+        PlayerState first = sim.AddPlayer(new PlayerState(1, 0, presser, -5f, 0f));
+        PlayerState second = sim.AddPlayer(new PlayerState(2, 0, presser, -10f, 0f));
+        sim.SetTactics(0, new TeamTactics { PassRisk = new[] { 1, 1, 1 }, PressStart = new[] { 1, 1, 1 }, Width = new[] { 1, 1, 1 }, Tempo = new[] { 1, 1, 1 }, PassStyle = new[] { 1, 1, 1 }, Mentality = 1 });
+        sim.SetTactics(1, new TeamTactics { PassRisk = new[] { 1, 1, 1 }, PressStart = new[] { 1, 1, 1 }, Width = new[] { 1, 1, 1 }, Tempo = new[] { 1, 1, 1 }, PassStyle = new[] { 1, 1, 1 }, Mentality = 1 });
+        sim.Kickoff();
+        sim.Ball = BallRules.Own(sim.Ball, 0, 0f, 0f);
+        first.FrozenTicks = 100;   // 태클 실패 직후 상태
+
+        for (int i = 0; i < 10; i++) { sim.Tick(Dt); }
+
+        Assert.AreEqual(-5f, first.X, 0.01f, "얼어 있으면 못 움직인다");
+        Assert.Greater(second.X, -9.5f, "2순위가 공으로 달린다(얼어 있는 1순위는 순위에서 빠짐)");
+    }
+
+    [Test]
+    public void 줍기나_태클로_잡은_공엔_방금_준_선수가_없다()
+    {
+        // 09-26 리뷰: LastPasserId가 패스 수신 때만 쓰여 옛 값이 남았다. A→B 패스 뒤 B가 자유 공을 다시 주우면 -1이어야 한다
+        var sim = new MatchSimulation(() => 0.5f, new PassOnce(0, 1));
+        sim.AddPlayer(new PlayerState(0, 0, Mid(), 0f, 0f));
+        PlayerState b = sim.AddPlayer(new PlayerState(1, 0, Mid(), 15f, 0f));
+        sim.Kickoff();
+        sim.Ball = BallRules.Own(sim.Ball, 0, 0f, 0f);
+        for (int i = 0; i < 200 && !(sim.Ball.Phase == BallPhase.Owned && sim.Ball.OwnerId == 1); i++) { sim.Tick(Dt); }
+        Assert.AreEqual(1, sim.Ball.OwnerId, $"리시버가 받는다(공 {sim.Ball.Phase} ({sim.Ball.X:0.0},{sim.Ball.Z:0.0}), B ({b.X:0.0},{b.Z:0.0}))");
+        Assert.AreEqual(0, b.LastPasserId, "패스로 받았으니 A");
+
+        sim.Ball = BallState.FreeAt(b.X + 3f, b.Z);   // 공을 놓침. 한 틱은 무소유로 지나야 시뮬이 "새로 잡았다"로 본다(같은 틱 재포획은 소유 변경이 아님)
+        sim.Tick(Dt);
+        sim.Ball = BallState.FreeAt(b.X + 0.5f, b.Z);   // 가짜 트리(PassOnce)는 공을 안 쫓으니 발치로 옮겨 줍게 한다
+        sim.Tick(Dt);
+        Assert.AreEqual(1, sim.Ball.OwnerId, "B가 다시 주움");
+        Assert.AreEqual(BallState.NoOwner, b.LastPasserId, "주운 공엔 방금 준 선수가 없다");
+
+        sim.KickoffBy(0);
+        Assert.AreEqual(BallState.NoOwner, b.LastPasserId, "킥오프 리셋에서도 지운다");
+    }
+
+    [Test]
     public void 조준이_골문_밖이면_GK가_있어도_빗나감이다()
     {
         // roll 0.0 → 조준 Z = -반폭. shot 30이면 반폭 4.95 > 3.66이라 골문 밖
@@ -180,16 +317,23 @@ public class PassFlightTests
     [Test]
     public void GK_배급은_팀_설정을_따르고_섞어는_교대한다()
     {
-        var sim = new MatchSimulation(() => 0.5f, new ShootOnce());
+        // 실전 트리 ①(GK 배급)로. 섞어(1)면 첫 배급은 짧게(CB), GK가 다시 잡으면 길게(ST). 09-23 R2 전엔 섞어가 짧게로 고정이었다
+        var sim = new MatchSimulation(() => 0.5f, PlayerTreeBuilder.Build());
         PlayerStats gk = Mid(); gk.RoleId = "GK";
         PlayerState keeper = sim.AddPlayer(new PlayerState(0, 0, gk, -48f, 0f));
-        sim.AddPlayer(new PlayerState(1, 0, Mid(), -36f, 7f));
-        sim.AddPlayer(new PlayerState(2, 0, Mid(), -8f, 0f));
-        sim.SetTactics(0, new TeamTactics { GkDistribution = 1 });
+        PlayerState cb = sim.AddPlayer(new PlayerState(1, 0, Mid(), -36f, 7f));
+        PlayerState st = sim.AddPlayer(new PlayerState(2, 0, Mid(), -8f, 0f));
+        sim.SetTactics(0, new TeamTactics { GkDistribution = 1, PassRisk = new[] { 1, 1, 1 }, PressStart = new[] { 1, 1, 1 }, Width = new[] { 1, 1, 1 }, Tempo = new[] { 1, 1, 1 }, PassStyle = new[] { 1, 1, 1 } });
+        sim.Kickoff();
 
-        Assert.AreEqual(1, sim.KeeperDistributionTarget(keeper), "섞어: 짧게");
-        Assert.AreEqual(2, sim.KeeperDistributionTarget(keeper), "섞어: 길게");
-        sim.SetTactics(0, new TeamTactics { GkDistribution = 2 });
-        Assert.AreEqual(2, sim.KeeperDistributionTarget(keeper), "길게");
+        sim.Ball = BallRules.Own(sim.Ball, keeper.PlayerId, keeper.X, keeper.Z);
+        sim.Tick(Dt);   // 배급 킥
+        sim.Tick(Dt);   // 다음 스냅샷에 리시버 표시
+        Assert.IsTrue(cb.IsPassTarget, "섞어: 첫 배급은 짧게(가까운 CB)");
+
+        sim.Ball = BallRules.Own(sim.Ball, keeper.PlayerId, keeper.X, keeper.Z);
+        sim.Tick(Dt);
+        sim.Tick(Dt);
+        Assert.IsTrue(st.IsPassTarget, "섞어: 다음 배급은 길게(가장 앞선 ST)");
     }
 }

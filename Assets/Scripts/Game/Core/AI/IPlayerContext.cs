@@ -25,6 +25,8 @@ namespace Game.Core.AI
         bool OwnsBall { get; }
         float BallX { get; }
         float BallZ { get; }
+        float BallVelX { get; }        // 공 속도(m/s). 비행·굴림은 물리, 소유 중은 소유자 이동 속도(09-23). 추격 예측용
+        float BallVelZ { get; }
         int BallOwnerTeam { get; }     // 소유 팀 0/1, 없으면 -1
 
         // ── 팀 전술·국면(시뮬이 계산해 넣음)
@@ -32,11 +34,15 @@ namespace Game.Core.AI
         Third BallThird { get; }       // 내 팀 기준 공이 있는 서드
         bool IsCountering { get; }     // 우리 팀이 역습 중(공 앞쪽 상대 수비 수 ≤ 문턱)
         bool IsCounterPressing { get; } // 우리 팀이 역압박 중(뺏긴 직후 창 안 + 뒤 수비 충분)
+        int PressRank { get; }          // 압박 거리 안인 우리 팀 선수 중 공에 더 가까운 사람 수(0 = 첫 압박자, 거리 밖 = int.MaxValue). MatchTuning.MaxPressers 미만만 압박(09-23)
 
         // ── 동료·상대·상대 GK(위치 스냅샷, 판정 함수 입력)
         IReadOnlyList<TargetInfo> Teammates { get; }   // 나 제외
         IReadOnlyList<TargetInfo> Opponents { get; }
         int OpponentKeeperId { get; }                  // 없으면 -1
+        int TeamKeeperId { get; }                      // 내 팀 GK. 자유 공 추격에서 GK를 최근접 경쟁에서 빼려고(09-23)
+        bool KeeperAlternate { get; }                  // GK 배급 "섞어"의 교대 스위치(팀별, 시뮬이 GK 패스마다 뒤집음). 09-23 R2
+        int LastPasserId { get; }                      // 방금 나에게 준 아군(패스로 받았을 때만, 아니면 -1). 되돌림 금지용(09-23)
         PlayerStats? OpponentKeeper { get; }
 
         // ── 자리 2쌍(배치 좌표. 오프셋은 PositionRules가 붙임)
