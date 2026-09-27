@@ -13,16 +13,16 @@ namespace Game.Core.Match
     {
         public int PlayerId { get; }
         public int Team { get; }
-        public int AttackSign => Team == 0 ? +1 : -1;
+        public int AttackSign { get; private set; }   // +1 = +X 골을 공격. 킥오프 때 팀 0이 +1, 후반 진영 교체 때 뒤집힌다(09-27)
         public float X { get; set; }
         public float Z { get; set; }
         public PlayerStats Stats { get; }
         public bool IsGoalkeeper { get; }
 
         // 자리 2쌍(스펙 §4-3). 배치 좌표 그대로. 킥오프 때 공격 시 자리로 돌아간다
-        public float AttackHomeX { get; }
+        public float AttackHomeX { get; private set; }
         public float AttackHomeZ { get; }
-        public float DefendHomeX { get; }
+        public float DefendHomeX { get; private set; }
         public float DefendHomeZ { get; }
 
         // ── 이번 틱 스냅샷(시뮬이 넣는다)
@@ -74,6 +74,7 @@ namespace Game.Core.Match
             Stats = stats;
             X = attackX;
             Z = attackZ;
+            AttackSign = team == 0 ? +1 : -1;
             AttackHomeX = attackX;
             AttackHomeZ = attackZ;
             DefendHomeX = defendX;
@@ -115,6 +116,15 @@ namespace Game.Core.Match
         {
             X = AttackHomeX;
             Z = AttackHomeZ;
+        }
+
+        // 후반 진영 교체(IFAB 8조, 09-27): 공격 방향과 자리 2쌍의 X를 뒤집는다. Z는 그대로(좌우는 안 바뀐다)
+        public void SwitchSides()
+        {
+            AttackSign = -AttackSign;
+            AttackHomeX = -AttackHomeX;
+            DefendHomeX = -DefendHomeX;
+            X = -X;
         }
     }
 }

@@ -35,6 +35,7 @@ namespace Game.Core.AutoMatch
 
             // 시작 킥오프 팀은 시드 홀짝으로 교대(동전 던지기 대신. 주사위를 안 써 기존 난수 수열이 안 밀린다).
             // 러너는 밸런스 측정이라 교대가 맞고, 인게임 한 판은 매니저가 홈에게 준다
+            sim.SetAddedTime(AddedTime.FromSeed(seed));   // 표시 추가시간(하프타임 틱). 인게임(MatchManager)도 같은 시드에서 같은 값
             sim.KickoffBy(seed % 2 == 0 ? 0 : 1);
             return sim;
         }
