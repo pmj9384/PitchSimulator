@@ -13,11 +13,13 @@ public class MatchHudUIElement : UIElement
     [SerializeField] private TMP_Text scoreText;
     [SerializeField] private TMP_Text clockText;
     [SerializeField] private Button pauseButton;
+    [SerializeField] private TMP_Text captionText;   // 하프타임 자막. 09-28 골·FT 자막도 이 자리
 
     private int shownSecond = -1;   // 총 초(0~5400). 초가 바뀐 프레임에만 시계를 다시 쓴다
     private int shownHomeGoals = -1;
     private int shownAwayGoals = -1;
     private int shownOwnerTeam = -2;   // -1 = 자유 공도 표시 상태라 초기값은 그 밖의 값
+    private bool shownHold;
 
     public override void Initialize()
     {
@@ -45,15 +47,25 @@ public class MatchHudUIElement : UIElement
         MatchManager match = gameManager.Match;
         if (match == null || match.Simulation == null) { return; }
 
-        int totalSecond = MatchClock.TotalSecondsOf(match.Ticks);
-        if (totalSecond != shownSecond)
+        bool hold = match.InHalfTimeHold;
+        if (hold != shownHold)
         {
-            shownSecond = totalSecond;
-            string half = MatchClock.IsSecondHalf(match.Ticks) ? "후반" : "전반";
-            clockText.text = $"{half} {totalSecond / 60:00}:{totalSecond % 60:00}";
+            shownHold = hold;
+            captionText.text = hold ? "하프타임" : string.Empty;
         }
 
         MatchSimulation sim = match.Simulation;
+        int totalSecond = MatchClock.TotalSecondsOf(match.Ticks, sim.Added);
+        if (totalSecond != shownSecond)
+        {
+            shownSecond = totalSecond;
+            ClockReading c = MatchClock.Describe(match.Ticks, sim.Added);
+            string half = c.SecondHalf ? "후반" : "전반";
+            clockText.text = c.InAddedTime
+                ? $"{half} {c.Minute}+{c.AddedMinute}:{c.AddedSecond:00}"      // 중계식 "45+1:30", "90+3:12"
+                : $"{half} {c.Minute:00}:{c.Second:00}";
+        }
+
         int ownerTeam = sim.OwnerTeam();
         if (sim.HomeGoals != shownHomeGoals || sim.AwayGoals != shownAwayGoals || ownerTeam != shownOwnerTeam)
         {
@@ -72,5 +84,7 @@ public class MatchHudUIElement : UIElement
         shownHomeGoals = -1;
         shownAwayGoals = -1;
         shownOwnerTeam = -2;
+        shownHold = false;
+        captionText.text = string.Empty;
     }
 }
