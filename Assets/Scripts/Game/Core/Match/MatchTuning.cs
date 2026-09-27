@@ -22,6 +22,9 @@ namespace Game.Core.Match
         // ── 전술 판정(09-18 확정 스펙). 전부 밸런스 값: 자동 대전 러너로 조정한다
         public const float ThirdBoundary = 17.5f;                              // 필드 105m를 3등분한 경계. 우리 진영 ≤ −17.5 < 중원 < 17.5 ≤ 상대 진영
         public static readonly float[] MentalityOffset = { -5f, 0f, 5f };      // 전진 정도(수비적·균형·공격적) → 공격 시 자리 X 오프셋(m)
+        public const float LateralScoreScale = 0.005f;                          // 리시버 점수의 측면 가중: |z| 1m당(× 폭 배율). 09-18 0.02는 라인 위 윙어에게 +0.62(전진 12m 상당)라 어디서든 윙어가 최고점, 10경기 소유 시간의 31%가 터치라인 9m 안(86% W). 0.005면 +0.16(전진 3m)
+        public const float TouchlineMargin = 3f;                                // 자리 계산의 Z 클램프 여유(m). 필드 가장자리 0.5m로 두면 공 쪽 윙어가 슬라이드로 라인 밖까지 밀려 라인 위(z 33.5)에 붙어 빌드업했다(09-26 Play)
+        public const float WideZoneZ = 25f;                                     // 형태 지표(09-26): |z|가 이 이상이면 "측면 구역"(터치라인 9m 안). 러너 CSV·감시 테스트가 소유 시간의 측면 비율을 잰다. 09-26 터치라인 빌드업(31%)을 정지 탐지·리뷰가 못 잡아 넣음
         public const float PositionDialScale = 0.3f;                            // 개인 자리 다이얼 중 측면 쏠림·라인 높이(선수표 0~25)를 미터로 바꾸는 배율. 전진 폭은 미터 그대로(편성 posX가 그 전제)(09-26 Play: 그대로 더하니 FB·W 폭 42·49로 터치라인에 붙고, CB 라인 높이 20이 편성 posX2가 이미 담은 라인 간격 위에 얹혀 수비 4줄이 5m 안에 뭉쳤다). 스펙 §6: 간격은 바둑알(편성)이 정하고 다이얼은 그 위의 미세 조정
         public static readonly float[] WidthScale = { 0.5f, 1f, 1.5f };        // 폭(좁게·표준·넓게) → 개인 측면 쏠림에 곱하는 배율
         public static readonly float[] PassRiskAllow = { 0.2f, 0.5f, 0.8f };   // 패스 리스크(안전·균형·모험) → 허용하는 가로채기 위험도

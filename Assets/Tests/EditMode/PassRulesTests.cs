@@ -115,6 +115,16 @@ public class PassRulesTests
     }
 
     [Test]
+    public void 라인_위_윙어가_중앙_앞_후보를_측면_가중만으로_이기지_않는다()
+    {
+        // 09-26: 측면 가중 0.02면 z 31 윙어에게 +0.62(전진 12m 상당)라 어디서든 윙어가 최고점이었다. 같은 거리·같은 전진이면 측면이 조금 앞서되,
+        // 전진 5m 더 앞선 중앙 후보에겐 진다
+        float wingerOnLine = PassRules.ScoreReceiver(0f, 20f, 10f, 31f, +1, passStyle: 1, passLength: 15f, widthLevel: 1);
+        float centralAhead = PassRules.ScoreReceiver(0f, 20f, 15f, 20f, +1, passStyle: 1, passLength: 15f, widthLevel: 1);
+        Assert.Less(wingerOnLine, centralAhead, "전진 5m가 측면 가중을 이긴다");
+    }
+
+    [Test]
     public void 옆_뒤_리시버에겐_리드를_주지_않는다()
     {
         // 09-21: 뒤 5m 아군에게 앞으로 8m 리드하면 착지점이 패서보다 앞이 된다. 옆·뒤는 지금 위치가 목표

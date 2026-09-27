@@ -40,6 +40,10 @@ namespace Game.Core.AutoMatch
                 Map(m => m.AwayOwnedTicks).Name("awayOwnedTicks");
                 Map(m => m.HomeOppThirdTicks).Name("homeOppThirdTicks");
                 Map(m => m.AwayOppThirdTicks).Name("awayOppThirdTicks");
+                Map(m => m.WideOwnedTicks).Name("wideOwnedTicks");
+                Map(m => m.TopRole).Name("topRole");
+                Map(m => m.TopRoleShare).Name("topRoleShare");
+                Map(m => m.MeanShotAbsZ).Name("meanShotAbsZ");
             }
         }
     }
