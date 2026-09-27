@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
 using Game.Core.AI;
+using Game.Core.League;
 using Game.Core.Match;
-using Game.Core.Tactics;
 using UnityEngine;
 
 // 경기 실행자이자 심판. 고정 스텝마다 순수 MatchSimulation을 한 틱 돌리고 그 결과를 화면(선수·공 뷰)에 비춘다.
@@ -14,9 +14,7 @@ public class MatchManager : InGameManager
     public const int Draw = -1;                 // EndMatch의 무승부 표식
 
     [SerializeField] private BallView ballView;   // 씬의 공(구). 순수 BallState를 비춘다
-    [SerializeField] private bool autoKickoff = true;
-    [SerializeField] private string homePreset = "balanced";   // TacticPresets.csv presetId. 세팅 화면(3주차)이 오면 세이브에서
-    [SerializeField] private string awayPreset = "balanced";   // 1주차 임시: 선수 세팅 UI(2주차 배치 UI)가 없어 스폰이 끝나면 바로 킥오프한다. UI가 붙으면 지운다
+    [SerializeField] private bool autoKickoff = true;   // 임시: 프리셋 선택 화면(플랜 10-01)이 오면 킥오프 버튼으로 바꾸고 지운다
 
     public float Elapsed { get; private set; }
     public MatchSimulation Simulation { get; private set; }
@@ -26,6 +24,7 @@ public class MatchManager : InGameManager
 
     private static readonly BehaviorNode SharedTree = PlayerTreeBuilder.Build();   // 22명이 공유하는 트리 하나(무상태). 4국면(09-18)
     private System.Random rng;
+    private int kickoffTeam;   // 일정상 홈이 킥오프(MatchSetup). 골 뒤엔 시뮬이 실점 팀에게 준다(09-23)
 
     public override void Initialize()
     {
@@ -36,31 +35,21 @@ public class MatchManager : InGameManager
     // 틱이 도는지는 플래그가 아니라 상태가 정한다. 일시정지(GameStop)·종료(GameOver/Clear)에서 저절로 멈춘다
     private bool IsRunning => GameManager.CurrentState == GameManager.GameState.GamePlay;
 
-    // 시드 = 스테이지 번호(09-16 결정). 같은 스테이지·같은 세팅이면 같은 경기가 재현된다
+    // 시드·전술·킥오프 팀은 시즌의 이번 경기(MatchSetup)에서(09-27). 같은 시즌·라운드·같은 세팅이면 같은 경기가 재현된다("막히면 재세팅")
     private void ResetMatch()
     {
+        MatchSetup setup = GameDataManager.Instance.Season.CurrentMatch;
         Elapsed = 0f;
-        rng = new System.Random(GameManager.Stage.StageNumber);
+        rng = new System.Random(setup.Seed);
+        kickoffTeam = setup.KickoffTeam;
         Simulation = new MatchSimulation(NextRoll, SharedTree)
         {
             ResetAfterEveryShot = false   // 4국면 트리(09-18): 세이브 뒤 GK가 배급한다. 리트머스 때만 true였다
         };
-        // 팀 전술 프리셋(스타일 카드). 배치 UI가 오기 전까지 양 팀 "균형". 세팅 화면이 생기면 세이브에서 읽는다
-        Simulation.SetTactics(0, RequirePreset(homePreset));
-        Simulation.SetTactics(1, RequirePreset(awayPreset));
+        Simulation.SetTactics(0, setup.Tactics0);   // 내 프리셋(세이브)·상대 프리셋(생성 팀)
+        Simulation.SetTactics(1, setup.Tactics1);
         Simulation.ShotResolved += LogShot;
         Simulation.PossessionChanged += LogPossession;
-    }
-
-    // 프리셋 이름이 틀리면 여기서 터뜨린다. null을 시뮬에 넘기면 첫 틱 트리에서 NRE로 데이터 오류가 가려진다(PlayerManager.Spawn과 같은 관례)
-    private static TeamTactics RequirePreset(string presetId)
-    {
-        TeamTactics preset = TeamTacticsRepository.Get(presetId);
-        if (preset == null)
-        {
-            throw new System.InvalidOperationException($"[MatchManager] TacticPresets에 없는 presetId: {presetId}");
-        }
-        return preset;
     }
 
     private float NextRoll()
@@ -76,7 +65,7 @@ public class MatchManager : InGameManager
 
     private void StartMatch()
     {
-        Simulation.KickoffBy(0);   // 인게임 한 판은 홈(내 팀)이 킥오프. 골 뒤엔 시뮬이 실점 팀에게 준다(09-23)
+        Simulation.KickoffBy(kickoffTeam);
         SnapViews();   // 킥오프 자리로 순간이동(보간하면 전 자리에서 미끄러져 온다)
     }
 
@@ -84,6 +73,7 @@ public class MatchManager : InGameManager
     // FixedUpdate = 고정 스텝(기본 0.02s). 기기가 달라도 틱 수·순서가 같아야 결과가 같다
     private void FixedUpdate()
     {
+        if (Simulation == null) { return; }   // GameReady 훅이 중간에 끊겨 시뮬이 없으면(예: 시즌 종료 상태 진입) 매 스텝 NRE 대신 조용히 멈춘다
         if (autoKickoff && GameManager.CurrentState == GameManager.GameState.GameReady && Simulation.Players.Count > 0)
         {
             GameManager.SetGameState(GameManager.GameState.GamePlay);   // GameReady 진입 훅 체인 밖(다음 고정 스텝)에서 전환
@@ -156,13 +146,13 @@ public class MatchManager : InGameManager
         Debug.Log($"[Match] 슛 #{report.ShooterId} p={report.Probability:0.000} → {report.Outcome}  ({Simulation.HomeGoals}:{Simulation.AwayGoals})");
     }
 
-    // 승리 팀 0 → GameClear, 그 외(패배·무승부) → GameOver. 스테이지 클리어는 승리만(스펙 §7)
+    // 승리 팀 0 → GameClear, 그 외(패배·무승부) → GameOver. 스테이지 클리어는 승리만(스펙 §7).
+    // MatchEnded(→ 시즌 결과 보고·저장)를 상태 전환보다 먼저 쏜다: 결과 화면이 GameOver 훅에서 승점표를 읽을 때 이번 라운드가 들어가 있어야 한다(09-27 리뷰 Y2)
     public void EndMatch(int winnerTeam)
     {
-        GameManager.SetGameState(winnerTeam == 0 ? GameManager.GameState.GameClear : GameManager.GameState.GameOver);
         Debug.Log($"[Match] 경기 종료. 승리 팀: {winnerTeam}  ({Simulation.HomeGoals}:{Simulation.AwayGoals})");
-
         MatchEnded?.Invoke(winnerTeam);
+        GameManager.SetGameState(winnerTeam == 0 ? GameManager.GameState.GameClear : GameManager.GameState.GameOver);
     }
 
     public override void Clear()

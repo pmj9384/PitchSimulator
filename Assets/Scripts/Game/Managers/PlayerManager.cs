@@ -20,13 +20,13 @@ public class PlayerManager : InGameManager
     private int nextPlayerId;     // 스폰 순서로 발급하는 선수 번호. 타이브레이크의 근원(GetInstanceID 금지)
 
     // attackHome = 아군 소유 때 자리(킥오프 위치이기도 하다), defendHome = 상대 소유 때 자리(스펙 §4-3 자리 2쌍)
-    public PlayerController Spawn(string variantId, int team, Vector3 attackHome, Vector3 defendHome)
+    // stats는 호출자가 준다(09-27): 시즌 로스터·부 총점으로 축소한 상대 빌드는 PlayerTable에 없는 사본이라 variantId 조회로는 못 세운다
+    public PlayerController Spawn(PlayerStats stats, int team, Vector3 attackHome, Vector3 defendHome)
     {
-        PlayerStats stats = PlayerTableRepository.Get(variantId);
         if (stats == null)
         {
             // 풀에서 빌리기 전에 막는다. 빌린 뒤 터지면 몸이 반환되지 않고 NRE로 데이터 오류가 가려진다
-            throw new InvalidOperationException($"[PlayerManager] PlayerTable에 없는 variantId: {variantId}");
+            throw new InvalidOperationException("[PlayerManager] stats가 null이다");
         }
 
         GameObject body = Pool().Get();

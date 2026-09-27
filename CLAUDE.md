@@ -32,7 +32,7 @@
 - **템플릿 출신** — `Scripts/Core`(매니저 허브·세이브·풀·로딩), `Scripts/OutGame`, `Scripts/UISystem`, `Scripts/Data`, `Editor/`.
   고치면 **템플릿에도 역이식할지** 판단한다(기준: "프로젝트가 달라도 하는 일이 같은가")
 - **WarTableSimulator에서 옮겨 올 것**(장르 무관, 스펙 12절 표) — BT 엔진(`BehaviorNode`·`CompositeNodes`·`IUnitContext`), `TargetSelector`,
-  `PlacementRules`·`FieldBounds`·`PlacementManager`·`PlacementInput`·`PlacementPanel`, `StageComposition`/`StageTable` 파서·리포지토리·`StageManager`,
+  `PlacementRules`·`FieldBounds`·`PlacementManager`·`PlacementInput`·`PlacementPanel`, `StageComposition` 파서·리포지토리·`StageManager`,
   `UnitManager`(명부·풀)·`BattleManager` 틱 구조·`HudManager` 골격, CSV 관례·테스트 틀. 옮길 때 이름을 이 게임 말로 바꾼다(Unit→Player, Battle→Match)
 - **게임 코드** — 공·소유·패스·슛(`MatchRules`), 선수 트리, 스코어·시간 UI, 선수 세팅 화면. 템플릿에 안 올라간다
 
@@ -78,7 +78,7 @@ unity command screenshot --view game --json        # Play 중 화면
 - 오브젝트 생성은 ObjectPool. `FindObjectOfType`/`GameObject.Find` 금지
 - **경기 AI·이동·공은 고정 스텝(`FixedUpdate`)으로 돈다.** 공은 Rigidbody를 쓰지 않고 순수 계산으로 옮긴다(결정성). 기기가 달라도 결과가 같아야 한다
 - **선수 세팅은 StageComposition과 같은 데이터 형식으로 저장한다.** 재도전·상대 팀 데이터·멀티가 같은 것을 읽는다
-- 데이터는 CSV: `PlayerTable.csv` · `StageTable.csv` · `StageComposition.csv`. 파싱은 CsvHelper + `ClassMap`, 자작 파서 금지
+- 데이터는 CSV: `PlayerTable.csv` · `StageComposition.csv`(새 시즌의 내 기본 11명·러너 편성) · `TacticPresets.csv` · `FormationTemplates.csv` · `TierRules.csv` · `TeamNames.csv`. `StageTable.csv`는 09-27 시즌 연결 때 제거(스테이지 개념이 4부제 리그로 대체). 파싱은 CsvHelper + `ClassMap`, 자작 파서 금지
 - **코드 문체 앵커 = AnimalBreakOut 코드베이스.** 이른 반환, 메서드는 중괄호 블록, 람다는 외부 API가 함수를 요구할 때만, `out var` 지양
 - 커밋: 한국어 + why + 논리 단위. 쓰기 전 pangyo-tone 신호 14개 자체 점검. 구현 → 검증 루프(4.5절) → 유저 Play → 커밋
 - **브랜치**: `feature/*` → `develop`. `master`는 빌드 검증(AAB) 시점에만. 첫 수정 전에 브랜치부터
