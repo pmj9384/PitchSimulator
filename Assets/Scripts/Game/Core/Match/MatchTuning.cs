@@ -39,6 +39,9 @@ namespace Game.Core.Match
         public const int CounterPressWindowTicks = 300;                         // 역압박 창 6초(과르디올라 6초 룰, 2차 출처) ÷ 0.02s
         public const float ShotSpreadMin = 2.5f;                                // shot 100의 조준 반폭(m). 골문 반폭 3.66 안
         public const float ShotSpreadMax = 6f;                                  // shot 0의 조준 반폭(m). 골문 밖까지 퍼진다
+        public const float MatchSeconds = 180f;   // 스펙 §0: 실시간 3분 = 게임 내 90분. 러너·시즌·인게임·테스트가 전부 이 한 곳을 본다(09-27 리뷰 X4)
+        public const int MatchTicks = 9000;
+        public const int HalfTimeTick = MatchTicks / 2;   // 45분. 후반 킥오프는 전반 킥오프를 안 한 팀(실제 규칙). 진영 교체는 없다(스펙 §11 1차, 09-27 유저 결정)        // = MatchSeconds / FixedStep. float 나눗셈으로 파생하지 않고 정수로 못 박는다(테스트가 둘의 일치를 잠근다)
         public const float FixedStep = 0.02f;                                   // 고정 스텝(초). 볼 끌기 초 → 틱 변환
         public const float PassLeadMax = 8f;                                    // 리드 패스가 리시버보다 앞설 수 있는 최대 거리(m). 너무 앞이면 상대 라인 뒤로 나간다
         public const float DribbleReluctance = 0.3f;                            // 개인 드리블 성향이 이 미만이면 골 대신 가까운 아군 쪽으로 몰아 패스를 노린다

@@ -10,14 +10,15 @@ using UnityEngine;
 // 09-16 결정: 공 매니저를 따로 두지 않는다(연산이 복사 한 번이고 매니저 3종 세트가 더 비싸다).
 public class MatchManager : InGameManager
 {
-    public const float MatchLengthSec = 180f;   // 스펙 §0: 실시간 3분 = 게임 내 90분
     public const int Draw = -1;                 // EndMatch의 무승부 표식
 
     [SerializeField] private BallView ballView;   // 씬의 공(구). 순수 BallState를 비춘다
     [SerializeField] private bool autoKickoff = true;   // 임시: 프리셋 선택 화면(플랜 10-01)이 오면 킥오프 버튼으로 바꾸고 지운다
 
-    public float Elapsed { get; private set; }
+    public int Ticks { get; private set; }                       // 킥오프부터 센 고정 스텝 수. float 누적은 종료 틱이 9000/9001로 갈려 러너와 어긋난다(09-27 리뷰)
+    public float Elapsed => Ticks * MatchTuning.FixedStep;     // 로그용 초
     public MatchSimulation Simulation { get; private set; }
+    public string OpponentName { get; private set; }            // HUD용. 이번 경기 정보는 Match 한 곳에서(참조 1개 규칙)
 
     // 경기가 끝났음을 알린다(승리 팀 0/1, 무승부 -1). 결과 화면(3주차)과 검증 도구가 구독한다
     public event Action<int> MatchEnded;
@@ -39,9 +40,10 @@ public class MatchManager : InGameManager
     private void ResetMatch()
     {
         MatchSetup setup = GameDataManager.Instance.Season.CurrentMatch;
-        Elapsed = 0f;
+        Ticks = 0;
         rng = new System.Random(setup.Seed);
         kickoffTeam = setup.KickoffTeam;
+        OpponentName = setup.OpponentName;
         Simulation = new MatchSimulation(NextRoll, SharedTree)
         {
             ResetAfterEveryShot = false   // 4국면 트리(09-18): 세이브 뒤 GK가 배급한다. 리트머스 때만 true였다
@@ -81,11 +83,11 @@ public class MatchManager : InGameManager
         }
         if (!IsRunning) { return; }
 
-        Simulation.Tick(Time.fixedDeltaTime);
+        Simulation.Tick(MatchTuning.FixedStep);   // Unity 설정(Fixed Timestep)이 아니라 코어 상수로 흐른다: 설정이 바뀌어도 같은 시드 = 같은 경기(러너와 동일). 호출 주기만 설정이 정한다
         SyncViews();
 
-        Elapsed += Time.fixedDeltaTime;
-        if (Elapsed >= MatchLengthSec)
+        Ticks++;
+        if (Ticks >= MatchTuning.MatchTicks)   // 러너(MatchProbe.Run)와 같은 틱 수에서 끝난다
         {
             EndMatch(WinnerByGoals());
         }

@@ -63,6 +63,11 @@ namespace Game.Core.Match
 
         public event Action<ShotReport>? ShotResolved;
         public event Action<PossessionReport>? PossessionChanged;
+
+        public int TickCount => tickCount;                                   // 첫 Tick부터 센 수. 하프타임·HUD 시계의 기준(MatchManager.Ticks와 같은 값)
+        public bool IsSecondHalf => tickCount >= MatchTuning.HalfTimeTick;
+        private int tickCount;
+        private int firstKickoffTeam = -1;                                    // 전반 킥오프 팀. 후반은 상대가 찬다. KickoffBy를 안 쓴 경기(리트머스)는 하프타임 없음
         public int TurnoverCount { get; private set; }
         public int TackleAttemptCount { get; private set; }
         public int TackleSuccessCount { get; private set; }
@@ -206,6 +211,7 @@ namespace Game.Core.Match
         // 미러 세팅에서 75% 승·상대 0%), 스폰 순서를 뒤집으면 결과가 거울로 뒤집혔다. Kickoff()(자유 공)는 리트머스·테스트용으로 남긴다
         public void KickoffBy(int team)
         {
+            if (firstKickoffTeam < 0) { firstKickoffTeam = team; }
             Kickoff();
             int best = BallState.NoOwner;
             float bestD2 = float.MaxValue;
@@ -250,6 +256,12 @@ namespace Game.Core.Match
         // 고정 스텝 한 틱. 순서가 곧 규칙이다: 공 이동 → 라인 아웃 → 잡기/소유 → 슛 결과 → 선수 판단 → 선수 실행(PlayerId 순)
         public void Tick(float deltaTime)
         {
+            tickCount++;
+            if (tickCount == MatchTuning.HalfTimeTick && firstKickoffTeam >= 0)
+            {
+                KickoffBy(1 - firstKickoffTeam);   // 하프타임: 중앙 리셋 + 후반 킥오프(09-27). 난수를 안 써 결정성 그대로. 러너·시즌·인게임이 같은 Tick을 타므로 같은 시드 = 같은 경기
+            }
+
             Ball = BallRules.Step(Ball, deltaTime, MatchTuning.BallDeceleration);
 
             // 골라인에 못 미치고 감속으로 멈춘 슛(정지 거리 78m 밖에서 쏜 경우). 빗나감으로 마감해야 옛 슛 표시가 남지 않는다

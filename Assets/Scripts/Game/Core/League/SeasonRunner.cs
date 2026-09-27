@@ -11,7 +11,6 @@ namespace Game.Core.League
     // 승점표엔 전 경기가 필요하다(스펙 §10). 상대끼리의 경기 시드는 (시즌 시드, 라운드, 홈, 원정)에서만 나와 결정적이다
     public static class SeasonRunner
     {
-        public const int MatchTicks = 9000;   // 3분 ÷ 0.02
 
         public static void PlayRound(SeasonState state, IReadOnlyList<GeneratedTeam> opponents, IReadOnlyList<Fixture> schedule,
             IReadOnlyList<TeamTactics> presets, MatchResult myResult)
@@ -64,7 +63,7 @@ namespace Game.Core.League
         {
             MatchSimulation sim = Assemble(seasonSeed, f, opponents, presets);
             var probe = new MatchProbe(sim);
-            probe.Run(MatchTicks, MatchTuning.FixedStep);
+            probe.Run(MatchTuning.MatchTicks, MatchTuning.FixedStep);
             return new MatchResult(f.HomeTeamId, f.AwayTeamId, sim.HomeGoals, sim.AwayGoals);
         }
 

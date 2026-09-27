@@ -9,7 +9,6 @@ namespace Game.Core.AutoMatch
     // 한 판 = MatchAssembler.Create → MatchProbe.Run(9,000틱). 엔진 없음, 결정적(시드 = 판 번호)
     public static class AutoMatchRunner
     {
-        public const int MatchTicks = 9000;   // 3분 ÷ 0.02
 
         public static List<MatchSummary> Run(IReadOnlyList<PlayerStats> table, IReadOnlyList<StageEntry> rows, TeamTactics home, TeamTactics away, int firstSeed, int matches)
         {
@@ -18,7 +17,7 @@ namespace Game.Core.AutoMatch
             {
                 MatchSimulation sim = MatchAssembler.Create(table, rows, home, away, seed);
                 var probe = new MatchProbe(sim);
-                probe.Run(MatchTicks, MatchTuning.FixedStep);
+                probe.Run(MatchTuning.MatchTicks, MatchTuning.FixedStep);
                 results.Add(probe.Summarize(seed, home.PresetId, away.PresetId));
             }
             return results;

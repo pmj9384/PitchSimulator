@@ -16,7 +16,7 @@ using NUnit.Framework;
 public class FullMatchTests
 {
     private const float Dt = 0.02f;
-    private const int ThreeMinutesTicks = 9000;
+    private const int ThreeMinutesTicks = MatchTuning.MatchTicks;
 
     private sealed class Summary
     {

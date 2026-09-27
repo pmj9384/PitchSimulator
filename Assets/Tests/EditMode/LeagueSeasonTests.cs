@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using Game.Core.Data;
 using Game.Core.League;
+using Game.Core.Match;
 using Game.Core.Tactics;
 using NUnit.Framework;
 
@@ -143,7 +144,7 @@ public class LeagueSeasonTests
         }
         Game.Core.Match.MatchSimulation a = SeasonRunner.Assemble(3, fixture, opponents, presets);
         Game.Core.Match.MatchSimulation b = SeasonRunner.Assemble(3, fixture, opponents, presets);
-        for (int i = 0; i < SeasonRunner.MatchTicks; i++) { a.Tick(0.02f); b.Tick(0.02f); }
+        for (int i = 0; i < MatchTuning.MatchTicks; i++) { a.Tick(0.02f); b.Tick(0.02f); }
         Assert.AreEqual(a.HomeGoals, b.HomeGoals); Assert.AreEqual(a.AwayGoals, b.AwayGoals); Assert.AreEqual(a.PassCount, b.PassCount);
     }
 

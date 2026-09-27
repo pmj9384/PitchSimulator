@@ -3,6 +3,7 @@ using System.IO;
 using Game.Core.AutoMatch;
 using Game.Core.Data;
 using Game.Core.Tactics;
+using Game.Core.Match;
 using NUnit.Framework;
 
 // 자동 대전 러너(09-23): 시드 N개 → 결과 N행, 같은 시드 = 같은 행, CSV 헤더·행 수. 100판은 메뉴(Tools/Match)가 돌린다(테스트는 5판)
@@ -31,7 +32,7 @@ public class AutoMatchRunnerTests
             Assert.AreEqual(a[i].AwayGoals, b[i].AwayGoals, $"시드 {i + 1} 원정 골");
             Assert.AreEqual(a[i].Passes, b[i].Passes, $"시드 {i + 1} 패스");
             Assert.AreEqual(a[i].TackleAttempts, b[i].TackleAttempts, $"시드 {i + 1} 태클");
-            Assert.AreEqual(9000, a[i].HomeOwnedTicks + a[i].AwayOwnedTicks + (9000 - a[i].HomeOwnedTicks - a[i].AwayOwnedTicks), "틱 합");
+            Assert.AreEqual(MatchTuning.MatchTicks, a[i].HomeOwnedTicks + a[i].AwayOwnedTicks + (MatchTuning.MatchTicks - a[i].HomeOwnedTicks - a[i].AwayOwnedTicks), "틱 합");
         }
         int totalShots = 0;
         for (int i = 0; i < 5; i++) { totalShots += a[i].HomeShots + a[i].AwayShots; }
