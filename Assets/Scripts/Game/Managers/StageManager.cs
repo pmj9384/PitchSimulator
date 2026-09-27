@@ -8,8 +8,7 @@ using UnityEngine;
 // 결과 보고(5줄)를 여기 두는 건 InGameManager 3종 세트 하나를 더 만들 만큼의 책임이 아니라서(09-16 공 매니저와 같은 판단)
 public class StageManager : InGameManager
 {
-    public string DisplayName { get; private set; }    // "N라운드"
-    public string OpponentName { get; private set; }
+    public string DisplayName { get; private set; }    // "N라운드"(로그용. 상대 이름은 MatchManager.OpponentName)
 
     private MatchSetup current;
     private bool loaded;
@@ -28,7 +27,6 @@ public class StageManager : InGameManager
 
         current = GameDataManager.Instance.Season.CurrentMatch;
         DisplayName = $"{current.Fixture.Round + 1}라운드";
-        OpponentName = current.OpponentName;
 
         Spawn(current.Team0, 0);
         Spawn(current.Team1, 1);
@@ -59,6 +57,5 @@ public class StageManager : InGameManager
         loaded = false;
         current = null;
         DisplayName = null;
-        OpponentName = null;
     }
 }
