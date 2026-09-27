@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using Game.Core.AutoMatch;
 using Game.Core.Data;
+using Game.Core.Match;
 
 namespace Game.Core.League
 {
@@ -41,12 +43,14 @@ namespace Game.Core.League
     public sealed class SeasonState
     {
         public const int MyTeamId = 0;
+        public const string DefaultPresetId = "balanced";   // 09-26 세이브엔 프리셋이 없다 → 균형
 
         public int Tier { get; }
         public int SeasonSeed { get; }
         public int GeneratorVersion { get; }
         public int RoundsPlayed { get; private set; }
         public int ScoutAttempts { get; set; }
+        public string MyPresetId { get; set; }   // 내 팀 전술 프리셋(TacticPresets presetId). 10-01 프리셋 선택 화면이 바꾼다
         public IReadOnlyList<MatchResult> Results => results;
         public IReadOnlyList<RosterPlayer> Roster => roster;
         public IReadOnlyList<LineupEntry> Lineup => lineup;
@@ -56,8 +60,9 @@ namespace Game.Core.League
         private readonly List<LineupEntry> lineup;
 
         public SeasonState(int tier, int seasonSeed, int generatorVersion, List<RosterPlayer> roster, List<LineupEntry> lineup,
-            List<MatchResult> results, int roundsPlayed, int scoutAttempts)
+            List<MatchResult> results, int roundsPlayed, int scoutAttempts, string? myPresetId = null)
         {
+            MyPresetId = string.IsNullOrEmpty(myPresetId) ? DefaultPresetId : myPresetId!;
             Tier = tier;
             SeasonSeed = seasonSeed;
             GeneratorVersion = generatorVersion;
@@ -69,37 +74,28 @@ namespace Game.Core.League
             ValidateLineup();
         }
 
-        // 새 시즌: 내 로스터 11명은 편성 행(StageComposition의 player 쪽)에서 기본 변형으로 만든다. 선수 id는 0부터
-        public static SeasonState NewSeason(int tier, int seasonSeed, IReadOnlyList<StageEntry> myRows, IReadOnlyList<PlayerStats> table)
+        // 새 시즌: 내 로스터 11명은 편성 행(StageComposition의 player 쪽)에서 기본 변형으로 만든다. 선수 id는 0부터.
+        // 행 → 자리 펼치기는 MatchAssembler.ToLineup 하나만 쓴다(09-27 리뷰 X2: StageManager와 여기가 각자 펼치던 것)
+        public static SeasonState NewSeason(int tier, int seasonSeed, IReadOnlyList<StageEntry> myRows, IReadOnlyList<PlayerStats> table, string? presetId = null)
         {
-            var roster = new List<RosterPlayer>();
-            var lineup = new List<LineupEntry>();
-            int nextId = 0;
-            for (int i = 0; i < myRows.Count; i++)
+            IReadOnlyList<LineupSlot> slots = MatchAssembler.ToLineup(table, myRows, MyTeamId);
+            var roster = new List<RosterPlayer>(slots.Count);
+            var lineup = new List<LineupEntry>(slots.Count);
+            for (int i = 0; i < slots.Count; i++)
             {
-                StageEntry r = myRows[i];
-                if (r.Team != 0) { continue; }
-                PlayerStats? stats = FindVariant(table, r.Id);
-                if (stats == null) { throw new InvalidOperationException($"[SeasonState] PlayerTable에 없는 variantId: {r.Id}"); }
-                for (int k = 0; k < r.Count; k++)
-                {
-                    roster.Add(new RosterPlayer(nextId, stats));
-                    lineup.Add(new LineupEntry(nextId, r.PosX, r.PosZ, r.DefendX, r.DefendZ));
-                    nextId++;
-                }
+                LineupSlot s = slots[i];
+                roster.Add(new RosterPlayer(i, s.Stats));
+                lineup.Add(new LineupEntry(i, s.AttackX, s.AttackZ, s.DefendX, s.DefendZ));
             }
-            return new SeasonState(tier, seasonSeed, TeamGenerator.Version, roster, lineup, new List<MatchResult>(), 0, 0);
+            return new SeasonState(tier, seasonSeed, TeamGenerator.Version, roster, lineup, new List<MatchResult>(), 0, 0, presetId);
         }
 
         public bool MatchesGenerator => GeneratorVersion == TeamGenerator.Version;
 
-        public void AddResult(MatchResult result)
+        // 한 라운드의 전 경기를 한 번에 넣는다(09-27 리뷰 D3): 중간에 예외가 나면 아무것도 안 들어가 재호출해도 결과가 겹치지 않는다
+        public void AddRound(IReadOnlyList<MatchResult> roundResults)
         {
-            results.Add(result);
-        }
-
-        public void CompleteRound()
-        {
+            results.AddRange(roundResults);
             RoundsPlayed++;
         }
 
@@ -136,19 +132,10 @@ namespace Game.Core.League
             for (int i = 0; i < lineup.Count; i++) { FindRosterPlayer(lineup[i].PlayerId); }
         }
 
-        private static PlayerStats? FindVariant(IReadOnlyList<PlayerStats> table, string variantId)
-        {
-            for (int i = 0; i < table.Count; i++)
-            {
-                if (string.Equals(table[i].VariantId, variantId, StringComparison.OrdinalIgnoreCase)) { return table[i]; }
-            }
-            return null;
-        }
-
         // ── 세이브 왕복. 로스터 선수는 variantId + 빌드 9개만 저장(다이얼은 PlayerTable에서 다시 읽는다. 스카우트가 빌드를 바꾸는 날을 위해 빌드는 저장)
         public SeasonSave ToSave()
         {
-            var save = new SeasonSave { tier = Tier, seasonSeed = SeasonSeed, generatorVersion = GeneratorVersion, roundsPlayed = RoundsPlayed, scoutAttempts = ScoutAttempts };
+            var save = new SeasonSave { tier = Tier, seasonSeed = SeasonSeed, generatorVersion = GeneratorVersion, roundsPlayed = RoundsPlayed, scoutAttempts = ScoutAttempts, myPresetId = MyPresetId };
             for (int i = 0; i < results.Count; i++)
             {
                 MatchResult r = results[i];
@@ -180,7 +167,7 @@ namespace Game.Core.League
             {
                 SeasonSave.Player p = save.roster[i];
                 if (!ids.Add(p.playerId)) { throw new InvalidOperationException($"[SeasonState] 로스터 선수 id 중복 {p.playerId}"); }
-                PlayerStats? variant = FindVariant(table, p.variantId);
+                PlayerStats? variant = PlayerTableLookup.FindVariant(table, p.variantId);
                 if (variant == null) { throw new InvalidOperationException($"[SeasonState] 세이브의 variantId가 PlayerTable에 없다: {p.variantId}"); }
                 if (p.build == null || p.build.Length != 9) { throw new InvalidOperationException($"[SeasonState] 선수 {p.playerId} 빌드가 9개가 아니다"); }
                 PlayerStats copy = BuildScaler.Copy(variant);   // 다이얼·문자열은 PlayerTable에서, 빌드는 세이브에서
@@ -201,7 +188,7 @@ namespace Game.Core.League
                 SeasonSave.Result r = save.results[i];
                 results.Add(new MatchResult(r.home, r.away, r.homeGoals, r.awayGoals));
             }
-            return new SeasonState(save.tier, save.seasonSeed, save.generatorVersion, roster, lineup, results, save.roundsPlayed, save.scoutAttempts);
+            return new SeasonState(save.tier, save.seasonSeed, save.generatorVersion, roster, lineup, results, save.roundsPlayed, save.scoutAttempts, save.myPresetId);
         }
     }
 
@@ -214,6 +201,7 @@ namespace Game.Core.League
         public int generatorVersion;
         public int roundsPlayed;
         public int scoutAttempts;
+        public string? myPresetId;   // 09-27 추가. 옛 세이브(09-26)엔 없어 null → DefaultPresetId
         public List<Result> results = new List<Result>();
         public List<Player> roster = new List<Player>();
         public List<Slot> lineup = new List<Slot>();

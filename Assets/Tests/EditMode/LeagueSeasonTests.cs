@@ -234,9 +234,7 @@ public class LeagueSeasonTests
     public void 세이브_왕복은_상태를_그대로_돌려준다()
     {
         SeasonState state = SeasonState.NewSeason(4, 42, myRows, table);
-        state.AddResult(new MatchResult(0, 3, 2, 1));
-        state.AddResult(new MatchResult(1, 2, 0, 0));
-        state.CompleteRound();
+        state.AddRound(new List<MatchResult> { new MatchResult(0, 3, 2, 1), new MatchResult(1, 2, 0, 0) });
         state.ScoutAttempts = 2;
 
         SeasonSave save = state.ToSave();

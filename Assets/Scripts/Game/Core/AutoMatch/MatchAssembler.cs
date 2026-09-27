@@ -2,14 +2,13 @@ using System;
 using System.Collections.Generic;
 using Game.Core.AI;
 using Game.Core.Data;
-using Game.Core.League;
 using Game.Core.Match;
 using Game.Core.Placement;
 using Game.Core.Tactics;
 
 namespace Game.Core.AutoMatch
 {
-    // 데이터 → 경기 조립(09-23). 매니저(MatchManager.ResetMatch + StageManager.SpawnRow)와 같은 재료로 시뮬을 만든다.
+    // 데이터 → 경기 조립(09-23). 러너·테스트·시즌(SeasonRunner)·새 시즌 로스터(SeasonState.NewSeason)가 같은 경로로 시뮬·라인업을 만든다.
     // 러너·테스트가 공유하고, 엔진이 없으니 EditMode·배치에서 그대로 돈다. 파일 읽기는 호출자 몫(순수 코어는 Resources를 모른다).
     public static class MatchAssembler
     {
@@ -40,7 +39,7 @@ namespace Game.Core.AutoMatch
             return sim;
         }
 
-        // 편성 행 중 한 팀 몫을 라인업으로. count > 1이면 폭(Z) 방향으로 최소 간격씩 벌린다(StageManager.SpawnRow와 같은 식)
+        // 편성 행 중 한 팀 몫을 라인업으로. count > 1이면 폭(Z) 방향으로 최소 간격씩 벌린다. 행 → 자리 펼치기는 여기 한 곳뿐이다(09-27)
         public static List<LineupSlot> ToLineup(IReadOnlyList<PlayerStats> table, IReadOnlyList<StageEntry> rows, int team)
         {
             var slots = new List<LineupSlot>();
@@ -48,7 +47,7 @@ namespace Game.Core.AutoMatch
             {
                 StageEntry row = rows[i];
                 if (row.Team != team) { continue; }
-                PlayerStats? stats = FindVariant(table, row.Id);
+                PlayerStats? stats = PlayerTableLookup.FindVariant(table, row.Id);
                 if (stats == null) { throw new InvalidOperationException($"[MatchAssembler] PlayerTable에 없는 variantId: {row.Id}"); }
 
                 float spread = FieldBounds.MinSpacing;
@@ -62,13 +61,5 @@ namespace Game.Core.AutoMatch
             return slots;
         }
 
-        private static PlayerStats? FindVariant(IReadOnlyList<PlayerStats> table, string variantId)
-        {
-            for (int i = 0; i < table.Count; i++)
-            {
-                if (string.Equals(table[i].VariantId, variantId, StringComparison.OrdinalIgnoreCase)) { return table[i]; }
-            }
-            return null;
-        }
     }
 }
