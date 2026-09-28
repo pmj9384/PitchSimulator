@@ -6,7 +6,7 @@ public class GameUIManager : InGameManager
 {
     public List<UIElement> uiElements;
 
-    // 휘슬 뒤 결과 화면까지 기다리는 시간(09-28 결과 화면). 이 사이 HUD 자막이 경기 종료를 알리고, 같은 라운드 나머지 경기 계산(백그라운드)이 먼저 출발한다
+    // 휘슬 뒤 결과 화면까지 기다리는 시간(09-28 결과 화면). 이 사이 HUD 자막이 경기 종료를 알린다. 나머지 경기 계산은 MatchEnded에서 이미 출발해 이 지연과 무관하다
     [SerializeField] private float resultPanelDelaySec = 1.5f;
     private WaitForSeconds resultPanelWait;   // 모바일 가이드 "WaitForSeconds 캐시"(UNT0038). 값이 인스펙터 고정이라 Initialize에서 한 번 만든다
 

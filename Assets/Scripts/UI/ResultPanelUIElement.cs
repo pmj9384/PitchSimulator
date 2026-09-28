@@ -6,7 +6,8 @@ using UnityEngine;
 using UnityEngine.UI;
 
 // 결과 화면(09-28): 승·무·패 한 패널. 이번 경기 스코어 + 이번 라운드까지 반영한 승점표 + 다음 경기/로비 버튼. 옛 GameOverPanel(패배 전용)을 대체한다.
-// 승점표는 SeasonSystem이 나머지 경기를 백그라운드로 다 돌리고 저장까지 끝내야(IsReporting false) 확정된다. 그 전에 다음으로 가면 씬 재로드로 이 라운드가 사라진다.
+// 승점표는 SeasonSystem이 나머지 경기를 백그라운드로 다 돌리고 저장까지 끝내야(IsReporting false) 확정된다. 그 전에 다음 경기로 가면 새 씬이 아직 넘어가지 않은 라운드(끝난 경기)를 다시 읽으므로 버튼을 잠근다(09-28 리뷰로 이유 수정).
+// 참조가 둘(경기·시즌)인 이유: 스코어는 휘슬 순간 경기에서 바로 쓰고, 표는 보고가 끝난 뒤 시즌에서 쓴다. 시점이 달라 한쪽으로 합치면 스코어도 계산이 끝날 때까지 비게 된다
 // 끝남을 알리는 이벤트를 두지 않고 HUD처럼 매 프레임 IsReporting만 본다(Dirty Flag): bool 하나라 구독-해제 표면이 더 비싸고, 스레드에서 돌아온 콜백이 파괴된 패널을 건드릴 일도 없다.
 // 표는 한 번만 만든다. 만든 뒤엔 Update가 곧바로 빠진다
 public class ResultPanelUIElement : UIElement
@@ -66,12 +67,21 @@ public class ResultPanelUIElement : UIElement
         SeasonSystem season = GameDataManager.Instance.Season;
         if (season.IsReporting) { return; }
 
+        // 버튼부터 연다: 아래 표 만들기가 던져도 화면이 잠긴 채 멈추지 않게(09-28 리뷰)
         tableShown = true;
-        roundText.text = $"{season.Tier.Tier}부 {season.State.RoundsPlayed}/{season.Tier.Matches} 라운드";
-        tableText.text = BuildTable(season);
-        statusText.text = string.Empty;
         nextButton.interactable = true;
         nextButtonLabel.text = season.IsOver ? "로비로" : "다음 경기";
+        statusText.text = season.LastReportFailed ? "결과를 저장하지 못했다" : string.Empty;   // 실패를 성공처럼 보이지 않게(09-28 리뷰)
+        roundText.text = $"{season.Tier.Tier}부 {season.State.RoundsPlayed}/{season.Tier.Matches} 라운드";
+        try
+        {
+            tableText.text = BuildTable(season);
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogError($"[Result] 승점표를 만들지 못했다: {e}");
+            tableText.text = "승점표를 불러오지 못했다";
+        }
     }
 
     // 다음 경기 = 같은 씬 재로드(결과 보고가 먼저 라운드를 올린다). 시즌이 끝났으면 다음 시즌 입구는 로비(PrepareNextMatch) 하나라 로비로 보낸다(09-27 리뷰 R1)

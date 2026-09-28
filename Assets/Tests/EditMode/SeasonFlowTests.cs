@@ -147,7 +147,7 @@ public class SeasonFlowTests
         List<Fixture> schedule = SeasonSchedule.RoundRobin(tier.Teams);
         MatchResult myResult = SeasonRunner.SetupMyMatch(computed, opponents, schedule, presets, 0).ResultFor(1, 0);
 
-        List<MatchResult> results = SeasonRunner.ComputeRound(computed, opponents, schedule, presets, myResult);
+        List<MatchResult> results = SeasonRunner.ComputeRound(computed.RoundsPlayed, computed.SeasonSeed, opponents, schedule, presets, myResult);
         Assert.AreEqual(0, computed.RoundsPlayed, "계산만 하고 라운드를 넘기지 않는다");
         Assert.AreEqual(0, computed.Results.Count, "결과도 넣지 않는다");
         Assert.AreEqual(tier.Teams / 2, results.Count, "라운드의 전 경기");

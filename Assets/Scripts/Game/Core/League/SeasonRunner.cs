@@ -16,15 +16,15 @@ namespace Game.Core.League
             IReadOnlyList<TeamTactics> presets, MatchResult myResult)
         {
             // 결과를 모아 끝에 한 번에 넣는다: 헤드리스 경기 중 예외가 나도 내 결과만 남는 반쪽 상태가 생기지 않는다(09-27 리뷰 D3)
-            state.AddRound(ComputeRound(state, opponents, schedule, presets, myResult));
+            state.AddRound(ComputeRound(state.RoundsPlayed, state.SeasonSeed, opponents, schedule, presets, myResult));
         }
 
-        // 한 라운드의 전 경기 결과(내 결과가 맨 앞)를 계산만 하고 state는 건드리지 않는다. 입력을 읽기만 해서 백그라운드 스레드에서 불러도 된다.
-        // 인게임에선 휘슬 뒤 헤드리스 경기가 FixedUpdate를 2.5초 붙잡던 것을 스레드로 뺀다. 넣기(AddRound)는 부르는 쪽이 메인 스레드에서 한 번에 한다(09-28 G1)
-        public static List<MatchResult> ComputeRound(SeasonState state, IReadOnlyList<GeneratedTeam> opponents, IReadOnlyList<Fixture> schedule,
+        // 한 라운드의 전 경기 결과(내 결과가 맨 앞)를 계산만 한다. 입력을 읽기만 해서 백그라운드 스레드에서 불러도 된다.
+        // 인게임에선 휘슬 뒤 헤드리스 경기가 FixedUpdate를 2.5초 붙잡던 것을 스레드로 뺀다. 넣기(AddRound)는 부르는 쪽이 메인 스레드에서 한 번에 한다(09-28 G1).
+        // 시즌 상태 대신 라운드·시드 값만 받는다: 스레드로 넘어가는 가변 객체가 없어야 "상태를 안 건드린다"가 주석이 아니라 시그니처로 보장된다(09-28 리뷰)
+        public static List<MatchResult> ComputeRound(int round, int seasonSeed, IReadOnlyList<GeneratedTeam> opponents, IReadOnlyList<Fixture> schedule,
             IReadOnlyList<TeamTactics> presets, MatchResult myResult)
         {
-            int round = state.RoundsPlayed;
             Fixture mine = SeasonSchedule.MyFixture(schedule, round, SeasonState.MyTeamId);
             if (myResult.HomeTeamId != mine.HomeTeamId || myResult.AwayTeamId != mine.AwayTeamId)
             {
@@ -37,7 +37,7 @@ namespace Game.Core.League
             {
                 Fixture f = fixtures[i];
                 if (f.HomeTeamId == SeasonState.MyTeamId || f.AwayTeamId == SeasonState.MyTeamId) { continue; }
-                results.Add(Simulate(state.SeasonSeed, f, opponents, presets));
+                results.Add(Simulate(seasonSeed, f, opponents, presets));
             }
             return results;
         }

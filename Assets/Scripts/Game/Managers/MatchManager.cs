@@ -168,7 +168,7 @@ public class MatchManager : InGameManager
     }
 
     // 승리 팀 0 → GameClear, 그 외(패배·무승부) → GameOver. 스테이지 클리어는 승리만(스펙 §7).
-    // MatchEnded(→ 시즌 결과 보고·저장)를 상태 전환보다 먼저 쏜다: 결과 화면이 GameOver 훅에서 승점표를 읽을 때 이번 라운드가 들어가 있어야 한다(09-27 리뷰 Y2)
+    // MatchEnded(→ 시즌 결과 보고 시작)를 상태 전환보다 먼저 쏜다: 보고가 IsReporting을 먼저 세워야 결과 화면이 처음부터 버튼을 잠근다(09-28 G1. 동기 보고였던 09-27 Y2엔 "승점표가 이미 완성돼 있어야"가 이유였다)
     public void EndMatch(int winnerTeam)
     {
         Debug.Log($"[Match] 경기 종료. 승리 팀: {winnerTeam}  ({Simulation.HomeGoals}:{Simulation.AwayGoals})");
