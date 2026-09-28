@@ -67,6 +67,12 @@ public class SeasonSystem : ISaveLoad
         return State.Table(Tier.Teams);
     }
 
+    // 시즌이 끝났을 때 내 팀 판정(승격·잔류·강등·우승, 최종 순위). 끝나기 전엔 던진다(09-28 시즌 종료 표시)
+    public SeasonOutcome Outcome()
+    {
+        return SeasonProgress.Outcome(State, Tier);
+    }
+
     // 승점표 행(팀 id) → 표시 이름. 상대 id는 1부터라 인덱스로 짐작하지 않고 찾는다(09-28 결과 화면)
     public string TeamName(int teamId)
     {

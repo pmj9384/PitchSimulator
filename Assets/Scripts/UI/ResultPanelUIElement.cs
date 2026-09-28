@@ -76,6 +76,7 @@ public class ResultPanelUIElement : UIElement
         try
         {
             tableText.text = BuildTable(season);
+            if (!season.LastReportFailed && season.IsOver) { statusText.text = OutcomeLine(season.Outcome(), season.Tier.Tier); }   // 시즌 마지막 판: 승강 판정(09-28)
         }
         catch (System.Exception e)
         {
@@ -96,6 +97,15 @@ public class ResultPanelUIElement : UIElement
             return;
         }
         gameManager.RestartGame(skipReady: false);
+    }
+
+    // 시즌 끝 문구. 2·3위(승강전 대상)는 승강전(10-05)이 생기기 전까지 잔류로 보여 준다: 없는 기능을 문구로 약속하지 않는다
+    private static string OutcomeLine(SeasonOutcome outcome, int tier)
+    {
+        if (outcome.Kind == SeasonOutcomeKind.Champion) { return $"시즌 종료 · {tier}부 우승!"; }
+        if (outcome.Kind == SeasonOutcomeKind.Promoted) { return $"시즌 종료 · 최종 {outcome.FinalRank}위 · {outcome.NextTier}부 승격!"; }
+        if (outcome.Kind == SeasonOutcomeKind.Relegated) { return $"시즌 종료 · 최종 {outcome.FinalRank}위 · {outcome.NextTier}부 강등"; }
+        return $"시즌 종료 · 최종 {outcome.FinalRank}위 · 잔류";
     }
 
     // MatchManager.WinnerByGoals와 같은 기준(골 수). 무승부도 GameOver 국면이라 국면으로는 무/패를 못 가른다
