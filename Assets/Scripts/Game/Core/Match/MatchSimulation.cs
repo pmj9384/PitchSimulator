@@ -87,6 +87,10 @@ namespace Game.Core.Match
         // 틱마다 한 번 계산하는 팀 단위 국면(09-18): 공은 하나라 서드·역습도 팀당 하나. 22명이 같은 값을 본다
         private readonly List<TargetInfo>[] rosterSnapshot = { new List<TargetInfo>(), new List<TargetInfo>() };
         private readonly List<TargetInfo>[] pressEligible = { new List<TargetInfo>(), new List<TargetInfo>() };   // 팀별 압박 거리 안 선수(압박 순위 계산용)
+        private readonly List<TargetInfo>[] looseCandidates = { new List<TargetInfo>(), new List<TargetInfo>() }; // 팀별 루즈볼 추격 후보(GK·얼음 제외)
+        // 팀별 "지금 맡은 선수"(09-28 F1b 히스테리시스). 압박 1순위는 상대 소유 중에만, 루즈볼 추격자는 소유 팀이 없을 때만 유지하고 아니면 -1
+        private readonly int[] pressLeader = { -1, -1 };
+        private readonly int[] looseChaser = { -1, -1 };
         // 팀 국면 스냅샷 버퍼. 틱마다 새 배열을 만들면 3분에 9,000 × 3번 할당(09-21 전수조사 S5)
         private readonly bool[] counteringByTeam = new bool[2];
         private readonly bool[] counterPressingByTeam = new bool[2];
@@ -202,6 +206,30 @@ namespace Game.Core.Match
             }
         }
 
+        // 팀별 "지금 맡은 선수" 갱신(09-28 F1b). 직전 틱 담당을 incumbent로 넘겨 도전자가 ChaserSwitchMargin 넘게 가까울 때만 바꾼다.
+        // 루즈볼 후보는 우리 GK를 뺀 필드 플레이어(09-23 R3: 출격 못 하는 GK가 최근접이면 아무도 안 쫓던 것)와 얼지 않은 선수. GK 출격은 트리가 따로 본다
+        private void UpdateChasers(int ownerTeam)
+        {
+            bool loose = Ball.Phase != BallPhase.Owned && ownerTeam == -1;
+            for (int team = 0; team < 2; team++)
+            {
+                pressLeader[team] = ownerTeam == 1 - team
+                    ? PressRules.FirstInRank(pressEligible[team], Ball.X, Ball.Z, pressLeader[team], MatchTuning.ChaserSwitchMargin)
+                    : -1;
+
+                if (!loose) { looseChaser[team] = -1; continue; }
+                List<TargetInfo> candidates = looseCandidates[team];
+                candidates.Clear();
+                for (int i = 0; i < players.Count; i++)
+                {
+                    PlayerState p = players[i];
+                    if (p.Team != team || p.IsGoalkeeper || p.FrozenTicks > 0) { continue; }
+                    candidates.Add(new TargetInfo(p.PlayerId, p.X, p.Z));
+                }
+                looseChaser[team] = PressRules.FirstInRank(candidates, Ball.X, Ball.Z, looseChaser[team], MatchTuning.ChaserSwitchMargin);
+            }
+        }
+
         public int OwnerTeam()
         {
             if (Ball.Phase == BallPhase.Owned) { return FindPlayer(Ball.OwnerId).Team; }
@@ -261,6 +289,8 @@ namespace Game.Core.Match
             immunityTicksLeft = 0;
             passReleased = true;
             lastKickerId = BallState.NoOwner;
+            pressLeader[0] = pressLeader[1] = -1;
+            looseChaser[0] = looseChaser[1] = -1;
             for (int i = 0; i < players.Count; i++)
             {
                 players[i].FrozenTicks = 0;
@@ -377,6 +407,7 @@ namespace Game.Core.Match
                 thirdByTeam[team] = BallThirdOf(team);
             }
             FillPressEligible();
+            UpdateChasers(ownerTeam);
 
             for (int i = 0; i < players.Count; i++)
             {
@@ -388,10 +419,10 @@ namespace Game.Core.Match
                 p.BallThird = thirdByTeam[p.Team];
                 p.IsCountering = counteringByTeam[p.Team];
                 p.IsCounterPressing = counterPressingByTeam[p.Team];
-                p.PressRank = PressRules.PressRank(p.PlayerId, pressEligible[p.Team], Ball.X, Ball.Z);
+                p.PressRank = PressRules.PressRank(p.PlayerId, pressEligible[p.Team], Ball.X, Ball.Z, pressLeader[p.Team], MatchTuning.ChaserSwitchMargin);
+                p.IsLooseBallChaser = looseChaser[p.Team] == p.PlayerId;
                 p.Teammates = TeammatesExcluding(p);
                 p.Opponents = rosterSnapshot[other];
-                p.TeamKeeperId = keeperIds[p.Team];
                 p.KeeperAlternate = keeperAlternate[p.Team];
                 p.OpponentKeeper = keeperIds[other] == -1 ? null : FindPlayer(keeperIds[other]).Stats;
                 p.IsPassTarget = passInFlight && passReceiverId == p.PlayerId;

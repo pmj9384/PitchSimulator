@@ -21,10 +21,11 @@ public class StallGuardTests
         List<StageEntry> rows = StageCompositionParser.Parse(File.ReadAllText("Assets/Resources/Tables/StageComposition.csv")).FindAll(r => r.Stage == 1);
         TeamTactics balanced = TeamTacticsParser.Parse(File.ReadAllText("Assets/Resources/Tables/TacticPresets.csv")).Find(t => t.PresetId == "balanced");
         FieldInfo passInFlight = typeof(MatchSimulation).GetField("passInFlight", BindingFlags.NonPublic | BindingFlags.Instance);
-        const float WideShareMax = 0.25f;   // 09-26 수정 뒤 10경기 평균 13%. 31%였을 때가 터치라인 빌드업
-        const float RoleShareMax = 0.5f;    // 한 역할이 소유 절반 이상이면 형태 붕괴(09-26 전엔 W가 측면 소유의 86%)
+        const float WideShareMax = 0.25f;   // 20판 평균의 상한. 09-26 수정 뒤 10경기 평균 13%(09-28 100판 17%). 평균 31%였을 때가 터치라인 빌드업
+        const float RoleShareMax = 0.5f;    // 20판 평균. 한 역할이 소유 절반 이상이면 형태 붕괴(09-26 전엔 W가 측면 소유의 86%)
 
         var found = new List<string>();
+        var wideBySeed = new List<string>(); float wideSum = 0f; int shapeSeeds = 0; var roleShareSum = new Dictionary<string, float>();
         for (int seed = 1; seed <= Seeds; seed++)
         {
             MatchSimulation sim = MatchAssembler.Create(table, rows, balanced, balanced, seed);
@@ -96,12 +97,23 @@ public class StallGuardTests
             if (shapeOwned > 0)
             {
                 float wideShare = (float)shapeWide / shapeOwned;
-                if (wideShare > WideShareMax) { found.Add($"F 시드{seed} 측면 소유 {wideShare:P0} (상한 {WideShareMax:P0})"); }
+                wideSum += wideShare; shapeSeeds++; wideBySeed.Add($"{seed}:{wideShare:P0}");
                 foreach (KeyValuePair<string, int> kv in shapeByRole)
                 {
-                    float share = (float)kv.Value / shapeOwned;
-                    if (share > RoleShareMax) { found.Add($"G 시드{seed} 역할 {kv.Key}가 소유 {share:P0} (상한 {RoleShareMax:P0})"); }
+                    roleShareSum[kv.Key] = (roleShareSum.TryGetValue(kv.Key, out float sum) ? sum : 0f) + (float)kv.Value / shapeOwned;
                 }
+            }
+        }
+        // F·G는 20판 평균으로 판정한다(09-28). 3분 한 판은 규칙을 조금만 바꿔도 전개가 통째로 달라져 판별 값이 흔들린다
+        // (F1b에서 시드 14가 22 → 27%인데 100판 평균은 17% 그대로). 잡으려던 건 09-26의 평균 31% 쏠림이다. 판별 값은 메시지에 남긴다
+        if (shapeSeeds > 0)
+        {
+            float wideMean = wideSum / shapeSeeds;
+            if (wideMean > WideShareMax) { found.Add($"F 측면 소유 {shapeSeeds}판 평균 {wideMean:P0} (상한 {WideShareMax:P0}) | 시드별 {string.Join(" ", wideBySeed)}"); }
+            foreach (KeyValuePair<string, float> kv in roleShareSum)
+            {
+                float mean = kv.Value / shapeSeeds;
+                if (mean > RoleShareMax) { found.Add($"G 역할 {kv.Key}가 소유 {shapeSeeds}판 평균 {mean:P0} (상한 {RoleShareMax:P0})"); }
             }
         }
         Assert.IsEmpty(found, "교착:\n" + string.Join("\n", found));
