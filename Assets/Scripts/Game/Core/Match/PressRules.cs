@@ -17,30 +17,50 @@ namespace Game.Core.Match
 
         // 압박 순위(09-23): 압박 거리 안인 우리 팀 선수(eligible, 나 포함) 중 공에 더 가까운 사람 수. 0이면 내가 첫 압박자.
         // 동률은 PlayerId 작은 쪽이 앞(잡기 타이브레이크와 같은 규칙). 내가 목록에 없으면(압박 거리 밖) int.MaxValue.
-        // 트리는 이 값이 MatchTuning.MaxPressers 미만일 때만 ⑧로 간다. 시뮬이 틱마다 팀별로 계산해 스냅샷에 넣는다
-        public static int PressRank(int playerId, IReadOnlyList<TargetInfo> eligible, float ballX, float ballZ)
+        // 트리는 이 값이 MatchTuning.MaxPressers 미만일 때만 ⑧로 간다. 시뮬이 틱마다 팀별로 계산해 스냅샷에 넣는다.
+        // 루즈볼 추격자(⑩)도 같은 함수의 0순위다(09-28 F1b).
+        // 히스테리시스(09-28 F1b): 지금 맡고 있는 선수(incumbentId)는 거리를 margin만큼 짧게 쳐서, 도전자가 margin 넘게 더 가까워야 순위가 뒤집힌다.
+        // 틱마다 처음부터 최근접을 뽑으면 거의 같은 거리의 두 동료가 번갈아 붙었다 떨어졌다(09-28 유저 Play, 20판 계측 루즈볼 추격자 교체 0.63회/초).
+        // RoboCup 역할 배정의 표준 처방: 역할 전환 비용을 판정에 넣는다(Gerkey & Matarić, SPL 드롭인 전략 2016)
+        public static int PressRank(int playerId, IReadOnlyList<TargetInfo> eligible, float ballX, float ballZ, int incumbentId = -1, float margin = 0f)
         {
-            float myDist2 = -1f;
+            float myDist = -1f;
             for (int i = 0; i < eligible.Count; i++)
             {
                 if (eligible[i].PlayerId != playerId) { continue; }
-                float dx = eligible[i].X - ballX;
-                float dz = eligible[i].Z - ballZ;
-                myDist2 = dx * dx + dz * dz;
+                myDist = EffectiveDistance(eligible[i], ballX, ballZ, incumbentId, margin);
                 break;
             }
-            if (myDist2 < 0f) { return int.MaxValue; }
+            if (myDist < 0f) { return int.MaxValue; }
 
             int closer = 0;
             for (int i = 0; i < eligible.Count; i++)
             {
                 if (eligible[i].PlayerId == playerId) { continue; }
-                float dx = eligible[i].X - ballX;
-                float dz = eligible[i].Z - ballZ;
-                float d2 = dx * dx + dz * dz;
-                if (d2 < myDist2 || (d2 == myDist2 && eligible[i].PlayerId < playerId)) { closer++; }
+                float d = EffectiveDistance(eligible[i], ballX, ballZ, incumbentId, margin);
+                if (d < myDist || (d == myDist && eligible[i].PlayerId < playerId)) { closer++; }
             }
             return closer;
+        }
+
+        // 0순위 선수 id. 후보가 없으면 -1. 시뮬이 팀별 "지금 맡은 선수"를 갱신할 때 쓴다
+        public static int FirstInRank(IReadOnlyList<TargetInfo> eligible, float ballX, float ballZ, int incumbentId, float margin)
+        {
+            for (int i = 0; i < eligible.Count; i++)
+            {
+                if (PressRank(eligible[i].PlayerId, eligible, ballX, ballZ, incumbentId, margin) == 0) { return eligible[i].PlayerId; }
+            }
+            return -1;
+        }
+
+        // 공까지 거리. 지금 맡은 선수는 margin만큼 짧게 친다(음수가 되지 않게 0에서 자른다)
+        private static float EffectiveDistance(TargetInfo t, float ballX, float ballZ, int incumbentId, float margin)
+        {
+            float dx = t.X - ballX;
+            float dz = t.Z - ballZ;
+            float d = (float)System.Math.Sqrt(dx * dx + dz * dz);
+            if (t.PlayerId != incumbentId) { return d; }
+            return System.Math.Max(0f, d - margin);
         }
 
         // 추격 예측(09-23, Simple Soccer pursuit): 공의 지금 위치가 아니라 "공 + 공 속도 × 예측 시간"을 향해 달린다.

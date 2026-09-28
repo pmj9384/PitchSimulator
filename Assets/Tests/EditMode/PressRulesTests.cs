@@ -53,6 +53,23 @@ public class PressRulesTests
     }
 
     [Test]
+    public void 지금_맡은_선수는_도전자가_여유_넘게_가까워야_순위를_넘긴다()
+    {
+        // 09-28 F1b 히스테리시스. 공 (0,0), 여유 2m. 맡은 선수 1번 3m
+        var close = new[] { new TargetInfo(1, 3f, 0f), new TargetInfo(2, 1.5f, 0f) };   // 도전자 2번이 1.5m 더 가까움 → 유지
+        Assert.AreEqual(0, PressRules.PressRank(1, close, 0f, 0f, incumbentId: 1, margin: 2f), "여유 안: 맡은 선수 유지");
+        Assert.AreEqual(1, PressRules.PressRank(2, close, 0f, 0f, incumbentId: 1, margin: 2f));
+        Assert.AreEqual(1, PressRules.FirstInRank(close, 0f, 0f, 1, 2f));
+
+        var far = new[] { new TargetInfo(1, 3f, 0f), new TargetInfo(2, 0.5f, 0f) };     // 2.5m 더 가까움 → 교체
+        Assert.AreEqual(2, PressRules.FirstInRank(far, 0f, 0f, 1, 2f), "여유 넘음: 도전자에게");
+
+        Assert.AreEqual(2, PressRules.FirstInRank(close, 0f, 0f, -1, 2f), "맡은 선수가 없으면 최근접");
+        Assert.AreEqual(2, PressRules.FirstInRank(close, 0f, 0f, 7, 2f), "맡은 선수가 후보에 없으면(압박 거리 밖·얼음) 최근접");
+        Assert.AreEqual(-1, PressRules.FirstInRank(new TargetInfo[0], 0f, 0f, 1, 2f), "후보 없음");
+    }
+
+    [Test]
     public void 역압박_중이면_배율_2다()
     {
         Assert.IsTrue(PressRules.ShouldPress(20f, 12f, 1, counterPressing: true), "12 × 2.0 = 24 ≥ 20");

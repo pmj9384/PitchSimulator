@@ -135,6 +135,73 @@ public class SeasonFlowTests
         Assert.AreEqual(4, SeasonProgress.NextTier(state, tier));
     }
 
+    // 시즌 끝 판정(09-28 시즌 종료 표시). 헤드리스 경기 없이 결과만 넣어 판정 규칙을 잠근다. 라운드마다 내 경기 1개(상대 id = 라운드 + 1) + extra
+    private static SeasonState FinishedSeason(int tier, int myGoals, int opponentGoals, List<MatchResult> extra = null)
+    {
+        TierRule rule = Tier(tier);
+        SeasonState state = SeasonState.NewSeason(tier, 3, myRows, table);
+        for (int round = 0; round < rule.Matches; round++)
+        {
+            var results = new List<MatchResult> { new MatchResult(SeasonState.MyTeamId, round + 1, myGoals, opponentGoals) };
+            if (round == 0 && extra != null) { results.AddRange(extra); }
+            state.AddRound(results);
+        }
+        return state;
+    }
+
+    [Test]
+    public void 시즌_끝_판정은_승격_잔류_강등_우승을_가르고_다음_부와_같다()
+    {
+        SeasonOutcome promoted = SeasonProgress.Outcome(FinishedSeason(4, 2, 0), Tier(4));
+        Assert.AreEqual(SeasonOutcomeKind.Promoted, promoted.Kind, "4부 전승 1위");
+        Assert.AreEqual(1, promoted.FinalRank);
+        Assert.AreEqual(3, promoted.NextTier);
+
+        SeasonOutcome bottom = SeasonProgress.Outcome(FinishedSeason(4, 0, 2), Tier(4));
+        Assert.AreEqual(SeasonOutcomeKind.Stayed, bottom.Kind, "4부 꼴찌는 강등 없이 잔류");
+        Assert.AreEqual(Tier(4).Teams, bottom.FinalRank);
+        Assert.AreEqual(4, bottom.NextTier);
+
+        SeasonOutcome relegated = SeasonProgress.Outcome(FinishedSeason(3, 0, 2), Tier(3));
+        Assert.AreEqual(SeasonOutcomeKind.Relegated, relegated.Kind, "3부 꼴찌 강등");
+        Assert.AreEqual(4, relegated.NextTier);
+
+        SeasonOutcome champion = SeasonProgress.Outcome(FinishedSeason(1, 2, 0), Tier(1));
+        Assert.AreEqual(SeasonOutcomeKind.Champion, champion.Kind, "1부 1위는 우승(부 그대로)");
+        Assert.AreEqual(1, champion.NextTier);
+
+        // 전부 비겨 7점, 1번 팀이 2번 팀을 세 번 이겨 9점 → 내가 2위(승강전 대상). 승강전(10-05) 전까진 잔류
+        var extra = new List<MatchResult> { new MatchResult(1, 2, 1, 0), new MatchResult(1, 2, 1, 0), new MatchResult(1, 2, 1, 0) };
+        SeasonState second = FinishedSeason(3, 1, 1, extra);
+        SeasonOutcome playoff = SeasonProgress.Outcome(second, Tier(3));
+        Assert.AreEqual(2, playoff.FinalRank);
+        Assert.AreEqual(SeasonOutcomeKind.Stayed, playoff.Kind);
+        Assert.AreEqual(SeasonProgress.NextTier(second, Tier(3)), playoff.NextTier, "문구와 실제 다음 부가 같은 판정");
+    }
+
+    // 인게임은 ComputeRound를 백그라운드 스레드에서 부르고 AddRound는 메인 스레드에서 따로 한다(09-28 G1). 계산이 상태를 건드리면 스레드 경합이 되고,
+    // 두 경로의 결과가 다르면 인게임 승점표와 테스트가 잠근 승점표가 갈린다
+    [Test]
+    public void ComputeRound는_상태를_바꾸지_않고_PlayRound와_같은_결과를_낸다()
+    {
+        TierRule tier = Tier(4);
+        SeasonState computed = SeasonState.NewSeason(4, 7, myRows, table);
+        SeasonState played = SeasonState.NewSeason(4, 7, myRows, table);
+        List<GeneratedTeam> opponents = TeamGenerator.Generate(7, tier, table, formations, names);
+        List<Fixture> schedule = SeasonSchedule.RoundRobin(tier.Teams);
+        MatchResult myResult = SeasonRunner.SetupMyMatch(computed, opponents, schedule, presets, 0).ResultFor(1, 0);
+
+        List<MatchResult> results = SeasonRunner.ComputeRound(computed.RoundsPlayed, computed.SeasonSeed, opponents, schedule, presets, myResult);
+        Assert.AreEqual(0, computed.RoundsPlayed, "계산만 하고 라운드를 넘기지 않는다");
+        Assert.AreEqual(0, computed.Results.Count, "결과도 넣지 않는다");
+        Assert.AreEqual(tier.Teams / 2, results.Count, "라운드의 전 경기");
+        Assert.AreEqual(myResult, results[0], "내 결과가 맨 앞");
+
+        SeasonRunner.PlayRound(played, opponents, schedule, presets, myResult);
+        Assert.AreEqual(1, played.RoundsPlayed);
+        CollectionAssert.AreEqual(results, played.Results, "같은 시드면 헤드리스 경기 결과도 같다");
+    }
+
     [Test]
     public void 내_프리셋은_세이브를_왕복하고_옛_세이브엔_없어_balanced가_된다()
     {

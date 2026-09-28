@@ -67,6 +67,7 @@ namespace Game.Core.Match
         public const float CounterForwardMargin = 3f;                           // 역습 리시버는 패서보다 이만큼 앞선 아군만(09-21 리뷰: 자기만 빼면 뒤로 돌려 핑퐁)
         public const float PressedRadius = TackleRange;                         // 상대가 이 거리 안이면 "압박받는 중". 옆·뒤 돌리기는 이때만(09-21). 09-23: 3m였을 땐 압박이 3m 선을 넘는 순간 3틱 만에 안전한 뒤 패스로 도망가 접촉이 0이었다. 태클 사거리와 같게 두면 같은 틱에 태클이 먼저 시도되고 실패해야 돌린다
         public const float BackPassDepthPenalty = 0.01f;                        // 뒤로 1m마다 깎는 점수. 20m 뒤면 -0.2라 깊은 백패스(GK 등)는 0 이하로 떨어져 별도 컷 없이 후보에서 빠진다
+        public const float ChaserSwitchMargin = 2f;                             // 추격자 히스테리시스(09-28 F1b): 압박 1순위·루즈볼 추격자는 도전자가 이만큼 더 가까워야 넘겨준다. 출처가 주는 수치는 없어 태클 사거리와 같은 값으로 출발(러너·Play로 조정)
         public const int MaxPressers = 1;                                       // 팀에서 동시에 압박(⑧)하는 인원 상한. 압박 거리 안인 선수를 공 거리순으로 세어 이 안만 간다(09-23 Play: 인원 제한이 없어 우리 진영 "적극"이면 CM 19.5m·FB/W/ST 12m 안 4~6명이 한꺼번에 달려들어 초등학교 경기처럼 뭉쳤다). Simple Soccer는 최근접 1명만 쫓고 FM도 1명 압박 + 커버. 러너에서 태클이 죽으면 2
     }
 }

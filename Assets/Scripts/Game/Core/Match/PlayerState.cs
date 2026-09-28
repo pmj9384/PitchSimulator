@@ -43,8 +43,7 @@ namespace Game.Core.Match
 
         public IReadOnlyList<TargetInfo> Teammates { get; set; } = System.Array.Empty<TargetInfo>();
         public IReadOnlyList<TargetInfo> Opponents { get; set; } = System.Array.Empty<TargetInfo>();
-        public int OpponentKeeperId { get; set; } = -1;
-        public int TeamKeeperId { get; set; } = -1;
+        public bool IsLooseBallChaser { get; set; }   // 소유 팀 없는 공을 우리 팀에서 내가 맡았나(시뮬이 히스테리시스로 정함, 09-28 F1b)
         public bool KeeperAlternate { get; set; }
         public int LastPasserId { get; set; } = -1;   // 방금 나에게 패스한 아군. 곧바로 뒤로 되돌리지 않는다(09-23 측면 왕복 22회)
         public PlayerStats? OpponentKeeper { get; set; }
