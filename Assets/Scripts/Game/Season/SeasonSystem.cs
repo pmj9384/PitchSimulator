@@ -12,6 +12,10 @@ public class SeasonSystem : ISaveLoad
 {
     public DataSourceType SaveDataSouceType => DataSourceType.Local;
 
+    // 내 팀 이름은 아직 세이브에 없다(09-27 결정 ③-a). 이름 짓기 UI가 생길 때 세이브 필드로.
+    // HUD·결과 화면이 같은 이름을 쓰도록 시즌 한 곳에 둔다(09-28 결과 화면)
+    public const string MyTeamName = "내 팀";
+
     public SeasonState State { get; private set; }
     public TierRule Tier { get; private set; }
     public IReadOnlyList<GeneratedTeam> Opponents { get; private set; }
@@ -60,6 +64,17 @@ public class SeasonSystem : ISaveLoad
     public LeagueTable Table()
     {
         return State.Table(Tier.Teams);
+    }
+
+    // 승점표 행(팀 id) → 표시 이름. 상대 id는 1부터라 인덱스로 짐작하지 않고 찾는다(09-28 결과 화면)
+    public string TeamName(int teamId)
+    {
+        if (teamId == SeasonState.MyTeamId) { return MyTeamName; }
+        for (int i = 0; i < Opponents.Count; i++)
+        {
+            if (Opponents[i].TeamId == teamId) { return Opponents[i].Name; }
+        }
+        throw new ArgumentOutOfRangeException(nameof(teamId), $"[Season] {Tier.Tier}부에 팀 id {teamId}가 없다");
     }
 
     // 이번 라운드 내 경기의 재료. 시즌이 끝났으면 먼저 PrepareNextMatch()

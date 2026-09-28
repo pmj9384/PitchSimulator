@@ -7,7 +7,6 @@ using UnityEngine.UI;
 // (Unity e-book Dirty Flag, 모바일 가이드 "매 프레임 문자열 금지"). 이벤트 구독을 두지 않는 이유: 정수 3개라 구독-해제 표면이 더 비싸다
 public class MatchHudUIElement : UIElement
 {
-    private const string MyTeamName = "내 팀";   // 내 팀 이름은 아직 세이브에 없다(09-27 결정 ③-a). 이름 짓기 UI가 생길 때 세이브 필드로
     private const string OwnerMark = "●";
 
     [SerializeField] private TMP_Text scoreText;
@@ -74,7 +73,7 @@ public class MatchHudUIElement : UIElement
             shownOwnerTeam = ownerTeam;
             string homeMark = ownerTeam == 0 ? OwnerMark : string.Empty;
             string awayMark = ownerTeam == 1 ? OwnerMark : string.Empty;
-            scoreText.text = $"{homeMark} {MyTeamName}  {sim.HomeGoals} : {sim.AwayGoals}  {match.OpponentName} {awayMark}";
+            scoreText.text = $"{homeMark} {SeasonSystem.MyTeamName}  {sim.HomeGoals} : {sim.AwayGoals}  {match.OpponentName} {awayMark}";
         }
     }
 
