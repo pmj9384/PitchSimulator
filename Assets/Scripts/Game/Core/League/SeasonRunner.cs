@@ -15,13 +15,21 @@ namespace Game.Core.League
         public static void PlayRound(SeasonState state, IReadOnlyList<GeneratedTeam> opponents, IReadOnlyList<Fixture> schedule,
             IReadOnlyList<TeamTactics> presets, MatchResult myResult)
         {
+            // 결과를 모아 끝에 한 번에 넣는다: 헤드리스 경기 중 예외가 나도 내 결과만 남는 반쪽 상태가 생기지 않는다(09-27 리뷰 D3)
+            state.AddRound(ComputeRound(state, opponents, schedule, presets, myResult));
+        }
+
+        // 한 라운드의 전 경기 결과(내 결과가 맨 앞)를 계산만 하고 state는 건드리지 않는다. 입력을 읽기만 해서 백그라운드 스레드에서 불러도 된다.
+        // 인게임에선 휘슬 뒤 헤드리스 경기가 FixedUpdate를 2.5초 붙잡던 것을 스레드로 뺀다. 넣기(AddRound)는 부르는 쪽이 메인 스레드에서 한 번에 한다(09-28 G1)
+        public static List<MatchResult> ComputeRound(SeasonState state, IReadOnlyList<GeneratedTeam> opponents, IReadOnlyList<Fixture> schedule,
+            IReadOnlyList<TeamTactics> presets, MatchResult myResult)
+        {
             int round = state.RoundsPlayed;
             Fixture mine = SeasonSchedule.MyFixture(schedule, round, SeasonState.MyTeamId);
             if (myResult.HomeTeamId != mine.HomeTeamId || myResult.AwayTeamId != mine.AwayTeamId)
             {
                 throw new InvalidOperationException($"[SeasonRunner] 라운드 {round} 내 경기는 {mine.HomeTeamId} 대 {mine.AwayTeamId}인데 결과는 {myResult.HomeTeamId} 대 {myResult.AwayTeamId}");
             }
-            // 결과를 모아 끝에 한 번에 넣는다: 헤드리스 경기 중 예외가 나도 내 결과만 남는 반쪽 상태가 생기지 않는다(09-27 리뷰 D3)
             var results = new List<MatchResult> { myResult };
             var fixtures = new List<Fixture>();
             SeasonSchedule.FixturesOfRound(schedule, round, fixtures);
@@ -31,7 +39,7 @@ namespace Game.Core.League
                 if (f.HomeTeamId == SeasonState.MyTeamId || f.AwayTeamId == SeasonState.MyTeamId) { continue; }
                 results.Add(Simulate(state.SeasonSeed, f, opponents, presets));
             }
-            state.AddRound(results);
+            return results;
         }
 
         // 상대끼리 한 경기(헤드리스). 테스트가 결정성·스폰 진영을 이 단위로 본다

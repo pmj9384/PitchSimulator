@@ -135,6 +135,29 @@ public class SeasonFlowTests
         Assert.AreEqual(4, SeasonProgress.NextTier(state, tier));
     }
 
+    // 인게임은 ComputeRound를 백그라운드 스레드에서 부르고 AddRound는 메인 스레드에서 따로 한다(09-28 G1). 계산이 상태를 건드리면 스레드 경합이 되고,
+    // 두 경로의 결과가 다르면 인게임 승점표와 테스트가 잠근 승점표가 갈린다
+    [Test]
+    public void ComputeRound는_상태를_바꾸지_않고_PlayRound와_같은_결과를_낸다()
+    {
+        TierRule tier = Tier(4);
+        SeasonState computed = SeasonState.NewSeason(4, 7, myRows, table);
+        SeasonState played = SeasonState.NewSeason(4, 7, myRows, table);
+        List<GeneratedTeam> opponents = TeamGenerator.Generate(7, tier, table, formations, names);
+        List<Fixture> schedule = SeasonSchedule.RoundRobin(tier.Teams);
+        MatchResult myResult = SeasonRunner.SetupMyMatch(computed, opponents, schedule, presets, 0).ResultFor(1, 0);
+
+        List<MatchResult> results = SeasonRunner.ComputeRound(computed, opponents, schedule, presets, myResult);
+        Assert.AreEqual(0, computed.RoundsPlayed, "계산만 하고 라운드를 넘기지 않는다");
+        Assert.AreEqual(0, computed.Results.Count, "결과도 넣지 않는다");
+        Assert.AreEqual(tier.Teams / 2, results.Count, "라운드의 전 경기");
+        Assert.AreEqual(myResult, results[0], "내 결과가 맨 앞");
+
+        SeasonRunner.PlayRound(played, opponents, schedule, presets, myResult);
+        Assert.AreEqual(1, played.RoundsPlayed);
+        CollectionAssert.AreEqual(results, played.Results, "같은 시드면 헤드리스 경기 결과도 같다");
+    }
+
     [Test]
     public void 내_프리셋은_세이브를_왕복하고_옛_세이브엔_없어_balanced가_된다()
     {

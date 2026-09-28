@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Game.Core.Data;
 using Game.Core.League;
+using Game.Core.Tactics;
 using UnityEngine;
 
 // 시즌의 수명과 영속(09-27 확정 스펙 ①③). PlayerAccountData와 같은 꼴: GameDataManager가 들고 씬을 넘어 살며, SaveLoadSystem이 Save()를 부른다.
@@ -75,12 +76,48 @@ public class SeasonSystem : ISaveLoad
         }
     }
 
-    // 내 경기 결과 → 같은 라운드 나머지 경기 헤드리스 → 즉시 저장. MatchEnded가 GameOver 전환보다 먼저라 결과 화면이 뜰 때 승점표가 완성돼 있고, 거기서 앱이 죽어도 경기가 안 날아간다(09-27 ③)
-    public void ReportMyResult(MatchResult myResult)
+    // 내 경기 결과 → 같은 라운드 나머지 경기 헤드리스 → 즉시 저장. 결과 화면이 뜬 뒤 앱이 죽어도 경기가 안 날아간다(09-27 ③)
+    // 나머지 경기(부에 따라 2~5경기, 경기당 9,000틱 ≈ 0.5초)를 FixedUpdate 안에서 돌려 휘슬 뒤 화면이 최대 2.5초 멈췄다. 계산만 백그라운드 스레드로 뺀다(09-28 G1)
+    // 결과 패널은 IsReporting을 보고 버튼을 잠근다. 저장 전에 씬이 다시 로드되면 이 라운드가 사라지기 때문이다
+    public bool IsReporting { get; private set; }
+
+    public async Awaitable ReportMyResultAsync(MatchResult myResult)
     {
-        SeasonRunner.PlayRound(State, Opponents, Schedule, TeamTacticsRepository.All, myResult);
-        currentMatch = null;
-        SaveLoadSystem.Instance.Save();
+        if (IsReporting)
+        {
+            Debug.LogError("[Season] 이전 라운드 결과를 아직 처리 중이다. 이번 보고는 버린다");
+            return;
+        }
+        IsReporting = true;
+
+        // Unity API는 스레드 안전하지 않아 재료는 메인 스레드에서 미리 잡는다(TeamTacticsRepository.All은 처음 부를 때 Resources.Load를 탄다)
+        SeasonState state = State;
+        IReadOnlyList<GeneratedTeam> opponents = Opponents;
+        IReadOnlyList<Fixture> schedule = Schedule;
+        IReadOnlyList<TeamTactics> presets = TeamTacticsRepository.All;
+        try
+        {
+            // 시뮬은 순수 C#(Game.Core, 엔진 참조 없음)이고 입력을 읽기만 해서 스레드에서 돌려도 된다. 이 구간엔 Debug.Log도 부르지 않는다
+            await Awaitable.BackgroundThreadAsync();
+            List<MatchResult> results = SeasonRunner.ComputeRound(state, opponents, schedule, presets, myResult);
+            await Awaitable.MainThreadAsync();
+
+            // 넣기는 메인 스레드에서 한 번에 한다. 헤드리스 경기 중 예외가 나면 여기까지 못 와서 반쪽 라운드가 생기지 않는다(09-27 리뷰 D3)
+            state.AddRound(results);
+            currentMatch = null;
+            SaveLoadSystem.Instance.Save();
+            Debug.Log($"[Season] {Tier.Tier}부 {State.RoundsPlayed}/{Tier.Matches} 라운드 완료" + (IsOver ? " → 시즌 종료" : string.Empty));
+        }
+        catch (Exception e)
+        {
+            // 백그라운드에서 던졌을 수 있으니 메인 스레드로 먼저 돌아온다. 그래서 finally도 메인 스레드에서 돈다
+            await Awaitable.MainThreadAsync();
+            Debug.LogError($"[Season] {Tier.Tier}부 라운드 {state.RoundsPlayed} 결과 처리 실패, 이 라운드는 기록되지 않았다: {e}");
+        }
+        finally
+        {
+            IsReporting = false;
+        }
     }
 
     // 로비가 경기 전에 부른다. 시즌이 끝났으면 다음 부에서 새 시즌(승격 연출은 09-28 결과 화면)

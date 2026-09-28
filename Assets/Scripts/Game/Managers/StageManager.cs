@@ -41,13 +41,12 @@ public class StageManager : InGameManager
         }
     }
 
-    // 시뮬 골(팀 0 = 나) → 일정의 홈·원정 기준 결과 → 시즌이 나머지 경기를 돌리고 저장한다
+    // 시뮬 골(팀 0 = 나) → 일정의 홈·원정 기준 결과 → 시즌이 나머지 경기를 돌리고 저장한다.
+    // 기다리지 않고 넘긴다: 나머지 경기는 백그라운드에서 돌고 오류·완료 로그는 SeasonSystem이 맡는다. 끝났는지는 결과 패널이 IsReporting으로 본다(09-28 G1)
     private void OnMatchEnded(int winnerTeam)
     {
         MatchSimulation sim = GameManager.Match.Simulation;
-        SeasonSystem season = GameDataManager.Instance.Season;
-        season.ReportMyResult(current.ResultFor(sim.HomeGoals, sim.AwayGoals));
-        Debug.Log($"[Stage] {DisplayName} 결과 저장. {season.Tier.Tier}부 {season.State.RoundsPlayed}/{season.Tier.Matches} 라운드 완료" + (season.IsOver ? " → 시즌 종료" : string.Empty));
+        _ = GameDataManager.Instance.Season.ReportMyResultAsync(current.ResultFor(sim.HomeGoals, sim.AwayGoals));
     }
 
     public override void Clear()
