@@ -39,7 +39,6 @@ namespace Game.Core.AI
         // ── 동료·상대·상대 GK(위치 스냅샷, 판정 함수 입력)
         IReadOnlyList<TargetInfo> Teammates { get; }   // 나 제외
         IReadOnlyList<TargetInfo> Opponents { get; }
-        int OpponentKeeperId { get; }                  // 없으면 -1
         int TeamKeeperId { get; }                      // 내 팀 GK. 자유 공 추격에서 GK를 최근접 경쟁에서 빼려고(09-23)
         bool KeeperAlternate { get; }                  // GK 배급 "섞어"의 교대 스위치(팀별, 시뮬이 GK 패스마다 뒤집음). 09-23 R2
         int LastPasserId { get; }                      // 방금 나에게 준 아군(패스로 받았을 때만, 아니면 -1). 되돌림 금지용(09-23)

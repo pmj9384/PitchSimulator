@@ -67,8 +67,8 @@ namespace Game.Core.AI
                     new ActionNode(ctx => MoveToDefendHome(ctx))),
 
                 // ── 자유 공 ──────────────────────────────────────────────
-                // ⑩ 가장 가까운 선수가 쫓는다. GK는 개인 출격 반경 안(박스 상한) 공만.
-                // 필드 플레이어는 GK를 뺀 최근접이면 쫓는다(09-23 리뷰 R3): 최근접이 출격 못 하는 GK면 아무도 안 쫓아 파링 공이 박스 밖에 멈추면 영구 정지였다
+                // ⑩ 팀마다 가장 가까운 1명이 쫓는다(09-28, Simple Soccer isClosestTeamMemberToBall). 22명 중 1명만 쫓으면 루즈볼을 양 팀이 다투지 않았다(20판 계측: 양 팀 동시 추격 1.8%).
+                // GK는 개인 출격 반경 안(박스 상한) 공만. 필드 플레이어는 우리 GK를 뺀 최근접이면 쫓는다(09-23 리뷰 R3): 최근접이 출격 못 하는 GK면 아무도 안 쫓아 파링 공이 박스 밖에 멈추면 영구 정지였다
                 new SequenceNode(
                     new ConditionNode(ctx => ctx.BallPhase != BallPhase.Owned && MayChaseFreeBall(ctx)),
                     new ActionNode(ctx => ChaseBall(ctx))),
@@ -261,29 +261,24 @@ namespace Game.Core.AI
             return PressRules.ShouldPress(dist, ctx.Stats.PressRange, ctx.Tactics.PressStart[Third(ctx)], ctx.IsCounterPressing);
         }
 
-        // GK: 전원 중 최근접이고 출격 가능할 때. 필드 플레이어: 양 팀 GK를 뺀 전원 중 최근접일 때
+        // GK: 우리 팀 전원 중 최근접이고 출격 가능할 때. 필드 플레이어: 우리 GK를 뺀 우리 팀 중 최근접일 때. 상대 팀은 보지 않는다(팀마다 1명)
         private static bool MayChaseFreeBall(IPlayerContext ctx)
         {
-            if (ctx.IsGoalkeeper) { return IsNearestToBall(ctx, excludeKeepers: false) && KeeperMayRush(ctx); }
-            return IsNearestToBall(ctx, excludeKeepers: true);
+            if (ctx.IsGoalkeeper) { return IsNearestInTeam(ctx, excludeKeeper: false) && KeeperMayRush(ctx); }
+            return IsNearestInTeam(ctx, excludeKeeper: true);
         }
 
-        private static bool IsNearestToBall(IPlayerContext ctx, bool excludeKeepers)
+        private static bool IsNearestInTeam(IPlayerContext ctx, bool excludeKeeper)
         {
-            List<TargetInfo> all = candidateBuffer ??= new List<TargetInfo>();
-            all.Clear();
-            all.Add(new TargetInfo(ctx.PlayerId, ctx.X, ctx.Z));
+            List<TargetInfo> team = candidateBuffer ??= new List<TargetInfo>();
+            team.Clear();
+            team.Add(new TargetInfo(ctx.PlayerId, ctx.X, ctx.Z));
             for (int i = 0; i < ctx.Teammates.Count; i++)
             {
-                if (excludeKeepers && ctx.Teammates[i].PlayerId == ctx.TeamKeeperId) { continue; }
-                all.Add(ctx.Teammates[i]);
+                if (excludeKeeper && ctx.Teammates[i].PlayerId == ctx.TeamKeeperId) { continue; }
+                team.Add(ctx.Teammates[i]);
             }
-            for (int i = 0; i < ctx.Opponents.Count; i++)
-            {
-                if (excludeKeepers && ctx.Opponents[i].PlayerId == ctx.OpponentKeeperId) { continue; }
-                all.Add(ctx.Opponents[i]);
-            }
-            return TargetSelector.SelectNearest(ctx.BallX, ctx.BallZ, all) == ctx.PlayerId;
+            return TargetSelector.SelectNearest(ctx.BallX, ctx.BallZ, team) == ctx.PlayerId;
         }
 
         private static bool KeeperMayRush(IPlayerContext ctx)

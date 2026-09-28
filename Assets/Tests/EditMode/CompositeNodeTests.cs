@@ -39,7 +39,6 @@ public class CompositeNodeTests
         public int PressRank => 0;
         public IReadOnlyList<TargetInfo> Teammates => System.Array.Empty<TargetInfo>();
         public IReadOnlyList<TargetInfo> Opponents => System.Array.Empty<TargetInfo>();
-        public int OpponentKeeperId => -1;
         public int TeamKeeperId => -1;
         public bool KeeperAlternate => false;
         public int LastPasserId => -1;

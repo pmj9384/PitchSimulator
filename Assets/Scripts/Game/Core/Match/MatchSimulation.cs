@@ -391,7 +391,6 @@ namespace Game.Core.Match
                 p.PressRank = PressRules.PressRank(p.PlayerId, pressEligible[p.Team], Ball.X, Ball.Z);
                 p.Teammates = TeammatesExcluding(p);
                 p.Opponents = rosterSnapshot[other];
-                p.OpponentKeeperId = keeperIds[other];
                 p.TeamKeeperId = keeperIds[p.Team];
                 p.KeeperAlternate = keeperAlternate[p.Team];
                 p.OpponentKeeper = keeperIds[other] == -1 ? null : FindPlayer(keeperIds[other]).Stats;

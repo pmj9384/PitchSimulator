@@ -31,7 +31,6 @@ public class PlayerTreeTests
         public int PressRank { get; set; }   // 기본 0 = 첫 압박자
         public IReadOnlyList<TargetInfo> Teammates { get; set; } = new List<TargetInfo>();
         public IReadOnlyList<TargetInfo> Opponents { get; set; } = new List<TargetInfo>();
-        public int OpponentKeeperId { get; set; } = -1;
         public int TeamKeeperId { get; set; } = -1;
         public bool KeeperAlternate { get; set; }
         public int LastPasserId { get; set; } = -1;
@@ -278,15 +277,20 @@ public class PlayerTreeTests
     }
 
     [Test]
-    public void 자유_공은_가장_가까운_선수만_쫓고_GK는_출격_반경_안만()
+    public void 자유_공은_팀마다_가장_가까운_선수가_쫓고_GK는_출격_반경_안만()
     {
         var near = new Fake { PlayerId = 9, BallPhase = BallPhase.Free, X = 2f, BallX = 0f, Opponents = new List<TargetInfo> { new TargetInfo(20, 8f, 0f) } };
         Tree.Tick(near);
         Assert.AreEqual(0f, near.MoveX, "공으로");
 
-        var far = new Fake { PlayerId = 20, Team = 1, BallPhase = BallPhase.Free, X = 8f, BallX = 0f, AttackHomeX = 8f, Opponents = new List<TargetInfo> { new TargetInfo(9, 2f, 0f) } };
+        // 09-28: 상대가 더 가까워도 우리 팀 최근접이면 쫓는다(루즈볼은 양 팀이 다툰다)
+        var rival = new Fake { PlayerId = 20, Team = 1, BallPhase = BallPhase.Free, X = 8f, BallX = 0f, AttackHomeX = 8f, Opponents = new List<TargetInfo> { new TargetInfo(9, 2f, 0f) } };
+        Tree.Tick(rival);
+        Assert.AreEqual(0f, rival.MoveX, 1e-4f, "상대 팀 최근접도 공으로");
+
+        var far = new Fake { PlayerId = 21, Team = 1, BallPhase = BallPhase.Free, X = 8f, BallX = 0f, AttackHomeX = 8f, Teammates = new List<TargetInfo> { new TargetInfo(20, 3f, 0f) } };
         Tree.Tick(far);
-        Assert.AreEqual(8f, far.MoveX, 1e-4f, "가장 가깝지 않으면 자리 유지");
+        Assert.AreEqual(8f, far.MoveX, 1e-4f, "같은 팀에 더 가까운 동료가 있으면 자리 유지");
 
         var gk = new Fake { PlayerId = 0, IsGoalkeeper = true, BallPhase = BallPhase.Free, X = -48f, BallX = 0f, AttackHomeX = -48f };
         Tree.Tick(gk);
