@@ -4,9 +4,7 @@ using UnityEngine;
 public class GameDataManager : PersistentMonoSingleton<GameDataManager>
 {
     public PlayerAccountData PlayerAccountData { get; private set; }
-
-    // TODO: 게임 특화 시스템 추가
-    // public MyGameSystem MySystem { get; private set; }
+    public SeasonSystem Season { get; private set; }   // 4부제 시즌(스펙 §10·§11, 09-27). 로비·인게임이 둘 다 여기서 읽는다
 
     public override void InitializeSingleton()
     {
@@ -16,7 +14,7 @@ public class GameDataManager : PersistentMonoSingleton<GameDataManager>
         PlayerAccountData = new();
         PlayerAccountData.Load(SaveLoadSystem.Instance.CurrentSaveData.playerAccountDataSave);
 
-        // TODO: 게임 특화 시스템 초기화
-        // MySystem = new(); MySystem.Load(...);
+        Season = new();
+        Season.Load(SaveLoadSystem.Instance.CurrentSaveData.seasonSave);
     }
 }

@@ -30,7 +30,10 @@ public class GameUIManager : InGameManager
             ShowUIElement(UIElementEnums.GameOverPanel);
         });
 
-        // 게임별 UI 연결 추가
+        GameManager.AddGameStateEnterAction(GameManager.GameState.GameReady, () =>
+        {
+            ShowUIElement(UIElementEnums.MatchHud);   // 판이 차려질 때부터 보인다. 결과 국면에서도 그대로(결과 화면이 위에 덮는다)
+        });
     }
 
     public void InitializedUIElements()

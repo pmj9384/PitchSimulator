@@ -12,7 +12,7 @@ using NUnit.Framework;
 public class StallGuardTests
 {
     private const int Seeds = 20;
-    private const int Ticks = 9000;
+    private const int Ticks = MatchTuning.MatchTicks;
 
     [Test]
     public void 시드_20개_3분에_교착_5종이_없다()

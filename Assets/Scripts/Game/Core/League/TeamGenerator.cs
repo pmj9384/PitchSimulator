@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using Game.Core.Data;
+using Game.Core.Match;
 
 namespace Game.Core.League
 {
@@ -48,25 +49,6 @@ namespace Game.Core.League
                 slots.Add(new LineupSlot(Players[i], r.PosX * sign, r.PosZ, r.DefendX * sign, r.DefendZ));
             }
             return slots;
-        }
-    }
-
-    // 경기 조립 단위: 선수 1명 + 자리 2쌍. 편성 행(StageEntry)과 생성 팀·내 로스터가 모두 이걸로 떨어져 MatchAssembler가 하나의 경로만 가진다
-    public readonly struct LineupSlot
-    {
-        public readonly PlayerStats Stats;
-        public readonly float AttackX;
-        public readonly float AttackZ;
-        public readonly float DefendX;
-        public readonly float DefendZ;
-
-        public LineupSlot(PlayerStats stats, float attackX, float attackZ, float defendX, float defendZ)
-        {
-            Stats = stats;
-            AttackX = attackX;
-            AttackZ = attackZ;
-            DefendX = defendX;
-            DefendZ = defendZ;
         }
     }
 

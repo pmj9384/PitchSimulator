@@ -63,6 +63,14 @@ namespace Game.Core.Match
 
         public event Action<ShotReport>? ShotResolved;
         public event Action<PossessionReport>? PossessionChanged;
+
+        public int TickCount => tickCount;                                   // 첫 Tick부터 센 수. 하프타임·HUD 시계의 기준(MatchManager.Ticks와 같은 값)
+        public bool IsSecondHalf => tickCount >= MatchClock.HalfTimeTick(Added);
+        public AddedTime Added { get; private set; } = AddedTime.None;         // 표시 추가시간(하프타임 틱을 정한다). 조립기·매니저가 시드에서 같은 값을 넣는다
+        public bool SidesSwitched => sidesSwitched;
+        private int tickCount;
+        private bool sidesSwitched;
+        private int firstKickoffTeam = -1;                                    // 전반 킥오프 팀. 후반은 상대가 찬다. KickoffBy를 안 쓴 경기(리트머스)는 하프타임 없음
         public int TurnoverCount { get; private set; }
         public int TackleAttemptCount { get; private set; }
         public int TackleSuccessCount { get; private set; }
@@ -144,7 +152,7 @@ namespace Game.Core.Match
         // 팀 기준 공이 있는 서드·역습 여부. 결과 화면·테스트가 읽는다
         public Third BallThirdOf(int team)
         {
-            return PositionRules.ThirdOf(Ball.X, team == 0 ? +1 : -1);
+            return PositionRules.ThirdOf(Ball.X, AttackSignOf(team));
         }
 
         public bool IsCountering(int team)
@@ -154,7 +162,7 @@ namespace Game.Core.Match
             int threshold = tactics[team].CounterThreshold;
             if (threshold < 0) { return false; }
 
-            int sign = team == 0 ? +1 : -1;
+            int sign = AttackSignOf(team);
             int ahead = PositionRules.CountDefendersAhead(Ball.X, rosterSnapshot[1 - team], sign, keeperIds[1 - team]);
             return ahead <= threshold;
         }
@@ -163,7 +171,7 @@ namespace Game.Core.Match
         {
             if (turnoverLoserTeam != team) { return false; }
 
-            int sign = team == 0 ? +1 : -1;
+            int sign = AttackSignOf(team);
             // 뺏긴 순간 우리 골 쪽에 남은 우리 수비 수 = 공보다 우리 골 쪽에 있는 우리 필드 플레이어(GK 제외)
             int behind = PositionRules.CountDefendersAhead(Ball.X, rosterSnapshot[team], -sign, keeperIds[team]);
             return PressRules.IsCounterPressing(behind, tactics[team].CounterPress, ticksSinceTurnover);
@@ -204,8 +212,26 @@ namespace Game.Core.Match
         // 킥오프를 하는 팀(09-23): 중앙 리셋 뒤 그 팀에서 중앙에 가장 가까운 필드 플레이어가 공을 갖는다. 실제 규칙(시작은 동전, 골 뒤엔
         // 실점 팀)과 같다. 자유 공 경합으로 두면 양 팀 ST가 등거리라 PlayerId 타이브레이크가 매 킥오프를 한 팀에 줬고(먼저 스폰된 팀이
         // 미러 세팅에서 75% 승·상대 0%), 스폰 순서를 뒤집으면 결과가 거울로 뒤집혔다. Kickoff()(자유 공)는 리트머스·테스트용으로 남긴다
+        public void SetAddedTime(AddedTime added)
+        {
+            Added = added;
+        }
+
+        // 방향의 유일한 출처(09-27, 리뷰 S2). 팀 번호로 부호를 추측하는 코드를 새로 만들지 않는다
+        public int AttackSignOf(int team)
+        {
+            int baseSign = team == 0 ? +1 : -1;
+            return sidesSwitched ? -baseSign : baseSign;
+        }
+
+        public int TeamOfSign(int attackSign)
+        {
+            return attackSign == AttackSignOf(0) ? 0 : 1;
+        }
+
         public void KickoffBy(int team)
         {
+            if (firstKickoffTeam < 0) { firstKickoffTeam = team; }
             Kickoff();
             int best = BallState.NoOwner;
             float bestD2 = float.MaxValue;
@@ -250,6 +276,16 @@ namespace Game.Core.Match
         // 고정 스텝 한 틱. 순서가 곧 규칙이다: 공 이동 → 라인 아웃 → 잡기/소유 → 슛 결과 → 선수 판단 → 선수 실행(PlayerId 순)
         public void Tick(float deltaTime)
         {
+            tickCount++;
+            if (tickCount == MatchClock.HalfTimeTick(Added) && firstKickoffTeam >= 0)
+            {
+                // 하프타임(IFAB 8조, 09-27): 진영 교체 + 중앙 리셋 + 전반 킥오프를 안 한 팀이 킥오프. 난수를 안 써 결정성 그대로.
+                // 러너·시즌·인게임이 같은 Tick을 타므로 같은 시드 = 같은 경기
+                for (int i = 0; i < players.Count; i++) { players[i].SwitchSides(); }
+                sidesSwitched = true;
+                KickoffBy(1 - firstKickoffTeam);
+            }
+
             Ball = BallRules.Step(Ball, deltaTime, MatchTuning.BallDeceleration);
 
             // 골라인에 못 미치고 감속으로 멈춘 슛(정지 거리 78m 밖에서 쏜 경우). 빗나감으로 마감해야 옛 슛 표시가 남지 않는다
@@ -531,9 +567,10 @@ namespace Game.Core.Match
 
             if (shotWillScore)
             {
-                if (shooterAttackSign > 0) { HomeGoals++; } else { AwayGoals++; }
+                int scorerTeam = TeamOfSign(shooterAttackSign);
+                if (scorerTeam == 0) { HomeGoals++; } else { AwayGoals++; }
                 Finish(ShotOutcome.Goal);
-                if (ResetAfterEveryShot) { Kickoff(); } else { KickoffBy(shooterAttackSign > 0 ? 1 : 0); }   // 실점한 팀이 킥오프
+                if (ResetAfterEveryShot) { Kickoff(); } else { KickoffBy(1 - scorerTeam); }   // 실점한 팀이 킥오프
                 return true;
             }
 
@@ -545,7 +582,7 @@ namespace Game.Core.Match
         // 골이 아닌 슛이 GK 반경에 닿으면 세이브: 캐치(GK 소유) 또는 튕김(앞으로 자유 공)
         private bool ResolveSaveOnContact()
         {
-            PlayerState? keeper = FindGoalkeeper(shooterAttackSign > 0 ? 1 : 0);
+            PlayerState? keeper = FindGoalkeeper(1 - TeamOfSign(shooterAttackSign));
             if (keeper == null) { return false; }
 
             float dx = keeper.X - Ball.X;
@@ -576,7 +613,7 @@ namespace Game.Core.Match
         // 상대 팀이 공을 가질 기회가 없었다. GK가 없는 시뮬(리트머스·일부 테스트)과 ResetAfterEveryShot은 예전처럼 킥오프
         private void RestartAfterMiss()
         {
-            PlayerState? keeper = ResetAfterEveryShot ? null : FindGoalkeeper(shooterAttackSign > 0 ? 1 : 0);
+            PlayerState? keeper = ResetAfterEveryShot ? null : FindGoalkeeper(1 - TeamOfSign(shooterAttackSign));
             if (keeper == null) { Kickoff(); return; }
             Ball = BallRules.Own(Ball, keeper.PlayerId, keeper.X, keeper.Z);
             // 골킥 때 상대는 박스 밖(규칙 16조). 09-23 Play: 빗나감 → GK 소유 → 붙은 ST가 배급을 릴리스 지점에서 가로채 7m 슛, 4회 만에 골

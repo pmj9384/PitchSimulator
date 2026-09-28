@@ -65,8 +65,8 @@ namespace Game.Core.AutoMatch
             {
                 sim.Tick(deltaTime);
                 int owner = sim.OwnerTeam();
-                if (owner == 0) { homeOwned++; if (sim.Ball.X >= MatchTuning.ThirdBoundary) { homeOppThird++; } }
-                else if (owner == 1) { awayOwned++; if (sim.Ball.X <= -MatchTuning.ThirdBoundary) { awayOppThird++; } }
+                if (owner == 0) { homeOwned++; if (sim.Ball.X * sim.AttackSignOf(0) >= MatchTuning.ThirdBoundary) { homeOppThird++; } }   // 후반 진영 교체 뒤에도 "상대 서드"가 맞도록 부호를 시뮬에서(09-27)
+                else if (owner == 1) { awayOwned++; if (sim.Ball.X * sim.AttackSignOf(1) >= MatchTuning.ThirdBoundary) { awayOppThird++; } }
                 if (owner != -1)
                 {
                     if (System.Math.Abs(sim.Ball.Z) >= MatchTuning.WideZoneZ) { wideOwned++; }
