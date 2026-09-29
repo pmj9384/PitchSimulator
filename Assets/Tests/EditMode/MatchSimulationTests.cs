@@ -431,4 +431,51 @@ public class MatchSimulationTests
         Assert.AreEqual(1, pass.PassCount);
         Assert.IsFalse(passer.WantsTakeOn, "패스하면 돌파 의도가 풀린다");
     }
+
+    [Test]
+    public void 공이_박스_앞에_오면_압박_거리_밖이어도_가장_가까운_센터백이_압박_1순위가_된다()
+    {
+        // 09-29 수비 D1. 팀 0 CB(압박 거리 6m)가 공에서 9m. 공은 팀 0 골라인에서 18m(전진 구역 안), 팀 1이 소유
+        PlayerStats cb = Keeper(); cb.RoleId = "CB"; cb.VariantId = "cb_test"; cb.PressRange = 6f;
+        PlayerStats other = Keeper(); other.RoleId = "CB"; other.VariantId = "cb_test"; other.PressRange = 6f;
+        var sim = new MatchSimulation(() => 0.99f, new PassFlightTestsHelper.NoOp());
+        PlayerState near = sim.AddPlayer(new PlayerState(0, 0, cb, -43.5f, 0f));
+        PlayerState far = sim.AddPlayer(new PlayerState(1, 0, other, -45f, 15f));
+        sim.AddPlayer(new PlayerState(2, 1, Striker(), -34.5f, 0f));
+        sim.Kickoff();
+        sim.Ball = BallRules.Own(sim.Ball, 2, -34.5f, 0f);
+        sim.Tick(Dt);
+        Assert.AreEqual(0, near.PressRank, "가장 가까운 CB가 전진");
+        Assert.AreEqual(int.MaxValue, far.PressRank, "다른 CB는 후보가 아니다(압박 거리 밖)");
+
+        var outside = new MatchSimulation(() => 0.99f, new PassFlightTestsHelper.NoOp());
+        PlayerState cbOut = outside.AddPlayer(new PlayerState(0, 0, cb, -30f, 0f));
+        outside.AddPlayer(new PlayerState(2, 1, Striker(), -21f, 0f));
+        outside.Kickoff();
+        outside.Ball = BallRules.Own(outside.Ball, 2, -21f, 0f);
+        outside.Tick(Dt);
+        Assert.AreEqual(int.MaxValue, cbOut.PressRank, "골라인에서 31.5m면 전진 구역 밖이라 9m 떨어진 CB는 후보가 아니다");
+    }
+
+    [Test]
+    public void 막힌_슛은_자유_공이_되고_슈터가_바로_되잡지_못한다()
+    {
+        // 09-29 수비 D3 + 리뷰 🔴: 슈터 (40,0), 수비수 1.5m 정면. 주사위 0 = 골 판정 성공이어도 블록(0 < 0.3)이 먼저
+        var sim = new MatchSimulation(() => 0f, new PassFlightTestsHelper.ShootOnce());
+        sim.AddPlayer(new PlayerState(0, 0, Striker(), 40f, 0f));
+        sim.AddPlayer(new PlayerState(1, 1, Keeper(), 50f, 0f));
+        PlayerStats cb = Keeper(); cb.RoleId = "CB"; cb.VariantId = "cb_test";
+        sim.AddPlayer(new PlayerState(2, 1, cb, 41.5f, -0.3f));   // 주사위 0이면 조준이 -Z 쪽(약 -12.6°)이라 그 쪽에 선다
+        sim.Kickoff();
+        sim.Ball = BallRules.Own(sim.Ball, 0, 40f, 0f);
+        var outcomes = new List<ShotOutcome>();
+        sim.ShotResolved += r => outcomes.Add(r.Outcome);
+        sim.Tick(Dt);
+        Assert.AreEqual(1, outcomes.Count);
+        Assert.AreEqual(ShotOutcome.Blocked, outcomes[0]);
+        Assert.AreEqual(0, sim.HomeGoals);
+        Assert.AreEqual(BallPhase.Flight, sim.Ball.Phase, "튕긴 공은 누구 것도 아닌 비행");
+        sim.Tick(Dt);
+        Assert.AreNotEqual(0, sim.Ball.OwnerId, "슈터는 바로 못 잡는다");
+    }
 }

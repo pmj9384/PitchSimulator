@@ -66,10 +66,11 @@ namespace Game.Core.AI
                     new ActionNode(ctx => MoveToAttackHome(ctx))),
 
                 // ── 상대 소유 ────────────────────────────────────────────
-                // ⑧ 압박: 팀 압박 시작[상대 공 서드] × 개인 압박 거리(역압박 중 배율 ↑) 안이면서 팀 안 공 거리 순위가 상한 안이면 공으로.
-                // 순위(PressRank)는 시뮬이 같은 판정으로 팀 전체를 세어 넣는다. 나머지는 ⑨ 수비 자리(슬라이드가 블록을 좁힌다)(09-23 뭉침)
+                // ⑧ 압박: 팀 안 압박 순위가 상한 안이면 공으로. 누가 후보인지(팀 압박 시작[상대 공 서드] × 개인 압박 거리, 역압박 배율, 박스 앞 CB 전진)는
+                // 시뮬이 한 곳에서 정해 순위(PressRank)로 준다(09-29: 트리가 거리를 다시 재면 시뮬이 넣은 CB를 도로 걸러 판정과 실행이 갈렸다).
+                // 나머지는 ⑨ 수비 자리(슬라이드가 블록을 좁힌다)(09-23 뭉침)
                 new SequenceNode(
-                    new ConditionNode(ctx => ctx.BallOwnerTeam == 1 - ctx.Team && ShouldPress(ctx) && ctx.PressRank < MatchTuning.MaxPressers),
+                    new ConditionNode(ctx => ctx.BallOwnerTeam == 1 - ctx.Team && ctx.PressRank < MatchTuning.MaxPressers),
                     new ActionNode(ctx => ChaseBall(ctx))),
 
                 // ⑨ 아니면 수비 시 자리(+ 라인 높이)로
@@ -119,7 +120,9 @@ namespace Game.Core.AI
         {
             int reflexes = ctx.OpponentKeeper != null ? ctx.OpponentKeeper.Reflexes : 50;
             int diving = ctx.OpponentKeeper != null ? ctx.OpponentKeeper.Diving : 50;
-            return MatchRules.ShotProbability(ctx.X, ctx.Z, ctx.AttackSign, ctx.Stats.Shot, reflexes, diving);
+            float chance = MatchRules.ShotProbability(ctx.X, ctx.Z, ctx.AttackSign, ctx.Stats.Shot, reflexes, diving);
+            if (!IsPressed(ctx)) { return chance; }
+            return MatchRules.UnderPressure(chance, MatchTuning.ShotPressureLogit);   // 시뮬 Shoot과 같은 식(09-29 D3)
         }
 
         private static int Third(IPlayerContext ctx)
@@ -281,15 +284,6 @@ namespace Game.Core.AI
             (float x, float z) home = PositionRules.DefendHome(ctx.DefendHomeX, ctx.DefendHomeZ, ctx.AttackSign, ctx.Stats.LineHeight);
             (float x, float z) slid = PositionRules.SlideTowardBall(home.x, home.z, ctx.BallX, ctx.BallZ, defending: true, ctx.IsGoalkeeper);
             ctx.MoveToward(slid.x, slid.z);
-        }
-
-        private static bool ShouldPress(IPlayerContext ctx)
-        {
-            float dx = ctx.BallX - ctx.X;
-            float dz = ctx.BallZ - ctx.Z;
-            float dist = (float)Math.Sqrt(dx * dx + dz * dz);
-            // 상대 공이 있는 서드 = 내 팀 기준 서드 그대로(공 위치는 하나). 압박 시작 열은 "상대 공이 어디 있나"로 읽는다
-            return PressRules.ShouldPress(dist, ctx.Stats.PressRange, ctx.Tactics.PressStart[Third(ctx)], ctx.IsCounterPressing);
         }
 
         // GK: 우리 팀 전원 중 최근접이고 출격 가능할 때. 필드 플레이어: 시뮬이 정한 우리 팀 추격자일 때(팀별 최근접 + 히스테리시스, 09-28 F1b). 상대 팀은 보지 않는다(팀마다 1명)

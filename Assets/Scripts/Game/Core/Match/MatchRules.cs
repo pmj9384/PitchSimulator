@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Game.Core.Placement;
 
 namespace Game.Core.Match
@@ -61,6 +62,59 @@ namespace Game.Core.Match
         {
             float logit = (tackle - 50) / 50f * MatchTuning.StatLogitScale;
             return MatchTuning.TackleBaseChance * Logistic(logit);
+        }
+
+        // 압박받는 슛(09-29 수비 D3): 슈터 발 뻗는 범위(PressedRadius) 안에 상대가 있으면 로짓에서 penalty를 뺀다.
+        // StatsBomb "Closing down": 슛의 약 65%가 압박 속에서 나오고 무압박 슛이 더 잘 들어간다. 슛 경로 수비수 예시 xG 0.25 → 0.18은 로짓 약 -0.4
+        public static float UnderPressure(float probability, float logitPenalty)
+        {
+            if (probability <= 0f) { return 0f; }
+            float p = Math.Min(probability, 0.9999f);
+            float logit = (float)Math.Log(p / (1f - p));
+            return Logistic(logit - logitPenalty);
+        }
+
+        // 슛 블록 후보(09-29 수비 D3): 슈터에서 range 안이고 슛 방향 ±coneDeg 안인 상대 필드 선수 중 가장 가까운 선수. 없으면 -1.
+        // Opta는 슛을 막은 최종 수비수를 블록으로 센다. 각도 ±20°는 Wharton xG 논문의 각도 압박 기준
+        public static int ShotBlocker(float shooterX, float shooterZ, float aimX, float aimZ, IReadOnlyList<TargetInfo> opponents, int keeperId, float range, float coneDeg)
+        {
+            float ax = aimX - shooterX;
+            float az = aimZ - shooterZ;
+            float aimLen = (float)Math.Sqrt(ax * ax + az * az);
+            if (aimLen <= 0f) { return -1; }
+
+            float cosLimit = (float)Math.Cos(coneDeg * Math.PI / 180.0);
+            int best = -1;
+            float bestD2 = range * range;
+            for (int i = 0; i < opponents.Count; i++)
+            {
+                TargetInfo o = opponents[i];
+                if (o.PlayerId == keeperId) { continue; }
+                float ox = o.X - shooterX;
+                float oz = o.Z - shooterZ;
+                float d2 = ox * ox + oz * oz;
+                if (d2 > bestD2 || d2 <= 0f) { continue; }
+                float cos = (ox * ax + oz * az) / ((float)Math.Sqrt(d2) * aimLen);
+                if (cos < cosLimit) { continue; }
+                bestD2 = d2;
+                best = o.PlayerId;
+            }
+            return best;
+        }
+
+        // 막힌 공이 튕기는 방향(단위 벡터): 슛 반대 방향을 turnDeg만큼 비튼다. 블로커가 슛 라인의 왼쪽이면 왼쪽으로, 오른쪽이면 오른쪽으로(결정적)
+        public static (float x, float z) BlockReboundDirection(float shooterX, float shooterZ, float aimX, float aimZ, float blockerX, float blockerZ, float turnDeg)
+        {
+            float ax = aimX - shooterX;
+            float az = aimZ - shooterZ;
+            float len = (float)Math.Sqrt(ax * ax + az * az);
+            float bx = -ax / len;
+            float bz = -az / len;
+            float side = ax * (blockerZ - shooterZ) - az * (blockerX - shooterX) >= 0f ? 1f : -1f;   // 슛 방향 기준 블로커가 어느 쪽인가(외적 부호)
+            double rad = turnDeg * Math.PI / 180.0 * side;
+            float cos = (float)Math.Cos(rad);
+            float sin = (float)Math.Sin(rad);
+            return (bx * cos - bz * sin, bx * sin + bz * cos);
         }
 
         public static float Logistic(float logit)
