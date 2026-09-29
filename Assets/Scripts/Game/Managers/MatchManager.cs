@@ -43,6 +43,9 @@ public class MatchManager : InGameManager
     // 시드·전술·킥오프 팀은 시즌의 이번 경기(MatchSetup)에서(09-27). 같은 시즌·라운드·같은 세팅이면 같은 경기가 재현된다("막히면 재세팅")
     private void ResetMatch()
     {
+        // 입구가 어디든(로비·에디터에서 InGameScene 직접 Play) 끝난 시즌이면 여기서 다음 시즌을 연다. 안 끝났으면 아무 일도 안 한다(09-29 발견 A).
+        // GameReady 훅은 Match가 Stage보다 먼저라(GameManager 등록 순서) StageManager.Load도 새 시즌을 읽는다
+        GameDataManager.Instance.Season.PrepareNextMatch();
         MatchSetup setup = GameDataManager.Instance.Season.CurrentMatch;
         Ticks = 0;
         holdTicksLeft = 0;

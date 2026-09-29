@@ -3107,10 +3107,10 @@ RectTransform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
+  - {fileID: 1555133648}
   - {fileID: 1752172375}
   - {fileID: 365731274}
   - {fileID: 1560554757}
-  - {fileID: 1555133648}
   m_Father: {fileID: 688126088}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
@@ -4032,6 +4032,7 @@ MonoBehaviour:
   clockText: {fileID: 1797992762}
   pauseButton: {fileID: 951676838}
   captionText: {fileID: 1991715665}
+  goalCaptionSec: 2
 --- !u!1001 &1560554756
 PrefabInstance:
   m_ObjectHideFlags: 0

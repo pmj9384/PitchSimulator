@@ -37,7 +37,7 @@ public class GameUIManager : InGameManager
 
         GameManager.AddGameStateEnterAction(GameManager.GameState.GameReady, () =>
         {
-            ShowUIElement(UIElementEnums.MatchHud);   // 판이 차려질 때부터 보인다. 결과 국면에서도 그대로(결과 화면이 위에 덮는다)
+            ShowUIElement(UIElementEnums.MatchHud);   // 판이 차려질 때부터 보인다. 휘슬 뒤 결과 화면이 뜰 때까지 경기 종료 자막을 보여 주고 그때 꺼진다
         });
     }
 
@@ -61,12 +61,14 @@ public class GameUIManager : InGameManager
 
     private void ShowResultPanelDelayed()
     {
-        StartCoroutine(ShowDelayed(UIElementEnums.ResultPanel, resultPanelWait));
+        StartCoroutine(ShowResultPanelAfterWait());
     }
 
-    private IEnumerator ShowDelayed(UIElementEnums type, WaitForSeconds wait)
+    private IEnumerator ShowResultPanelAfterWait()
     {
-        yield return wait;
-        ShowUIElement(type);
+        yield return resultPanelWait;
+        // 결과 화면이 스코어를 다시 보여 주므로 HUD는 끈다. 배경이 반투명(알파 0.75)이라 HUD를 뒤로 보내도 글자가 비쳐 겹쳐 보였다(09-29 유저 Play)
+        HideUIElement(UIElementEnums.MatchHud);
+        ShowUIElement(UIElementEnums.ResultPanel);
     }
 }
