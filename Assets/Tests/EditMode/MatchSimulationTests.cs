@@ -319,4 +319,32 @@ public class MatchSimulationTests
         Assert.AreEqual(BallPhase.Free, sim.Ball.Phase);
         Assert.AreEqual(FieldBounds.HalfWidth - MatchTuning.ThrowInInset, sim.Ball.Z, 1e-4f, "스로인 자리");
     }
+
+    [Test]
+    public void 킥오프는_키커가_센터_마크에_서고_상대는_센터서클_밖이며_첫_패스는_옆_뒤_동료에게_간다()
+    {
+        // IFAB 8조(09-29). 팀1 ST는 1-톱 편성처럼 서클 안(6m)에 서 있다가 밖으로 밀려나야 한다
+        var sim = new MatchSimulation(() => 0.99f, PlayerTreeBuilder.Build());
+        sim.AddPlayer(new PlayerState(0, 0, Keeper(), -48f, 0f));
+        PlayerState st1 = sim.AddPlayer(new PlayerState(1, 0, Striker(), -8f, -6f));
+        PlayerState st2 = sim.AddPlayer(new PlayerState(2, 0, Striker(), -8f, 6f));
+        sim.AddPlayer(new PlayerState(3, 1, Keeper(), 48f, 0f));
+        PlayerState opp = sim.AddPlayer(new PlayerState(4, 1, Striker(), 6f, 0f));
+
+        sim.KickoffBy(0);
+        Assert.AreEqual(BallPhase.Owned, sim.Ball.Phase);
+        Assert.AreEqual(1, sim.Ball.OwnerId, "등거리면 PlayerId 작은 ST");
+        Assert.AreEqual(0f, sim.Ball.X, 1e-4f, "공은 센터 마크");
+        Assert.AreEqual(0f, sim.Ball.Z, 1e-4f);
+        Assert.AreEqual(0f, st1.X, 1e-4f, "키커가 공 위에 선다");
+        float oppDist = (float)System.Math.Sqrt(opp.X * opp.X + opp.Z * opp.Z);
+        Assert.GreaterOrEqual(oppDist, FieldBounds.CenterCircleRadius - 1e-4f, "상대는 9.15m 밖");
+        Assert.Greater(opp.X, 0f, "상대는 자기 진영");
+
+        for (int i = 0; i < 100 && sim.PassCount == 0; i++) { sim.Tick(Dt); }
+        Assert.AreEqual(1, sim.PassCount, "첫 행동은 패스");
+        sim.Tick(Dt);
+        Assert.IsTrue(st2.IsPassTarget, "옆·뒤 동료(ST2)에게");
+        Assert.IsFalse(st1.IsKickoffTaker, "첫 킥 뒤엔 키커 표시가 풀린다");
+    }
 }

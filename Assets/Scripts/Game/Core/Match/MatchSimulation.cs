@@ -126,6 +126,7 @@ namespace Game.Core.Match
         // 찬 선수 가드(09-18, 09-21 재확인): 비행 중엔 소유 팀이 없어 자유 공 분기로 패서가 자기 공을 쫓는다.
         // 릴리스만 있으면 3틱째(공 0.9m, 패서 0.42m 따라옴)에 도로 잡아 0.15초마다 반복됐다. 공이 패서 반경을 벗어날 때까지 패서는 후보에서 뺀다
         private int lastKickerId = BallState.NoOwner;
+        private int kickoffTakerId = BallState.NoOwner;   // 킥오프 공을 쥔 키커(09-29). 첫 킥이나 소유 변경 때 푼다. 스냅샷 IsKickoffTaker로 트리에 준다
         public int PassCount { get; private set; }
         public int InterceptCount { get; private set; }
 
@@ -271,8 +272,35 @@ namespace Game.Core.Match
                 if (d2 < bestD2) { bestD2 = d2; best = p.PlayerId; }
             }
             if (best == BallState.NoOwner) { return; }   // 그 팀 필드 플레이어가 없으면 자유 공
+
+            // IFAB 8조(09-29): 공은 센터 마크, 키커가 그 위에 서고 상대는 공에서 9.15m(센터서클) 밖. 전엔 공을 키커 자리(ST, 중앙에서 약 10m)로
+            // 옮겨 줘서 센터 킥 없이 그 자리에서 바로 공격이 시작됐다. 모든 선수가 자기 진영에 있는 건 편성 posX(전부 −6 이하)가 이미 지킨다
             PlayerState kicker = FindPlayer(best);
-            Ball = BallRules.Own(Ball, best, kicker.X, kicker.Z);
+            kicker.X = 0f;
+            kicker.Z = 0f;
+            Ball = BallRules.Own(Ball, best, 0f, 0f);
+            kickoffTakerId = best;
+            PushOutOfCenterCircle(1 - team);
+        }
+
+        // 수비 팀 선수를 센터서클 밖으로(자기 진영 쪽). 1-톱 포메이션의 ST(posX −6)가 서클 안에 서는 경우
+        private void PushOutOfCenterCircle(int team)
+        {
+            float r = FieldBounds.CenterCircleRadius;
+            for (int i = 0; i < players.Count; i++)
+            {
+                PlayerState p = players[i];
+                if (p.Team != team) { continue; }
+                float d = (float)Math.Sqrt(p.X * p.X + p.Z * p.Z);
+                if (d >= r) { continue; }
+                if (d <= 0f)
+                {
+                    p.X = -r * AttackSignOf(team);
+                    continue;
+                }
+                p.X = p.X / d * r;
+                p.Z = p.Z / d * r;
+            }
         }
 
         public void Kickoff()
@@ -289,6 +317,7 @@ namespace Game.Core.Match
             immunityTicksLeft = 0;
             passReleased = true;
             lastKickerId = BallState.NoOwner;
+            kickoffTakerId = BallState.NoOwner;
             pressLeader[0] = pressLeader[1] = -1;
             looseChaser[0] = looseChaser[1] = -1;
             for (int i = 0; i < players.Count; i++)
@@ -421,6 +450,7 @@ namespace Game.Core.Match
                 p.IsCounterPressing = counterPressingByTeam[p.Team];
                 p.PressRank = PressRules.PressRank(p.PlayerId, pressEligible[p.Team], Ball.X, Ball.Z, pressLeader[p.Team], MatchTuning.ChaserSwitchMargin);
                 p.IsLooseBallChaser = looseChaser[p.Team] == p.PlayerId;
+                p.IsKickoffTaker = kickoffTakerId == p.PlayerId;
                 p.Teammates = TeammatesExcluding(p);
                 p.Opponents = rosterSnapshot[other];
                 p.KeeperAlternate = keeperAlternate[p.Team];
@@ -553,6 +583,7 @@ namespace Game.Core.Match
             kickOriginZ = Ball.Z;
             passReleased = false;
             lastKickerId = passer.PlayerId;
+            kickoffTakerId = BallState.NoOwner;   // 킥오프는 첫 킥으로 끝난다
 
             Ball = BallRules.Kick(Ball, target.x - passer.X, target.z - passer.Z, speed);
         }
@@ -566,6 +597,7 @@ namespace Game.Core.Match
             ballOwnerAtLastTick = ownerNow;
 
             if (ownerNow == BallState.NoOwner) { return; }
+            if (ownerNow != kickoffTakerId) { kickoffTakerId = BallState.NoOwner; }   // 키커가 아닌 선수가 공을 가지면 킥오프는 끝났다
 
             PlayerState owner = FindPlayer(ownerNow);
             PossessionChange kind = PossessionChange.Capture;

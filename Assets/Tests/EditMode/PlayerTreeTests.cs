@@ -32,6 +32,7 @@ public class PlayerTreeTests
         public IReadOnlyList<TargetInfo> Teammates { get; set; } = new List<TargetInfo>();
         public IReadOnlyList<TargetInfo> Opponents { get; set; } = new List<TargetInfo>();
         public bool IsLooseBallChaser { get; set; }
+        public bool IsKickoffTaker { get; set; }
         public bool KeeperAlternate { get; set; }
         public int LastPasserId { get; set; } = -1;
         public PlayerStats OpponentKeeper { get; set; } = null;
@@ -291,5 +292,16 @@ public class PlayerTreeTests
         var gk = new Fake { PlayerId = 0, IsGoalkeeper = true, BallPhase = BallPhase.Free, X = -48f, BallX = 0f, AttackHomeX = -48f };
         Tree.Tick(gk);
         Assert.AreEqual(-48f, gk.MoveX, 1e-4f, "GK는 반경 밖 공은 안 쫓음");
+    }
+
+    [Test]
+    public void 킥오프_키커는_앞선_동료가_있어도_옆_뒤_가장_가까운_동료에게_내준다()
+    {
+        // 09-29 유저 Play: 킥오프가 센터 킥 없이 바로 시작됐다. 키커 표시(시뮬이 정함)가 있으면 슛·드리블보다 먼저 옆·뒤로 짧게
+        var kicker = new Fake { PlayerId = 9, OwnsBall = true, BallPhase = BallPhase.Owned, BallOwnerTeam = 0, X = 0f, Z = 0f, IsKickoffTaker = true,
+            Teammates = new List<TargetInfo> { new TargetInfo(10, 5f, 1f), new TargetInfo(7, -8f, 6f), new TargetInfo(6, -20f, 0f) } };
+        Tree.Tick(kicker);
+        Assert.AreEqual("pass", kicker.Did);
+        Assert.AreEqual(7, kicker.PassedTo, "앞선 10번(5m)이 더 가까워도 뒤의 7번(10m)");
     }
 }

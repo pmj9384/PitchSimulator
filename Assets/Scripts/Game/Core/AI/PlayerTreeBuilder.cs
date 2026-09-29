@@ -23,6 +23,11 @@ namespace Game.Core.AI
                     new ConditionNode(ctx => ctx.OwnsBall && ctx.IsGoalkeeper),
                     new ActionNode(ctx => PassTo(ctx, KeeperTarget(ctx)))),
 
+                // ①b 킥오프 키커는 첫 행동으로 옆·뒤 동료에게 내준다(09-29, IFAB 8조 + 실제 킥오프 관행). 슛·드리블보다 먼저
+                new SequenceNode(
+                    new ConditionNode(ctx => ctx.OwnsBall && ctx.IsKickoffTaker),
+                    new ActionNode(ctx => PassTo(ctx, PassRules.KickoffReceiver(ctx.X, ctx.Z, ctx.Teammates, ctx.AttackSign)))),
+
                 // ② 슛 확률(진짜 상대 GK 스탯) ≥ 슛 성향 → 슛
                 new SequenceNode(
                     new ConditionNode(ctx => ctx.OwnsBall && WantsShot(ctx)),

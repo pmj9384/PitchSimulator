@@ -12,6 +12,7 @@ namespace Game.Core.Placement
         public const float GoalHalfWidth = 3.66f;         // 골대 폭 7.32m의 절반. xG 각도 계산의 두 포스트
         public const float PenaltyBoxDepth = 16.5f;       // 골라인에서 필드 안쪽으로
         public const float PenaltyBoxHalfWidth = 20.15f;  // 박스 폭 40.3m의 절반. GK 출격 한계(스펙 §5)
+        public const float CenterCircleRadius = 9.15f;    // 킥오프 때 상대가 떨어져 있어야 하는 거리(IFAB 1조 센터서클, 8조 킥오프)
 
         // 선수 몸이 라인 밖으로 걸치지 않게 두는 여백
         public const float EdgeMargin = 0.5f;

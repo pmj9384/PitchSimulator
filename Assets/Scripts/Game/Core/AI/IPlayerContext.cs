@@ -40,6 +40,7 @@ namespace Game.Core.AI
         IReadOnlyList<TargetInfo> Teammates { get; }   // 나 제외
         IReadOnlyList<TargetInfo> Opponents { get; }
         bool IsLooseBallChaser { get; }                // 소유 팀 없는 공의 우리 팀 추격자(필드 플레이어). 시뮬이 팀별 최근접 + 히스테리시스로 정한다(09-28 F1b)
+        bool IsKickoffTaker { get; }                   // 킥오프 공을 쥔 키커이고 아직 첫 패스 전(09-29). 시뮬이 킥오프 때 정하고 첫 킥·소유 변경 때 푼다
         bool KeeperAlternate { get; }                  // GK 배급 "섞어"의 교대 스위치(팀별, 시뮬이 GK 패스마다 뒤집음). 09-23 R2
         int LastPasserId { get; }                      // 방금 나에게 준 아군(패스로 받았을 때만, 아니면 -1). 되돌림 금지용(09-23)
         PlayerStats? OpponentKeeper { get; }
