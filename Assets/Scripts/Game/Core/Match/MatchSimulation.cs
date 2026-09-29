@@ -127,6 +127,11 @@ namespace Game.Core.Match
         // 릴리스만 있으면 3틱째(공 0.9m, 패서 0.42m 따라옴)에 도로 잡아 0.15초마다 반복됐다. 공이 패서 반경을 벗어날 때까지 패서는 후보에서 뺀다
         private int lastKickerId = BallState.NoOwner;
         private int kickoffTakerId = BallState.NoOwner;   // 킥오프 공을 쥔 키커(09-29). 첫 킥이나 소유 변경 때 푼다. 스냅샷 IsKickoffTaker로 트리에 준다
+        // 드리블 돌파 의도(09-29): 공을 잡을 때 드리블 성향으로 한 번 굴린다. 트리가 틱마다 굴리면 같은 소유 안에서 돌파·패스가 번갈아 흔들린다
+        private int takeOnOwnerId = BallState.NoOwner;
+        private int takeOnTicksLeft;
+        public int TakeOnCount { get; private set; }       // 돌파 의도가 선 횟수(계측)
+        public int TakeOnLostCount { get; private set; }   // 돌파 의도 중 태클로 뺏긴 횟수(계측). 성공률 = 1 - 뺏김 ÷ 시도의 근사
         public int PassCount { get; private set; }
         public int InterceptCount { get; private set; }
 
@@ -318,6 +323,8 @@ namespace Game.Core.Match
             passReleased = true;
             lastKickerId = BallState.NoOwner;
             kickoffTakerId = BallState.NoOwner;
+            takeOnOwnerId = BallState.NoOwner;
+            takeOnTicksLeft = 0;
             pressLeader[0] = pressLeader[1] = -1;
             looseChaser[0] = looseChaser[1] = -1;
             for (int i = 0; i < players.Count; i++)
@@ -409,6 +416,7 @@ namespace Game.Core.Match
         // 틱마다 한 번: 명부 위치 스냅샷 → 턴오버 감지 → 팀 국면(서드·역습·역압박) → 22명에게 같은 값을 넣는다
         private void FillSnapshots()
         {
+            if (takeOnTicksLeft > 0) { takeOnTicksLeft--; }
             rosterSnapshot[0].Clear();
             rosterSnapshot[1].Clear();
             for (int i = 0; i < players.Count; i++)
@@ -451,6 +459,7 @@ namespace Game.Core.Match
                 p.PressRank = PressRules.PressRank(p.PlayerId, pressEligible[p.Team], Ball.X, Ball.Z, pressLeader[p.Team], MatchTuning.ChaserSwitchMargin);
                 p.IsLooseBallChaser = looseChaser[p.Team] == p.PlayerId;
                 p.IsKickoffTaker = kickoffTakerId == p.PlayerId;
+                p.WantsTakeOn = takeOnOwnerId == p.PlayerId && takeOnTicksLeft > 0;
                 p.Teammates = TeammatesExcluding(p);
                 p.Opponents = rosterSnapshot[other];
                 p.KeeperAlternate = keeperAlternate[p.Team];
@@ -545,6 +554,7 @@ namespace Game.Core.Match
             shotWillScore = MatchRules.Resolve(shotProbability, nextRoll());
             shotInFlight = true;
             shooterId = shooter.PlayerId;
+            takeOnOwnerId = BallState.NoOwner;
             shooterAttackSign = shooter.AttackSign;
 
             // 조준: 골 중심이 아니라 shot 스탯에 따라 퍼진 지점(09-18). 골문 밖이면 골라인에서 빗나감으로 마감
@@ -584,6 +594,7 @@ namespace Game.Core.Match
             passReleased = false;
             lastKickerId = passer.PlayerId;
             kickoffTakerId = BallState.NoOwner;   // 킥오프는 첫 킥으로 끝난다
+            takeOnOwnerId = BallState.NoOwner;    // 공을 내줬으면 돌파도 끝
 
             Ball = BallRules.Kick(Ball, target.x - passer.X, target.z - passer.Z, speed);
         }
@@ -614,11 +625,27 @@ namespace Game.Core.Match
             {
                 kind = PossessionChange.Turnover;   // 소유 중이던 공을 상대가 태클로 뺏음(09-21부터 실제로 난다)
                 TurnoverCount++;
+                if (previousOwnerId == takeOnOwnerId && takeOnTicksLeft > 0) { TakeOnLostCount++; }
             }
+            RollTakeOn(owner);
 
             holdUpTicksLeft = (int)Math.Round(owner.Stats.HoldUp / MatchTuning.FixedStep);
             immunityTicksLeft = MatchTuning.PossessionImmunityTicks;
             PossessionChanged?.Invoke(new PossessionReport(ownerNow, owner.Team, previousOwnerId, kind, Ball.X, Ball.Z));
+        }
+
+        // 돌파 의도는 소유가 바뀔 때 한 번 정한다. GK·킥오프 키커·우리 진영 서드는 안 굴린다. 드리블 성향 0(테스트 기본 스탯)이면 주사위를 안 써서
+        // 주사위 수열로 슛을 잠근 옛 테스트가 그대로 돈다
+        private void RollTakeOn(PlayerState owner)
+        {
+            takeOnOwnerId = BallState.NoOwner;
+            takeOnTicksLeft = 0;
+            if (owner.IsGoalkeeper || owner.PlayerId == kickoffTakerId || owner.Stats.Dribble <= 0f) { return; }
+            if (PositionRules.ThirdOf(Ball.X, owner.AttackSign) == Third.Own) { return; }
+            if (!MatchRules.Resolve(DribbleRules.TakeOnChance(owner.Stats.Dribble, MatchTuning.TakeOnChanceScale), nextRoll())) { return; }
+            takeOnOwnerId = owner.PlayerId;
+            takeOnTicksLeft = MatchTuning.TakeOnMaxTicks;
+            TakeOnCount++;
         }
 
         // 골라인을 넘은 슛: 골이면 득점, 아니면(GK가 못 건드렸으면) 빗나감. 둘 다 킥오프

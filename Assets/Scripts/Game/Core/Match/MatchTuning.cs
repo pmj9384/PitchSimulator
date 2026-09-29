@@ -68,6 +68,13 @@ namespace Game.Core.Match
         public const float PressedRadius = TackleRange;                         // 상대가 이 거리 안이면 "압박받는 중". 옆·뒤 돌리기는 이때만(09-21). 09-23: 3m였을 땐 압박이 3m 선을 넘는 순간 3틱 만에 안전한 뒤 패스로 도망가 접촉이 0이었다. 태클 사거리와 같게 두면 같은 틱에 태클이 먼저 시도되고 실패해야 돌린다
         public const float BackPassDepthPenalty = 0.01f;                        // 뒤로 1m마다 깎는 점수. 20m 뒤면 -0.2라 깊은 백패스(GK 등)는 0 이하로 떨어져 별도 컷 없이 후보에서 빠진다
         public const float ChaserSwitchMargin = 2f;                             // 추격자 히스테리시스(09-28 F1b): 압박 1순위·루즈볼 추격자는 도전자가 이만큼 더 가까워야 넘겨준다. 출처가 주는 수치는 없어 태클 사거리와 같은 값으로 출발(러너·Play로 조정)
+        // 드리블 돌파(09-29). 방향 고르기는 HELIOS 드리블 생성기(DribbleRules 주석), 빈도·지속은 출처 없는 출발값이라 러너로 조정한다.
+        // 비교 기준: Opta 25/26 EPL 돌파 성공률 평균 36.7%, 돌파 시도가 많은 윙어 90분당 6.5~9.5회(theanalyst "Premier League's Most Impactful Dribblers")
+        public const float TakeOnChanceScale = 0.4f;    // 공을 잡을 때 돌파 의도 확률 = 드리블 성향 × 이 값(윙어 0.9 → 36%). 우리 진영 서드에선 안 굴린다. 09-29 러너 300판: 0.3 골 2.06 · 0.4 2.05 · 0.5 2.00 · 0.7 1.94(목표 밖). 돌파가 전진 패스를 대신해 늘릴수록 골이 준다
+        public const int TakeOnMaxTicks = 100;          // 돌파 의도 유지 2초. 그 뒤엔 평소 판단(패스·슛·드리블)
+        public const float TakeOnEngageRange = 8f;      // 앞쪽 이 거리 안에 상대가 있을 때만 돌파 동작. 없으면 이미 제친 것
+        public const float TakeOnLookahead = 4f;        // 방향 후보 지점까지 거리(m)
+        public const float TakeOnAngleStep = 30f;       // 방향 후보 간격(°). HELIOS와 같은 값
         public const int MaxPressers = 1;                                       // 팀에서 동시에 압박(⑧)하는 인원 상한. 압박 거리 안인 선수를 공 거리순으로 세어 이 안만 간다(09-23 Play: 인원 제한이 없어 우리 진영 "적극"이면 CM 19.5m·FB/W/ST 12m 안 4~6명이 한꺼번에 달려들어 초등학교 경기처럼 뭉쳤다). Simple Soccer는 최근접 1명만 쫓고 FM도 1명 압박 + 커버. 러너에서 태클이 죽으면 2
     }
 }

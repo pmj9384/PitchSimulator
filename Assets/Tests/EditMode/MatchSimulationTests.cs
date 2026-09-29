@@ -19,6 +19,18 @@ public class MatchSimulationTests
 {
     private const float Dt = 0.02f;
 
+    // 지정 선수가 공을 가지면 한 번 패스하는 최소 트리
+    private sealed class PassWhenOwning : BehaviorNode
+    {
+        private readonly int passer; private readonly int receiver; private bool done;
+        public PassWhenOwning(int passer, int receiver) { this.passer = passer; this.receiver = receiver; }
+        public override NodeState Tick(IPlayerContext ctx)
+        {
+            if (!done && ctx.PlayerId == passer && ctx.OwnsBall) { ctx.Pass(receiver); done = true; }
+            return NodeState.Success;
+        }
+    }
+
     private static PlayerStats Striker()
     {
         return new PlayerStats { RoleId = "ST", VariantId = "st_poacher", Speed = 60, Stamina = 45, Pass = 40, Shot = 90, Tackle = 20, Positioning = 45, PushUp = 25f, PressRange = 8f, ShotBias = 0.3f, PassLength = 15f };
@@ -346,5 +358,42 @@ public class MatchSimulationTests
         sim.Tick(Dt);
         Assert.IsTrue(st2.IsPassTarget, "옆·뒤 동료(ST2)에게");
         Assert.IsFalse(st1.IsKickoffTaker, "첫 킥 뒤엔 키커 표시가 풀린다");
+    }
+
+    [Test]
+    public void 돌파_의도는_소유_때_드리블_성향으로_한_번_굴리고_패스하면_풀린다()
+    {
+        // 09-29. 주사위 0 → 성향이 0보다 크면 의도가 선다. 우리 진영 서드·드리블 성향 0이면 굴리지 않는다
+        PlayerStats winger = Striker(); winger.Dribble = 0.9f;
+        var sim = new MatchSimulation(() => 0f, new PassFlightTestsHelper.NoOp());
+        PlayerState w = sim.AddPlayer(new PlayerState(0, 0, winger, 0f, 20f));
+        PlayerState mate = sim.AddPlayer(new PlayerState(1, 0, Striker(), 10f, 0f));
+        sim.AddPlayer(new PlayerState(2, 1, Keeper(), 48f, 0f));
+        sim.Kickoff();
+        sim.Ball = BallState.FreeAt(0.3f, 20f);
+        sim.Tick(Dt);
+        Assert.AreEqual(0, sim.Ball.OwnerId);
+        Assert.IsTrue(w.WantsTakeOn, "중원에서 잡음 + 성향 0.9 + 주사위 0");
+        Assert.AreEqual(1, sim.TakeOnCount);
+
+        var own = new MatchSimulation(() => 0f, new PassFlightTestsHelper.NoOp());
+        PlayerState back = own.AddPlayer(new PlayerState(0, 0, winger, -30f, 20f));
+        own.AddPlayer(new PlayerState(1, 1, Keeper(), 48f, 0f));
+        own.Kickoff();
+        own.Ball = BallState.FreeAt(-29.7f, 20f);
+        own.Tick(Dt);
+        Assert.AreEqual(0, own.Ball.OwnerId);
+        Assert.IsFalse(back.WantsTakeOn, "우리 진영 서드에선 굴리지 않는다");
+
+        var pass = new MatchSimulation(() => 0f, new PassWhenOwning(0, 1));
+        PlayerState passer = pass.AddPlayer(new PlayerState(0, 0, winger, 0f, 20f));
+        pass.AddPlayer(new PlayerState(1, 0, Striker(), 10f, 0f));
+        pass.AddPlayer(new PlayerState(2, 1, Keeper(), 48f, 0f));
+        pass.Kickoff();
+        pass.Ball = BallState.FreeAt(0.3f, 20f);
+        for (int i = 0; i < 60 && pass.PassCount == 0; i++) { pass.Tick(Dt); }
+        pass.Tick(Dt);
+        Assert.AreEqual(1, pass.PassCount);
+        Assert.IsFalse(passer.WantsTakeOn, "패스하면 돌파 의도가 풀린다");
     }
 }

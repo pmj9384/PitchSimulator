@@ -41,6 +41,7 @@ public class CompositeNodeTests
         public IReadOnlyList<TargetInfo> Opponents => System.Array.Empty<TargetInfo>();
         public bool IsLooseBallChaser => false;
         public bool IsKickoffTaker => false;
+        public bool WantsTakeOn => false;
         public bool KeeperAlternate => false;
         public int LastPasserId => -1;
         public PlayerStats OpponentKeeper => null;   // 테스트 asmdef는 nullable 미적용. 계약은 PlayerStats?
