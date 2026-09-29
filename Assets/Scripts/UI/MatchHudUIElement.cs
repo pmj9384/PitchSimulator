@@ -124,9 +124,11 @@ public class MatchHudUIElement : UIElement
         goalCaptionUntil = Time.time + goalCaptionSec;
     }
 
-    // 우선순위: 경기 종료 > 하프타임 > 골 > 빈칸. 경기 종료는 결과 화면(GameUIManager.resultPanelDelaySec 뒤)이 덮을 때까지 유지한다
+    // 우선순위: 골 세리머니 > 경기 종료 > 하프타임 > 골 > 빈칸. 경기 종료는 결과 화면(GameUIManager.resultPanelDelaySec 뒤)이 덮을 때까지 유지한다.
+    // 세리머니(09-29) 동안은 골 자막을 유지한다: 마지막 틱 골이면 세리머니가 끝난 뒤에 경기 종료가 뜬다
     private string DesiredCaption(MatchManager match)
     {
+        if (match.InCelebration) { return goalCaption; }
         if (match.Ticks >= MatchTuning.MatchTicks) { return FullTimeCaption; }
         if (match.InHalfTimeHold) { return HalfTimeCaption; }
         if (Time.time < goalCaptionUntil) { return goalCaption; }

@@ -23,6 +23,11 @@ namespace Game.Core.AI
                     new ConditionNode(ctx => ctx.OwnsBall && ctx.IsGoalkeeper),
                     new ActionNode(ctx => PassTo(ctx, KeeperTarget(ctx)))),
 
+                // ①b 킥오프 키커는 첫 행동으로 옆·뒤 동료에게 내준다(09-29, IFAB 8조 + 실제 킥오프 관행). 슛·드리블보다 먼저
+                new SequenceNode(
+                    new ConditionNode(ctx => ctx.OwnsBall && ctx.IsKickoffTaker),
+                    new ActionNode(ctx => PassTo(ctx, PassRules.KickoffReceiver(ctx.X, ctx.Z, ctx.Teammates, ctx.AttackSign)))),
+
                 // ② 슛 확률(진짜 상대 GK 스탯) ≥ 슛 성향 → 슛
                 new SequenceNode(
                     new ConditionNode(ctx => ctx.OwnsBall && WantsShot(ctx)),
@@ -32,6 +37,13 @@ namespace Game.Core.AI
                 new SequenceNode(
                     new ConditionNode(ctx => ctx.OwnsBall && ctx.IsCountering && CounterTarget(ctx) != -1),
                     new ActionNode(ctx => PassTo(ctx, CounterTarget(ctx)))),
+
+                // ③b 돌파(09-29): 이번 소유에 돌파 의도가 있고 앞 8m 안에 상대가 있으면 패스 대신 제치러 간다. 방향은 상대가 먼저 못 닿는 쪽(HELIOS식).
+                // 앞에 상대가 없으면(제쳤으면) 아래 평소 판단으로. 의도는 시뮬이 소유 때 드리블 성향으로 굴린다(윙어 0.9·타깃맨 0.2)
+                new SequenceNode(
+                    new ConditionNode(ctx => ctx.OwnsBall && ctx.WantsTakeOn
+                        && DribbleRules.HasDefenderAhead(ctx.X, ctx.Z, ctx.AttackSign, ctx.Opponents, MatchTuning.TakeOnEngageRange)),
+                    new ActionNode(ctx => TakeOn(ctx))),
 
                 // ④ 안전한 앞선 아군이 있으면 최고점에 패스
                 new SequenceNode(
@@ -229,6 +241,16 @@ namespace Game.Core.AI
                 }
             }
             ctx.MoveToward(FieldBounds.HalfLength * ctx.AttackSign, 0f);
+        }
+
+        // 돌파 목표. 내 속도는 공을 몬 속도(시뮬 Apply와 같은 DribbleFactor), 상대는 가로채기 판정과 같은 평균 달리기·발 뻗는 범위
+        private static void TakeOn(IPlayerContext ctx)
+        {
+            float carry = MatchRules.SpeedMps(ctx.Stats.Speed) * MatchTuning.DribbleFactor;
+            (float x, float z) aim = DribbleRules.TakeOnTarget(ctx.X, ctx.Z, ctx.AttackSign, ctx.Opponents, carry,
+                MatchTuning.InterceptRunSpeed, MatchTuning.InterceptReach, MatchTuning.TakeOnLookahead, MatchTuning.TakeOnAngleStep,
+                FieldBounds.HalfLength, FieldBounds.HalfWidth - MatchTuning.TouchlineMargin);
+            ctx.MoveToward(aim.x, aim.z);
         }
 
         private static void MoveToAttackHome(IPlayerContext ctx)

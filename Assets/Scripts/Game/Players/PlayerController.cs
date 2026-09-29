@@ -34,6 +34,21 @@ public class PlayerController : MonoBehaviour
         transform.position = current;
     }
 
+    public Vector3 ViewPosition => current;
+
+    // 시뮬 밖 연출(골 세리머니, 09-29): 상태는 그대로 두고 화면만 옮긴다. 보간은 SyncView와 같은 방식
+    public void MoveViewToward(Vector3 target, float maxStep)
+    {
+        previous = current;
+        current = Vector3.MoveTowards(current, target, maxStep);
+    }
+
+    // 연출 중 제자리: 직전 스텝과의 보간을 끊는다. 안 끊으면 Update가 같은 두 점 사이를 스텝마다 되풀이해 떨린다
+    public void HoldView()
+    {
+        previous = current;
+    }
+
     private void Update()
     {
         transform.position = Vector3.Lerp(previous, current, ViewInterpolation.Alpha());

@@ -32,6 +32,8 @@ public class PlayerTreeTests
         public IReadOnlyList<TargetInfo> Teammates { get; set; } = new List<TargetInfo>();
         public IReadOnlyList<TargetInfo> Opponents { get; set; } = new List<TargetInfo>();
         public bool IsLooseBallChaser { get; set; }
+        public bool IsKickoffTaker { get; set; }
+        public bool WantsTakeOn { get; set; }
         public bool KeeperAlternate { get; set; }
         public int LastPasserId { get; set; } = -1;
         public PlayerStats OpponentKeeper { get; set; } = null;
@@ -291,5 +293,35 @@ public class PlayerTreeTests
         var gk = new Fake { PlayerId = 0, IsGoalkeeper = true, BallPhase = BallPhase.Free, X = -48f, BallX = 0f, AttackHomeX = -48f };
         Tree.Tick(gk);
         Assert.AreEqual(-48f, gk.MoveX, 1e-4f, "GK는 반경 밖 공은 안 쫓음");
+    }
+
+    [Test]
+    public void 킥오프_키커는_앞선_동료가_있어도_옆_뒤_가장_가까운_동료에게_내준다()
+    {
+        // 09-29 유저 Play: 킥오프가 센터 킥 없이 바로 시작됐다. 키커 표시(시뮬이 정함)가 있으면 슛·드리블보다 먼저 옆·뒤로 짧게
+        var kicker = new Fake { PlayerId = 9, OwnsBall = true, BallPhase = BallPhase.Owned, BallOwnerTeam = 0, X = 0f, Z = 0f, IsKickoffTaker = true,
+            Teammates = new List<TargetInfo> { new TargetInfo(10, 5f, 1f), new TargetInfo(7, -8f, 6f), new TargetInfo(6, -20f, 0f) } };
+        Tree.Tick(kicker);
+        Assert.AreEqual("pass", kicker.Did);
+        Assert.AreEqual(7, kicker.PassedTo, "앞선 10번(5m)이 더 가까워도 뒤의 7번(10m)");
+    }
+
+    [Test]
+    public void 돌파_의도가_있고_앞에_수비수가_있으면_안전한_패스가_있어도_몰고_간다()
+    {
+        // 09-29: 돌파 의도(시뮬이 드리블 성향으로 굴림)가 서면 ④ 패스보다 먼저 제치러 간다. 앞에 수비수가 없으면 평소대로 패스
+        var w = new Fake { PlayerId = 7, OwnsBall = true, BallPhase = BallPhase.Owned, BallOwnerTeam = 0, X = 10f, Z = 20f, WantsTakeOn = true,
+            Teammates = new List<TargetInfo> { new TargetInfo(9, 22f, 5f) },
+            Opponents = new List<TargetInfo> { new TargetInfo(20, 15f, 20f) } };
+        w.Stats.ShotBias = 1f;
+        Tree.Tick(w);
+        Assert.AreEqual("move", w.Did, "수비수 정면 5m → 돌파");
+
+        var free = new Fake { PlayerId = 7, OwnsBall = true, BallPhase = BallPhase.Owned, BallOwnerTeam = 0, X = 10f, Z = 20f, WantsTakeOn = true,
+            Teammates = new List<TargetInfo> { new TargetInfo(9, 22f, 5f) },
+            Opponents = new List<TargetInfo> { new TargetInfo(20, 40f, -20f) } };
+        free.Stats.ShotBias = 1f;
+        Tree.Tick(free);
+        Assert.AreEqual("pass", free.Did, "앞 8m에 상대가 없으면(이미 제침) 평소 판단");
     }
 }

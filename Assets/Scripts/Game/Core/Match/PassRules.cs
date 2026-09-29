@@ -135,6 +135,28 @@ namespace Game.Core.Match
         }
 
         // GK 배급 대상. 짧게(0) = 가장 가까운 아군, 길게(2) = 가장 앞선(멀리 있는) 아군, 섞어(1) = alternate로 번갈아
+        // 킥오프 첫 패스(09-29 유저 Play: "공을 사람한테 주고 뒤로 주면서 시작해야 하는데 바로 시작한다"). IFAB 8조는 방향을 묻지 않지만
+        // 실제 킥오프는 거의 다 옆·뒤 동료에게 짧게 내준다. 키커보다 앞서지 않은 동료 중 가장 가까운 이, 동률은 PlayerId 작은 쪽. 없으면 -1
+        public static int KickoffReceiver(float kickerX, float kickerZ, IReadOnlyList<TargetInfo> teammates, int attackSign)
+        {
+            int best = -1;
+            float bestDistSq = float.MaxValue;
+            for (int i = 0; i < teammates.Count; i++)
+            {
+                TargetInfo m = teammates[i];
+                if ((m.X - kickerX) * attackSign > 0f) { continue; }
+                float dx = m.X - kickerX;
+                float dz = m.Z - kickerZ;
+                float d = dx * dx + dz * dz;
+                if (d < bestDistSq || (d == bestDistSq && m.PlayerId < best))
+                {
+                    bestDistSq = d;
+                    best = m.PlayerId;
+                }
+            }
+            return best;
+        }
+
         public static int KeeperDistributionTarget(float gkX, float gkZ, IReadOnlyList<TargetInfo> teammates, int attackSign, int level, int keeperId, bool alternate)
         {
             bool goLong = level == 2 || (level == 1 && alternate);
