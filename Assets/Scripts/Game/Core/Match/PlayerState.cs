@@ -105,6 +105,10 @@ namespace Game.Core.Match
         public int FrozenTicks { get; set; }
         public int TackleCooldownTicks { get; set; }
 
+        // 체력(09-29). 단기 체력은 전력 행동에 줄고 상한까지 회복한다. 상한은 전력 행동이 쌓일수록 내려간다. 시뮬만 읽고 쓴다(트리는 명목 속도로 판단)
+        public float Stamina { get; set; } = 1f;
+        public float StaminaCap { get; set; } = 1f;
+
         public void ClearIntent()
         {
             WantsMove = false;
