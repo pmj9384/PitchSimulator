@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using Game.Core.AI;
 using Game.Core.League;
 using Game.Core.Match;
-using Game.Core.Placement;
 using UnityEngine;
 
 // 경기 실행자이자 심판. 고정 스텝마다 순수 MatchSimulation을 한 틱 돌리고 그 결과를 화면(선수·공 뷰)에 비춘다.
@@ -19,13 +18,6 @@ public class MatchManager : InGameManager
     [SerializeField] private float celebrationSec = 3f;    // 골 세리머니(연출, 09-29 유저 Play "골 넣은 사람 세리머니 시간을 줘야"). 시뮬 틱은 안 돈다. 0이면 없음
     [SerializeField] private float kickoffSetSec = 1f;     // 킥오프 전 제자리 멈춤(연출, 09-29). 경기 시작·골 뒤. 하프타임은 halfTimeHoldSec이 맡는다
 
-    // 세리머니 화면 움직임(연출 값. 규칙이 아니라 MatchTuning에 두지 않는다)
-    private const float CelebrationRunSpeed = 6f;      // 득점자가 코너 쪽으로 뛰는 속도(m/s)
-    private const float CelebrationJoinSpeed = 5f;     // 동료가 득점자에게 모이는 속도
-    private const float CelebrationJoinRadius = 30f;   // 골 순간 득점자와 이 거리 안인 필드 동료만 모인다. 먼 수비수·GK는 제자리
-    private const float CelebrationGap = 1.5f;         // 모인 동료는 득점자와 이만큼 떨어져 선다
-    private const float CornerInset = 3f;              // 코너 플래그에서 필드 안쪽으로
-
     public int Ticks { get; private set; }                       // 킥오프부터 센 고정 스텝 수. float 누적은 종료 틱이 9000/9001로 갈려 러너와 어긋난다(09-27 리뷰)
     public float Elapsed => Ticks * MatchTuning.FixedStep;     // 로그용 초
     public MatchSimulation Simulation { get; private set; }
@@ -39,14 +31,11 @@ public class MatchManager : InGameManager
     private int kickoffTeam;   // 일정상 홈이 킥오프(MatchSetup). 골 뒤엔 시뮬이 실점 팀에게 준다(09-23)
     private int holdTicksLeft;   // 멈춤(하프타임·킥오프 준비) 남은 고정 스텝 수
     private bool holdIsHalfTime;
-    private int celebrationTicksLeft;
     private int goalScorerId = BallState.NoOwner;   // 이번 틱 골 넣은 선수. ShotResolved에서 받는다
-    private PlayerController celebratingScorer;
-    private Vector3 celebrationCorner;
-    private readonly List<PlayerController> celebrationJoiners = new List<PlayerController>();
+    private readonly GoalCelebration celebration = new GoalCelebration();   // 세리머니 안무. 언제 시작·끝낼지는 여기서 정한다
 
     public bool InHalfTimeHold => holdTicksLeft > 0 && holdIsHalfTime;   // HUD가 "하프타임" 자막을 띄운다
-    public bool InCelebration => celebrationTicksLeft > 0;                 // HUD가 골 자막을 세리머니 내내 유지한다
+    public bool InCelebration => celebration.IsPlaying;                   // HUD가 골 자막을 세리머니 내내 유지한다
 
     public override void Initialize()
     {
@@ -67,10 +56,8 @@ public class MatchManager : InGameManager
         Ticks = 0;
         holdTicksLeft = 0;
         holdIsHalfTime = false;
-        celebrationTicksLeft = 0;
         goalScorerId = BallState.NoOwner;
-        celebratingScorer = null;
-        celebrationJoiners.Clear();
+        celebration.Stop();
         rng = new System.Random(setup.Seed);
         kickoffTeam = setup.KickoffTeam;
         OpponentName = setup.OpponentName;
@@ -117,9 +104,10 @@ public class MatchManager : InGameManager
         if (!IsRunning) { return; }
 
         // 연출 멈춤(세리머니 → 킥오프 준비·하프타임): 시뮬을 안 돌린다. 일시정지(GameStop)면 위에서 이미 멈춘다
-        if (celebrationTicksLeft > 0)
+        if (celebration.IsPlaying)
         {
-            StepCelebration();
+            celebration.Step(MatchTuning.FixedStep);
+            if (!celebration.IsPlaying) { EndCelebration(); }
             return;
         }
         if (holdTicksLeft > 0)
@@ -188,57 +176,23 @@ public class MatchManager : InGameManager
     }
 
     #region 골 세리머니(연출, 09-29)
-    // 득점자는 공격 방향 코너 쪽으로 뛰고, 골 순간 가까이 있던 필드 동료는 득점자에게 모인다. 나머지와 공은 제자리.
-    // 뷰만 움직이고 PlayerState는 안 건드린다(시뮬은 이미 킥오프 자리에 있다). 끝나면 킥오프 자리로 스냅하고 킥오프 준비 멈춤
+    // 골 틱에 화면을 멈추고 안무(GoalCelebration)를 시작한다. 끝나면 킥오프 자리로 스냅하고 킥오프 준비 멈춤
     private void BeginCelebration()
     {
-        celebratingScorer = FindView(goalScorerId);
-        celebrationTicksLeft = Mathf.RoundToInt(celebrationSec / MatchTuning.FixedStep);
-        if (celebratingScorer == null || celebrationTicksLeft <= 0)
+        PlayerController scorer = FindView(goalScorerId);
+        int ticks = Mathf.RoundToInt(celebrationSec / MatchTuning.FixedStep);
+        if (scorer == null || ticks <= 0)
         {
-            FinishCelebration();
+            EndCelebration();
             return;
         }
 
         HoldAllViews();
-        Vector3 at = celebratingScorer.ViewPosition;
-        float side = at.z >= 0f ? 1f : -1f;
-        celebrationCorner = new Vector3((FieldBounds.HalfLength - CornerInset) * celebratingScorer.State.AttackSign, 0f, (FieldBounds.HalfWidth - CornerInset) * side);
-
-        celebrationJoiners.Clear();
-        IReadOnlyList<PlayerController> roster = GameManager.Players.Roster(celebratingScorer.Team);
-        for (int i = 0; i < roster.Count; i++)
-        {
-            PlayerController mate = roster[i];
-            if (mate == celebratingScorer || mate.State.IsGoalkeeper) { continue; }
-            if (Vector3.Distance(mate.ViewPosition, at) > CelebrationJoinRadius) { continue; }
-            celebrationJoiners.Add(mate);
-        }
+        celebration.Begin(scorer, GameManager.Players.Roster(scorer.Team), ticks);
     }
 
-    private void StepCelebration()
+    private void EndCelebration()
     {
-        celebrationTicksLeft--;
-        float dt = MatchTuning.FixedStep;
-        celebratingScorer.MoveViewToward(celebrationCorner, CelebrationRunSpeed * dt);
-
-        Vector3 scorerAt = celebratingScorer.ViewPosition;
-        for (int i = 0; i < celebrationJoiners.Count; i++)
-        {
-            PlayerController mate = celebrationJoiners[i];
-            Vector3 away = mate.ViewPosition - scorerAt;
-            Vector3 target = away.sqrMagnitude > 0f ? scorerAt + away.normalized * CelebrationGap : scorerAt;
-            mate.MoveViewToward(target, CelebrationJoinSpeed * dt);
-        }
-
-        if (celebrationTicksLeft == 0) { FinishCelebration(); }
-    }
-
-    private void FinishCelebration()
-    {
-        celebrationTicksLeft = 0;
-        celebratingScorer = null;
-        celebrationJoiners.Clear();
         SnapViews();
         if (Ticks < MatchTuning.MatchTicks) { Hold(kickoffSetSec, halfTime: false); }
     }

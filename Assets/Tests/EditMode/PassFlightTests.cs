@@ -16,18 +16,6 @@ public class PassFlightTests
         return new PlayerStats { RoleId = "CM", VariantId = "cm_central", Speed = 50, Stamina = 50, Pass = 50, Shot = 50, Tackle = 50, Positioning = 50, ShotBias = 0.3f, PassLength = 15f, PressRange = 8f, HoldUp = holdUp };
     }
 
-    // 트리 대신 의도를 직접 주입하는 가짜 트리: 첫 틱에 지정 선수에게 Pass 의도
-    private sealed class PassOnce : BehaviorNode
-    {
-        private readonly int passer; private readonly int receiver; private bool done;
-        public PassOnce(int passer, int receiver) { this.passer = passer; this.receiver = receiver; }
-        public override NodeState Tick(IPlayerContext ctx)
-        {
-            if (!done && ctx.PlayerId == passer && ctx.OwnsBall) { ctx.Pass(receiver); done = true; }
-            return NodeState.Success;
-        }
-    }
-
     // 찬 뒤 자기 공을 쫓아가는 패서(실제 트리 ⑩ 자유 공 분기와 같은 움직임)
     private sealed class PassThenChase : BehaviorNode
     {
@@ -42,20 +30,10 @@ public class PassFlightTests
         }
     }
 
-    private sealed class ShootOnce : BehaviorNode
-    {
-        private bool done;
-        public override NodeState Tick(IPlayerContext ctx)
-        {
-            if (!done && ctx.OwnsBall) { ctx.Shoot(); done = true; }
-            return NodeState.Success;
-        }
-    }
-
     [Test]
     public void 패스는_리시버에게_날아가고_리시버가_잡는다()
     {
-        var sim = new MatchSimulation(() => 0.5f, new PassOnce(passer: 0, receiver: 1));
+        var sim = new MatchSimulation(() => 0.5f, new PassFlightTestsHelper.PassOnce(passer: 0, receiver: 1));
         PlayerState a = sim.AddPlayer(new PlayerState(0, 0, Mid(), 0f, 0f));
         PlayerState b = sim.AddPlayer(new PlayerState(1, 0, Mid(), 15f, 0f));
         sim.Kickoff();
@@ -84,7 +62,7 @@ public class PassFlightTests
         // 09-23 Play: 초속이 거리 무관 고정이라 5m 패스는 15m/s로 날아가 받는 순간 0으로 꺾이고, 먼 패스는 못 미쳐 멈췄다
         float Kick(float receiverX, out int ownerId)
         {
-            var sim = new MatchSimulation(() => 0.5f, new PassOnce(0, 1));
+            var sim = new MatchSimulation(() => 0.5f, new PassFlightTestsHelper.PassOnce(0, 1));
             sim.AddPlayer(new PlayerState(0, 0, Mid(), 0f, 0f));
             sim.AddPlayer(new PlayerState(1, 0, Mid(), receiverX, 0f));
             sim.Kickoff();
@@ -107,7 +85,7 @@ public class PassFlightTests
     [Test]
     public void 찬_선수는_공이_발치를_벗어나기_전엔_자기_공을_도로_잡지_않는다()
     {
-        var sim = new MatchSimulation(() => 0.5f, new PassOnce(0, 1));
+        var sim = new MatchSimulation(() => 0.5f, new PassFlightTestsHelper.PassOnce(0, 1));
         sim.AddPlayer(new PlayerState(0, 0, Mid(), 0f, 0f));
         sim.AddPlayer(new PlayerState(1, 0, Mid(), 15f, 0f));
         sim.Kickoff();
@@ -159,7 +137,7 @@ public class PassFlightTests
     {
         // 09-21 Play 잠금: 압박 상대가 소유자 발치(0.5m)에 서 있고 소유자는 반대쪽 아군에게 찬다.
         // 킥 릴리스 전엔 아무도 못 잡으므로 공은 발치를 떠나고, 상대는 경로 밖이라 끝까지 못 잡는다
-        var sim = new MatchSimulation(() => 0.5f, new PassOnce(0, 1));
+        var sim = new MatchSimulation(() => 0.5f, new PassFlightTestsHelper.PassOnce(0, 1));
         sim.AddPlayer(new PlayerState(0, 0, Mid(), 0f, 0f));
         sim.AddPlayer(new PlayerState(1, 0, Mid(), -12f, 0f));    // 뒤쪽 아군(리시버)
         sim.AddPlayer(new PlayerState(2, 1, Mid(), 0.5f, 0f));    // 발치에 붙은 상대, 패스 축의 반대편
@@ -178,7 +156,7 @@ public class PassFlightTests
     [Test]
     public void 경로_위_상대가_비행_중인_패스를_가로챈다()
     {
-        var sim = new MatchSimulation(() => 0.5f, new PassOnce(0, 1));
+        var sim = new MatchSimulation(() => 0.5f, new PassFlightTestsHelper.PassOnce(0, 1));
         sim.AddPlayer(new PlayerState(0, 0, Mid(), 0f, 0f));
         sim.AddPlayer(new PlayerState(1, 0, Mid(), 20f, 0f));
         sim.AddPlayer(new PlayerState(2, 1, Mid(), 10f, 0.3f));   // 경로 위, 잡기 반경 안
@@ -193,7 +171,7 @@ public class PassFlightTests
     [Test]
     public void 비행_중_패스는_찬_팀_소유이고_가로채이면_턴오버로_역압박이_켜진다()
     {
-        var sim = new MatchSimulation(() => 0.5f, new PassOnce(0, 1));
+        var sim = new MatchSimulation(() => 0.5f, new PassFlightTestsHelper.PassOnce(0, 1));
         sim.AddPlayer(new PlayerState(0, 0, Mid(), 0f, 0f));
         sim.AddPlayer(new PlayerState(1, 0, Mid(), 20f, 0f));
         sim.AddPlayer(new PlayerState(3, 0, Mid(), -10f, 5f));    // 뒤에 남은 아군 2명: 역압박 문턱(적극 = 2)을 채운다
@@ -261,7 +239,7 @@ public class PassFlightTests
     public void 줍기나_태클로_잡은_공엔_방금_준_선수가_없다()
     {
         // 09-26 리뷰: LastPasserId가 패스 수신 때만 쓰여 옛 값이 남았다. A→B 패스 뒤 B가 자유 공을 다시 주우면 -1이어야 한다
-        var sim = new MatchSimulation(() => 0.5f, new PassOnce(0, 1));
+        var sim = new MatchSimulation(() => 0.5f, new PassFlightTestsHelper.PassOnce(0, 1));
         sim.AddPlayer(new PlayerState(0, 0, Mid(), 0f, 0f));
         PlayerState b = sim.AddPlayer(new PlayerState(1, 0, Mid(), 15f, 0f));
         sim.Kickoff();
@@ -285,7 +263,7 @@ public class PassFlightTests
     public void 조준이_골문_밖이면_GK가_있어도_빗나감이다()
     {
         // roll 0.0 → 조준 Z = -반폭. shot 30이면 반폭 4.95 > 3.66이라 골문 밖
-        var sim = new MatchSimulation(() => 0f, new ShootOnce());
+        var sim = new MatchSimulation(() => 0f, new PassFlightTestsHelper.ShootOnce());
         PlayerStats weak = Mid(); weak.Shot = 30;
         sim.AddPlayer(new PlayerState(0, 0, weak, 40f, 0f));
         PlayerStats gk = Mid(); gk.RoleId = "GK"; gk.Reflexes = 50; gk.Diving = 50; gk.Handling = 50;
@@ -303,7 +281,7 @@ public class PassFlightTests
     [Test]
     public void 볼_끌기는_킥_의도를_대기_틱만큼_미룬다()
     {
-        var sim = new MatchSimulation(() => 0.5f, new PassOnce(0, 1));
+        var sim = new MatchSimulation(() => 0.5f, new PassFlightTestsHelper.PassOnce(0, 1));
         sim.AddPlayer(new PlayerState(0, 0, Mid(holdUp: 0.5f), 0f, 0f));   // 0.5초 = 25틱
         sim.AddPlayer(new PlayerState(1, 0, Mid(), 15f, 0f));
         sim.Kickoff();

@@ -79,7 +79,10 @@ unity command screenshot --view game --json        # Play 중 화면
 - **경기 AI·이동·공은 고정 스텝(`FixedUpdate`)으로 돈다.** 공은 Rigidbody를 쓰지 않고 순수 계산으로 옮긴다(결정성). 기기가 달라도 결과가 같아야 한다
 - **선수 세팅은 StageComposition과 같은 데이터 형식으로 저장한다.** 재도전·상대 팀 데이터·멀티가 같은 것을 읽는다
 - 데이터는 CSV: `PlayerTable.csv` · `StageComposition.csv`(새 시즌의 내 기본 11명·러너 편성) · `TacticPresets.csv` · `FormationTemplates.csv` · `TierRules.csv` · `TeamNames.csv`. `StageTable.csv`는 09-27 시즌 연결 때 제거(스테이지 개념이 4부제 리그로 대체). 파싱은 CsvHelper + `ClassMap`, 자작 파서 금지
-- **코드 문체 앵커 = AnimalBreakOut 코드베이스.** 이른 반환, 메서드는 중괄호 블록, 람다는 외부 API가 함수를 요구할 때만, `out var` 지양
+- **코드 문체 앵커 = AnimalBreakOut 코드베이스** (유저가 손코딩기에 흡수한 팀 컨벤션, 2026-09-07 결정. 원본 = `WarTableSimulator/CLAUDE.md` 75~79행).
+  이른 반환(가드 문) 선호, **여러 줄 `&&` 체인 지양**(조건이 길면 가드 문이나 이름 붙은 bool 메서드로), 메서드는 중괄호 블록(식 본문 `=>`는 한 줄 상태 변경·계산 정도만),
+  람다는 외부 API가 함수를 요구할 때만(트리 노드 `ctx => ...`·주사위 `() => 0f` 같은 기존 자리). **콜백은 이름 붙은 private 메서드로 빼서 넘긴다**(`CreateUnit`·`OnGetFromPool`). `out var` 같은 압축 지양, 한 줄에 여러 선언·문장 지양.
+  리뷰는 이 기준으로 한다(`~/.claude/rules/verification.md` 「재검증에는 코드 리뷰가 항상 들어간다」)
 - 커밋: 한국어 + why + 논리 단위. 쓰기 전 pangyo-tone 신호 14개 자체 점검. 구현 → 검증 루프(4.5절) → 유저 Play → 커밋
 - **브랜치**: `feature/*` → `develop`. `master`는 빌드 검증(AAB) 시점에만. 첫 수정 전에 브랜치부터
 

@@ -7,29 +7,64 @@ using NUnit.Framework;
 
 // 경기 루프 검증(엔진 없음). 리트머스: ST 1 vs GK 1, 슛 10회의 결과가 각각 MatchRules.Resolve(p_i, roll_i)와 같고
 // 같은 주사위 수열이면 같은 경기가 나온다. 그 외 잡기·라인 아웃·GK 출격 한계.
-// 태클 시나리오용 최소 트리: 아무 의도 없음 / 공을 향해 이동
+// 시뮬 테스트 공용 가짜 트리: 트리 대신 의도를 직접 넣는다(아무 의도 없음·한 번 슛·한 번 패스·공으로 이동).
+// PassFlightTests도 여기 것을 쓴다(09-29 리뷰: PassOnce·ShootOnce가 두 파일에 복사돼 있던 것을 하나로 모음)
 internal static class PassFlightTestsHelper
 {
-    internal sealed class NoOp : BehaviorNode { public override NodeState Tick(IPlayerContext ctx) { return NodeState.Success; } }
-    internal sealed class ShootOnce : BehaviorNode { private bool done; public override NodeState Tick(IPlayerContext ctx) { if (!done && ctx.OwnsBall) { ctx.Shoot(); done = true; } return NodeState.Success; } }
-    internal sealed class ChaseBall : BehaviorNode { public override NodeState Tick(IPlayerContext ctx) { if (!ctx.OwnsBall) { ctx.MoveToward(ctx.BallX, ctx.BallZ); } return NodeState.Success; } }
-}
-
-public class MatchSimulationTests
-{
-    private const float Dt = 0.02f;
-
-    // 지정 선수가 공을 가지면 한 번 패스하는 최소 트리
-    private sealed class PassWhenOwning : BehaviorNode
+    internal sealed class NoOp : BehaviorNode
     {
-        private readonly int passer; private readonly int receiver; private bool done;
-        public PassWhenOwning(int passer, int receiver) { this.passer = passer; this.receiver = receiver; }
+        public override NodeState Tick(IPlayerContext ctx)
+        {
+            return NodeState.Success;
+        }
+    }
+
+    // 공을 가지면 한 번 슛
+    internal sealed class ShootOnce : BehaviorNode
+    {
+        private bool done;
+
+        public override NodeState Tick(IPlayerContext ctx)
+        {
+            if (!done && ctx.OwnsBall) { ctx.Shoot(); done = true; }
+            return NodeState.Success;
+        }
+    }
+
+    // 지정 선수가 공을 가지면 한 번 지정 동료에게 패스
+    internal sealed class PassOnce : BehaviorNode
+    {
+        private readonly int passer;
+        private readonly int receiver;
+        private bool done;
+
+        public PassOnce(int passer, int receiver)
+        {
+            this.passer = passer;
+            this.receiver = receiver;
+        }
+
         public override NodeState Tick(IPlayerContext ctx)
         {
             if (!done && ctx.PlayerId == passer && ctx.OwnsBall) { ctx.Pass(receiver); done = true; }
             return NodeState.Success;
         }
     }
+
+    // 공을 안 가진 선수는 공으로
+    internal sealed class ChaseBall : BehaviorNode
+    {
+        public override NodeState Tick(IPlayerContext ctx)
+        {
+            if (!ctx.OwnsBall) { ctx.MoveToward(ctx.BallX, ctx.BallZ); }
+            return NodeState.Success;
+        }
+    }
+}
+
+public class MatchSimulationTests
+{
+    private const float Dt = 0.02f;
 
     private static PlayerStats Striker()
     {
@@ -385,7 +420,7 @@ public class MatchSimulationTests
         Assert.AreEqual(0, own.Ball.OwnerId);
         Assert.IsFalse(back.WantsTakeOn, "우리 진영 서드에선 굴리지 않는다");
 
-        var pass = new MatchSimulation(() => 0f, new PassWhenOwning(0, 1));
+        var pass = new MatchSimulation(() => 0f, new PassFlightTestsHelper.PassOnce(0, 1));
         PlayerState passer = pass.AddPlayer(new PlayerState(0, 0, winger, 0f, 20f));
         pass.AddPlayer(new PlayerState(1, 0, Striker(), 10f, 0f));
         pass.AddPlayer(new PlayerState(2, 1, Keeper(), 48f, 0f));
