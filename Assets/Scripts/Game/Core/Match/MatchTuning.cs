@@ -70,7 +70,7 @@ namespace Game.Core.Match
         public const float ChaserSwitchMargin = 2f;                             // 추격자 히스테리시스(09-28 F1b): 압박 1순위·루즈볼 추격자는 도전자가 이만큼 더 가까워야 넘겨준다. 출처가 주는 수치는 없어 태클 사거리와 같은 값으로 출발(러너·Play로 조정)
         // 드리블 돌파(09-29). 방향 고르기는 HELIOS 드리블 생성기(DribbleRules 주석), 빈도·지속은 출처 없는 출발값이라 러너로 조정한다.
         // 비교 기준: Opta 25/26 EPL 돌파 성공률 평균 36.7%, 돌파 시도가 많은 윙어 90분당 6.5~9.5회(theanalyst "Premier League's Most Impactful Dribblers")
-        public const float TakeOnChanceScale = 0.4f;    // 공을 잡을 때 돌파 의도 확률 = 드리블 성향 × 이 값(윙어 0.9 → 36%). 우리 진영 서드에선 안 굴린다. 09-29 러너 300판: 0.3 골 2.06 · 0.4 2.05 · 0.5 2.00 · 0.7 1.94(목표 밖). 돌파가 전진 패스를 대신해 늘릴수록 골이 준다
+        public const float TakeOnChanceScale = 0.3f;    // 공을 잡을 때 돌파 의도 확률 = 드리블 성향 × 이 값(윙어 0.9 → 27%). 우리 진영 서드에선 안 굴린다. 돌파가 전진 패스를 대신해 늘릴수록 골이 준다. 09-29 러너(상대 사거리 = 태클 2m 기준, 100판·300판 시드 101~·401~): 0.2 1.94·2.06·2.09 / 0.3 2.16·2.02·2.02 / 0.4 2.07·1.85·2.08 → 세 표본 모두 목표(골 2~4) 안인 0.3
         public const int TakeOnMaxTicks = 100;          // 돌파 의도 유지 2초. 그 뒤엔 평소 판단(패스·슛·드리블)
         public const float TakeOnEngageRange = 8f;      // 앞쪽 이 거리 안에 상대가 있을 때만 돌파 동작. 없으면 이미 제친 것
         public const float TakeOnLookahead = 4f;        // 방향 후보 지점까지 거리(m)

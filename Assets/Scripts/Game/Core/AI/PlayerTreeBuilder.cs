@@ -249,12 +249,14 @@ namespace Game.Core.AI
             return DribbleRules.HasDefenderAhead(ctx.X, ctx.Z, ctx.AttackSign, ctx.Opponents, MatchTuning.TakeOnEngageRange);
         }
 
-        // 돌파 목표. 내 속도는 공을 몬 속도(시뮬 Apply와 같은 DribbleFactor), 상대는 가로채기 판정과 같은 평균 달리기·발 뻗는 범위
+        // 돌파 목표. 내 속도는 공을 몬 속도(시뮬 Apply와 같은 DribbleFactor), 상대는 평균 달리기 속도.
+        // 상대가 "닿는" 거리는 실제로 공을 뺏는 태클 사거리(시뮬 ResolveTackles와 같은 TackleRange). 09-29 리뷰: 발 뻗는 1.2m로 판정하면
+        // 안전하다고 고른 방향에서도 2m 태클이 걸린다(판정과 실행이 다른 전제)
         private static void TakeOn(IPlayerContext ctx)
         {
             float carry = MatchRules.SpeedMps(ctx.Stats.Speed) * MatchTuning.DribbleFactor;
             (float x, float z) aim = DribbleRules.TakeOnTarget(ctx.X, ctx.Z, ctx.AttackSign, ctx.Opponents, carry,
-                MatchTuning.InterceptRunSpeed, MatchTuning.InterceptReach, MatchTuning.TakeOnLookahead, MatchTuning.TakeOnAngleStep,
+                MatchTuning.InterceptRunSpeed, MatchTuning.TackleRange, MatchTuning.TakeOnLookahead, MatchTuning.TakeOnAngleStep,
                 FieldBounds.HalfLength, FieldBounds.HalfWidth - MatchTuning.TouchlineMargin);
             ctx.MoveToward(aim.x, aim.z);
         }

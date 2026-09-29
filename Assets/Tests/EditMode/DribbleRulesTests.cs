@@ -10,7 +10,7 @@ public class DribbleRulesTests
 
     private static (float x, float z) Aim(float x, float z, List<TargetInfo> opponents)
     {
-        return DribbleRules.TakeOnTarget(x, z, +1, opponents, Carry, MatchTuning.InterceptRunSpeed, MatchTuning.InterceptReach,
+        return DribbleRules.TakeOnTarget(x, z, +1, opponents, Carry, MatchTuning.InterceptRunSpeed, MatchTuning.TackleRange,
             MatchTuning.TakeOnLookahead, MatchTuning.TakeOnAngleStep, FieldBounds.HalfLength, FieldBounds.HalfWidth - MatchTuning.TouchlineMargin);
     }
 
