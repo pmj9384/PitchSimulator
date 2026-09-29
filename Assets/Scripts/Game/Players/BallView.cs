@@ -35,6 +35,12 @@ public class BallView : MonoBehaviour
         transform.position = current;
     }
 
+    // 연출 중 제자리(골 세리머니, 09-29): 골망 앞에 멈춘 공을 그대로 둔다
+    public void Hold()
+    {
+        previous = current;
+    }
+
     private void Update()
     {
         Vector3 next = Vector3.Lerp(previous, current, ViewInterpolation.Alpha());
