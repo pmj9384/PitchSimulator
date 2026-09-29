@@ -1,5 +1,5 @@
 presetId,displayName,description,passStyleOwn,passStyleMid,passStyleOpp,passRiskOwn,passRiskMid,passRiskOpp,tempoOwn,tempoMid,tempoOpp,widthOwn,widthMid,widthOpp,pressStartOwn,pressStartMid,pressStartOpp,counter,counterPress,gkDistribution,mentality
-buildup,빌드업 축구,짧게 돌리며 올라간다. 역습 안 함,0,0,1,0,1,1,0,1,1,2,1,1,1,1,0,0,1,0,1
+buildup,빌드업 축구,짧게 돌리며 올라간다. 역습 안 함,0,0,1,1,1,1,1,1,1,2,1,1,1,1,0,0,1,0,1
 balanced,균형,상황 봐서. 4부 기본,0,1,1,0,1,2,0,1,2,2,1,1,2,1,0,1,1,1,1
 counter,역습 축구,낮게 서서 끌어들이고 바로 앞으로,2,2,1,0,1,2,1,2,2,1,1,2,2,1,0,2,0,2,1
-pressing,압박 축구,상대 진영부터 달려들고 잃으면 역압박,0,1,1,1,1,2,1,2,2,2,1,1,2,2,2,1,2,0,2
+pressing,압박 축구,상대 진영부터 달려들고 잃으면 역압박,0,1,1,1,1,2,1,2,2,2,1,1,1,2,2,1,2,0,2
