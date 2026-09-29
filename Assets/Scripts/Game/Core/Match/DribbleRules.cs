@@ -9,6 +9,8 @@ namespace Game.Core.Match
     // 돌파는 앞으로 제치는 동작이라 후보를 앞쪽 ±90°로 줄였다. 상태 없음, 엔진 없음, 난수 없음
     public static class DribbleRules
     {
+        private const float Epsilon = 1e-4f;   // 후보 점수 동률 판정 폭(부동소수 오차)
+
         // 돌파 상대가 있나: 공격 방향 앞쪽이면서 engageRange 안인 상대
         public static bool HasDefenderAhead(float x, float z, int attackSign, IReadOnlyList<TargetInfo> opponents, float engageRange)
         {
@@ -29,9 +31,8 @@ namespace Game.Core.Match
             float carrySpeed, float opponentSpeed, float opponentReach, float lookahead, float stepDeg, float halfLength, float halfWidthInside)
         {
             float myTime = lookahead / Math.Max(carrySpeed, 0.1f);
-            bool haveSafe = false;
-            float bestForward = float.MinValue;
-            float bestMargin = float.MinValue;
+            bool bestSafe = false;
+            float bestScore = float.MinValue;
             float bestAbsAngle = float.MaxValue;
             float bx = x + lookahead * attackSign;
             float bz = z;
@@ -54,23 +55,26 @@ namespace Game.Core.Match
                 }
                 float margin = oppTime - myTime;
                 bool safe = margin > 0f;
-                float forward = (px - x) * attackSign;
+                float score = safe ? (px - x) * attackSign : margin;   // 안전하면 얼마나 앞으로 가나, 아니면 얼마나 덜 늦나
                 float absAngle = Math.Abs(deg);
+                if (!IsBetterCandidate(safe, score, absAngle, bestSafe, bestScore, bestAbsAngle)) { continue; }
 
-                bool better;
-                if (safe != haveSafe) { better = safe; }
-                else if (safe) { better = forward > bestForward + 1e-4f || (Math.Abs(forward - bestForward) <= 1e-4f && absAngle < bestAbsAngle); }
-                else { better = margin > bestMargin + 1e-4f || (Math.Abs(margin - bestMargin) <= 1e-4f && absAngle < bestAbsAngle); }
-                if (!better) { continue; }
-
-                haveSafe = safe;
-                bestForward = forward;
-                bestMargin = margin;
+                bestSafe = safe;
+                bestScore = score;
                 bestAbsAngle = absAngle;
                 bx = px;
                 bz = pz;
             }
             return (bx, bz);
+        }
+
+        // 안전한 후보가 안전하지 않은 후보보다 먼저. 같은 부류면 점수가 큰 쪽, 비기면 정면에 가까운 쪽
+        private static bool IsBetterCandidate(bool safe, float score, float absAngle, bool bestSafe, float bestScore, float bestAbsAngle)
+        {
+            if (safe != bestSafe) { return safe; }
+            if (score > bestScore + Epsilon) { return true; }
+            if (score < bestScore - Epsilon) { return false; }
+            return absAngle < bestAbsAngle;
         }
 
         // 돌파 의도를 가질 확률. 개인 드리블 성향(0~1) × 배율. 역할 차이는 선수 표 dribble 열이 이미 담고 있다(윙어 0.9·타깃맨 0.2)
