@@ -75,6 +75,15 @@ namespace Game.Core.Match
         public const float TakeOnEngageRange = 8f;      // 앞쪽 이 거리 안에 상대가 있을 때만 돌파 동작. 없으면 이미 제친 것
         public const float TakeOnLookahead = 4f;        // 방향 후보 지점까지 거리(m)
         public const float TakeOnAngleStep = 30f;       // 방향 후보 간격(°). HELIOS와 같은 값
+        // 체력(09-29 전술 상성 ⑥, FatigueRules 주석). 회복 반감기·effort 구조·최저값은 레퍼런스, 소모·상한 감소는 출처 없는 값이라 러너로 맞췄다:
+        // 끝 15분 고속 주행이 체력 없을 때보다 균형 FB -11%p·압박 FB -24%p·압박 W -14%p(레퍼런스 -8~-21%), 최고 속도 변화 0%.
+        // 소모 0.02·상한 0.001·최저 0.85는 압박이 더 약해졌지만 균형 러너 골 1.82로 목표 밖이라 버렸다
+        public const float FatigueDrainPerTick = 0.012f;         // 전력 행동 한 틱에 줄어드는 단기 체력(stamina 50 기준). 1초(50틱) 전력이면 1 → 0.4
+        public const float FatigueCapLossPerTick = 0.0006f;      // 전력 행동 한 틱에 내려가는 장기 상한. 경기 동안 쌓여 후반 회복 상한이 낮아진다(경기 끝 평균 상한: 균형 0.79·압박 0.74)
+        public const float FatigueCapMin = 0.5f;                 // 장기 상한의 바닥
+        public const float FatigueRecoveryHalfLifeTicks = 95f;   // 회복 반감기. 전력 뒤 에너지(PCr) 재합성 반감기 약 57초(Bogdanis 1995)를 경기 시간으로 본다. 3분 = 90분이라 1틱(0.02초) = 경기 0.6초, 57 ÷ 0.6 ≈ 95틱
+        public const float FatigueEffortThreshold = 0.3f;        // 단기 체력이 이 아래면 속도가 준다(RoboCup effort_dec_thr와 같은 비율)
+        public const float FatigueEffortMin = 0.9f;              // 속도 배율 바닥(최대 10% 감소). 최고 속도는 거의 안 떨어진다는 레퍼런스라 감소 폭을 RoboCup(바닥 0.6, 40% 감소)보다 훨씬 작게
         public const int MaxPressers = 1;                                       // 팀에서 동시에 압박(⑧)하는 인원 상한. 압박 거리 안인 선수를 공 거리순으로 세어 이 안만 간다(09-23 Play: 인원 제한이 없어 우리 진영 "적극"이면 CM 19.5m·FB/W/ST 12m 안 4~6명이 한꺼번에 달려들어 초등학교 경기처럼 뭉쳤다). Simple Soccer는 최근접 1명만 쫓고 FM도 1명 압박 + 커버. 러너에서 태클이 죽으면 2
     }
 }

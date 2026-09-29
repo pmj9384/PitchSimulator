@@ -347,7 +347,11 @@ namespace Game.Core.Match
             {
                 // 하프타임(IFAB 8조, 09-27): 진영 교체 + 중앙 리셋 + 전반 킥오프를 안 한 팀이 킥오프. 난수를 안 써 결정성 그대로.
                 // 러너·시즌·인게임이 같은 Tick을 타므로 같은 시드 = 같은 경기
-                for (int i = 0; i < players.Count; i++) { players[i].SwitchSides(); }
+                for (int i = 0; i < players.Count; i++)
+                {
+                    players[i].SwitchSides();
+                    players[i].Stamina = players[i].StaminaCap;   // 하프타임 휴식: 단기 체력은 다 찬다. 장기 상한은 그대로(후반이 전반보다 무겁다)
+                }
                 sidesSwitched = true;
                 KickoffBy(1 - firstKickoffTeam);
             }
@@ -409,8 +413,35 @@ namespace Game.Core.Match
             }
             for (int i = 0; i < players.Count; i++)
             {
-                Apply(players[i], deltaTime);
+                PlayerState p = players[i];
+                bool sprinting = IsSprintAction(p);
+                float beforeX = p.X;
+                float beforeZ = p.Z;
+                Apply(p, deltaTime);
+                bool moved = p.X != beforeX || p.Z != beforeZ;
+                UpdateStamina(p, sprinting && moved);
             }
+        }
+
+        // 현실에서 전력인 행동(09-29 체력): 공 몰기, 압박 1순위, 루즈볼 추격, 나에게 오는 패스 마중. 스냅샷 값만 봐서 실행 순서와 무관하다
+        private bool IsSprintAction(PlayerState p)
+        {
+            if (Ball.Phase == BallPhase.Owned && Ball.OwnerId == p.PlayerId) { return true; }
+            if (p.IsLooseBallChaser || p.IsPassTarget) { return true; }
+            return p.BallOwnerTeam == 1 - p.Team && p.PressRank < MatchTuning.MaxPressers;   // 트리 ⑧과 같은 조건(PressRank는 압박 거리 안인 선수만 순위가 있다)
+        }
+
+        private static void UpdateStamina(PlayerState p, bool exerted)
+        {
+            if (!exerted)
+            {
+                p.Stamina = FatigueRules.Recover(p.Stamina, p.StaminaCap, MatchTuning.FatigueRecoveryHalfLifeTicks);
+                return;
+            }
+            (float stamina, float cap) next = FatigueRules.Exert(p.Stamina, p.StaminaCap, p.Stats.Stamina,
+                MatchTuning.FatigueDrainPerTick, MatchTuning.FatigueCapLossPerTick, MatchTuning.FatigueCapMin);
+            p.Stamina = next.stamina;
+            p.StaminaCap = next.cap;
         }
 
         // 틱마다 한 번: 명부 위치 스냅샷 → 턴오버 감지 → 팀 국면(서드·역습·역압박) → 22명에게 같은 값을 넣는다
@@ -518,7 +549,7 @@ namespace Game.Core.Match
 
             if (!p.WantsMove) { return; }
 
-            float speed = MatchRules.SpeedMps(p.Stats.Speed);
+            float speed = MatchRules.SpeedMps(p.Stats.Speed) * FatigueRules.Effort(p.Stamina, MatchTuning.FatigueEffortThreshold, MatchTuning.FatigueEffortMin);
             bool carrying = Ball.Phase == BallPhase.Owned && Ball.OwnerId == p.PlayerId;
             if (carrying) { speed *= MatchTuning.DribbleFactor; }
 
