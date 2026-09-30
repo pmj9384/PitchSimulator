@@ -31,6 +31,21 @@ internal static class PassFlightTestsHelper
         }
     }
 
+    // 켜진 뒤 공을 가진 선수가 한 번 슛(하프타임 직전 슛 테스트, 09-30). 켜기 전엔 아무 의도도 없다
+    internal sealed class ShootWhenArmed : BehaviorNode
+    {
+        public bool Armed;
+        private bool done;
+
+        public override NodeState Tick(IPlayerContext ctx)
+        {
+            if (!Armed || done || !ctx.OwnsBall) { return NodeState.Success; }
+            ctx.Shoot();
+            done = true;
+            return NodeState.Success;
+        }
+    }
+
     // 지정 선수가 공을 가지면 한 번 지정 동료에게 패스
     internal sealed class PassOnce : BehaviorNode
     {
@@ -537,5 +552,50 @@ public class MatchSimulationTests
         CollectionAssert.DoesNotContain(outcomes, ShotOutcome.Blocked);
         Assert.AreEqual(BallPhase.Flight, sim.Ball.Phase, "슛은 그대로 날아간다");
         Assert.Greater(sim.Ball.VelX, 0f, "골 쪽(+X)으로");
+    }
+
+    // 하프타임 한 틱 전에 슛을 쏘게 해 두고 하프타임 틱까지 돌린다. 슈터 (20,0)에서 골까지 32.5m라 공은 1초 넘게 난다
+    private static (MatchSimulation sim, List<ShotOutcome> outcomes) ShotAtHalfTime(float roll)
+    {
+        var tree = new PassFlightTestsHelper.ShootWhenArmed();
+        var sim = new MatchSimulation(() => roll, tree);
+        PlayerState shooter = sim.AddPlayer(new PlayerState(0, 0, Striker(), -10f, 0f));
+        sim.AddPlayer(new PlayerState(1, 1, Keeper(), 52f, 0f));
+        sim.AddPlayer(new PlayerState(2, 1, Striker(), 30f, 25f));   // 후반 킥오프를 받을 팀 1 필드 선수. 슛 라인에서 멀리
+        sim.KickoffBy(0);
+        int halfTimeTick = MatchClock.HalfTimeTick(AddedTime.None);
+        for (int i = 0; i < halfTimeTick - 2; i++) { sim.Tick(Dt); }
+
+        shooter.X = 20f;
+        shooter.Z = 0f;
+        sim.Ball = BallRules.Own(sim.Ball, 0, 20f, 0f);
+        tree.Armed = true;
+        var outcomes = new List<ShotOutcome>();
+        sim.ShotResolved += r => outcomes.Add(r.Outcome);
+        sim.Tick(Dt);   // 하프타임 한 틱 전: 슛
+        Assert.AreEqual(BallPhase.Flight, sim.Ball.Phase, "하프타임 직전에 슛이 날아가는 중");
+        Assert.IsEmpty(outcomes);
+        sim.Tick(Dt);   // 하프타임 틱
+        Assert.IsTrue(sim.SidesSwitched, "하프타임이 지났다");
+        return (sim, outcomes);
+    }
+
+    [Test]
+    public void 하프타임_휘슬_순간_날아가던_골이_될_슛은_골로_남는다()
+    {
+        // 09-29 재검증 ②: 하프타임 리셋이 비행 중인 슛을 Finish 없이 지워 골이 사라졌다. 결과는 찬 순간 정해져 있으니 그 결과로 마감한다
+        (MatchSimulation sim, List<ShotOutcome> outcomes) = ShotAtHalfTime(0f);   // 주사위 0 = 골 판정 성공, 조준은 골문 안
+        CollectionAssert.AreEqual(new[] { ShotOutcome.Goal }, outcomes);
+        Assert.AreEqual(1, sim.HomeGoals);
+        Assert.AreEqual(1, sim.OwnerTeam(), "후반 킥오프는 전반에 킥오프하지 않은 팀 1(실점 팀 규칙보다 하프타임 규칙이 먼저)");
+    }
+
+    [Test]
+    public void 하프타임_휘슬_순간_날아가던_골이_아닌_슛은_빗나감으로_마감한다()
+    {
+        // 세이브가 될 슛이었을 수도 있지만 GK에 닿기 전이라 빗나감으로 센다. 슛 수와 결과 수가 어긋나지 않게 결과는 반드시 하나 낸다
+        (MatchSimulation sim, List<ShotOutcome> outcomes) = ShotAtHalfTime(0.99f);   // 주사위 0.99 = 골 판정 실패
+        CollectionAssert.AreEqual(new[] { ShotOutcome.Missed }, outcomes);
+        Assert.AreEqual(0, sim.HomeGoals);
     }
 }

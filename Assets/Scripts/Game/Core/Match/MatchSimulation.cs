@@ -387,6 +387,7 @@ namespace Game.Core.Match
             {
                 // 하프타임(IFAB 8조, 09-27): 진영 교체 + 중앙 리셋 + 전반 킥오프를 안 한 팀이 킥오프. 난수를 안 써 결정성 그대로.
                 // 러너·시즌·인게임이 같은 Tick을 타므로 같은 시드 = 같은 경기
+                FinishShotAtHalfTime();   // 리셋 전에: 날아가던 슛의 결과를 먼저 낸다. 골이어도 후반 킥오프는 하프타임 규칙(아래)을 따른다
                 for (int i = 0; i < players.Count; i++)
                 {
                     players[i].SwitchSides();
@@ -769,9 +770,7 @@ namespace Game.Core.Match
 
             if (shotWillScore)
             {
-                int scorerTeam = TeamOfSign(shooterAttackSign);
-                if (scorerTeam == 0) { HomeGoals++; } else { AwayGoals++; }
-                Finish(ShotOutcome.Goal);
+                int scorerTeam = ScoreGoal();
                 if (ResetAfterEveryShot) { Kickoff(); } else { KickoffBy(1 - scorerTeam); }   // 실점한 팀이 킥오프
                 return true;
             }
@@ -825,6 +824,30 @@ namespace Game.Core.Match
                 PlayerState p = players[i];
                 if (p.Team != keeper.Team && MatchRules.IsInOwnPenaltyBox(p.X, p.Z, keeper.AttackSign)) { p.X = outsideX; }
             }
+        }
+
+        // 골 한 번: 득점 팀 골 수 + 결과 보고. 골라인 도달과 하프타임 마감이 같이 쓴다. 킥오프는 부르는 쪽이 정한다(실점 팀 / 후반 킥오프 팀)
+        private int ScoreGoal()
+        {
+            int scorerTeam = TeamOfSign(shooterAttackSign);
+            if (scorerTeam == 0) { HomeGoals++; } else { AwayGoals++; }
+            Finish(ShotOutcome.Goal);
+            return scorerTeam;
+        }
+
+        // 하프타임 휘슬 순간 날아가던 슛(09-29 재검증 ②, 09-30 수정). 하프타임 리셋(KickoffBy → Kickoff)이 shotInFlight만 지워
+        // 결과 보고 없이 슛이 사라졌고 골이 될 슛이면 골도 사라졌다(경기의 약 7%가 하프타임 순간 슛 비행 중, 골 소실 약 1%).
+        // 휘슬을 슛 뒤로 미루면(방식 A) 시계·HUD·러너·연출 멈춤이 전부 하프타임 틱에 묶여 있어 같이 바뀐다. 결과는 찬 순간 정해져 있으니(shotWillScore) 그 결과로 마감한다.
+        // 골이 아닌 슛은 세이브가 될 슛이었을 수도 있지만 GK에 닿기 전이라 빗나감으로 센다
+        private void FinishShotAtHalfTime()
+        {
+            if (!shotInFlight) { return; }
+            if (!shotWillScore)
+            {
+                Finish(ShotOutcome.Missed);
+                return;
+            }
+            ScoreGoal();
         }
 
         private void Finish(ShotOutcome outcome)

@@ -33,6 +33,7 @@ public class MatchManager : InGameManager
     private bool holdIsHalfTime;
     private int goalScorerId = BallState.NoOwner;   // 이번 틱 골 넣은 선수. ShotResolved에서 받는다
     private readonly GoalCelebration celebration = new GoalCelebration();   // 세리머니 안무. 언제 시작·끝낼지는 여기서 정한다
+    private bool celebrationBeforeHalfTime;   // 이번 세리머니가 하프타임 틱의 골인가. 끝나면 킥오프 준비 대신 하프타임 멈춤
 
     public bool InHalfTimeHold => holdTicksLeft > 0 && holdIsHalfTime;   // HUD가 "하프타임" 자막을 띄운다
     public bool InCelebration => celebration.IsPlaying;                   // HUD가 골 자막을 세리머니 내내 유지한다
@@ -57,6 +58,7 @@ public class MatchManager : InGameManager
         holdTicksLeft = 0;
         holdIsHalfTime = false;
         goalScorerId = BallState.NoOwner;
+        celebrationBeforeHalfTime = false;
         celebration.Stop();
         rng = new System.Random(setup.Seed);
         kickoffTeam = setup.KickoffTeam;
@@ -121,6 +123,7 @@ public class MatchManager : InGameManager
             return;
         }
 
+        // 이번 틱이 하프타임 틱인지 미리 안다. 전제: Ticks와 시뮬 내부 tickCount가 늘 같다(Simulation.Tick을 부르는 곳은 여기 한 곳, 09-30 리뷰)
         bool halfTimeTick = Ticks + 1 == MatchClock.HalfTimeTick(Simulation.Added);
         goalScorerId = BallState.NoOwner;
         Simulation.Tick(MatchTuning.FixedStep);   // Unity 설정(Fixed Timestep)이 아니라 코어 상수로 흐른다: 설정이 바뀌어도 같은 시드 = 같은 경기(러너와 동일). 호출 주기만 설정이 정한다
@@ -128,7 +131,9 @@ public class MatchManager : InGameManager
 
         if (goalScorerId != BallState.NoOwner)
         {
-            // 시뮬은 이 틱에 이미 킥오프 자리로 리셋했다. 화면은 골 순간에 머물고 세리머니 뒤에 킥오프 자리로 스냅한다
+            // 시뮬은 이 틱에 이미 킥오프 자리로 리셋했다. 화면은 골 순간에 머물고 세리머니 뒤에 킥오프 자리로 스냅한다.
+            // 하프타임 틱의 골(휘슬 순간 날아가던 슛, 09-30)이면 세리머니 뒤에 하프타임 멈춤을 이어 준다: 그냥 두면 킥오프 준비 1초로 끝나 "하프타임" 자막이 안 뜬다
+            celebrationBeforeHalfTime = halfTimeTick;
             BeginCelebration();
             return;
         }
@@ -194,7 +199,13 @@ public class MatchManager : InGameManager
     private void EndCelebration()
     {
         SnapViews();
-        if (Ticks < MatchTuning.MatchTicks) { Hold(kickoffSetSec, halfTime: false); }
+        if (Ticks >= MatchTuning.MatchTicks) { return; }
+        if (celebrationBeforeHalfTime)
+        {
+            Hold(halfTimeHoldSec, halfTime: true);
+            return;
+        }
+        Hold(kickoffSetSec, halfTime: false);
     }
 
     private void HoldAllViews()
