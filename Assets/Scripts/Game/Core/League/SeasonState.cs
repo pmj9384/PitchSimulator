@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Game.Core.AutoMatch;
 using Game.Core.Data;
 using Game.Core.Match;
+using Game.Core.Tactics;
 
 namespace Game.Core.League
 {
@@ -50,7 +51,8 @@ namespace Game.Core.League
         public int GeneratorVersion { get; }
         public int RoundsPlayed { get; private set; }
         public int ScoutAttempts { get; set; }
-        public string MyPresetId { get; set; }   // 내 팀 전술 프리셋(TacticPresets presetId). 10-01 프리셋 선택 화면이 바꾼다
+        public string MyPresetId { get; private set; }   // 내 팀 기준 카드(TacticPresets presetId). 바꾸는 곳은 SetMyPreset 하나(팀 전술 설정창, 09-30)
+        public TeamTactics? MyCustomTactics { get; private set; }   // 슬라이더·세부 표로 바꾼 값 전체. null = 기준 카드 값 그대로(09-30)
         public IReadOnlyList<MatchResult> Results => results;
         public IReadOnlyList<RosterPlayer> Roster => roster;
         public IReadOnlyList<LineupEntry> Lineup => lineup;
@@ -60,9 +62,11 @@ namespace Game.Core.League
         private readonly List<LineupEntry> lineup;
 
         public SeasonState(int tier, int seasonSeed, int generatorVersion, List<RosterPlayer> roster, List<LineupEntry> lineup,
-            List<MatchResult> results, int roundsPlayed, int scoutAttempts, string? myPresetId = null)
+            List<MatchResult> results, int roundsPlayed, int scoutAttempts, string? myPresetId = null, TeamTactics? myCustomTactics = null)
         {
             MyPresetId = string.IsNullOrEmpty(myPresetId) ? DefaultPresetId : myPresetId!;
+            if (myCustomTactics != null) { TacticsEditing.Validate(myCustomTactics); }
+            MyCustomTactics = myCustomTactics;
             Tier = tier;
             SeasonSeed = seasonSeed;
             GeneratorVersion = generatorVersion;
@@ -91,6 +95,49 @@ namespace Game.Core.League
         }
 
         public bool MatchesGenerator => GeneratorVersion == TeamGenerator.Version;
+
+        // 카드를 고를 때(팀 전술 설정창 1단, 09-30). 없는 id면 던지고 값을 바꾸지 않는다: 잘못된 id가 세이브에 들어가면 다음 경기를 차릴 때에야 터진다.
+        // 카드를 고르면 아래 전부가 그 카드 값으로 돌아간다(목업 규칙). 그래서 바꾼 값을 지운다
+        public void SetMyPreset(string presetId, IReadOnlyList<TeamTactics> presets)
+        {
+            SeasonRunner.FindPreset(presets, presetId);   // 없으면 InvalidOperationException
+            MyPresetId = presetId;
+            MyCustomTactics = null;
+        }
+
+        // 슬라이더로 바꾼 값(팀 전술 설정창 2단). 기준 카드(MyPresetId)는 그대로 둔다: 슬라이더가 그 카드 기준 오프셋이라서다. 범위 밖이면 던진다.
+        // 불변식: MyCustomTactics가 있으면 값이 기준 카드와 다르다. 같아지면(슬라이더를 가운데로) 바꾼 값 없음으로 돌아간다
+        public void SetMyTactics(TeamTactics tactics, IReadOnlyList<TeamTactics> presets)
+        {
+            TacticsEditing.Validate(tactics);
+            if (TacticsEditing.SameValues(tactics, SeasonRunner.FindPreset(presets, MyPresetId)))
+            {
+                MyCustomTactics = null;
+                return;
+            }
+            MyCustomTactics = TacticsEditing.Copy(tactics);
+        }
+
+        // 세부 표로 바꾼 값(3단). 어떤 카드와 값이 같아지면 그 카드를 고른 것으로 친다:
+        // 화면이 강조하는 카드와 슬라이더가 기준으로 삼는 카드가 어긋나지 않게(09-30 리뷰)
+        public void SetMyTacticsFromTable(TeamTactics tactics, IReadOnlyList<TeamTactics> presets)
+        {
+            TacticsEditing.Validate(tactics);
+            string? matching = TacticsEditing.MatchingPreset(tactics, presets);
+            if (matching != null)
+            {
+                SetMyPreset(matching, presets);
+                return;
+            }
+            MyCustomTactics = TacticsEditing.Copy(tactics);
+        }
+
+        // 경기에 들어가는 내 전술: 바꾼 값이 있으면 그것, 없으면 기준 카드
+        public TeamTactics MyTactics(IReadOnlyList<TeamTactics> presets)
+        {
+            if (MyCustomTactics != null) { return MyCustomTactics; }
+            return SeasonRunner.FindPreset(presets, MyPresetId);
+        }
 
         // 한 라운드의 전 경기를 한 번에 넣는다(09-27 리뷰 D3): 중간에 예외가 나면 아무것도 안 들어가 재호출해도 결과가 겹치지 않는다
         public void AddRound(IReadOnlyList<MatchResult> roundResults)
@@ -136,6 +183,7 @@ namespace Game.Core.League
         public SeasonSave ToSave()
         {
             var save = new SeasonSave { tier = Tier, seasonSeed = SeasonSeed, generatorVersion = GeneratorVersion, roundsPlayed = RoundsPlayed, scoutAttempts = ScoutAttempts, myPresetId = MyPresetId };
+            if (MyCustomTactics != null) { save.myTactics = SeasonSave.TacticsValues.From(MyCustomTactics); }
             for (int i = 0; i < results.Count; i++)
             {
                 MatchResult r = results[i];
@@ -188,7 +236,8 @@ namespace Game.Core.League
                 SeasonSave.Result r = save.results[i];
                 results.Add(new MatchResult(r.home, r.away, r.homeGoals, r.awayGoals));
             }
-            return new SeasonState(save.tier, save.seasonSeed, save.generatorVersion, roster, lineup, results, save.roundsPlayed, save.scoutAttempts, save.myPresetId);
+            TeamTactics? custom = save.myTactics == null ? null : save.myTactics.ToTactics(save.myPresetId ?? DefaultPresetId);   // 범위는 생성자가 검증한다
+            return new SeasonState(save.tier, save.seasonSeed, save.generatorVersion, roster, lineup, results, save.roundsPlayed, save.scoutAttempts, save.myPresetId, custom);
         }
     }
 
@@ -202,6 +251,7 @@ namespace Game.Core.League
         public int roundsPlayed;
         public int scoutAttempts;
         public string? myPresetId;   // 09-27 추가. 옛 세이브(09-26)엔 없어 null → DefaultPresetId
+        public TacticsValues? myTactics;   // 09-30 추가(팀 전술 설정창). 카드 값 그대로면 null. 옛 세이브엔 없어 null → 기준 카드 값
         public List<Result> results = new List<Result>();
         public List<Player> roster = new List<Player>();
         public List<Slot> lineup = new List<Slot>();
@@ -209,5 +259,53 @@ namespace Game.Core.League
         [Serializable] public sealed class Result { public int home; public int away; public int homeGoals; public int awayGoals; }
         [Serializable] public sealed class Player { public int playerId; public string variantId = string.Empty; public int[] build = Array.Empty<int>(); }
         [Serializable] public sealed class Slot { public int playerId; public float attackX; public float attackZ; public float defendX; public float defendZ; }
+
+        // 바꾼 팀 전술 값. 이름·설명은 기준 카드에서 다시 읽으므로 판정에 쓰는 값만 저장한다
+        [Serializable]
+        public sealed class TacticsValues
+        {
+            public int[] passStyle = Array.Empty<int>();
+            public int[] passRisk = Array.Empty<int>();
+            public int[] tempo = Array.Empty<int>();
+            public int[] width = Array.Empty<int>();
+            public int[] pressStart = Array.Empty<int>();
+            public int counter;
+            public int counterPress;
+            public int gkDistribution;
+            public int mentality;
+
+            public static TacticsValues From(TeamTactics t)
+            {
+                return new TacticsValues
+                {
+                    passStyle = (int[])t.PassStyle.Clone(),
+                    passRisk = (int[])t.PassRisk.Clone(),
+                    tempo = (int[])t.Tempo.Clone(),
+                    width = (int[])t.Width.Clone(),
+                    pressStart = (int[])t.PressStart.Clone(),
+                    counter = t.Counter,
+                    counterPress = t.CounterPress,
+                    gkDistribution = t.GkDistribution,
+                    mentality = t.Mentality,
+                };
+            }
+
+            public TeamTactics ToTactics(string basePresetId)
+            {
+                return new TeamTactics
+                {
+                    PresetId = basePresetId,
+                    PassStyle = (int[])passStyle.Clone(),
+                    PassRisk = (int[])passRisk.Clone(),
+                    Tempo = (int[])tempo.Clone(),
+                    Width = (int[])width.Clone(),
+                    PressStart = (int[])pressStart.Clone(),
+                    Counter = counter,
+                    CounterPress = counterPress,
+                    GkDistribution = gkDistribution,
+                    Mentality = mentality,
+                };
+            }
+        }
     }
 }

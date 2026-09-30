@@ -216,6 +216,117 @@ public class SeasonFlowTests
     }
 
     [Test]
+    public void 없는_프리셋은_거부하고_내_프리셋을_바꾸지_않는다()
+    {
+        // 09-30 팀 전술 설정창의 카드 선택. 조용히 balanced로 바꾸지 않는다(SeasonRunner.FindPreset과 같은 방식)
+        SeasonState state = SeasonState.NewSeason(4, 42, myRows, table);
+        Assert.Throws<System.InvalidOperationException>(() => state.SetMyPreset("no_such_preset", presets));
+        Assert.AreEqual(SeasonState.DefaultPresetId, state.MyPresetId);
+
+        state.SetMyPreset("pressing", presets);
+        Assert.AreEqual("pressing", state.MyPresetId);
+    }
+
+    [Test]
+    public void 같은_라운드에서_프리셋만_바꾸면_내_전술만_바뀌고_시드_상대_킥오프는_같다()
+    {
+        // "막히면 재세팅"(스펙 축): 같은 경기를 다른 세팅으로 다시 치를 수 있어야 차이가 세팅 때문이라고 말할 수 있다
+        TierRule tier = Tier(4);
+        SeasonState state = SeasonState.NewSeason(4, 5, myRows, table);
+        List<GeneratedTeam> opponents = TeamGenerator.Generate(5, tier, table, formations, names);
+        List<Fixture> schedule = SeasonSchedule.RoundRobin(tier.Teams);
+
+        MatchSetup before = SeasonRunner.SetupMyMatch(state, opponents, schedule, presets, 0);
+        state.SetMyPreset("pressing", presets);
+        MatchSetup after = SeasonRunner.SetupMyMatch(state, opponents, schedule, presets, 0);
+
+        Assert.AreEqual("balanced", before.Tactics0.PresetId);
+        Assert.AreEqual("pressing", after.Tactics0.PresetId);
+        Assert.AreEqual(before.Seed, after.Seed);
+        Assert.AreEqual(before.KickoffTeam, after.KickoffTeam);
+        Assert.AreEqual(before.OpponentName, after.OpponentName);
+        Assert.AreEqual(before.Tactics1.PresetId, after.Tactics1.PresetId, "상대 전술은 그대로");
+    }
+
+    [Test]
+    public void 표로_바꾼_내_전술은_경기에_들어가고_세이브를_왕복한다()
+    {
+        // 09-30 팀 전술 설정창: 세이브 = 기준 카드 id + 바꾼 값 전체(myTactics). 경기 재료(Tactics0)는 바꾼 값
+        TierRule tier = Tier(4);
+        SeasonState state = SeasonState.NewSeason(4, 5, myRows, table);
+        List<GeneratedTeam> opponents = TeamGenerator.Generate(5, tier, table, formations, names);
+        List<Fixture> schedule = SeasonSchedule.RoundRobin(tier.Teams);
+
+        TeamTactics balanced = SeasonRunner.FindPreset(presets, "balanced");
+        TeamTactics edited = TacticsEditing.ApplySlider(balanced, balanced, TacticSlider.Speed, 2);
+        state.SetMyTactics(edited, presets);
+        MatchSetup setup = SeasonRunner.SetupMyMatch(state, opponents, schedule, presets, 0);
+        CollectionAssert.AreEqual(new[] { 2, 2, 2 }, setup.Tactics0.Tempo, "표로 바꾼 속도가 경기에");
+        Assert.AreEqual("balanced", state.MyPresetId, "기준 카드는 그대로");
+
+        SeasonState loaded = SeasonState.FromSave(state.ToSave(), table);
+        CollectionAssert.AreEqual(new[] { 2, 2, 2 }, loaded.MyTactics(presets).Tempo, "세이브 왕복 뒤에도");
+    }
+
+    [Test]
+    public void 옛_세이브엔_바꾼_값이_없어_카드_값을_쓰고_카드를_고르면_바꾼_값이_지워진다()
+    {
+        SeasonState state = SeasonState.NewSeason(4, 42, myRows, table, "counter");
+        SeasonSave save = state.ToSave();
+        Assert.IsNull(save.myTactics, "안 바꿨으면 저장하지 않는다(09-27 세이브와 같은 모양)");
+        Assert.IsTrue(TacticsEditing.SameValues(SeasonRunner.FindPreset(presets, "counter"), SeasonState.FromSave(save, table).MyTactics(presets)));
+
+        TeamTactics counter = SeasonRunner.FindPreset(presets, "counter");
+        state.SetMyTactics(TacticsEditing.ApplySlider(counter, counter, TacticSlider.Forward, 1), presets);
+        Assert.IsNotNull(state.MyCustomTactics);
+        state.SetMyPreset("pressing", presets);
+        Assert.IsNull(state.MyCustomTactics, "카드를 고르면 아래 전부가 그 카드 값으로(목업 규칙)");
+        Assert.IsTrue(TacticsEditing.SameValues(SeasonRunner.FindPreset(presets, "pressing"), state.MyTactics(presets)));
+    }
+
+    [Test]
+    public void 범위_밖_전술_값이_든_세이브는_로드에서_거부한다()
+    {
+        SeasonState state = SeasonState.NewSeason(4, 42, myRows, table);
+        TeamTactics balanced = SeasonRunner.FindPreset(presets, "balanced");
+        state.SetMyTactics(TacticsEditing.ApplySlider(balanced, balanced, TacticSlider.Forward, 1), presets);
+        SeasonSave save = state.ToSave();
+        save.myTactics!.tempo[0] = 5;
+        Assert.Throws<System.InvalidOperationException>(() => SeasonState.FromSave(save, table));
+    }
+
+    [Test]
+    public void 슬라이더로_바꾼_값이_기준_카드와_같아지면_바꾼_값이_없는_상태다()
+    {
+        // 불변식: MyCustomTactics가 있으면 값이 기준 카드와 다르다. 슬라이더를 가운데로 되돌리면 카드 그대로
+        SeasonState state = SeasonState.NewSeason(4, 42, myRows, table);
+        TeamTactics balanced = SeasonRunner.FindPreset(presets, "balanced");
+        state.SetMyTactics(TacticsEditing.ApplySlider(balanced, balanced, TacticSlider.Speed, 1), presets);
+        Assert.IsNotNull(state.MyCustomTactics);
+        state.SetMyTactics(TacticsEditing.ApplySlider(state.MyTactics(presets), balanced, TacticSlider.Speed, 0), presets);
+        Assert.IsNull(state.MyCustomTactics);
+    }
+
+    [Test]
+    public void 표로_바꾼_값이_다른_카드와_같아지면_그_카드를_고른_것이_되고_슬라이더는_기준을_지킨다()
+    {
+        // 09-30 리뷰: 화면이 강조하는 카드와 슬라이더가 기준으로 삼는 카드가 어긋나면 안 된다
+        TeamTactics pressing = SeasonRunner.FindPreset(presets, "pressing");
+
+        SeasonState byTable = SeasonState.NewSeason(4, 42, myRows, table);
+        byTable.SetMyTacticsFromTable(TacticsEditing.Copy(pressing), presets);
+        Assert.AreEqual("pressing", byTable.MyPresetId, "표: 그 카드를 고른 것으로");
+        Assert.IsNull(byTable.MyCustomTactics);
+
+        SeasonState bySlider = SeasonState.NewSeason(4, 42, myRows, table);
+        bySlider.SetMyTactics(TacticsEditing.Copy(pressing), presets);
+        Assert.AreEqual("balanced", bySlider.MyPresetId, "슬라이더: 기준 카드는 그대로");
+        Assert.IsNotNull(bySlider.MyCustomTactics, "기준 카드와 값이 다르니 사용자 설정");
+    }
+
+    // 다음 시즌으로 바꾼 전술을 이어 가는 것(SeasonSystem.StartNextSeason)은 여기서 못 잠근다: SeasonSystem이 SaveLoadSystem 싱글턴에 묶여 EditMode에서 못 만든다
+
+    [Test]
     public void 세이브가_없거나_생성기_버전이_다르면_새_시즌이_필요하다()
     {
         Assert.IsTrue(SeasonProgress.NeedsNewSeason(null), "세이브 없음");
