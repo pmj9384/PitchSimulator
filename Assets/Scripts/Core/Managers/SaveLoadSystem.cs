@@ -32,6 +32,14 @@ public class SaveLoadSystem : PersistentMonoSingleton<SaveLoadSystem>
 
     public void Save()
     {
+        // 저장할 데이터가 없으면 파일을 건드리지 않는다. 에디터에서 Play 중 도메인 리로드(재컴파일)가 나면 CurrentSaveData(직렬화 안 되는 값)가 null이 되고,
+        // 그대로 Play를 끄면 OnApplicationQuit이 "null"을 써서 세이브가 통째로 날아갔다(PitchSimulator 09-30). 정상본을 빈 값으로 덮느니 이번 저장을 건너뛴다
+        if (CurrentSaveData == null)
+        {
+            Debug.LogError("[SaveLoad] 저장할 데이터가 없다(CurrentSaveData null). 세이브 파일을 덮어쓰지 않는다");
+            return;
+        }
+
         OnApplicationQuitSave();
 
         if (!Directory.Exists(SavePathDirectory))
