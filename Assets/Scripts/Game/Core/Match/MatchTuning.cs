@@ -84,6 +84,17 @@ namespace Game.Core.Match
         public const float FatigueRecoveryHalfLifeTicks = 95f;   // 회복 반감기. 전력 뒤 에너지(PCr) 재합성 반감기 약 57초(Bogdanis 1995)를 경기 시간으로 본다. 3분 = 90분이라 1틱(0.02초) = 경기 0.6초, 57 ÷ 0.6 ≈ 95틱
         public const float FatigueEffortThreshold = 0.3f;        // 단기 체력이 이 아래면 속도가 준다(RoboCup effort_dec_thr와 같은 비율)
         public const float FatigueEffortMin = 0.9f;              // 속도 배율 바닥(최대 10% 감소). 최고 속도는 거의 안 떨어진다는 레퍼런스라 감소 폭을 RoboCup(바닥 0.6, 40% 감소)보다 훨씬 작게
+        // 박스 앞 센터백 전진(09-29 수비 D1): 공이 우리 골라인에서 이 거리 안(박스 폭 안)에 오면 공에 가장 가까운 CB는 개인 압박 거리와 상관없이 압박 후보가 된다.
+        // 코칭 원칙: 박스 근처에선 가장 가까운 CB가 나가고 나머지가 메운다(Coaches' Voice "The modern centre-back"). 박스 깊이 + 5m는 출처 없는 출발값
+        public const float BoxStepOutDepth = Placement.FieldBounds.PenaltyBoxDepth + 5f;
+        // 슈터 압박·슛 블록(09-29 수비 D3, MatchRules.UnderPressure·ShotBlocker 주석). 블록 확률·튕기는 속도는 출처 없는 출발값
+        public const float ShotPressureLogit = 0.4f;     // 압박받는 슛의 로짓 감소
+        public const float ShotBlockRange = TackleRange;  // 슛을 막을 수 있는 수비수 거리(발 뻗어 막는 범위 = 태클 사거리)
+        public const float ShotBlockConeDeg = 20f;       // 슛 방향 기준 각도
+        public const float ShotBlockChance = 0.3f;       // 후보가 있을 때 실제로 막을 확률
+        public const float BlockReboundSpeed = 6f;       // 막힌 공이 튕겨 나가는 초속(m/s)
+        public const float BlockReboundTurnDeg = 60f;    // 슛 반대 방향에서 비트는 각도. 슈터 쪽 직선이면 슈터가 도로 잡았다(09-29 리뷰)
+        public const float BlockReboundStart = 0.9f;     // 튕긴 공이 막은 선수에게서 떨어져 출발하는 거리. 잡기 반경(0.8) 밖
         public const int MaxPressers = 1;                                       // 팀에서 동시에 압박(⑧)하는 인원 상한. 압박 거리 안인 선수를 공 거리순으로 세어 이 안만 간다(09-23 Play: 인원 제한이 없어 우리 진영 "적극"이면 CM 19.5m·FB/W/ST 12m 안 4~6명이 한꺼번에 달려들어 초등학교 경기처럼 뭉쳤다). Simple Soccer는 최근접 1명만 쫓고 FM도 1명 압박 + 커버. 러너에서 태클이 죽으면 2
     }
 }

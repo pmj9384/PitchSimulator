@@ -6,7 +6,7 @@ using Game.Core.Tactics;
 
 namespace Game.Core.Match
 {
-    public enum ShotOutcome { Goal, Caught, Parried, Missed }
+    public enum ShotOutcome { Goal, Caught, Parried, Missed, Blocked }
 
     public enum PossessionChange { Capture, PassReceived, Intercepted, Turnover }
 
@@ -126,6 +126,8 @@ namespace Game.Core.Match
         // 찬 선수 가드(09-18, 09-21 재확인): 비행 중엔 소유 팀이 없어 자유 공 분기로 패서가 자기 공을 쫓는다.
         // 릴리스만 있으면 3틱째(공 0.9m, 패서 0.42m 따라옴)에 도로 잡아 0.15초마다 반복됐다. 공이 패서 반경을 벗어날 때까지 패서는 후보에서 뺀다
         private int lastKickerId = BallState.NoOwner;
+        private const string CenterBackRole = "CB";
+        private readonly int[] stepOutCenterBack = { -1, -1 };   // 이번 틱 박스 앞에서 나설 팀별 CB(09-29 수비 D1). 압박 후보 계산 때 채운다
         private int kickoffTakerId = BallState.NoOwner;   // 킥오프 공을 쥔 키커(09-29). 첫 킥이나 소유 변경 때 푼다. 스냅샷 IsKickoffTaker로 트리에 준다
         // 드리블 돌파 의도(09-29): 공을 잡을 때 드리블 성향으로 한 번 굴린다. 트리가 틱마다 굴리면 같은 소유 안에서 돌파·패스가 번갈아 흔들린다
         private int takeOnOwnerId = BallState.NoOwner;
@@ -191,25 +193,51 @@ namespace Game.Core.Match
         // 나머지는 양 팀 다 공격 자리(⑪)로 갔다가 받으면 돌아오는 왕복이 생겼다(Play: 상대 패스마다 수비 블록이 무너짐).
         // 찬 팀으로 두면 리시버만 마중(⑥), 아군은 자리(⑦), 상대는 압박·수비 자리(⑧·⑨)로 갈리고, 가로채기가 팀 전환으로 잡혀 역압박이 켜진다.
         // 슛·파링 비행은 여전히 -1(누구든 줍는다)
-        // 팀별 "압박 거리 안" 선수 목록. 트리 ⑧의 ShouldPress와 같은 판정(개인 압박 거리 × 팀 배율, 역압박 ×2)을 시뮬이 미리 돌려
-        // 팀 안에서 공 거리순 순위를 매긴다. 트리는 자기 순위만 보고 상한(MaxPressers) 안일 때만 간다(09-23 뭉침)
+        // 팀별 압박 후보 목록. 누가 후보인지(개인 압박 거리 × 팀 배율, 역압박 ×2, 박스 앞 CB 전진)는 시뮬이 여기서만 정하고
+        // 팀 안에서 공 거리순 순위를 매긴다. 트리는 자기 순위만 보고 상한(MaxPressers) 안일 때만 간다(09-23 뭉침, 09-29 판정 한 곳으로)
         private void FillPressEligible()
         {
             pressEligible[0].Clear();
             pressEligible[1].Clear();
+            stepOutCenterBack[0] = StepOutCenterBack(0);
+            stepOutCenterBack[1] = StepOutCenterBack(1);
             for (int i = 0; i < players.Count; i++)
             {
                 PlayerState p = players[i];
                 if (p.FrozenTicks > 0) { continue; }   // 태클 실패로 얼어 있는 선수는 순위에서 뺀다(09-26 리뷰): 남겨 두면 1순위를 차지한 채 못 움직여 그 팀 압박이 0.5초 빈다
-                float dx = Ball.X - p.X;
-                float dz = Ball.Z - p.Z;
-                float dist = (float)Math.Sqrt(dx * dx + dz * dz);
-                int level = tactics[p.Team].PressStart[(int)thirdByTeam[p.Team]];
-                if (PressRules.ShouldPress(dist, p.Stats.PressRange, level, counterPressingByTeam[p.Team]))
+                if (p.PlayerId == stepOutCenterBack[p.Team] || InPressDistance(p))
                 {
                     pressEligible[p.Team].Add(new TargetInfo(p.PlayerId, p.X, p.Z));
                 }
             }
+        }
+
+        private bool InPressDistance(PlayerState p)
+        {
+            float dx = Ball.X - p.X;
+            float dz = Ball.Z - p.Z;
+            float dist = (float)Math.Sqrt(dx * dx + dz * dz);
+            int level = tactics[p.Team].PressStart[(int)thirdByTeam[p.Team]];
+            return PressRules.ShouldPress(dist, p.Stats.PressRange, level, counterPressingByTeam[p.Team]);
+        }
+
+        // 박스 앞에서 나설 센터백(09-29 수비 D1). 공이 전진 구역 밖이거나 얼지 않은 CB가 없으면 -1. 동률은 PlayerId 작은 쪽
+        private int StepOutCenterBack(int team)
+        {
+            if (!PressRules.IsInStepOutZone(Ball.X, Ball.Z, AttackSignOf(team), MatchTuning.BoxStepOutDepth)) { return -1; }
+
+            int best = -1;
+            float bestD2 = float.MaxValue;
+            for (int i = 0; i < players.Count; i++)
+            {
+                PlayerState p = players[i];
+                if (p.Team != team || p.FrozenTicks > 0 || p.Stats.RoleId != CenterBackRole) { continue; }
+                float dx = Ball.X - p.X;
+                float dz = Ball.Z - p.Z;
+                float d2 = dx * dx + dz * dz;
+                if (d2 < bestD2) { bestD2 = d2; best = p.PlayerId; }
+            }
+            return best;
         }
 
         // 팀별 "지금 맡은 선수" 갱신(09-28 F1b). 직전 틱 담당을 incumbent로 넘겨 도전자가 ChaserSwitchMargin 넘게 가까울 때만 바꾼다.
@@ -582,6 +610,7 @@ namespace Game.Core.Match
             int diving = keeper != null ? keeper.Stats.Diving : 0;
 
             shotProbability = MatchRules.ShotProbability(shooter.X, shooter.Z, shooter.AttackSign, shooter.Stats.Shot, reflexes, diving);
+            if (IsPressed(shooter)) { shotProbability = MatchRules.UnderPressure(shotProbability, MatchTuning.ShotPressureLogit); }   // 트리 WantsShot과 같은 식(09-29 D3)
             shotWillScore = MatchRules.Resolve(shotProbability, nextRoll());
             shotInFlight = true;
             shooterId = shooter.PlayerId;
@@ -593,7 +622,41 @@ namespace Game.Core.Match
             if (!MatchRules.IsOnTarget(shotAimZ)) { shotWillScore = false; }
 
             float goalX = FieldBounds.HalfLength * shooter.AttackSign;
+            if (TryBlockShot(shooter, goalX)) { return; }
             Ball = BallRules.Kick(Ball, goalX - shooter.X, shotAimZ - shooter.Z, MatchTuning.ShotSpeed);
+        }
+
+        // 슈터 발 뻗는 범위 안 상대가 있나(슛 압박). 트리 IsPressed와 같은 반경·같은 틱 시작 스냅샷(09-29 리뷰: 라이브 위치를 쓰면 이번 틱에 먼저 움직인 선수만 반영돼 트리 판단과 갈린다)
+        private bool IsPressed(PlayerState p)
+        {
+            float r2 = MatchTuning.PressedRadius * MatchTuning.PressedRadius;
+            List<TargetInfo> opponents = rosterSnapshot[1 - p.Team];
+            for (int i = 0; i < opponents.Count; i++)
+            {
+                float dx = opponents[i].X - p.X;
+                float dz = opponents[i].Z - p.Z;
+                if (dx * dx + dz * dz <= r2) { return true; }
+            }
+            return false;
+        }
+
+        // 슛 블록(09-29 수비 D3): 슛 방향 앞의 수비수가 막으면 공은 옆·뒤로 튕겨 자유 공(루즈볼 경합)이 된다. 후보가 있을 때만 주사위를 쓴다
+        private bool TryBlockShot(PlayerState shooter, float goalX)
+        {
+            int blockerId = MatchRules.ShotBlocker(shooter.X, shooter.Z, goalX, shotAimZ, rosterSnapshot[1 - shooter.Team], keeperIds[1 - shooter.Team],
+                MatchTuning.ShotBlockRange, MatchTuning.ShotBlockConeDeg);
+            if (blockerId == -1) { return false; }
+            if (!MatchRules.Resolve(MatchTuning.ShotBlockChance, nextRoll())) { return false; }
+
+            PlayerState blocker = FindPlayer(blockerId);
+            (float x, float z) dir = MatchRules.BlockReboundDirection(shooter.X, shooter.Z, goalX, shotAimZ, blocker.X, blocker.Z, MatchTuning.BlockReboundTurnDeg);
+            // 09-29 리뷰: 슈터 쪽 직선으로 튕기면 슈터가 1~2틱 만에 도로 잡았다. 옆·뒤로 비틀고, 막은 선수 발(잡기 반경) 밖에서 출발시킨다
+            float startX = blocker.X + dir.x * MatchTuning.BlockReboundStart;
+            float startZ = blocker.Z + dir.z * MatchTuning.BlockReboundStart;
+            Ball = BallRules.Kick(BallState.FreeAt(startX, startZ), dir.x, dir.z, MatchTuning.BlockReboundSpeed);
+            lastKickerId = shooter.PlayerId;   // 슈터는 공이 자기 반경을 벗어날 때까지 못 잡는다(찬 선수 가드와 같은 규칙)
+            Finish(ShotOutcome.Blocked);
+            return true;
         }
 
         // 패스: 리드 목표점으로 직선 비행. 초속은 목표까지 거리로 역산(도착 속도 = 공이 있는 서드의 팀 템포). 리시버는 스냅샷으로 알고 마중 나간다

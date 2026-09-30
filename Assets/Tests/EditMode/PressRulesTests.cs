@@ -135,4 +135,15 @@ public class ShotDirectionTests
         Assert.GreaterOrEqual(onHigh, 90, "shot 90: 90% 이상 골문 안");
         Assert.That(onLow, Is.InRange(40, 80), "shot 30: 절반 안팎만 골문 안");
     }
+
+    [Test]
+    public void 센터백_전진_구역은_우리_골라인에서_박스_깊이_더하기_5m_안이고_박스_폭_안이다()
+    {
+        // 09-29 수비 D1. 팀 0(+X 공격)의 골라인은 x = -52.5
+        float depth = MatchTuning.BoxStepOutDepth;   // 21.5
+        Assert.IsTrue(PressRules.IsInStepOutZone(-52.5f + 20f, 0f, +1, depth), "골라인에서 20m, 중앙");
+        Assert.IsFalse(PressRules.IsInStepOutZone(-52.5f + 23f, 0f, +1, depth), "23m는 밖");
+        Assert.IsFalse(PressRules.IsInStepOutZone(-52.5f + 10f, 25f, +1, depth), "박스 폭(±20.15) 밖 측면");
+        Assert.IsTrue(PressRules.IsInStepOutZone(52.5f - 10f, 0f, -1, depth), "팀 1은 +X 골라인");
+    }
 }

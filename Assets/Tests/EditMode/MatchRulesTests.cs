@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System;
 using Game.Core.Match;
 using Game.Core.Placement;
@@ -135,5 +136,40 @@ public class ShotProbabilityTests
         Assert.IsFalse(MatchRules.IsInOwnPenaltyBox(-50f, 20.2f, +1), "폭 밖");
         Assert.IsFalse(MatchRules.IsInOwnPenaltyBox(-53f, 0f, +1), "골라인 뒤");
         Assert.IsTrue(MatchRules.IsInOwnPenaltyBox(50f, 0f, -1), "팀 1의 내 골은 +X");
+    }
+
+    [Test]
+    public void 압박받는_슛은_로짓만큼_확률이_줄고_0은_0이다()
+    {
+        // 09-29 수비 D3. 0.25를 로짓 0.4 깎으면 약 0.18(StatsBomb 예시와 같은 크기)
+        Assert.AreEqual(0.182f, MatchRules.UnderPressure(0.25f, 0.4f), 0.002f);
+        Assert.Less(MatchRules.UnderPressure(0.1f, 0.4f), 0.1f);
+        Assert.AreEqual(0f, MatchRules.UnderPressure(0f, 0.4f));
+    }
+
+    [Test]
+    public void 슛_블록_후보는_2m_안_슛_방향_20도_안의_가장_가까운_필드_선수다()
+    {
+        // 슈터 (40,0) → 골 (52.5,0). GK(id 9)는 제외
+        var opp = new List<TargetInfo>
+        {
+            new TargetInfo(9, 41f, 0f),      // GK: 제외
+            new TargetInfo(5, 41.5f, 0.2f),  // 1.5m, 거의 정면 → 후보
+            new TargetInfo(6, 40.5f, 1.5f),  // 1.6m지만 71° 옆 → 제외
+            new TargetInfo(7, 43f, 0f),      // 3m → 거리 밖
+        };
+        Assert.AreEqual(5, MatchRules.ShotBlocker(40f, 0f, 52.5f, 0f, opp, 9, 2f, 20f));
+        Assert.AreEqual(-1, MatchRules.ShotBlocker(40f, 0f, 52.5f, 0f, new List<TargetInfo> { opp[2], opp[3] }, 9, 2f, 20f));
+    }
+
+    [Test]
+    public void 막힌_공은_슛_반대_방향에서_블로커_쪽으로_60도_비틀어_튕긴다()
+    {
+        // 슛 +X, 블로커가 슛 라인 +Z 쪽 → 반대 방향(-X)을 +Z 쪽으로 비틀어 옆·뒤
+        (float x, float z) d = MatchRules.BlockReboundDirection(40f, 0f, 52.5f, 0f, 41.5f, 0.3f, 60f);
+        Assert.AreEqual(-0.5f, d.x, 1e-3f);
+        Assert.AreEqual(0.866f, System.Math.Abs(d.z), 1e-3f);
+        (float x, float z) other = MatchRules.BlockReboundDirection(40f, 0f, 52.5f, 0f, 41.5f, -0.3f, 60f);
+        Assert.AreEqual(-d.z, other.z, 1e-3f, "반대쪽 블로커면 반대로");
     }
 }
