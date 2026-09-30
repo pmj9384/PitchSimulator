@@ -63,7 +63,7 @@ namespace Game.Core.Tactics
             float t = (percent - min) / (max - min);
             if (t < 0f) { t = 0f; }
             if (t > 1f) { t = 1f; }
-            return 1 + (int)Math.Round(t * (Segments - 1));
+            return 1 + (int)Math.Floor(t * (Segments - 1) + 0.5f);   // 반올림. Math.Round는 딱 절반에서 짝수 쪽으로 가서 칸이 들쭉날쭉해진다
         }
 
         // 내 전술의 칸 수. 표에서 값을 찾아 표의 범위에 놓는다(화면이 부르는 입구)

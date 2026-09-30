@@ -8,7 +8,7 @@ using UnityEngine.UI;
 // 코드가 고를 때(Select)는 알림을 쏘지 않는다. 사용자가 눌렀을 때만 쏜다
 public class TabGroup : MonoBehaviour
 {
-    private static readonly Color SelectedColor = new Color(1f, 0.835f, 0.31f);   // 전술 화면 공통 강조색(#FFD54F)
+    private static readonly Color SelectedColor = TacticsColors.Highlight;
     private static readonly Color NormalColor = new Color(0.82f, 0.84f, 0.88f);   // 안 고른 탭. 글자가 짙은 색이라 밝은 회색
 
     [SerializeField] private Button[] tabButtons;

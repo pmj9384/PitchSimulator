@@ -8,7 +8,7 @@ using CsvHelper.Configuration;
 namespace Game.Core.Tactics
 {
     // StaminaLoadTable.csv 텍스트 → 체력 부담 표. TeamTacticsParser와 같은 틀(CsvHelper 위임, 규칙 검증만 여기서).
-    // 표는 조합(압박 시작 3구역 × 전진 정도)마다 정확히 한 칸이어야 한다. 빠진 칸은 화면에서 그 전술을 고르는 순간에야 드러나므로 읽을 때 막는다
+    // 표는 조합(압박 시작 3구역 × 3단 × 전진 정도 3단)마다 정확히 한 칸이어야 한다. 빠진 칸은 화면에서 그 전술을 고르는 순간에야 드러나므로 읽을 때 막는다
     public static class StaminaLoadTableParser
     {
         private const int Combinations = TeamTactics.Levels * TeamTactics.Levels * TeamTactics.Levels * TeamTactics.Levels;
@@ -21,7 +21,7 @@ namespace Game.Core.Tactics
             }
 
             var entries = new List<StaminaLoadEntry>();
-            var seen = new HashSet<int>();
+            var seen = new HashSet<(int, int, int, int)>();
 
             try
             {
@@ -40,7 +40,7 @@ namespace Game.Core.Tactics
                     {
                         throw new FormatException($"StaminaLoadTable {line}행: slowedPercent는 0 이상 ({entry.SlowedPercent})");
                     }
-                    if (!seen.Add(Key(entry)))
+                    if (!seen.Add((entry.PressStartOwn, entry.PressStartMid, entry.PressStartOpp, entry.Mentality)))
                     {
                         throw new FormatException($"StaminaLoadTable {line}행: 같은 조합이 두 번 ({entry.PressStartOwn},{entry.PressStartMid},{entry.PressStartOpp},{entry.Mentality})");
                     }
@@ -72,13 +72,6 @@ namespace Game.Core.Tactics
             {
                 throw new FormatException($"StaminaLoadTable {line}행: {field}는 0~{TeamTactics.Levels - 1} ({v})");
             }
-        }
-
-        // 조합 하나를 가리키는 번호(3진수 4자리)
-        private static int Key(StaminaLoadEntry e)
-        {
-            int n = TeamTactics.Levels;
-            return ((e.PressStartOwn * n + e.PressStartMid) * n + e.PressStartOpp) * n + e.Mentality;
         }
 
         private sealed class EntryMap : ClassMap<StaminaLoadEntry>

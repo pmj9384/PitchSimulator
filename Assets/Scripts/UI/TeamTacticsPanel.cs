@@ -10,6 +10,7 @@ using UnityEngine.UI;
 // 배치는 FM·EA FC·FC 온라인 전술 화면을 따랐다(09-30 유저 지시): 카드는 ◀ ▶로 넘기는 한 줄, 세부는 한 번에 한 묶음만 보인다(버튼을 한꺼번에 깔지 않는다).
 // 입구 3단: ①카드(고르면 아래 전부가 그 카드 값) → ②슬라이더 3개(카드 값에 오프셋, TacticsEditing.ApplySlider) → ③세부(공격할 때·수비할 때·공수가 바뀔 때).
 // 슬라이더는 자기 담당 칸만 기준 카드 + 오프셋으로 다시 쓴다(다른 칸에서 세부로 바꾼 값은 지킨다). 세부를 만지면 그 칸만 바뀐다.
+// 카드 설명 아래 체력 부담 막대는 지금 값이 선수를 얼마나 지치게 하는지를 실측 표로 보여 준다(StaminaLoad).
 // 값이 기준 카드와 다르면 "사용자 설정" 버튼이 뜨고, 누르면 카드 값으로 돌아간다. 규칙은 전부 순수 코어(TacticsEditing·SeasonState), 여기는 화면과 입력만.
 // 고른 값의 진실은 시즌 한 곳(SeasonSystem.SetMyPreset·SetMyTactics·SetMyTacticsFromTable → SeasonState)이라 로비와 경기 직전 화면이 같은 값을 본다.
 // 이 패널은 이번 경기(상대·킥오프)도 필드도 모른다. 값이 바뀌면 Changed만 쏜다
@@ -21,6 +22,7 @@ public class TeamTacticsPanel : MonoBehaviour
     [SerializeField] private TMP_Text cardTitle;
     [SerializeField] private TMP_Text cardDescription;
     [SerializeField] private Button customResetButton;   // "사용자 설정". 값이 기준 카드와 다를 때만 보이고, 누르면 카드 값으로
+    [SerializeField] private StaminaLoadGauge loadGauge;  // 체력 부담 막대. 카드 설명 아래(09-30)
 
     [Header("② 슬라이더 (카드 기준 −2~+2)")]
     [SerializeField] private Slider forwardSlider;
@@ -161,6 +163,14 @@ public class TeamTacticsPanel : MonoBehaviour
         counterPress.SetLevel(tactics.CounterPress);
         gkDistribution.SetLevel(tactics.GkDistribution);
         ShowCard();
+        ShowLoad(tactics);
+    }
+
+    // 체력 부담: 지금 값(압박 시작·전진 정도)에 해당하는 실측 표 칸을 막대로. 압박을 올리면 그 자리에서 막대가 찬다
+    private void ShowLoad(TeamTactics tactics)
+    {
+        int filled = StaminaLoad.FilledSegments(StaminaLoadRepository.All, tactics);
+        loadGauge.Show(filled, StaminaLoad.LevelOf(filled));
     }
 
     // 카드 줄은 늘 기준 카드를 보여 준다(슬라이더가 어느 카드 기준인지). 값이 그 카드와 다르면 "사용자 설정"을 같이 띄운다

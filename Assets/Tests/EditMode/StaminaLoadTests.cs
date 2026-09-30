@@ -75,6 +75,8 @@ public class StaminaLoadTests
         Assert.AreEqual(1, StaminaLoad.FilledSegments(1f, 2f, 9f), "범위 밖은 끝 칸으로");
         Assert.AreEqual(8, StaminaLoad.FilledSegments(10f, 2f, 9f));
         Assert.AreEqual(1, StaminaLoad.FilledSegments(5f, 5f, 5f), "표가 한 값뿐이면 1칸");
+        Assert.AreEqual(4, StaminaLoad.FilledSegments(2.5f, 0f, 7f), "딱 절반(2.5칸)은 올린다");
+        Assert.AreEqual(5, StaminaLoad.FilledSegments(3.5f, 0f, 7f), "3.5칸도 올린다(짝수 쪽 반올림이면 4칸 + 1이 된다)");
     }
 
     [Test]
@@ -123,14 +125,14 @@ public class StaminaLoadTests
         Assert.AreEqual(StaminaLoadLevel.High, StaminaLoad.LevelOf(all));
     }
 
-    // 표는 러너로 잰 값이라 체력·압박 규칙이 바뀌면 낡는다. 3칸을 20판씩 다시 재서 표와 1%p 넘게 벌어지면 깨진다.
+    // 표는 러너로 잰 값이라 체력·압박 규칙이 바뀌면 낡는다. 4칸을 20판씩 다시 재서 표와 1%p 넘게 벌어지면 깨진다.
     // 표는 100판(시드 101~200), 여기는 20판(시드 101~120)이다. 09-30에 81칸을 20판으로 다시 쟀을 때 100판 값과의 차이는 최대 0.4%p였다.
     // 깨지면 스크래치 LoadTable 하네스(Vault 실험/2026-09-30-LoadTable.cs.txt)로 표를 다시 만든다
     [Test]
     public void 표는_지금_엔진으로_다시_잰_값과_1퍼센트포인트_안에서_맞는다()
     {
         List<StaminaLoadEntry> table = RealTable();
-        TeamTactics[] cells = { Tactics(0, 0, 0, 1), Tactics(2, 1, 0, 1), Tactics(2, 2, 2, 1) };
+        TeamTactics[] cells = { Tactics(0, 0, 0, 1), Tactics(2, 1, 0, 1), Tactics(2, 2, 2, 1), Tactics(2, 1, 0, 2) };   // 압박 3칸 + 전진 정도가 다른 1칸
         for (int i = 0; i < cells.Length; i++)
         {
             float measured = MeasureSlowedPercent(cells[i], matches: 20);
