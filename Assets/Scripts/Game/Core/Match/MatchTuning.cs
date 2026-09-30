@@ -87,7 +87,7 @@ namespace Game.Core.Match
         // 박스 앞 센터백 전진(09-29 수비 D1): 공이 우리 골라인에서 이 거리 안(박스 폭 안)에 오면 공에 가장 가까운 CB는 개인 압박 거리와 상관없이 압박 후보가 된다.
         // 코칭 원칙: 박스 근처에선 가장 가까운 CB가 나가고 나머지가 메운다(Coaches' Voice "The modern centre-back"). 박스 깊이 + 5m는 출처 없는 출발값
         public const float BoxStepOutDepth = Placement.FieldBounds.PenaltyBoxDepth + 5f;
-        // 슈터 압박·슛 블록(09-29 수비 D3, MatchRules.UnderPressure·ShotBlocker 주석). 블록 확률·튕기는 속도는 출처 없는 출발값
+        // 슈터 압박·슛 블록(09-29 수비 D3, MatchRules.PressuredShotProbability·ShotBlocker 주석). 블록 확률·튕기는 속도는 출처 없는 출발값
         public const float ShotPressureLogit = 0.4f;     // 압박받는 슛의 로짓 감소
         public const float ShotBlockRange = TackleRange;  // 슛을 막을 수 있는 수비수 거리(발 뻗어 막는 범위 = 태클 사거리)
         public const float ShotBlockConeDeg = 20f;       // 슛 방향 기준 각도
