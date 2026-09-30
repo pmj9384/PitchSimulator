@@ -99,6 +99,47 @@ public class PassFlightTests
         Assert.AreEqual(3f, b.PassTargetZ, 1e-4f);
     }
 
+    // GK 배급 보호(09-30 공격 칼날 C). 패서(0번)가 (-48, 0)에서 (-20, 0)의 동료(1번)에게 차고, 상대(2번)가 그 길 위에 서 있다
+    private static MatchSimulation KickFromOwnBox(bool passerIsKeeper, float opponentX)
+    {
+        var sim = new MatchSimulation(() => 0.5f, new PassToPoint(receiver: 1, x: -20f, z: 0f));
+        PlayerStats passer = Mid();
+        if (passerIsKeeper) { passer.RoleId = "GK"; }
+        sim.AddPlayer(new PlayerState(0, 0, passer, -48f, 0f));
+        sim.AddPlayer(new PlayerState(1, 0, Mid(), -20f, 0f));
+        sim.AddPlayer(new PlayerState(2, 1, Mid(), opponentX, 0.3f));
+        sim.Kickoff();
+        sim.Ball = BallRules.Own(sim.Ball, 0, -48f, 0f);
+        sim.Tick(Dt);   // 킥
+        for (int i = 0; i < 400 && sim.Ball.Phase != BallPhase.Owned; i++) { sim.Tick(Dt); }
+        return sim;
+    }
+
+    [Test]
+    public void GK가_찬_공은_자기_박스_안에서는_상대가_못_잡는다()
+    {
+        // 09-30: 상대 진영 압박을 켠 ST가 GK 패스를 킥 지점 3m 앞에서 끊어 경기당 슛 7.5개가 났다. 박스(골라인 16.5m) 안 (-42, 0.3)의 상대는 공이 지나가도 못 잡는다
+        MatchSimulation sim = KickFromOwnBox(passerIsKeeper: true, opponentX: -42f);
+        Assert.AreEqual(1, sim.Ball.OwnerId, "동료가 받는다");
+        Assert.AreEqual(0, sim.InterceptCount);
+    }
+
+    [Test]
+    public void GK가_찬_공도_박스를_벗어나면_상대가_끊는다()
+    {
+        MatchSimulation sim = KickFromOwnBox(passerIsKeeper: true, opponentX: -30f);   // 박스 경계는 x = -36
+        Assert.AreEqual(2, sim.Ball.OwnerId, "박스 밖 길 위의 상대가 끊는다");
+        Assert.AreEqual(1, sim.InterceptCount);
+    }
+
+    [Test]
+    public void 필드_선수가_찬_공은_자기_박스_안에서도_상대가_끊는다()
+    {
+        MatchSimulation sim = KickFromOwnBox(passerIsKeeper: false, opponentX: -42f);
+        Assert.AreEqual(2, sim.Ball.OwnerId, "보호는 GK 배급에만");
+        Assert.AreEqual(1, sim.InterceptCount);
+    }
+
     [Test]
     public void 짧은_패스는_살살_긴_패스는_세게_차서_둘_다_리시버에게_닿는다()
     {

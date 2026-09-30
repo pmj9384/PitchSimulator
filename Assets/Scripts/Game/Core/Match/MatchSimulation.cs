@@ -901,9 +901,11 @@ namespace Game.Core.Match
             }
 
             captureCandidates.Clear();
+            int keeperKickTeam = ProtectedKeeperKickTeam();
             for (int i = 0; i < players.Count; i++)
             {
                 PlayerState p = players[i];
+                if (keeperKickTeam != -1 && p.Team != keeperKickTeam) { continue; }   // GK가 찬 공은 그 박스 안에선 상대가 못 잡는다
                 if (p.PlayerId == lastKickerId)
                 {
                     float kdx = p.X - Ball.X;
@@ -919,6 +921,19 @@ namespace Game.Core.Match
 
             PlayerState owner = FindPlayer(ownerId);
             Ball = BallRules.Own(Ball, ownerId, owner.X, owner.Z);
+        }
+
+        // GK 배급 보호(09-30 공격 칼날 C): GK가 찬 패스가 그 GK의 페널티 박스 안에 있는 동안은 상대가 못 잡는다. 그 팀 번호, 해당 없으면 -1.
+        // 규칙 근거: 골킥은 공이 인플레이가 될 때까지 상대가 박스 밖(IFAB 16조), 손에 쥔 GK의 릴리스를 방해하면 반칙(12조).
+        // 이 시뮬은 공이 땅으로만 가고 상대가 박스 안까지 쫓아와, 상대 진영 압박을 켠 ST가 GK 패스를 킥 지점 3m 앞에서 끊어 경기당 슛 7.5개(xG 0.31)가 났다
+        // (균형 카드 득점 1.05 → 4.03, 실험/2026-09-30-공격-칼날-진단.md). 박스를 벗어난 공은 평소처럼 누구든 끊는다
+        private int ProtectedKeeperKickTeam()
+        {
+            if (!passInFlight) { return -1; }
+            PlayerState passer = FindPlayer(passPasserId);
+            if (!passer.IsGoalkeeper) { return -1; }
+            if (!MatchRules.IsInOwnPenaltyBox(Ball.X, Ball.Z, passer.AttackSign)) { return -1; }
+            return passer.Team;
         }
 
         // 라인 밖(슛 비행 중은 제외: 골라인 판정이 먼저다) → 가까운 쪽 골킥/스로인 자리에 자유 공(스펙 §5)
