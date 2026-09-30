@@ -206,6 +206,7 @@ public class SeasonSystem : ISaveLoad
         int nextTier = SeasonProgress.NextTier(State, Tier);
         Debug.Log($"[Season] {Tier.Tier}부 시즌 종료 → {nextTier}부 새 시즌");
         TeamTactics custom = State.MyCustomTactics;   // 바꾼 전술도 다음 시즌으로 이어 간다(09-30). 카드만 넘기면 승격하자마자 세팅이 풀린다
+        // 시즌이 끝난 뒤 로비 전술 화면에서 바꾼 값도 끝난 시즌의 State에 들어가 있다가 여기서 읽혀 새 시즌으로 넘어간다(09-30 리뷰: 로비 편집 경로가 생기며 처음 도달 가능해진 순서)
         StartSeason(nextTier, unchecked(State.SeasonSeed + 1), State.MyPresetId);   // 다음 시즌 시드도 결정적(이전 시드 + 1)
         if (custom != null) { State.SetMyTactics(custom, TeamTacticsRepository.All); }
         SaveLoadSystem.Instance.Save();
