@@ -20,7 +20,7 @@ namespace Game.Core.Data
 
         // ── 빌드(능력) 공통 6. MatchRules 판정 함수의 입력값
         public int Speed { get; set; }          // 이동 속도(MatchRules.SpeedMps). 50 = 7m/s
-        public int Stamina { get; set; }        // 아직 판정 없음(2주차 이후)
+        public int Stamina { get; set; }        // 체력 소모량의 입력(09-29 FatigueRules.Exert). 높을수록 전력 행동에 덜 지친다
         public int Pass { get; set; }
         public int Shot { get; set; }           // 슛 확률을 올리는 보정
         public int Tackle { get; set; }
