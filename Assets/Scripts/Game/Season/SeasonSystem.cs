@@ -179,6 +179,29 @@ public class SeasonSystem : ISaveLoad
         CommitMyTactics();
     }
 
+    // 개인 전술(09-30): 전술 화면에서 필드의 선수 칩을 눌러 역할과 개인 지시를 정한다. 규칙(같은 자리의 노출된 역할만, 지시 범위)은 SeasonState가 정한다.
+    // 이번 경기 재료에는 내 라인업의 선수 값도 들어 있어서 팀 전술과 같이 비우고 저장한다
+    public void SetPlayerRole(int playerId, string variantId)
+    {
+        ThrowIfReporting();
+        State.SetPlayerRole(playerId, variantId, PlayerTableRepository.All);
+        CommitMyTactics();
+    }
+
+    public void SetPlayerInstruction(int playerId, PlayerDial dial, int offset)
+    {
+        ThrowIfReporting();
+        State.SetPlayerInstruction(playerId, dial, offset);
+        CommitMyTactics();
+    }
+
+    public void ClearPlayerInstructions(int playerId)
+    {
+        ThrowIfReporting();
+        State.ClearPlayerInstructions(playerId);
+        CommitMyTactics();
+    }
+
     // CurrentMatch·PrepareNextMatch와 같은 방어선: 지금은 설정창이 GameReady(보고가 끝난 뒤)에만 떠서 겹칠 길이 없지만, 새 진입 경로가 생겨도 조용히 틀리지 않게(09-30 리뷰)
     private void ThrowIfReporting()
     {
@@ -207,8 +230,10 @@ public class SeasonSystem : ISaveLoad
         Debug.Log($"[Season] {Tier.Tier}부 시즌 종료 → {nextTier}부 새 시즌");
         TeamTactics custom = State.MyCustomTactics;   // 바꾼 전술도 다음 시즌으로 이어 간다(09-30). 카드만 넘기면 승격하자마자 세팅이 풀린다
         // 시즌이 끝난 뒤 로비 전술 화면에서 바꾼 값도 끝난 시즌의 State에 들어가 있다가 여기서 읽혀 새 시즌으로 넘어간다(09-30 리뷰: 로비 편집 경로가 생기며 처음 도달 가능해진 순서)
+        IReadOnlyList<RosterPlayer> previousRoster = State.Roster;   // 역할·개인 지시도 이어 간다. 새 시즌 로스터는 기본 편성에서 다시 만들어져 그대로 두면 풀린다
         StartSeason(nextTier, unchecked(State.SeasonSeed + 1), State.MyPresetId);   // 다음 시즌 시드도 결정적(이전 시드 + 1)
         if (custom != null) { State.SetMyTactics(custom, TeamTacticsRepository.All); }
+        State.AdoptPlayerTactics(previousRoster, PlayerTableRepository.All);
         SaveLoadSystem.Instance.Save();
     }
 

@@ -50,5 +50,11 @@ namespace Game.Core.Data
         public string Icon { get; set; } = string.Empty;
 
         public int BuildTotal => Speed + Stamina + Pass + Shot + Tackle + Positioning + Reflexes + Handling + Diving;
+
+        // 전 필드 복사. 필드가 전부 값·문자열이라 얕은 복사로 충분하다. PlayerTable 행은 공유 객체라 값을 고치기 전에 복사한다
+        public PlayerStats Clone()
+        {
+            return (PlayerStats)MemberwiseClone();
+        }
     }
 }

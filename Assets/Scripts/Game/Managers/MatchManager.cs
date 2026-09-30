@@ -91,9 +91,26 @@ public class MatchManager : InGameManager
         MatchSetup setup = GameDataManager.Instance.Season.CurrentMatch;
         Simulation.SetTactics(0, setup.Tactics0);   // 내 전술(설정창·세이브)
         Simulation.SetTactics(1, setup.Tactics1);   // 상대 프리셋(생성 팀)
+        ApplyMyPlayerTactics(setup.Team0);
         Simulation.KickoffBy(kickoffTeam);
         SnapViews();   // 킥오프 자리로 순간이동(보간하면 전 자리에서 미끄러져 온다)
         Hold(kickoffSetSec, halfTime: false);
+    }
+
+    // 개인 전술도 킥오프 순간에 확정한다(09-30): 선수는 GameReady에 스폰돼 그때의 역할 값을 들고 있다. 세팅 화면에서 바꾼 역할·개인 지시를 다시 넣는다.
+    // 내 팀은 시뮬 팀 0이고 스폰 순서가 라인업 순서다(StageManager.Spawn). 수가 안 맞으면 조용히 넘기지 않고 알린다
+    private void ApplyMyPlayerTactics(IReadOnlyList<LineupSlot> lineup)
+    {
+        IReadOnlyList<PlayerState> players = Simulation.Players;
+        int slot = 0;
+        for (int i = 0; i < players.Count; i++)
+        {
+            if (players[i].Team != 0) { continue; }
+            if (slot >= lineup.Count) { break; }
+            players[i].ReplaceStats(lineup[slot].Stats);
+            slot++;
+        }
+        if (slot != lineup.Count) { Debug.LogError($"[Match] 내 팀 선수 {slot}명 ≠ 라인업 {lineup.Count}명. 개인 전술이 일부만 들어갔다"); }
     }
 
     #region 심장: 고정 스텝 틱
