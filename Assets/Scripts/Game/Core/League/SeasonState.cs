@@ -176,8 +176,10 @@ namespace Game.Core.League
             PlayerStats current = roster[index].Stats;
             PlayerStats? variant = PlayerTableLookup.FindVariant(table, variantId);
             if (variant == null) { throw new InvalidOperationException($"[SeasonState] PlayerTable에 없는 역할: {variantId}"); }
-            if (variant.RoleId != current.RoleId) { throw new InvalidOperationException($"[SeasonState] 선수 {playerId}({current.RoleId})에게 다른 자리 역할 {variantId}({variant.RoleId})는 줄 수 없다"); }
-            if (!variant.Exposed) { throw new InvalidOperationException($"[SeasonState] 잠긴 역할: {variantId}"); }
+            if (!PlayerTableLookup.IsAssignable(variant, current.RoleId))
+            {
+                throw new InvalidOperationException($"[SeasonState] 선수 {playerId}({current.RoleId})에게 줄 수 없는 역할: {variantId}(자리 {variant.RoleId}, 노출 {variant.Exposed})");
+            }
 
             PlayerStats next = variant.Clone();
             CopyBuild(current, next);
@@ -219,8 +221,7 @@ namespace Game.Core.League
         {
             PlayerStats? variant = PlayerTableLookup.FindVariant(table, variantId);
             if (variant == null) { return false; }
-            if (variant.RoleId != current.RoleId) { return false; }
-            return variant.Exposed;
+            return PlayerTableLookup.IsAssignable(variant, current.RoleId);
         }
 
         private static void CopyBuild(PlayerStats from, PlayerStats to)

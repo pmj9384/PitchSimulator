@@ -48,6 +48,36 @@ public class PlayerTableParserTests
     }
 
     [Test]
+    public void 같은_자리의_노출된_역할만_표_순서대로_고른다()
+    {
+        // 전술 화면의 역할 목록(09-30). 잠긴 역할과 다른 자리는 빠진다. SeasonState.SetPlayerRole이 받는 역할과 같은 집합이어야 한다
+        List<PlayerStats> roles = PlayerTableParser.Parse(File.ReadAllText("Assets/Resources/Tables/PlayerTable.csv"));
+        List<PlayerStats> keepers = PlayerTableLookup.ExposedVariants(roles, "GK");
+        Assert.AreEqual(2, keepers.Count);
+        Assert.AreEqual("gk_standard", keepers[0].VariantId, "표 순서");
+        Assert.AreEqual("gk_sweeper", keepers[1].VariantId);
+        Assert.AreEqual(2, PlayerTableLookup.ExposedVariants(roles, "gk").Count, "자리 이름은 대소문자를 가리지 않는다");
+        Assert.AreEqual(0, PlayerTableLookup.ExposedVariants(roles, "XX").Count, "없는 자리");
+        foreach (PlayerStats r in PlayerTableLookup.ExposedVariants(roles, "ST"))
+        {
+            Assert.IsTrue(r.Exposed);
+            Assert.AreEqual("ST", r.RoleId);
+        }
+    }
+
+    [Test]
+    public void 줄_수_있는_역할은_같은_자리이고_노출된_역할이다()
+    {
+        // 역할 목록·역할 변경·시즌 이월이 같이 쓰는 조건(09-30 리뷰: 세 곳이 각자 적어 두면 목록에 보이는 역할과 받아 주는 역할이 갈릴 수 있다)
+        var exposed = new PlayerStats { RoleId = "ST", VariantId = "st_a", Exposed = true };
+        var locked = new PlayerStats { RoleId = "ST", VariantId = "st_b", Exposed = false };
+        Assert.IsTrue(PlayerTableLookup.IsAssignable(exposed, "ST"));
+        Assert.IsTrue(PlayerTableLookup.IsAssignable(exposed, "st"), "자리 이름은 대소문자를 가리지 않는다");
+        Assert.IsFalse(PlayerTableLookup.IsAssignable(exposed, "W"), "다른 자리");
+        Assert.IsFalse(PlayerTableLookup.IsAssignable(locked, "ST"), "잠긴 역할");
+    }
+
+    [Test]
     public void 실제_Resources_CSV는_자리_8종_변형_54개_전부_총점_300이고_노출_17개다()
     {
         // 역할 마스터(전술-기획.md 3-1, 09-17): FM26 중심 + FC26·현실 용어. 전부 넣고 구현하며 뺀다
