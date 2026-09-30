@@ -21,12 +21,12 @@ namespace Game.Core.AI
                 // ① GK가 잡았으면 배급(팀 GK 배급 설정). 슛·드리블 대신 늘 패스
                 new SequenceNode(
                     new ConditionNode(ctx => ctx.OwnsBall && ctx.IsGoalkeeper),
-                    new ActionNode(ctx => PassTo(ctx, KeeperTarget(ctx)))),
+                    new ActionNode(ctx => PassUnchecked(ctx, KeeperTarget(ctx)))),
 
                 // ①b 킥오프 키커는 첫 행동으로 옆·뒤 동료에게 내준다(09-29, IFAB 8조 + 실제 킥오프 관행). 슛·드리블보다 먼저
                 new SequenceNode(
                     new ConditionNode(ctx => ctx.OwnsBall && ctx.IsKickoffTaker),
-                    new ActionNode(ctx => PassTo(ctx, PassRules.KickoffReceiver(ctx.X, ctx.Z, ctx.Teammates, ctx.AttackSign)))),
+                    new ActionNode(ctx => PassUnchecked(ctx, PassRules.KickoffReceiver(ctx.X, ctx.Z, ctx.Teammates, ctx.AttackSign)))),
 
                 // ② 슛 확률(진짜 상대 GK 스탯) ≥ 슛 성향 → 슛
                 new SequenceNode(
@@ -36,7 +36,7 @@ namespace Game.Core.AI
                 // ③ 역습 중 → 나보다 확실히 앞선 아군 중 가장 앞선 이에게, 안전 검사 없이(스펙 §6 "첫 패스 전방"). 앞선 아군이 없으면 ④·⑤로
                 new SequenceNode(
                     new ConditionNode(ctx => ctx.OwnsBall && ctx.IsCountering && CounterTarget(ctx) != -1),
-                    new ActionNode(ctx => PassTo(ctx, CounterTarget(ctx)))),
+                    new ActionNode(ctx => PassUnchecked(ctx, CounterTarget(ctx)))),
 
                 // ③b 돌파(09-29): 이번 소유에 돌파 의도가 있고 앞 8m 안에 상대가 있으면 패스 대신 제치러 간다. 방향은 상대가 먼저 못 닿는 쪽(HELIOS식).
                 // 앞에 상대가 없으면(제쳤으면) 아래 평소 판단으로. 의도는 시뮬이 소유 때 드리블 성향으로 굴린다(윙어 0.9·타깃맨 0.2)
@@ -44,9 +44,9 @@ namespace Game.Core.AI
                     new ConditionNode(ctx => ShouldTakeOn(ctx)),
                     new ActionNode(ctx => TakeOn(ctx))),
 
-                // ④ 안전한 앞선 아군이 있으면 최고점에 패스
+                // ④ 안전한 앞선 아군이 있으면 최고점에 패스. 착지점은 받는 선수 앞 후보 중 안전한 가장 긴 것(09-30)
                 new SequenceNode(
-                    new ConditionNode(ctx => ctx.OwnsBall && BestSafeReceiver(ctx) != -1),
+                    new ConditionNode(ctx => ctx.OwnsBall && BestSafeReceiver(ctx).Found),
                     new ActionNode(ctx => PassTo(ctx, BestSafeReceiver(ctx)))),
 
                 // ⑤ 아니면 드리블. 드리블 성향이 낮으면 가장 가까운 아군 쪽으로 방향을 틀어 다음 틱 패스를 노린다
@@ -130,13 +130,25 @@ namespace Game.Core.AI
             return (int)ctx.BallThird;
         }
 
-        // 리시버 후보 중 최고점이면서 안전한 아군. 서드별 팀 값(패스 방식·리스크·폭)에 개인 패스 길이·리스크가 얹힌다
-        private static int BestSafeReceiver(IPlayerContext ctx)
+        // 패스 리스크 허용치: 서드별 팀 값과 개인 다이얼 중 큰 쪽
+        private static float RiskAllow(IPlayerContext ctx)
+        {
+            return Math.Max(MatchTuning.PassRiskAllow[ctx.Tactics.PassRisk[Third(ctx)]], ctx.Stats.PassRisk);
+        }
+
+        // 패스가 목표점에 닿을 때 남는 속도(서드별 팀 템포). 킥 초속은 거리로 역산한다(시뮬 Pass와 같은 식)
+        private static float ArrivalSpeed(IPlayerContext ctx)
+        {
+            return MatchTuning.PassArrivalSpeed[ctx.Tactics.Tempo[Third(ctx)]];
+        }
+
+        // 리시버 후보 중 최고점이면서 안전한 아군과 그 착지점. 서드별 팀 값(패스 방식·리스크·폭)에 개인 패스 길이·리스크가 얹힌다
+        private static PassChoice BestSafeReceiver(IPlayerContext ctx)
         {
             int third = Third(ctx);
             TeamTactics t = ctx.Tactics;
-            float riskAllow = Math.Max(MatchTuning.PassRiskAllow[t.PassRisk[third]], ctx.Stats.PassRisk);
-            float arrival = MatchTuning.PassArrivalSpeed[t.Tempo[third]];   // 킥 초속은 후보마다 거리로 역산(시뮬 Pass와 같은 식)
+            float riskAllow = RiskAllow(ctx);
+            float arrival = ArrivalSpeed(ctx);
 
             // 옆·뒤 돌리기는 압박받을 때만(09-21 3분 계측: 압박 없이도 돌리니 앞·뒤 패스가 158·157로 교대하고 아무도 몰지 않아 박스에 못 들어감).
             // 압박이 없으면 앞 후보가 없을 때 ⑤ 드리블로 떨어진다
@@ -144,9 +156,9 @@ namespace Game.Core.AI
 
             float onsideLine = OnsideLine(ctx);
 
-            int best = -1;
+            PassChoice best = PassChoice.None;
             float bestScore = 0f;
-            int returnFallback = -1;   // 방금 나에게 준 선수에게 곧바로 뒤로 되돌리는 패스는 다른 후보가 없을 때만(09-23: W↔ST 측면 왕복 22회)
+            PassChoice returnFallback = PassChoice.None;   // 방금 나에게 준 선수에게 곧바로 뒤로 되돌리는 패스는 다른 후보가 없을 때만(09-23: W↔ST 측면 왕복 22회)
             IReadOnlyList<TargetInfo> mates = ctx.Teammates;
             for (int i = 0; i < mates.Count; i++)
             {
@@ -158,25 +170,21 @@ namespace Game.Core.AI
                 float score = PassRules.ScoreReceiver(ctx.X, ctx.Z, m.X, m.Z, ctx.AttackSign, t.PassStyle[third], ctx.Stats.PassLength, t.Width[third]);
                 if (score <= bestScore) { continue; }
 
-                // 안전 판정은 실제 착지점(리드 목표)까지(09-21 3분 계측: 리시버 위치까지만 보면 그 앞 8m에 선 수비수가 걸러져
-                // 롱패스가 늘 먹혔다). 리시버 속도는 트리가 개인 스탯을 모르니 평균(speed 50)으로, 킥은 시뮬이 실제 스탯으로 찬다
-                float ddx = m.X - ctx.X;
-                float ddz = m.Z - ctx.Z;
-                float passDistance = (float)Math.Sqrt(ddx * ddx + ddz * ddz);
-                float average = PassRules.AverageSpeed(PassRules.KickSpeed(passDistance, arrival, MatchTuning.BallDeceleration, MatchTuning.PassSpeedMax), passDistance, MatchTuning.BallDeceleration);
-                (float x, float z) landing = PassRules.LeadTarget(ctx.X, m.X, m.Z, ctx.AttackSign, passDistance, average, MatchTuning.SpeedMpsAt50);
-                float lx = landing.x - ctx.X;
-                float lz = landing.z - ctx.Z;
-                float landingDistance = (float)Math.Sqrt(lx * lx + lz * lz);
-                float landingAverage = PassRules.AverageSpeed(PassRules.KickSpeed(landingDistance, arrival, MatchTuning.BallDeceleration, MatchTuning.PassSpeedMax), landingDistance, MatchTuning.BallDeceleration);
-                float risk = PassRules.InterceptRisk(ctx.X, ctx.Z, landing.x, landing.z, ctx.Opponents, MatchTuning.InterceptRunSpeed, landingAverage);
-                if (!PassRules.IsPassSafe(risk, riskAllow)) { continue; }
+                // 안전 판정은 실제 착지점까지(09-21 3분 계측: 리시버 위치까지만 보면 그 앞 8m에 선 수비수가 걸러져 롱패스가 늘 먹혔다).
+                // 착지점은 후보 중 안전한 가장 긴 것(09-30). 고른 점을 그대로 시뮬에 넘겨 판정과 실행이 같은 점을 본다
+                PassLanding landing = PassRules.PickLanding(ctx.X, ctx.Z, m.X, m.Z, ctx.AttackSign, arrival, ctx.Opponents, riskAllow);
+                if (!PassRules.IsPassSafe(landing.Risk, riskAllow)) { continue; }
 
-                if (isReturn) { if (returnFallback == -1) { returnFallback = m.PlayerId; } continue; }
-                best = m.PlayerId;
+                var choice = new PassChoice(m.PlayerId, landing.X, landing.Z);
+                if (isReturn)
+                {
+                    if (!returnFallback.Found) { returnFallback = choice; }
+                    continue;
+                }
+                best = choice;
                 bestScore = score;
             }
-            return best != -1 ? best : returnFallback;
+            return best.Found ? best : returnFallback;
         }
 
         // 공을 쫓을 땐 공의 앞을 향해(추격 예측). 압박(⑧)과 자유 공(⑩)이 같이 쓴다
@@ -223,10 +231,19 @@ namespace Game.Core.AI
             return PassRules.KeeperDistributionTarget(ctx.X, ctx.Z, ctx.Teammates, ctx.AttackSign, level, ctx.PlayerId, ctx.KeeperAlternate);
         }
 
-        private static void PassTo(IPlayerContext ctx, int receiverId)
+        private static void PassTo(IPlayerContext ctx, PassChoice choice)
+        {
+            if (!choice.Found) { DribbleTarget(ctx); return; }
+            ctx.Pass(choice.ReceiverId, choice.X, choice.Z);
+        }
+
+        // 안전 검사 없이 주는 패스(GK 배급 ①·킥오프 ①b·역습 ③). 착지점은 받는 선수 앞 긴 리드 그대로
+        private static void PassUnchecked(IPlayerContext ctx, int receiverId)
         {
             if (receiverId == -1) { DribbleTarget(ctx); return; }
-            ctx.Pass(receiverId);
+            TargetInfo m = Find(ctx.Teammates, receiverId);
+            (float x, float z) landing = PassRules.LandingPoint(ctx.X, ctx.Z, m.X, m.Z, ctx.AttackSign, ArrivalSpeed(ctx), MatchTuning.PassLeadMax);
+            ctx.Pass(receiverId, landing.x, landing.z);
         }
 
         // 드리블 목표: 기본은 상대 골 중심. 드리블 성향이 낮으면 가장 가까운 아군 쪽(다음 틱 패스 후보를 만든다)

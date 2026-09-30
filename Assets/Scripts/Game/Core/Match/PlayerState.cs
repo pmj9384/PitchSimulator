@@ -61,6 +61,8 @@ namespace Game.Core.Match
         public bool WantsShoot { get; private set; }
         public bool WantsPass { get; private set; }
         public int PassReceiverId { get; private set; } = -1;
+        public float PassLandingX { get; private set; }   // 내가 차는 패스의 착지점(트리가 고른 점). WantsPass일 때만 뜻이 있다. 위의 PassTargetX·Z는 나에게 오는 패스의 도착점이라 방향이 반대다
+        public float PassLandingZ { get; private set; }
 
         // 수비 시 자리를 따로 안 주면 공격 시 자리와 같다. 편성 스폰은 자리 2쌍 생성자를 쓰고(09-21), 이 오버로드는 테스트·리트머스용
         public PlayerState(int playerId, int team, PlayerStats stats, float x, float z)
@@ -104,10 +106,12 @@ namespace Game.Core.Match
             WantsShoot = true;
         }
 
-        public void Pass(int receiverId)
+        public void Pass(int receiverId, float landingX, float landingZ)
         {
             WantsPass = true;
             PassReceiverId = receiverId;
+            PassLandingX = landingX;
+            PassLandingZ = landingZ;
         }
 
         // 태클(09-21). 시뮬이 틱마다 줄인다. 정지 중엔 이동 안 함(제쳐짐), 쿨다운 중엔 재시도 안 함

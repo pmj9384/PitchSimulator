@@ -24,7 +24,7 @@ public class PassFlightTests
         public override NodeState Tick(IPlayerContext ctx)
         {
             if (ctx.PlayerId != passer) { return NodeState.Success; }
-            if (!done && ctx.OwnsBall) { ctx.Pass(receiver); done = true; return NodeState.Success; }
+            if (!done && ctx.OwnsBall) { PassFlightTestsHelper.PassWithLead(ctx, receiver); done = true; return NodeState.Success; }
             ctx.MoveToward(ctx.BallX, ctx.BallZ);
             return NodeState.Success;
         }
@@ -54,6 +54,49 @@ public class PassFlightTests
         Assert.AreEqual(1, sim.Ball.OwnerId, "리시버가 받음");
         Assert.AreEqual(0, sim.InterceptCount);
         Assert.IsFalse(b.IsPassTarget, "받고 나면 패스 대상 해제");
+    }
+
+    // 넘겨받은 점으로 그대로 차는지 보려고 착지점을 직접 주는 패서
+    private sealed class PassToPoint : BehaviorNode
+    {
+        private readonly int receiver;
+        private readonly float x;
+        private readonly float z;
+        private bool done;
+
+        public PassToPoint(int receiver, float x, float z)
+        {
+            this.receiver = receiver;
+            this.x = x;
+            this.z = z;
+        }
+
+        public override NodeState Tick(IPlayerContext ctx)
+        {
+            if (done || !ctx.OwnsBall) { return NodeState.Success; }
+            ctx.Pass(receiver, x, z);
+            done = true;
+            return NodeState.Success;
+        }
+    }
+
+    [Test]
+    public void 패스는_트리가_넘긴_착지점으로_날아간다()
+    {
+        // 09-30 공격 칼날 A: 전엔 시뮬이 받는 선수 앞 8m를 다시 계산해 찼다(트리의 안전 판정과 다른 점). 이제 넘겨받은 점 그대로
+        var sim = new MatchSimulation(() => 0.5f, new PassToPoint(receiver: 1, x: 17f, z: 3f));
+        sim.AddPlayer(new PlayerState(0, 0, Mid(), 0f, 0f));
+        PlayerState b = sim.AddPlayer(new PlayerState(1, 0, Mid(), 15f, 0f));
+        sim.Kickoff();
+        sim.Ball = BallRules.Own(sim.Ball, 0, 0f, 0f);
+
+        sim.Tick(Dt);
+        Assert.AreEqual(BallPhase.Flight, sim.Ball.Phase);
+        Assert.AreEqual(3f / 17f, sim.Ball.VelZ / sim.Ball.VelX, 1e-4f, "공은 (17, 3) 방향으로 간다");
+        sim.Tick(Dt);
+        Assert.IsTrue(b.IsPassTarget);
+        Assert.AreEqual(17f, b.PassTargetX, 1e-4f);
+        Assert.AreEqual(3f, b.PassTargetZ, 1e-4f);
     }
 
     [Test]

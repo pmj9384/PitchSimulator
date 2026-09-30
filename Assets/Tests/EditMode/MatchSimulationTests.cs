@@ -11,6 +11,20 @@ using NUnit.Framework;
 // PassFlightTests도 여기 것을 쓴다(09-29 리뷰: PassOnce·ShootOnce가 두 파일에 복사돼 있던 것을 하나로 모음)
 internal static class PassFlightTestsHelper
 {
+    // 받는 선수 앞 긴 리드 착지점으로 패스(트리의 역습·킥오프 패스와 같은 식). 도우미 노드가 착지점을 직접 안 정해도 되게
+    internal static void PassWithLead(IPlayerContext ctx, int receiverId)
+    {
+        for (int i = 0; i < ctx.Teammates.Count; i++)
+        {
+            TargetInfo m = ctx.Teammates[i];
+            if (m.PlayerId != receiverId) { continue; }
+            float arrival = MatchTuning.PassArrivalSpeed[ctx.Tactics.Tempo[(int)ctx.BallThird]];
+            (float x, float z) landing = PassRules.LandingPoint(ctx.X, ctx.Z, m.X, m.Z, ctx.AttackSign, arrival, MatchTuning.PassLeadMax);
+            ctx.Pass(receiverId, landing.x, landing.z);
+            return;
+        }
+    }
+
     internal sealed class NoOp : BehaviorNode
     {
         public override NodeState Tick(IPlayerContext ctx)
@@ -61,7 +75,7 @@ internal static class PassFlightTestsHelper
 
         public override NodeState Tick(IPlayerContext ctx)
         {
-            if (!done && ctx.PlayerId == passer && ctx.OwnsBall) { ctx.Pass(receiver); done = true; }
+            if (!done && ctx.PlayerId == passer && ctx.OwnsBall) { PassWithLead(ctx, receiver); done = true; }
             return NodeState.Success;
         }
     }

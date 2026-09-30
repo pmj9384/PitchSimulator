@@ -29,6 +29,11 @@ namespace Game.Core.Match
                 // 킥 원점에서 발 뻗는 범위 안에 붙은 상대는 방향과 무관하게 확실히 닿는다(09-21 3분 계측: 붙은 압박 선수를 뒤라고 무시하고
                 // 찼더니 릴리스 지점에서 96%가 끊겼다). Simple Soccer엔 이 경우가 없다(그 게임은 태클로 뺏어서 붙은 채로 차는 상황이 안 남)
                 if (ox * ox + oz * oz <= MatchTuning.InterceptReach * MatchTuning.InterceptReach) { return 1f; }
+                // 착지점에서 발 뻗는 범위 안에 선 상대도 확실히 닿는다(09-30). 착지점보다 먼 상대는 아래에서 "무관"으로 넘기는데,
+                // 착지점이 받는 선수 발밑까지 내려오면서(PickLanding) 그 바로 뒤에 붙은 수비수까지 무관이 되는 것을 막는다
+                float ex = opponents[i].X - toX;
+                float ez = opponents[i].Z - toZ;
+                if (ex * ex + ez * ez <= MatchTuning.InterceptReach * MatchTuning.InterceptReach) { return 1f; }
                 float along = ox * ux + oz * uz;              // 패스 축 위 투영(앞뒤)
                 if (along <= 0f || along > len) { continue; } // 뒤에 있거나 리시버보다 멀면 무관
 
@@ -94,21 +99,68 @@ namespace Game.Core.Match
         }
 
         // 리드 패스 목표(09-18 Play 진단): 리시버의 지금 위치로 차면 리시버는 이미 움직여 공이 뒤에 떨어진다.
-        // 공이 도착하는 시간 동안 리시버가 앞(공격 방향)으로 갈 수 있는 거리만큼 앞선 점을 목표로 한다. 상한은 리드 최대치.
+        // 공이 도착하는 시간 동안 리시버가 앞(공격 방향)으로 갈 수 있는 거리만큼 앞선 점을 목표로 한다. 상한은 leadMax(착지점 후보마다 다르다, 09-30).
         // 리드는 앞선 리시버(패서보다 공격 방향)에게만(09-21): 옆·뒤 아군에게 앞으로 8m 리드하면 착지점이 패서 앞이 되어
         // 판정은 짧은 앞 패스로 늘 안전, 실제 공은 리시버가 없는 곳으로 가서 먹혔다(3분 계측: 드리블 0·완성률 50%).
         // Simple Soccer의 "리시버 도달 원" 판정의 단순형. 결과는 필드 안으로 클램프
-        public static (float x, float z) LeadTarget(float passerX, float receiverX, float receiverZ, int attackSign, float passDistance, float ballSpeed, float receiverSpeed)
+        public static (float x, float z) LeadTarget(float passerX, float receiverX, float receiverZ, int attackSign, float passDistance, float ballSpeed, float receiverSpeed, float leadMax)
         {
             if ((receiverX - passerX) * attackSign <= 0f) { return (receiverX, receiverZ); }   // 옆·뒤 리시버는 지금 위치로. 어차피 마중 나온다
 
             float travel = passDistance / ballSpeed;                       // 공 도착 시간
-            float lead = Math.Min(receiverSpeed * travel, MatchTuning.PassLeadMax);
+            float lead = Math.Min(receiverSpeed * travel, leadMax);
             float x = receiverX + lead * attackSign;
             float limit = Placement.FieldBounds.HalfLength - Placement.FieldBounds.EdgeMargin;
             if (x > limit) { x = limit; }
             if (x < -limit) { x = -limit; }
             return (x, receiverZ);
+        }
+
+        // 착지점 하나(09-30): 받는 선수 앞 leadMax 상한의 리드 점. 받는 선수 속도는 평균(speed 50)으로 본다.
+        // 트리는 동료의 스탯을 모르고(TargetInfo), 고른 점을 시뮬이 그대로 차므로 판정과 실행이 같은 점을 본다.
+        // 그전엔 트리가 평균 속도로 안전을 재고 시뮬이 실제 속도로 다시 계산해 찼다(09-28 재검증 "판정과 실행이 다른 전제")
+        public static (float x, float z) LandingPoint(float passerX, float passerZ, float receiverX, float receiverZ, int attackSign, float arrivalSpeed, float leadMax)
+        {
+            float distance = Distance(passerX, passerZ, receiverX, receiverZ);
+            return LeadTarget(passerX, receiverX, receiverZ, attackSign, distance, FlightAverageSpeed(distance, arrivalSpeed), MatchTuning.SpeedMpsAt50, leadMax);
+        }
+
+        // 그 착지점으로 찼을 때의 가로채기 위험. 공 속도는 착지점까지 거리로 역산한 평균(시뮬 Pass가 차는 속도와 같은 식)
+        public static float LandingRisk(float passerX, float passerZ, float landingX, float landingZ, float arrivalSpeed, IReadOnlyList<TargetInfo> opponents)
+        {
+            float distance = Distance(passerX, passerZ, landingX, landingZ);
+            return InterceptRisk(passerX, passerZ, landingX, landingZ, opponents, MatchTuning.InterceptRunSpeed, FlightAverageSpeed(distance, arrivalSpeed));
+        }
+
+        // 착지점 고르기(09-30 공격 칼날 A): 리드 후보(MatchTuning.PassLeadOptions)를 긴 것부터 보다가 위험이 허용치 이하인 첫 후보를 고른다.
+        // 앞이 비면 공간으로, 수비 라인이 가까우면 짧게, 그래도 막히면 발밑으로. Simple Soccer GetBestPassToReceiver(후보 3점 중 안전하고 골에 가까운 것)와 같은 구조.
+        // 전부 허용치를 넘으면 가장 덜 위험한 후보(동률은 긴 쪽)를 돌려준다. 안전한지는 호출자가 Risk로 본다(IsPassSafe)
+        public static PassLanding PickLanding(float passerX, float passerZ, float receiverX, float receiverZ, int attackSign, float arrivalSpeed, IReadOnlyList<TargetInfo> opponents, float riskAllow)
+        {
+            PassLanding leastRisky = default;
+            for (int i = 0; i < MatchTuning.PassLeadOptions.Length; i++)
+            {
+                (float x, float z) point = LandingPoint(passerX, passerZ, receiverX, receiverZ, attackSign, arrivalSpeed, MatchTuning.PassLeadOptions[i]);
+                float risk = LandingRisk(passerX, passerZ, point.x, point.z, arrivalSpeed, opponents);
+                var candidate = new PassLanding(point.x, point.z, risk);
+                if (IsPassSafe(risk, riskAllow)) { return candidate; }
+                if (i == 0 || risk < leastRisky.Risk) { leastRisky = candidate; }
+            }
+            return leastRisky;
+        }
+
+        private static float Distance(float fromX, float fromZ, float toX, float toZ)
+        {
+            float dx = toX - fromX;
+            float dz = toZ - fromZ;
+            return (float)Math.Sqrt(dx * dx + dz * dz);
+        }
+
+        // 그 거리를 도착 속도에 맞춰 찼을 때의 평균 공 속도(초속 역산 → 평균)
+        private static float FlightAverageSpeed(float distance, float arrivalSpeed)
+        {
+            float kick = KickSpeed(distance, arrivalSpeed, MatchTuning.BallDeceleration, MatchTuning.PassSpeedMax);
+            return AverageSpeed(kick, distance, MatchTuning.BallDeceleration);
         }
 
         // 역습 리시버: 가장 앞선 아군 1명(자기 자신 제외). 없으면 -1
@@ -134,7 +186,6 @@ namespace Game.Core.Match
             return best;
         }
 
-        // GK 배급 대상. 짧게(0) = 가장 가까운 아군, 길게(2) = 가장 앞선(멀리 있는) 아군, 섞어(1) = alternate로 번갈아
         // 킥오프 첫 패스(09-29 유저 Play: "공을 사람한테 주고 뒤로 주면서 시작해야 하는데 바로 시작한다"). IFAB 8조는 방향을 묻지 않지만
         // 실제 킥오프는 거의 다 옆·뒤 동료에게 짧게 내준다. 키커보다 앞서지 않은 동료 중 가장 가까운 이, 동률은 PlayerId 작은 쪽. 없으면 -1
         public static int KickoffReceiver(float kickerX, float kickerZ, IReadOnlyList<TargetInfo> teammates, int attackSign)
@@ -157,6 +208,7 @@ namespace Game.Core.Match
             return best;
         }
 
+        // GK 배급 대상. 짧게(0) = 가장 가까운 아군, 길게(2) = 가장 앞선(멀리 있는) 아군, 섞어(1) = alternate로 번갈아
         public static int KeeperDistributionTarget(float gkX, float gkZ, IReadOnlyList<TargetInfo> teammates, int attackSign, int level, int keeperId, bool alternate)
         {
             bool goLong = level == 2 || (level == 1 && alternate);
@@ -178,5 +230,39 @@ namespace Game.Core.Match
             }
             return best;
         }
+    }
+
+    // 착지점 하나와 그 점까지의 가로채기 위험(0~1)
+    public readonly struct PassLanding
+    {
+        public readonly float X;
+        public readonly float Z;
+        public readonly float Risk;
+
+        public PassLanding(float x, float z, float risk)
+        {
+            X = x;
+            Z = z;
+            Risk = risk;
+        }
+    }
+
+    // 패스 한 번의 선택: 누구에게, 어느 점으로. 트리가 고르고 시뮬은 그 점으로 찬다
+    public readonly struct PassChoice
+    {
+        public static readonly PassChoice None = new PassChoice(-1, 0f, 0f);
+
+        public readonly int ReceiverId;
+        public readonly float X;
+        public readonly float Z;
+
+        public PassChoice(int receiverId, float x, float z)
+        {
+            ReceiverId = receiverId;
+            X = x;
+            Z = z;
+        }
+
+        public bool Found => ReceiverId != -1;
     }
 }
