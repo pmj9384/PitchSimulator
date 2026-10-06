@@ -613,6 +613,73 @@ public class MatchSimulationTests
         Assert.AreEqual(0, sim.HomeGoals);
     }
 
+    // 종료 한 틱 전에 슛을 쏘게 해 두고 종료 틱까지 돌린다. 후반이라 팀 0은 -X로 공격한다. 슈터 (-20,0)에서 골까지 32.5m라 공은 1초 넘게 난다
+    private static (MatchSimulation sim, List<ShotOutcome> outcomes) ShotAtFullTime(float roll)
+    {
+        var tree = new PassFlightTestsHelper.ShootWhenArmed();
+        var sim = new MatchSimulation(() => roll, tree);
+        PlayerState shooter = sim.AddPlayer(new PlayerState(0, 0, Striker(), -10f, 0f));
+        sim.AddPlayer(new PlayerState(1, 1, Keeper(), 52f, 0f));
+        sim.AddPlayer(new PlayerState(2, 1, Striker(), 30f, 25f));
+        sim.KickoffBy(0);
+        for (int i = 0; i < MatchTuning.MatchTicks - 2; i++) { sim.Tick(Dt); }
+        Assert.IsTrue(sim.SidesSwitched, "후반이다");
+
+        shooter.X = -20f;
+        shooter.Z = 0f;
+        sim.Ball = BallRules.Own(sim.Ball, 0, -20f, 0f);
+        tree.Armed = true;
+        var outcomes = new List<ShotOutcome>();
+        sim.ShotResolved += r => outcomes.Add(r.Outcome);
+        sim.Tick(Dt);   // 종료 한 틱 전: 슛
+        Assert.AreEqual(BallPhase.Flight, sim.Ball.Phase, "종료 직전에 슛이 날아가는 중");
+        Assert.IsEmpty(outcomes);
+        sim.Tick(Dt);   // 종료 틱
+        Assert.AreEqual(MatchTuning.MatchTicks, sim.TickCount);
+        return (sim, outcomes);
+    }
+
+    [Test]
+    public void 종료_휘슬_순간_날아가던_골이_될_슛은_골로_남는다()
+    {
+        // 09-30 하프타임 수정 중 발견: 경기는 MatchTicks에서 멈추는데 그때 날아가던 슛은 결과 보고가 없고 골이 될 슛이면 골도 사라졌다
+        (MatchSimulation sim, List<ShotOutcome> outcomes) = ShotAtFullTime(0f);   // 주사위 0 = 골 판정 성공, 조준은 골문 안
+        CollectionAssert.AreEqual(new[] { ShotOutcome.Goal }, outcomes);
+        Assert.AreEqual(1, sim.HomeGoals);
+    }
+
+    [Test]
+    public void 종료_휘슬_순간_날아가던_골이_아닌_슛은_빗나감으로_마감한다()
+    {
+        (MatchSimulation sim, List<ShotOutcome> outcomes) = ShotAtFullTime(0.99f);   // 주사위 0.99 = 골 판정 실패
+        CollectionAssert.AreEqual(new[] { ShotOutcome.Missed }, outcomes);
+        Assert.AreEqual(0, sim.HomeGoals);
+    }
+
+    [Test]
+    public void 종료_틱에_골라인을_넘은_슛은_한_번만_센다()
+    {
+        // 종료 마감은 그 틱의 평소 처리가 끝난 뒤에도 날아가는 슛에만 걸린다. 종료 틱에 골라인에서 정상 판정된 슛을 한 번 더 세면 안 된다
+        var tree = new PassFlightTestsHelper.ShootWhenArmed();
+        var sim = new MatchSimulation(() => 0f, tree);
+        PlayerState shooter = sim.AddPlayer(new PlayerState(0, 0, Striker(), -10f, 0f));
+        sim.AddPlayer(new PlayerState(1, 1, Keeper(), 52f, 0f));
+        sim.AddPlayer(new PlayerState(2, 1, Striker(), 30f, 25f));
+        sim.KickoffBy(0);
+        for (int i = 0; i < MatchTuning.MatchTicks - 60; i++) { sim.Tick(Dt); }
+
+        shooter.X = -48f;   // 골까지 4.5m: 종료 전에 골라인을 넘는다
+        shooter.Z = 0f;
+        sim.Ball = BallRules.Own(sim.Ball, 0, -48f, 0f);
+        tree.Armed = true;
+        var outcomes = new List<ShotOutcome>();
+        sim.ShotResolved += r => outcomes.Add(r.Outcome);
+        while (sim.TickCount < MatchTuning.MatchTicks) { sim.Tick(Dt); }
+
+        CollectionAssert.AreEqual(new[] { ShotOutcome.Goal }, outcomes);
+        Assert.AreEqual(1, sim.HomeGoals);
+    }
+
     [Test]
     public void 킥오프_전에_바꾼_역할_값은_선수에게_다시_준다()
     {
