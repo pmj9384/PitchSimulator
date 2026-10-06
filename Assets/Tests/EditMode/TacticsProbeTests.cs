@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
 using Game.Core.AutoMatch;
@@ -70,6 +71,35 @@ public class TacticsProbeTests
     }
 
     [Test]
+    public void 하프타임_킥오프는_새_소유라_역습을_다시_센다()
+    {
+        // 10-06 리뷰: 역습 표시는 상대가 공을 잡을 때만 지웠다. 전반 끝에 우리가 역습 소유 중이고 후반 킥오프도 우리면 표시가 남아 후반 첫 소유가 안 세졌다
+        var sim = new MatchSimulation(() => 0.5f, new PassFlightTestsHelper.NoOp());
+        PlayerState mine = sim.AddPlayer(new PlayerState(0, 0, Mid(), -20f, 0f));
+        sim.AddPlayer(new PlayerState(1, 1, Keeper(), 52f, 0f));
+        sim.AddPlayer(new PlayerState(2, 1, Mid(), 30f, 20f));
+        sim.SetTactics(0, new TeamTactics { Counter = 2 });
+        var probe = new TacticsProbe(sim, 0);
+        sim.KickoffBy(1);   // 전반 킥오프가 상대면 후반 킥오프는 우리다
+        sim.Ball = BallRules.Own(sim.Ball, 0, mine.X, mine.Z);
+
+        int halfTimeTick = MatchClock.HalfTimeTick(AddedTime.None);
+        for (int i = 0; i < halfTimeTick - 1; i++)
+        {
+            sim.Tick(Dt);
+            probe.Sample();
+        }
+        Assert.AreEqual(0, sim.Ball.OwnerId, "전반 끝까지 우리가 쥐고 있다");
+        Assert.AreEqual(1, probe.Readout.Counters, "앞에 상대 필드 선수가 1명이라 역습으로 판정된 소유 1번");
+
+        sim.Tick(Dt);   // 하프타임 틱: 진영 교체 + 우리 킥오프
+        probe.Sample();
+        Assert.IsTrue(sim.SidesSwitched);
+        Assert.AreEqual(0, sim.Ball.OwnerId, "후반 킥오프도 우리");
+        Assert.AreEqual(2, probe.Readout.Counters, "후반 킥오프 소유를 새로 센다");
+    }
+
+    [Test]
     public void 패스가_없으면_평균_길이는_0이다()
     {
         var readout = new TacticsReadout();
@@ -102,7 +132,7 @@ public class TacticsProbeTests
         return (probe0.Readout, probe1.Readout, sim);
     }
 
-    private static int Total(System.Func<Third, int> perThird)
+    private static int Total(Func<Third, int> perThird)
     {
         return perThird(Third.Own) + perThird(Third.Middle) + perThird(Third.Opponent);
     }

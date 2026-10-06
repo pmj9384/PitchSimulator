@@ -46,10 +46,21 @@ public static class TacticsReadoutText
             sb.Append(ColThird[i]).Append(measured.RegainCount((Third)i)).Append("회");
         }
 
-        sb.Append('\n').Append(SettingColorOpen).Append(ColLabel).Append("역습 성향").Append(ColThird[0]).Append(CounterNames[setting.Counter]).Append(ColorClose);
-        sb.Append('\n').Append(ColLabel).Append("역습").Append(ColThird[0])
-          .Append(measured.Counters).Append("회, 역습 슛 ").Append(measured.CounterShots).Append("개 (전체 슛 ").Append(measured.Shots).Append("개)");
+        AppendCounterRows(sb, setting, measured);
         return sb.ToString();
+    }
+
+    // 역습은 서드와 무관한 값이라 첫 열에만 쓴다
+    private static void AppendCounterRows(StringBuilder sb, TeamTactics setting, TacticsReadout measured)
+    {
+        sb.Append('\n').Append(SettingColorOpen).Append(ColLabel).Append("역습 성향");
+        sb.Append(ColThird[0]).Append(CounterNames[setting.Counter]);
+        sb.Append(ColorClose);
+
+        sb.Append('\n').Append(ColLabel).Append("역습");
+        sb.Append(ColThird[0]).Append(measured.Counters).Append("회");
+        sb.Append(", 역습 슛 ").Append(measured.CounterShots).Append("개");
+        sb.Append(" (전체 슛 ").Append(measured.Shots).Append("개)");
     }
 
     private static void AppendSettingRow(StringBuilder sb, string label, int[] levels, string[] names)

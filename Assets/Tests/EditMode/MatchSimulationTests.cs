@@ -656,26 +656,43 @@ public class MatchSimulationTests
         Assert.AreEqual(0, sim.HomeGoals);
     }
 
-    [Test]
-    public void 종료_틱에_골라인을_넘은_슛은_한_번만_센다()
+    // 후반에 골 앞 4.5m에서 쏜다. armTick = 슛을 쏘는 틱 번호. 종료 틱까지 돌리고, 슛 결과가 처음 나온 틱 번호를 같이 돌려준다
+    private static (MatchSimulation sim, List<ShotOutcome> outcomes, int resolvedTick) CloseRangeGoal(int armTick)
     {
-        // 종료 마감은 그 틱의 평소 처리가 끝난 뒤에도 날아가는 슛에만 걸린다. 종료 틱에 골라인에서 정상 판정된 슛을 한 번 더 세면 안 된다
         var tree = new PassFlightTestsHelper.ShootWhenArmed();
         var sim = new MatchSimulation(() => 0f, tree);
         PlayerState shooter = sim.AddPlayer(new PlayerState(0, 0, Striker(), -10f, 0f));
         sim.AddPlayer(new PlayerState(1, 1, Keeper(), 52f, 0f));
         sim.AddPlayer(new PlayerState(2, 1, Striker(), 30f, 25f));
         sim.KickoffBy(0);
-        for (int i = 0; i < MatchTuning.MatchTicks - 60; i++) { sim.Tick(Dt); }
+        for (int i = 0; i < armTick - 1; i++) { sim.Tick(Dt); }
 
-        shooter.X = -48f;   // 골까지 4.5m: 종료 전에 골라인을 넘는다
+        shooter.X = -48f;
         shooter.Z = 0f;
         sim.Ball = BallRules.Own(sim.Ball, 0, -48f, 0f);
         tree.Armed = true;
         var outcomes = new List<ShotOutcome>();
         sim.ShotResolved += r => outcomes.Add(r.Outcome);
-        while (sim.TickCount < MatchTuning.MatchTicks) { sim.Tick(Dt); }
+        int resolvedTick = -1;
+        while (sim.TickCount < MatchTuning.MatchTicks)
+        {
+            sim.Tick(Dt);
+            if (resolvedTick == -1 && outcomes.Count > 0) { resolvedTick = sim.TickCount; }
+        }
+        return (sim, outcomes, resolvedTick);
+    }
 
+    [Test]
+    public void 종료_틱에_골라인을_넘은_슛은_한_번만_센다()
+    {
+        // 종료 마감은 그 틱의 평소 처리가 끝난 뒤에도 날아가는 슛에만 걸린다. 종료 틱에 골라인에서 정상 판정된 슛을 한 번 더 세면 안 된다.
+        // 먼저 쏜 틱부터 골라인까지 몇 틱인지 재고, 골라인 통과가 정확히 종료 틱이 되게 다시 쏜다(10-06 리뷰: 처음엔 종료 55틱 전에 골이 나서 경계를 안 봤다)
+        int earlyArmTick = MatchTuning.MatchTicks - 200;
+        int flightTicks = CloseRangeGoal(earlyArmTick).resolvedTick - earlyArmTick;
+        Assert.Greater(flightTicks, 0);
+
+        (MatchSimulation sim, List<ShotOutcome> outcomes, int resolvedTick) = CloseRangeGoal(MatchTuning.MatchTicks - flightTicks);
+        Assert.AreEqual(MatchTuning.MatchTicks, resolvedTick, "골라인 통과가 종료 틱이다");
         CollectionAssert.AreEqual(new[] { ShotOutcome.Goal }, outcomes);
         Assert.AreEqual(1, sim.HomeGoals);
     }

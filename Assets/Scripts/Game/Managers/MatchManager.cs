@@ -21,7 +21,7 @@ public class MatchManager : InGameManager
     public float Elapsed => Ticks * MatchTuning.FixedStep;     // 로그용 초
     public MatchSimulation Simulation { get; private set; }
     public string OpponentName { get; private set; }            // HUD용. 이번 경기 정보는 Match 한 곳에서(참조 1개 규칙)
-    public TacticsReadout MyReadout => myProbe.Readout;       // 결과 화면용. 내 팀이 이번 경기에 실제로 한 것
+    public TacticsReadout MyReadout => myProbe.Readout;         // 결과 화면용. 내 팀이 이번 경기에 실제로 한 것
 
     // 경기가 끝났음을 알린다(승리 팀 0/1, 무승부 -1). 결과 화면(3주차)과 검증 도구가 구독한다
     public event Action<int> MatchEnded;

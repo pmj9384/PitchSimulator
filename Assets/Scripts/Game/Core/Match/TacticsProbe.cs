@@ -75,7 +75,8 @@ namespace Game.Core.Match
         private Third kickOriginThird;
         private bool kickerIsGoalkeeper;
 
-        private bool possessionCountered;   // 지금 우리 소유가 역습으로 판정된 적이 있는가. 상대가 공을 잡으면 지운다
+        private bool possessionCountered;   // 지금 우리 소유가 역습으로 판정된 적이 있는가. 상대가 공을 잡거나 하프타임이 오면 지운다
+        private bool sidesSwitched;         // 하프타임이 지났는지(시뮬 값을 따라간다). 바뀌는 틱을 알아보려고 둔다
 
         public TacticsReadout Readout { get; } = new TacticsReadout();
 
@@ -90,6 +91,13 @@ namespace Game.Core.Match
         // Tick 뒤마다 한 번
         public void Sample()
         {
+            if (sim.SidesSwitched != sidesSwitched)
+            {
+                // 하프타임 킥오프는 새 소유다. 전반 끝의 우리 소유가 역습이었고 후반 킥오프도 우리면 상대가 공을 잡은 적이 없어 표시가 남는다(10-06 리뷰)
+                sidesSwitched = sim.SidesSwitched;
+                possessionCountered = false;
+            }
+
             BallState ball = sim.Ball;
             if (ball.Phase != BallPhase.Owned) { return; }
 
