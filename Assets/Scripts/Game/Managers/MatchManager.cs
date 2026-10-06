@@ -21,6 +21,7 @@ public class MatchManager : InGameManager
     public float Elapsed => Ticks * MatchTuning.FixedStep;     // 로그용 초
     public MatchSimulation Simulation { get; private set; }
     public string OpponentName { get; private set; }            // HUD용. 이번 경기 정보는 Match 한 곳에서(참조 1개 규칙)
+    public TacticsReadout MyReadout => myProbe.Readout;       // 결과 화면용. 내 팀이 이번 경기에 실제로 한 것
 
     // 경기가 끝났음을 알린다(승리 팀 0/1, 무승부 -1). 결과 화면(3주차)과 검증 도구가 구독한다
     public event Action<int> MatchEnded;
@@ -31,6 +32,7 @@ public class MatchManager : InGameManager
     private int holdTicksLeft;   // 멈춤(하프타임·킥오프 준비) 남은 고정 스텝 수
     private bool holdIsHalfTime;
     private int goalScorerId = BallState.NoOwner;   // 이번 틱 골 넣은 선수. ShotResolved에서 받는다
+    private TacticsProbe myProbe;   // 내 팀의 전술 실측. 결과 화면이 설정과 나란히 보여 준다(10-06)
     private readonly GoalCelebration celebration = new GoalCelebration();   // 세리머니 안무. 언제 시작·끝낼지는 여기서 정한다
     private bool celebrationBeforeHalfTime;   // 이번 세리머니가 하프타임 틱의 골인가. 끝나면 킥오프 준비 대신 하프타임 멈춤
 
@@ -67,6 +69,7 @@ public class MatchManager : InGameManager
             ResetAfterEveryShot = false   // 4국면 트리(09-18): 세이브 뒤 GK가 배급한다. 리트머스 때만 true였다
         };
         Simulation.SetAddedTime(AddedTime.FromSeed(setup.Seed));   // 러너(MatchAssembler)와 같은 식
+        myProbe = new TacticsProbe(Simulation, 0);   // 내 팀 = 시뮬 팀 0
         Simulation.ShotResolved += LogShot;
         Simulation.ShotResolved += OnShotResolved;
         Simulation.PossessionChanged += LogPossession;
@@ -142,6 +145,7 @@ public class MatchManager : InGameManager
         bool halfTimeTick = Ticks + 1 == MatchClock.HalfTimeTick(Simulation.Added);
         goalScorerId = BallState.NoOwner;
         Simulation.Tick(MatchTuning.FixedStep);   // Unity 설정(Fixed Timestep)이 아니라 코어 상수로 흐른다: 설정이 바뀌어도 같은 시드 = 같은 경기(러너와 동일). 호출 주기만 설정이 정한다
+        myProbe.Sample();
         Ticks++;
 
         if (goalScorerId != BallState.NoOwner)

@@ -9,7 +9,8 @@ using UnityEngine.UI;
 // 승점표는 SeasonSystem이 나머지 경기를 백그라운드로 다 돌리고 저장까지 끝내야(IsReporting false) 확정된다. 그 전에 다음 경기로 가면 새 씬이 아직 넘어가지 않은 라운드(끝난 경기)를 다시 읽으므로 버튼을 잠근다(09-28 리뷰로 이유 수정).
 // 참조가 둘(경기·시즌)인 이유: 스코어는 휘슬 순간 경기에서 바로 쓰고, 표는 보고가 끝난 뒤 시즌에서 쓴다. 시점이 달라 한쪽으로 합치면 스코어도 계산이 끝날 때까지 비게 된다
 // 끝남을 알리는 이벤트를 두지 않고 HUD처럼 매 프레임 IsReporting만 본다(Dirty Flag): bool 하나라 구독-해제 표면이 더 비싸고, 스레드에서 돌아온 콜백이 파괴된 패널을 건드릴 일도 없다.
-// 표는 한 번만 만든다. 만든 뒤엔 Update가 곧바로 빠진다
+// 표는 한 번만 만든다. 만든 뒤엔 Update가 곧바로 빠진다.
+// 전술 실측(10-06, 스펙 §6 "설정 대 실측")은 승점표와 같은 자리에 번갈아 보여 준다. 실측은 휘슬 순간 다 있어서 Show에서 만들고, 보기 버튼이 둘을 바꾼다
 public class ResultPanelUIElement : UIElement
 {
     private const string HighlightColor = "#FFD54F";   // 내 행 강조(노랑). 표 안 다른 행은 기본 색
@@ -31,14 +32,21 @@ public class ResultPanelUIElement : UIElement
     [SerializeField] private TMP_Text statusText;
     [SerializeField] private Button nextButton;
     [SerializeField] private TMP_Text nextButtonLabel;
+    [SerializeField] private Button viewButton;          // 승점표 ↔ 전술 실측
+    [SerializeField] private TMP_Text viewButtonLabel;
 
     private readonly StringBuilder tableBuilder = new(512);   // 표는 패널이 뜰 때 한 번 만든다. 재사용해 결과마다 버퍼를 새로 잡지 않는다
+    private readonly StringBuilder readoutBuilder = new(512);
     private bool tableShown;
+    private string tableContent = string.Empty;     // 승점표 글자. 시즌 보고가 끝나면 채운다
+    private string readoutContent = string.Empty;   // 전술 실측 글자
+    private bool showingReadout;
 
     public override void Initialize()
     {
         gameObject.SetActive(false);
         nextButton.onClick.AddListener(OnNext);
+        viewButton.onClick.AddListener(OnViewToggled);
     }
 
     // 스코어는 경기에서 바로 쓴다. 승점표는 시즌 보고가 끝나야 확정이라 비워 두고 버튼도 잠근다(Update가 풀어 준다)
@@ -53,9 +61,13 @@ public class ResultPanelUIElement : UIElement
 
         statusText.text = "다른 경기 결과 계산 중…";
         roundText.text = string.Empty;
-        tableText.text = string.Empty;
         nextButton.interactable = false;
         tableShown = false;
+
+        tableContent = string.Empty;
+        readoutContent = TacticsReadoutText.Build(sim.TacticsOf(0), match.MyReadout, readoutBuilder);
+        showingReadout = false;
+        ShowView();
     }
 
     public override void Hide() => gameObject.SetActive(false);
@@ -75,14 +87,28 @@ public class ResultPanelUIElement : UIElement
         roundText.text = $"{season.Tier.Tier}부 {season.State.RoundsPlayed}/{season.Tier.Matches} 라운드";
         try
         {
-            tableText.text = BuildTable(season);
+            tableContent = BuildTable(season);
             if (!season.LastReportFailed && season.IsOver) { statusText.text = OutcomeLine(season.Outcome(), season.Tier.Tier); }   // 시즌 마지막 판: 승강 판정(09-28)
         }
         catch (System.Exception e)
         {
             Debug.LogError($"[Result] 승점표를 만들지 못했다: {e}");
-            tableText.text = "승점표를 불러오지 못했다";
+            tableContent = "승점표를 불러오지 못했다";
         }
+        ShowView();   // 실측을 보고 있었으면 그대로 둔다. 승점표는 버튼을 누르면 나온다
+    }
+
+    private void OnViewToggled()
+    {
+        showingReadout = !showingReadout;
+        ShowView();
+    }
+
+    // 표 자리에는 승점표와 전술 실측 중 하나가 보인다. 버튼 글자는 누르면 나올 쪽이다
+    private void ShowView()
+    {
+        tableText.text = showingReadout ? readoutContent : tableContent;
+        viewButtonLabel.text = showingReadout ? "승점표 보기" : "전술 실측 보기";
     }
 
     // 다음 경기 = 같은 씬 재로드(결과 보고가 먼저 라운드를 올린다). 시즌이 끝났으면 다음 시즌 입구는 로비(PrepareNextMatch) 하나라 로비로 보낸다(09-27 리뷰 R1)
