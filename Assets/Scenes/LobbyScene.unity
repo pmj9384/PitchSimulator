@@ -310,17 +310,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &1025257805 stripped
-MonoBehaviour:
-  m_CorrespondingSourceObject: {fileID: 2220800328633644762, guid: b3591f7564f9146358a7356d9887f615, type: 3}
-  m_PrefabInstance: {fileID: 8098477633644280466}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 9d4a33404f8c146088ba7164d2dc1a0d, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
 --- !u!1 &1082033752
 GameObject:
   m_ObjectHideFlags: 0
@@ -2519,17 +2508,6 @@ AudioSource:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
---- !u!114 &1841721645 stripped
-MonoBehaviour:
-  m_CorrespondingSourceObject: {fileID: 1710485588692796000, guid: b3591f7564f9146358a7356d9887f615, type: 3}
-  m_PrefabInstance: {fileID: 8098477633644280466}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 4e29b1a8efbd4b44bb3f3716e73f07ff, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
 --- !u!1001 &8098477633644280466
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -2681,38 +2659,6 @@ PrefabInstance:
     - target: {fileID: 8133858353756615423, guid: b3591f7564f9146358a7356d9887f615, type: 3}
       propertyPath: m_AnchorMax.y
       value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 8721998986495108085, guid: b3591f7564f9146358a7356d9887f615, type: 3}
-      propertyPath: buttons.Array.size
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 8721998986495108085, guid: b3591f7564f9146358a7356d9887f615, type: 3}
-      propertyPath: 'buttons.Array.data[0]'
-      value: 
-      objectReference: {fileID: 1841721645}
-    - target: {fileID: 8721998986495108085, guid: b3591f7564f9146358a7356d9887f615, type: 3}
-      propertyPath: 'buttons.Array.data[1]'
-      value: 
-      objectReference: {fileID: 0}
-    - target: {fileID: 8721998986495108085, guid: b3591f7564f9146358a7356d9887f615, type: 3}
-      propertyPath: 'buttons.Array.data[2]'
-      value: 
-      objectReference: {fileID: 0}
-    - target: {fileID: 8721998986495108085, guid: b3591f7564f9146358a7356d9887f615, type: 3}
-      propertyPath: targetScreen.Array.size
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 8721998986495108085, guid: b3591f7564f9146358a7356d9887f615, type: 3}
-      propertyPath: 'targetScreen.Array.data[0]'
-      value: 
-      objectReference: {fileID: 1025257805}
-    - target: {fileID: 8721998986495108085, guid: b3591f7564f9146358a7356d9887f615, type: 3}
-      propertyPath: 'targetScreen.Array.data[1]'
-      value: 
-      objectReference: {fileID: 0}
-    - target: {fileID: 8721998986495108085, guid: b3591f7564f9146358a7356d9887f615, type: 3}
-      propertyPath: 'targetScreen.Array.data[2]'
-      value: 
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
