@@ -99,6 +99,11 @@ namespace Game.Core.Match
         public const float BlockReboundSpeed = 6f;       // 막힌 공이 튕겨 나가는 초속(m/s)
         public const float BlockReboundTurnDeg = 60f;    // 슛 반대 방향에서 비트는 각도. 슈터 쪽 직선이면 슈터가 도로 잡았다(09-29 리뷰)
         public const float BlockReboundStart = 0.9f;     // 튕긴 공이 막은 선수에게서 떨어져 출발하는 거리. 잡기 반경(0.8) 밖
+        // 공격수 운반(10-08 결정 7, 09-30 B 실험). 노드는 슛 판단 바로 뒤, 슛 사거리(MaxShotRange) 안에서만.
+        // 10-08 러너(균형 300판 합계 골 / ST 전진 20·25 득점): 여유 4m 1.75 / 0.34·0.83, 5m 1.72 / 0.28·0.86, 6m 1.74 / 0.27·0.79, 8m 1.69 / 0.23·0.57.
+        // 돌파 뒤·패스 앞에 두고 사거리 제한 없이 6m면 1.86 / 0.10(ST 전진 20이 더 죽음). 기준 없는 때는 1.81 / 0.17·0.47. [가정] 4m
+        public const float CarryComfortZone = 4f;                               // 앞쪽 이 거리 안에 상대가 없으면 "위협 없음"으로 보고 몬다
+        public static readonly string[] CarryRoles = { "ST", "AM", "W" };       // 운반 규칙을 타는 자리(PlayerTable roleId)
         public const int MaxPressers = 1;                                       // 팀에서 동시에 압박(⑧)하는 인원 상한. 압박 거리 안인 선수를 공 거리순으로 세어 이 안만 간다(09-23 Play: 인원 제한이 없어 우리 진영 "적극"이면 CM 19.5m·FB/W/ST 12m 안 4~6명이 한꺼번에 달려들어 초등학교 경기처럼 뭉쳤다). Simple Soccer는 최근접 1명만 쫓고 FM도 1명 압박 + 커버. 러너에서 태클이 죽으면 2
     }
 }

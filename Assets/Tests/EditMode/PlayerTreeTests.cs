@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using Game.Core.AI;
 using Game.Core.Data;
 using Game.Core.Match;
+using Game.Core.Placement;
 using Game.Core.Tactics;
 using NUnit.Framework;
 
@@ -322,6 +323,35 @@ public class PlayerTreeTests
         Tree.Tick(kicker);
         Assert.AreEqual("pass", kicker.Did);
         Assert.AreEqual(7, kicker.PassedTo, "앞선 10번(5m)이 더 가까워도 뒤의 7번(10m)");
+    }
+
+    [Test]
+    public void 공격수는_슛_사거리_안에서_앞이_비면_안전한_패스가_있어도_골_쪽으로_몬다()
+    {
+        // 10-08 기회 생성 1: 슛 문턱 밖에서 받은 공격수가 늘 다시 패스해서 ST가 정면 11m에 서 있을 때만 득점이 났다
+        // 상대는 패스 길에서 멀리(측면 12m 앞 15m) 두어 패스는 늘 안전하고, 운반 여부만 결과를 가른다
+        var st = new Fake { PlayerId = 0, OwnsBall = true, BallPhase = BallPhase.Owned, BallOwnerTeam = 0, X = 20f, Z = 5f, BallThird = Third.Opponent,
+            Teammates = new List<TargetInfo> { new TargetInfo(1, 35f, -20f) },
+            Opponents = new List<TargetInfo> { new TargetInfo(11, 32f, 20f) } };
+        st.Stats.RoleId = "ST"; st.Stats.ShotBias = 1f;
+        Tree.Tick(st);
+        Assert.AreEqual("move", st.Did, "운반");
+        Assert.AreEqual(FieldBounds.HalfLength, st.MoveX, 0.01f, "골 쪽으로");
+
+        st.Opponents = new List<TargetInfo> { new TargetInfo(11, 22f, 8f) };   // 앞 3.6m: 여유(4m) 안 → 평소 판단(패스)
+        st.Did = "";
+        Tree.Tick(st);
+        Assert.AreEqual("pass", st.Did);
+
+        st.Opponents = new List<TargetInfo> { new TargetInfo(11, 32f, 20f) };
+        st.Stats.RoleId = "CM"; st.Did = "";
+        Tree.Tick(st);
+        Assert.AreEqual("pass", st.Did, "미드필더는 운반 규칙을 안 탄다");
+
+        st.Stats.RoleId = "ST"; st.X = -20f; st.BallThird = Third.Middle; st.Did = "";   // 골에서 72m: 슛 사거리 밖
+        st.Teammates = new List<TargetInfo> { new TargetInfo(1, -5f, -20f) };
+        Tree.Tick(st);
+        Assert.AreEqual("pass", st.Did, "사거리 밖에선 안 몬다");
     }
 
     [Test]
