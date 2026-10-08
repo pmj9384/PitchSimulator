@@ -589,7 +589,7 @@ namespace Game.Core.Match
 
             if (p.WantsPass && owner && p.PassReceiverId != BallState.NoOwner && p.PassReceiverId != p.PlayerId)
             {
-                Pass(p, p.PassReceiverId);
+                Pass(p, p.PassReceiverId, p.PassLandingX, p.PassLandingZ);
                 return;
             }
 
@@ -679,28 +679,21 @@ namespace Game.Core.Match
             return true;
         }
 
-        // 패스: 리드 목표점으로 직선 비행. 초속은 목표까지 거리로 역산(도착 속도 = 공이 있는 서드의 팀 템포). 리시버는 스냅샷으로 알고 마중 나간다
-        private void Pass(PlayerState passer, int receiverId)
+        // 패스: 트리가 고른 착지점으로 직선 비행(09-30: 전엔 여기서 받는 선수 앞 8m를 다시 계산해, 트리가 안전하다고 본 점과 실제로 찬 점이 달랐다).
+        // 초속은 착지점까지 거리로 역산(도착 속도 = 공이 있는 서드의 팀 템포). 리시버는 스냅샷으로 알고 마중 나간다
+        private void Pass(PlayerState passer, int receiverId, float landingX, float landingZ)
         {
-            PlayerState receiver = FindPlayer(receiverId);
             Third third = PositionRules.ThirdOf(Ball.X, passer.AttackSign);
             float arrival = MatchTuning.PassArrivalSpeed[tactics[passer.Team].Tempo[(int)third]];
-
-            // 리드 패스: 리시버가 공 도착 때 있을 앞쪽 점으로. 리시버 속도는 그 선수 speed 스탯. 비행 시간은 리시버 거리 기준 평균 속도로
-            float dx0 = receiver.X - passer.X;
-            float dz0 = receiver.Z - passer.Z;
-            float dist = (float)Math.Sqrt(dx0 * dx0 + dz0 * dz0);
-            float average = PassRules.AverageSpeed(PassRules.KickSpeed(dist, arrival, MatchTuning.BallDeceleration, MatchTuning.PassSpeedMax), dist, MatchTuning.BallDeceleration);
-            (float x, float z) target = PassRules.LeadTarget(passer.X, receiver.X, receiver.Z, receiver.AttackSign, dist, average, MatchRules.SpeedMps(receiver.Stats.Speed));
-            float dx1 = target.x - passer.X;
-            float dz1 = target.z - passer.Z;
-            float speed = PassRules.KickSpeed((float)Math.Sqrt(dx1 * dx1 + dz1 * dz1), arrival, MatchTuning.BallDeceleration, MatchTuning.PassSpeedMax);
+            float dx = landingX - passer.X;
+            float dz = landingZ - passer.Z;
+            float speed = PassRules.KickSpeed((float)Math.Sqrt(dx * dx + dz * dz), arrival, MatchTuning.BallDeceleration, MatchTuning.PassSpeedMax);
 
             passInFlight = true;
             passReceiverId = receiverId;
             passPasserId = passer.PlayerId;
-            passTargetX = target.x;
-            passTargetZ = target.z;
+            passTargetX = landingX;
+            passTargetZ = landingZ;
             PassCount++;
             if (passer.IsGoalkeeper && tactics[passer.Team].GkDistribution == 1) { keeperAlternate[passer.Team] = !keeperAlternate[passer.Team]; }   // 섞어: 다음 배급은 반대
             kickOriginX = Ball.X;
@@ -710,7 +703,7 @@ namespace Game.Core.Match
             kickoffTakerId = BallState.NoOwner;   // 킥오프는 첫 킥으로 끝난다
             takeOnOwnerId = BallState.NoOwner;    // 공을 내줬으면 돌파도 끝
 
-            Ball = BallRules.Kick(Ball, target.x - passer.X, target.z - passer.Z, speed);
+            Ball = BallRules.Kick(Ball, dx, dz, speed);
         }
 
         // 소유자가 바뀐 틱: 패스 비행 마감(받았거나 가로챘거나), 볼 끌기 대기 시작
@@ -908,9 +901,11 @@ namespace Game.Core.Match
             }
 
             captureCandidates.Clear();
+            int keeperKickTeam = ProtectedKeeperKickTeam();
             for (int i = 0; i < players.Count; i++)
             {
                 PlayerState p = players[i];
+                if (keeperKickTeam != -1 && p.Team != keeperKickTeam) { continue; }   // GK가 찬 공은 그 박스 안에선 상대가 못 잡는다
                 if (p.PlayerId == lastKickerId)
                 {
                     float kdx = p.X - Ball.X;
@@ -926,6 +921,19 @@ namespace Game.Core.Match
 
             PlayerState owner = FindPlayer(ownerId);
             Ball = BallRules.Own(Ball, ownerId, owner.X, owner.Z);
+        }
+
+        // GK 배급 보호(09-30 공격 칼날 C): GK가 찬 패스가 그 GK의 페널티 박스 안에 있는 동안은 상대가 못 잡는다. 그 팀 번호, 해당 없으면 -1.
+        // 규칙 근거: 골킥은 공이 인플레이가 될 때까지 상대가 박스 밖(IFAB 16조), 손에 쥔 GK의 릴리스를 방해하면 반칙(12조).
+        // 이 시뮬은 공이 땅으로만 가고 상대가 박스 안까지 쫓아와, 상대 진영 압박을 켠 ST가 GK 패스를 킥 지점 3m 앞에서 끊어 경기당 슛 7.5개(xG 0.31)가 났다
+        // (균형 카드 득점 1.05 → 4.03, 실험/2026-09-30-공격-칼날-진단.md). 박스를 벗어난 공은 평소처럼 누구든 끊는다
+        private int ProtectedKeeperKickTeam()
+        {
+            if (!passInFlight) { return -1; }
+            PlayerState passer = FindPlayer(passPasserId);
+            if (!passer.IsGoalkeeper) { return -1; }
+            if (!MatchRules.IsInOwnPenaltyBox(Ball.X, Ball.Z, passer.AttackSign)) { return -1; }
+            return passer.Team;
         }
 
         // 라인 밖(슛 비행 중은 제외: 골라인 판정이 먼저다) → 가까운 쪽 골킥/스로인 자리에 자유 공(스펙 §5)

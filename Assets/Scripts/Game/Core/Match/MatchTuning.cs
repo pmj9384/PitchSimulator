@@ -44,6 +44,10 @@ namespace Game.Core.Match
         public const int HalfTimeTick = MatchTicks / 2;   // 추가시간이 없을 때의 45:00 틱. 시계 테스트만 쓴다. 실제 하프타임 틱은 표시 추가시간을 반영한 MatchClock.HalfTimeTick이고, 진영 교체·킥오프 교대는 MatchSimulation.Tick이 한다(09-27)
         public const float FixedStep = 0.02f;                                   // 고정 스텝(초). 볼 끌기 초 → 틱 변환
         public const float PassLeadMax = 8f;                                    // 리드 패스가 리시버보다 앞설 수 있는 최대 거리(m). 너무 앞이면 상대 라인 뒤로 나간다
+        // 착지점 후보(09-30 공격 칼날 A): 받는 선수 앞 리드 상한을 긴 것부터 본다. 8m 한 곳만 보던 땐 받는 선수가 상대 수비 라인에서 8m 넘게 떨어져 있어야만 안전 판정을 통과해
+        // ST 전진 폭 30 → 33이면 득점 1.05 → 0.13, 라인 높이 +2.4m면 실점 1.11 → 0.16이었다(실험/2026-09-30-공격-칼날-진단.md).
+        // 3.5 = gfootball 리드(받는 선수 속도 × 최대 0.5초, 7m/s 기준), 0 = Simple Soccer GetBestPassToReceiver 후보 중 "받는 선수 위치"
+        public static readonly float[] PassLeadOptions = { PassLeadMax, 3.5f, 0f };
         public const float DribbleReluctance = 0.3f;                            // 개인 드리블 성향이 이 미만이면 골 대신 가까운 아군 쪽으로 몰아 패스를 노린다
         public const float BackPassScale = 0.3f;                                // 옆·뒤 아군 후보 점수 배율(플랜 09-22 칸). 전진 5m 이상 앞 후보는 못 이기고, 1~3m 앞 찔끔 후보에겐 이길 수 있다(의도: 핑퐁 방지)
         // 공 지향 슬라이드(09-21 유저: "자리가 완전 고정은 아닌 것 같다"): 자리에 공 좌표 × 계수를 더해 블록이 공을 따라 평행이동한다.

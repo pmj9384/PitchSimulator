@@ -128,10 +128,10 @@ public class PassRulesTests
     public void 옆_뒤_리시버에겐_리드를_주지_않는다()
     {
         // 09-21: 뒤 5m 아군에게 앞으로 8m 리드하면 착지점이 패서보다 앞이 된다. 옆·뒤는 지금 위치가 목표
-        (float x, float z) back = PassRules.LeadTarget(passerX: 0f, receiverX: -5f, receiverZ: 8f, attackSign: +1, passDistance: 9.4f, ballSpeed: 15f, receiverSpeed: 7f);
+        (float x, float z) back = PassRules.LeadTarget(passerX: 0f, receiverX: -5f, receiverZ: 8f, attackSign: +1, passDistance: 9.4f, ballSpeed: 15f, receiverSpeed: 7f, leadMax: MatchTuning.PassLeadMax);
         Assert.AreEqual(-5f, back.x, 1e-4f);
         Assert.AreEqual(8f, back.z, 1e-4f);
-        (float x, float z) side = PassRules.LeadTarget(0f, 0f, 10f, +1, 10f, 15f, 7f);
+        (float x, float z) side = PassRules.LeadTarget(0f, 0f, 10f, +1, 10f, 15f, 7f, MatchTuning.PassLeadMax);
         Assert.AreEqual(0f, side.x, 1e-4f, "전진 0도 리드 없음");
     }
 
@@ -139,21 +139,26 @@ public class PassRulesTests
     public void 리드_패스_목표는_리시버_앞쪽이고_상한과_필드_안으로_잘린다()
     {
         // 20m 패스를 15m/s로 → 1.33초. 리시버 7m/s면 9.3m 앞이지만 상한 8m
-        (float x, float z) lead = PassRules.LeadTarget(passerX: 0f, 10f, 5f, +1, passDistance: 20f, ballSpeed: 15f, receiverSpeed: 7f);
+        (float x, float z) lead = PassRules.LeadTarget(passerX: 0f, 10f, 5f, +1, passDistance: 20f, ballSpeed: 15f, receiverSpeed: 7f, leadMax: MatchTuning.PassLeadMax);
         Assert.AreEqual(18f, lead.x, 1e-4f);
         Assert.AreEqual(5f, lead.z, 1e-4f, "Z는 그대로");
 
-        lead = PassRules.LeadTarget(0f, 10f, 0f, +1, 20f, 15f, receiverSpeed: 3f);
+        lead = PassRules.LeadTarget(0f, 10f, 0f, +1, 20f, 15f, receiverSpeed: 3f, leadMax: MatchTuning.PassLeadMax);
         Assert.AreEqual(14f, lead.x, 1e-4f, "느린 리시버는 4m 앞");
 
-        lead = PassRules.LeadTarget(20f, 10f, 0f, -1, 20f, 15f, 3f);
+        lead = PassRules.LeadTarget(20f, 10f, 0f, -1, 20f, 15f, 3f, MatchTuning.PassLeadMax);
         Assert.AreEqual(6f, lead.x, 1e-4f, "팀 1은 -X 앞");
 
-        lead = PassRules.LeadTarget(30f, 50f, 0f, +1, 20f, 15f, 7f);
+        lead = PassRules.LeadTarget(30f, 50f, 0f, +1, 20f, 15f, 7f, MatchTuning.PassLeadMax);
         Assert.AreEqual(52f, lead.x, 1e-4f, "골라인 안(52.5 - 0.5)으로 클램프");
 
-        lead = PassRules.LeadTarget(0f, 10f, 0f, +1, 20f, 15f, receiverSpeed: 0f);
+        lead = PassRules.LeadTarget(0f, 10f, 0f, +1, 20f, 15f, receiverSpeed: 0f, leadMax: MatchTuning.PassLeadMax);
         Assert.AreEqual(10f, lead.x, 1e-4f, "정지 리시버는 제자리");
+
+        lead = PassRules.LeadTarget(0f, 10f, 0f, +1, 20f, 15f, receiverSpeed: 7f, leadMax: 3.5f);
+        Assert.AreEqual(13.5f, lead.x, 1e-4f, "리드 상한을 낮추면 그만큼만 앞");
+        lead = PassRules.LeadTarget(0f, 10f, 0f, +1, 20f, 15f, receiverSpeed: 7f, leadMax: 0f);
+        Assert.AreEqual(10f, lead.x, 1e-4f, "상한 0은 발밑");
     }
 
     [Test]
@@ -180,6 +185,66 @@ public class PassRulesTests
         var tooClose = new List<TargetInfo> { new TargetInfo(1, 2f, 0f) };
         Assert.AreEqual(-1, PassRules.CounterReceiver(0f, tooClose, +1, passerId: 0, OffsideRules.NoLine), "2m 앞은 마진(3m) 미만");
         Assert.AreEqual(3, PassRules.CounterReceiver(0f, mates, +1, passerId: 0, onsideLine: 20f), "온사이드 선 20: 25는 오프사이드 위치라 제외, 18이 최전방");
+    }
+
+    // ── 착지점 후보(09-30 공격 칼날 A). 받는 선수 앞 8m 한 곳만 보던 것을 8·3.5·0m 중 안전한 가장 긴 것으로
+    private const float Arrival = 5f;   // 속도 "표준"의 도착 속도
+    private const float Allow = 0.5f;   // 패스 리스크 "균형"
+
+    [Test]
+    public void 착지점은_앞이_비면_가장_긴_리드다()
+    {
+        PassLanding landing = PassRules.PickLanding(0f, 0f, 15f, 0f, +1, Arrival, new List<TargetInfo>(), Allow);
+        Assert.AreEqual(15f + MatchTuning.PassLeadOptions[0], landing.X, 1e-4f, "받는 선수 8m 앞");
+        Assert.AreEqual(0f, landing.Z, 1e-4f);
+        Assert.AreEqual(0f, landing.Risk, 1e-4f);
+    }
+
+    [Test]
+    public void 긴_리드_착지점이_막히면_짧은_리드로_내린다()
+    {
+        // 상대가 8m 앞 착지점(23, 0) 바로 옆에 서 있다. 3.5m 앞(18.5)은 그 상대보다 4.5m 앞이라 안전
+        var opp = new List<TargetInfo> { new TargetInfo(11, 23f, 0.5f) };
+        PassLanding landing = PassRules.PickLanding(0f, 0f, 15f, 0f, +1, Arrival, opp, Allow);
+        Assert.AreEqual(15f + MatchTuning.PassLeadOptions[1], landing.X, 1e-4f, "3.5m 앞");
+        Assert.IsTrue(PassRules.IsPassSafe(landing.Risk, Allow));
+    }
+
+    [Test]
+    public void 짧은_리드도_막히면_발밑으로_준다()
+    {
+        // (19, 0.5)의 상대는 3.5m 앞 착지점(18.5)에서 0.7m: 너머에 서 있어도 발이 닿는다. 받는 선수 발밑(15)에선 4m 떨어져 안전
+        var opp = new List<TargetInfo> { new TargetInfo(11, 23f, 0.5f), new TargetInfo(12, 19f, 0.5f) };
+        PassLanding landing = PassRules.PickLanding(0f, 0f, 15f, 0f, +1, Arrival, opp, Allow);
+        Assert.AreEqual(15f, landing.X, 1e-4f, "발밑");
+        Assert.IsTrue(PassRules.IsPassSafe(landing.Risk, Allow));
+    }
+
+    [Test]
+    public void 후보가_전부_막히면_허용치를_넘는_위험이_돌아온다()
+    {
+        // 패스 길 위(7, 0.2)에 상대: 어느 착지점으로 차도 끊긴다. 호출자는 Risk로 안전 여부를 본다
+        var opp = new List<TargetInfo> { new TargetInfo(11, 7f, 0.2f) };
+        PassLanding landing = PassRules.PickLanding(0f, 0f, 15f, 0f, +1, Arrival, opp, Allow);
+        Assert.IsFalse(PassRules.IsPassSafe(landing.Risk, Allow));
+    }
+
+    [Test]
+    public void 옆_뒤_받는_선수의_착지점은_후보와_무관하게_지금_위치다()
+    {
+        PassLanding landing = PassRules.PickLanding(0f, 0f, -5f, 8f, +1, Arrival, new List<TargetInfo>(), Allow);
+        Assert.AreEqual(-5f, landing.X, 1e-4f);
+        Assert.AreEqual(8f, landing.Z, 1e-4f);
+    }
+
+    [Test]
+    public void 착지점_너머에_선_상대는_발이_닿는_거리면_위험하고_멀면_무관하다()
+    {
+        // 09-30 전엔 착지점보다 먼 상대는 전부 무관이었다. 착지점이 받는 선수 발밑까지 내려오면 0.7m 뒤에 붙은 수비수도 "무관"이 된다
+        var touching = new List<TargetInfo> { new TargetInfo(11, 19f, 0.5f) };
+        Assert.AreEqual(1f, PassRules.InterceptRisk(0f, 0f, 18.5f, 0f, touching, 7f, 10f), "착지점에서 0.7m = 발 뻗는 범위(1.2m) 안");
+        var beyond = new List<TargetInfo> { new TargetInfo(11, 23f, 0.5f) };
+        Assert.AreEqual(0f, PassRules.InterceptRisk(0f, 0f, 18.5f, 0f, beyond, 7f, 10f), "4.5m 너머는 예전처럼 무관");
     }
 
     [Test]

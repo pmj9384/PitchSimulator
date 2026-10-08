@@ -46,10 +46,10 @@ public class PlayerTreeTests
         public float PassTargetZ { get; set; }
 
         public string Did = "";
-        public float MoveX, MoveZ; public int PassedTo = -1;
+        public float MoveX, MoveZ; public int PassedTo = -1; public float PassX, PassZ;
         public void MoveToward(float x, float z) { Did = "move"; MoveX = x; MoveZ = z; }
         public void Shoot() { Did = "shoot"; }
-        public void Pass(int receiverId) { Did = "pass"; PassedTo = receiverId; }
+        public void Pass(int receiverId, float landingX, float landingZ) { Did = "pass"; PassedTo = receiverId; PassX = landingX; PassZ = landingZ; }
     }
 
     private static readonly BehaviorNode Tree = PlayerTreeBuilder.Build();
@@ -127,16 +127,35 @@ public class PlayerTreeTests
     }
 
     [Test]
-    public void 리시버_앞_착지점까지_수비수가_있으면_안전한_패스가_아니다()
+    public void 받는_선수_앞_착지점이_막히면_발밑으로_주고_발밑도_막히면_몬다()
     {
-        // 09-21: 리시버(1)는 (15,0), 리드 목표는 그보다 앞. 상대는 리시버 너머 (19, 0.3)에 서 있다.
-        // 리시버 위치까지만 보면 "리시버보다 멀어서 무관"이라 안전이지만, 공은 착지점까지 날아가 그 상대가 먹는다
+        // 09-21: 받는 선수(1)는 (15,0), 상대는 그 너머 (19, 0.3). 8m 앞(23)으로 차면 그 상대가 먹는다.
+        // 09-30: 그때는 드리블로 떨어졌다. 이제 3.5m 앞(18.5, 그 상대 0.6m 옆)도 버리고 발밑(15)으로 준다
         var mid = new Fake { PlayerId = 0, OwnsBall = true, BallPhase = BallPhase.Owned, BallOwnerTeam = 0, X = 0f,
             Teammates = new List<TargetInfo> { new TargetInfo(1, 15f, 0f) },
             Opponents = new List<TargetInfo> { new TargetInfo(11, 19f, 0.3f) } };
         mid.Stats.ShotBias = 1f;
         Tree.Tick(mid);
+        Assert.AreEqual("pass", mid.Did);
+        Assert.AreEqual(15f, mid.PassX, 1e-4f, "착지점은 받는 선수 발밑");
+
+        // 상대가 받는 선수에게 붙으면(15.5, 0.3) 발밑도 닿는다 → 드리블
+        mid.Opponents = new List<TargetInfo> { new TargetInfo(11, 15.5f, 0.3f) };
+        mid.Did = "";
+        Tree.Tick(mid);
         Assert.AreEqual("move", mid.Did, "패스 대신 드리블");
+    }
+
+    [Test]
+    public void 앞이_비면_받는_선수_앞_긴_리드_착지점으로_찬다()
+    {
+        var mid = new Fake { PlayerId = 0, OwnsBall = true, BallPhase = BallPhase.Owned, BallOwnerTeam = 0, X = 0f,
+            Teammates = new List<TargetInfo> { new TargetInfo(1, 15f, 4f) } };
+        mid.Stats.ShotBias = 1f;
+        Tree.Tick(mid);
+        Assert.AreEqual("pass", mid.Did);
+        Assert.AreEqual(15f + MatchTuning.PassLeadOptions[0], mid.PassX, 1e-4f);
+        Assert.AreEqual(4f, mid.PassZ, 1e-4f);
     }
 
     [Test]

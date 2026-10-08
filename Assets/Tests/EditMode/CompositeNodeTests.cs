@@ -54,7 +54,7 @@ public class CompositeNodeTests
         public float PassTargetZ => 0f;
         public void MoveToward(float x, float z) { }
         public void Shoot() { }
-        public void Pass(int receiverId) { }
+        public void Pass(int receiverId, float landingX, float landingZ) { }
     }
 
     private static BehaviorNode Cond(bool value)

@@ -60,6 +60,6 @@ namespace Game.Core.AI
         // ── 시키기. 실행(속도·판정)은 시뮬 몫, 트리는 의도만 남긴다
         void MoveToward(float x, float z);
         void Shoot();
-        void Pass(int receiverId);
+        void Pass(int receiverId, float landingX, float landingZ);   // 착지점까지 트리가 정한다(09-30). 시뮬은 그 점으로 찬다
     }
 }
