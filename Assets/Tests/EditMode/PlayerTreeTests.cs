@@ -352,6 +352,31 @@ public class PlayerTreeTests
         st.Teammates = new List<TargetInfo> { new TargetInfo(1, -5f, -20f) };
         Tree.Tick(st);
         Assert.AreEqual("pass", st.Did, "사거리 밖에선 안 몬다");
+
+        st.X = 20f; st.BallThird = Third.Own; st.Did = "";   // 서드 값이 우리 진영이면(공 위치 기준) 안 몬다
+        st.Teammates = new List<TargetInfo> { new TargetInfo(1, 35f, -20f) };
+        Tree.Tick(st);
+        Assert.AreEqual("pass", st.Did, "우리 진영 서드에선 안 몬다");
+    }
+
+    [Test]
+    public void 운반은_반대_진영_팀도_같은_규칙이고_골_앞에선_운반보다_슛이_먼저다()
+    {
+        // 팀 1은 -X 골을 노린다. 앞 = -X 쪽. 상대가 +X 쪽(뒤)에 있으면 앞이 빈 것
+        var st = new Fake { PlayerId = 11, Team = 1, OwnsBall = true, BallPhase = BallPhase.Owned, BallOwnerTeam = 1, X = -20f, Z = 5f, BallThird = Third.Opponent,
+            Teammates = new List<TargetInfo> { new TargetInfo(12, -35f, -20f) },
+            Opponents = new List<TargetInfo> { new TargetInfo(1, -17f, 5f) } };   // 뒤 3m: 앞이 아니다
+        st.Stats.RoleId = "ST"; st.Stats.ShotBias = 1f;
+        Tree.Tick(st);
+        Assert.AreEqual("move", st.Did);
+        Assert.AreEqual(-FieldBounds.HalfLength, st.MoveX, 0.01f, "-X 골 쪽으로");
+
+        // 골 앞 4m 정면: 표의 최대 슛 성향(0.9 × 0.5 = 문턱 0.45)도 xG 0.53(shot 50)이 넘어 슛. 운반 목표가 골 중심이라 다가갈수록 각이 넓어져
+        // 슛이 먼저 걸리고, 골라인을 소유한 채 넘는 일은 없다(10-08 러너 150판 골라인 너머 소유 틱 0)
+        st.X = -(FieldBounds.HalfLength - 4f); st.Z = 0f; st.Did = ""; st.Stats.ShotBias = 0.9f;
+        st.Opponents = new List<TargetInfo> { new TargetInfo(1, 0f, 20f) };
+        Tree.Tick(st);
+        Assert.AreEqual("shoot", st.Did, "골 앞에선 슛");
     }
 
     [Test]
