@@ -68,7 +68,11 @@ public class FullMatchTests
             bool rebound = summary.TickNow - summary.LastParryTick <= 100;
             if (rebound) { summary.ReboundShots++; }
             if (r.Outcome == ShotOutcome.Goal) { summary.Goals++; if (rebound) { summary.GoalsFromRebound++; } }
-            if (r.Outcome == ShotOutcome.Parried) { summary.Parries++; summary.LastParryTick = summary.TickNow; }
+            if (r.Outcome == ShotOutcome.Parried)
+            {
+                summary.Parries++;
+                summary.LastParryTick = summary.TickNow;
+            }
             if (r.Probability >= 0.3f) { summary.ShotsClose++; } else if (r.Probability >= 0.1f) { summary.ShotsMid++; } else { summary.ShotsLong++; }
         };
         sim.PossessionChanged += r =>
@@ -95,7 +99,11 @@ public class FullMatchTests
             sim.Tick(Dt);
             summary.Ticks++;
             bool owned = sim.Ball.Phase == BallPhase.Owned;
-            if (prevOwned && sim.Ball.Phase == BallPhase.Flight) { kickTeam = sim.Players[prevOwnerId].Team; kickX = prevBallX; }
+            if (prevOwned && sim.Ball.Phase == BallPhase.Flight)
+            {
+                kickTeam = sim.Players[prevOwnerId].Team;
+                kickX = prevBallX;
+            }
             if (owned && kickTeam != -1) { int sign = kickTeam == 0 ? 1 : -1; if ((sim.Ball.X - kickX) * sign > 0f) { summary.ForwardPasses++; } else { summary.BackPasses++; } kickTeam = -1; }
             if (owned)
             {
@@ -104,7 +112,11 @@ public class FullMatchTests
                 PlayerState keeper = sim.Players.First(p => p.Team != o.Team && p.IsGoalkeeper);
                 float chance = MatchRules.ShotProbability(o.X, o.Z, sign, o.Stats.Shot, keeper.Stats.Reflexes, keeper.Stats.Diving);
                 if (chance > summary.MaxShotChance) { summary.MaxShotChance = chance; }
-                if (52.5f - o.X * sign <= 20f) { summary.TicksOwnerNearGoal++; summary.NearGoalAbsZSum += Math.Abs(o.Z); }
+                if (52.5f - o.X * sign <= 20f)
+                {
+                    summary.TicksOwnerNearGoal++;
+                    summary.NearGoalAbsZSum += Math.Abs(o.Z);
+                }
                 if (prevOwned && prevOwnerId == o.PlayerId && Math.Abs(o.X - prevOwnerX) > 0.01f) { summary.DribbleTicks++; }
                 summary.OwnedTicks++;
                 float r2 = MatchTuning.TackleRange * MatchTuning.TackleRange;
@@ -117,7 +129,12 @@ public class FullMatchTests
             }
             prevOwned = owned; prevBallX = sim.Ball.X;
             if (sim.Ball.Phase == BallPhase.Flight) { flightTicks++; }
-            else if (flightTicks > 0) { summary.FlightTicksSum += flightTicks; summary.FlightSamples++; flightTicks = 0; }
+            else if (flightTicks > 0)
+            {
+                summary.FlightTicksSum += flightTicks;
+                summary.FlightSamples++;
+                flightTicks = 0;
+            }
             int ownerTeam = sim.OwnerTeam();
             if (ownerTeam == 0) { if (sim.Ball.X > summary.MaxBallXTeam0) { summary.MaxBallXTeam0 = sim.Ball.X; } if (sim.Ball.X >= 17.5f) { summary.TicksBallOppThird++; } }
             if (ownerTeam == 1) { if (sim.Ball.X < summary.MinBallXTeam1) { summary.MinBallXTeam1 = sim.Ball.X; } if (sim.Ball.X <= -17.5f) { summary.TicksBallOppThird++; } }

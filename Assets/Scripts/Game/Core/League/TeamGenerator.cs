@@ -192,7 +192,14 @@ namespace Game.Core.League
         {
             int best = p.Speed; int which = 0;
             int[] values = { p.Speed, p.Stamina, p.Pass, p.Shot, p.Tackle, p.Positioning, p.Reflexes, p.Handling, p.Diving };
-            for (int i = 1; i < values.Length; i++) { if (values[i] > best) { best = values[i]; which = i; } }
+            for (int i = 1; i < values.Length; i++)
+            {
+                if (values[i] > best)
+                {
+                    best = values[i];
+                    which = i;
+                }
+            }
             switch (which)
             {
                 case 0: p.Speed += diff; break;

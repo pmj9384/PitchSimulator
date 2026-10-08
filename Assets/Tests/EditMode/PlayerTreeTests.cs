@@ -48,9 +48,20 @@ public class PlayerTreeTests
 
         public string Did = "";
         public float MoveX, MoveZ; public int PassedTo = -1; public float PassX, PassZ;
-        public void MoveToward(float x, float z) { Did = "move"; MoveX = x; MoveZ = z; }
+        public void MoveToward(float x, float z)
+        {
+            Did = "move";
+            MoveX = x;
+            MoveZ = z;
+        }
         public void Shoot() { Did = "shoot"; }
-        public void Pass(int receiverId, float landingX, float landingZ) { Did = "pass"; PassedTo = receiverId; PassX = landingX; PassZ = landingZ; }
+        public void Pass(int receiverId, float landingX, float landingZ)
+        {
+            Did = "pass";
+            PassedTo = receiverId;
+            PassX = landingX;
+            PassZ = landingZ;
+        }
     }
 
     private static readonly BehaviorNode Tree = PlayerTreeBuilder.Build();

@@ -240,14 +240,22 @@ namespace Game.Core.AI
 
         private static void PassTo(IPlayerContext ctx, PassChoice choice)
         {
-            if (!choice.Found) { DribbleTarget(ctx); return; }
+            if (!choice.Found)
+            {
+                DribbleTarget(ctx);
+                return;
+            }
             ctx.Pass(choice.ReceiverId, choice.X, choice.Z);
         }
 
         // 안전 검사 없이 주는 패스(GK 배급 ①·킥오프 ①b·역습 ③). 착지점은 받는 선수 앞 긴 리드 그대로
         private static void PassUnchecked(IPlayerContext ctx, int receiverId)
         {
-            if (receiverId == -1) { DribbleTarget(ctx); return; }
+            if (receiverId == -1)
+            {
+                DribbleTarget(ctx);
+                return;
+            }
             TargetInfo m = Find(ctx.Teammates, receiverId);
             (float x, float z) landing = PassRules.LandingPoint(ctx.X, ctx.Z, m.X, m.Z, ctx.AttackSign, ArrivalSpeed(ctx), MatchTuning.PassLeadMax);
             ctx.Pass(receiverId, landing.x, landing.z);

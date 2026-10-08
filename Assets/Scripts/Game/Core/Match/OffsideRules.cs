@@ -20,7 +20,11 @@ namespace Game.Core.Match
             for (int i = 0; i < opponents.Count; i++)
             {
                 float f = opponents[i].X * attackSign;
-                if (f > first) { second = first; first = f; }
+                if (f > first)
+                {
+                    second = first;
+                    first = f;
+                }
                 else if (f > second) { second = f; }
             }
 

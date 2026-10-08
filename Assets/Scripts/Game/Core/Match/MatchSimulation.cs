@@ -259,7 +259,11 @@ namespace Game.Core.Match
                     ? PressRules.FirstInRank(pressEligible[team], Ball.X, Ball.Z, pressLeader[team], MatchTuning.ChaserSwitchMargin)
                     : -1;
 
-                if (!loose) { looseChaser[team] = -1; continue; }
+                if (!loose)
+                {
+                    looseChaser[team] = -1;
+                    continue;
+                }
                 List<TargetInfo> candidates = looseCandidates[team];
                 candidates.Clear();
                 for (int i = 0; i < players.Count; i++)
@@ -314,7 +318,11 @@ namespace Game.Core.Match
                 PlayerState p = players[i];
                 if (p.Team != team || p.IsGoalkeeper) { continue; }
                 float d2 = p.X * p.X + p.Z * p.Z;
-                if (d2 < bestD2) { bestD2 = d2; best = p.PlayerId; }
+                if (d2 < bestD2)
+                {
+                    bestD2 = d2;
+                    best = p.PlayerId;
+                }
             }
             if (best == BallState.NoOwner) { return; }   // 그 팀 필드 플레이어가 없으면 자유 공
 
@@ -815,7 +823,11 @@ namespace Game.Core.Match
         private void RestartAfterMiss()
         {
             PlayerState? keeper = ResetAfterEveryShot ? null : FindGoalkeeper(1 - TeamOfSign(shooterAttackSign));
-            if (keeper == null) { Kickoff(); return; }
+            if (keeper == null)
+            {
+                Kickoff();
+                return;
+            }
             Ball = BallRules.Own(Ball, keeper.PlayerId, keeper.X, keeper.Z);
             // 골킥 때 상대는 박스 밖(규칙 16조). 09-23 Play: 빗나감 → GK 소유 → 붙은 ST가 배급을 릴리스 지점에서 가로채 7m 슛, 4회 만에 골
             float outsideX = -(FieldBounds.HalfLength - FieldBounds.PenaltyBoxDepth - 1f) * keeper.AttackSign;

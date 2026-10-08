@@ -85,7 +85,11 @@ namespace Game.Core.AutoMatch
             foreach (System.Collections.Generic.KeyValuePair<string, int> kv in ownedByRole)
             {
                 ownedTotal += kv.Value;
-                if (kv.Value > topCount || (kv.Value == topCount && string.CompareOrdinal(kv.Key, topRole) < 0)) { topCount = kv.Value; topRole = kv.Key; }
+                if (kv.Value > topCount || (kv.Value == topCount && string.CompareOrdinal(kv.Key, topRole) < 0))
+                {
+                    topCount = kv.Value;
+                    topRole = kv.Key;
+                }
             }
             return new MatchSummary
             {
