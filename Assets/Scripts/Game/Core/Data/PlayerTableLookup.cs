@@ -16,11 +16,17 @@ namespace Game.Core.Data
             return null;
         }
 
-        // 그 자리의 선수에게 줄 수 있는 역할인가(09-30): 같은 자리이고 노출된 역할. 전술 화면의 역할 목록(ExposedVariants)과
-        // 역할 변경·시즌 이월(SeasonState.SetPlayerRole·AdoptPlayerTactics)이 이 조건 하나를 같이 쓴다. 목록에 보이는 역할과 실제로 받아 주는 역할이 갈리지 않게
+        // 그 자리의 선수에게 새로 줄 수 있는 역할인가(09-30): 같은 자리이고 노출된 역할. 전술 화면의 역할 목록(ExposedVariants)과
+        // 역할 변경(SeasonState.SetPlayerRole)이 이 조건 하나를 같이 쓴다. 목록에 보이는 역할과 실제로 받아 주는 역할이 갈리지 않게
         public static bool IsAssignable(PlayerStats variant, string roleId)
         {
             if (!variant.Exposed) { return false; }
+            return IsSamePosition(variant, roleId);
+        }
+
+        // 그 자리의 역할인가. 이미 쓰고 있는 역할을 지키는 데는 노출을 묻지 않는다(10-08: 업데이트로 역할이 잠겨도 세이브·시즌 이월의 역할과 개인 지시는 남는다. FM·FC처럼 "내가 준 건 남는다")
+        public static bool IsSamePosition(PlayerStats variant, string roleId)
+        {
             return string.Equals(variant.RoleId, roleId, StringComparison.OrdinalIgnoreCase);
         }
 
