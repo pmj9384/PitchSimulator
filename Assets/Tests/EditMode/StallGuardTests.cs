@@ -38,11 +38,19 @@ public class StallGuardTests
                 if (owners.Count == 0 || owners[owners.Count - 1] != r.NewOwnerId) { owners.Add(r.NewOwnerId); if (owners.Count > 10) { owners.RemoveAt(0); } }
                 if (owners.Count == 1) { pingPongStartX = r.X; }
             };
-            sim.ShotResolved += r => { lastEventTick = -1; owners.Clear(); };
+            sim.ShotResolved += r =>
+            {
+                lastEventTick = -1;
+                owners.Clear();
+            };
 
             float[] px = new float[sim.Players.Count]; float[] pz = new float[sim.Players.Count];
             float ballX = sim.Ball.X, ballZ = sim.Ball.Z; int freeTicks = 0; float freeMinDist = 999f; int ownerId = -1; int ownerTicks = 0; float ownerX = 0f;
-            for (int i = 0; i < sim.Players.Count; i++) { px[i] = sim.Players[i].X; pz[i] = sim.Players[i].Z; }
+            for (int i = 0; i < sim.Players.Count; i++)
+            {
+                px[i] = sim.Players[i].X;
+                pz[i] = sim.Players[i].Z;
+            }
             int quietSince = 0; float quietBallX = ballX, quietBallZ = ballZ; float quietMove = 0f;
             int shapeOwned = 0, shapeWide = 0; var shapeByRole = new Dictionary<string, int>();
             for (int tick = 0; tick < Ticks; tick++)
@@ -55,8 +63,20 @@ public class StallGuardTests
                     string role = sim.Players[sim.Ball.OwnerId].Stats.RoleId;
                     shapeByRole[role] = shapeByRole.TryGetValue(role, out int c) ? c + 1 : 1;
                 }
-                if (lastEventTick == -1) { lastEventTick = tick; quietSince = tick; quietBallX = sim.Ball.X; quietBallZ = sim.Ball.Z; quietMove = 0f; }
-                for (int i = 0; i < sim.Players.Count; i++) { quietMove += System.Math.Abs(sim.Players[i].X - px[i]) + System.Math.Abs(sim.Players[i].Z - pz[i]); px[i] = sim.Players[i].X; pz[i] = sim.Players[i].Z; }
+                if (lastEventTick == -1)
+                {
+                    lastEventTick = tick;
+                    quietSince = tick;
+                    quietBallX = sim.Ball.X;
+                    quietBallZ = sim.Ball.Z;
+                    quietMove = 0f;
+                }
+                for (int i = 0; i < sim.Players.Count; i++)
+                {
+                    quietMove += System.Math.Abs(sim.Players[i].X - px[i]) + System.Math.Abs(sim.Players[i].Z - pz[i]);
+                    px[i] = sim.Players[i].X;
+                    pz[i] = sim.Players[i].Z;
+                }
 
                 // A
                 if (tick - quietSince >= 250 && System.Math.Abs(sim.Ball.X - quietBallX) + System.Math.Abs(sim.Ball.Z - quietBallZ) < 0.5f && quietMove < 2f)
@@ -70,7 +90,11 @@ public class StallGuardTests
                     d = (float)System.Math.Sqrt(d);
                     if (freeTicks == 0) { freeMinDist = d; }
                     freeTicks++;
-                    if (d < freeMinDist - 0.05f) { freeMinDist = d; freeTicks = 1; }
+                    if (d < freeMinDist - 0.05f)
+                    {
+                        freeMinDist = d;
+                        freeTicks = 1;
+                    }
                     if (freeTicks >= 150) { found.Add($"B 시드{seed} t={tick * 0.02f:0.0} 자유 공 방치 최근접 {d:0.00}m"); break; }
                 }
                 else { freeTicks = 0; }
@@ -79,10 +103,23 @@ public class StallGuardTests
                 // D
                 if (sim.Ball.Phase == BallPhase.Owned)
                 {
-                    if (sim.Ball.OwnerId == ownerId) { ownerTicks++; } else { ownerId = sim.Ball.OwnerId; ownerTicks = 0; ownerX = sim.Ball.X; }
+                    if (sim.Ball.OwnerId == ownerId)
+                    {
+                        ownerTicks++;
+                    }
+                    else
+                    {
+                        ownerId = sim.Ball.OwnerId;
+                        ownerTicks = 0;
+                        ownerX = sim.Ball.X;
+                    }
                     if (ownerTicks >= 150 && System.Math.Abs(sim.Ball.X - ownerX) < 0.3f) { found.Add($"D 시드{seed} t={tick * 0.02f:0.0} 소유자 #{ownerId} 정지"); break; }
                 }
-                else { ownerId = -1; ownerTicks = 0; }
+                else
+                {
+                    ownerId = -1;
+                    ownerTicks = 0;
+                }
                 // E
                 int alt = 0;
                 for (int k = 2; k < owners.Count; k++) { if (owners[k] == owners[k - 2] && owners[k] != owners[k - 1]) { alt++; } else { alt = 0; } }

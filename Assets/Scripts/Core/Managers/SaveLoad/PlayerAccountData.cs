@@ -34,7 +34,11 @@ public class PlayerAccountData : ISaveLoad
     public int Coins
     {
         get => coins;
-        private set { coins = value; OnCoinsChanged?.Invoke(coins); }
+        private set
+        {
+            coins = value;
+            OnCoinsChanged?.Invoke(coins);
+        }
     }
 
     public void AddCoins(int amount)
@@ -87,7 +91,11 @@ public class PlayerAccountData : ISaveLoad
 
     public void Load(PlayerAccountDataSave saveData)
     {
-        if (saveData == null) { Load(); return; }
+        if (saveData == null)
+        {
+            Load();
+            return;
+        }
         BgmVolume = saveData.bgmVolume;
         SfxVolume = saveData.sfxVolume;
         BestScore = saveData.bestScore;

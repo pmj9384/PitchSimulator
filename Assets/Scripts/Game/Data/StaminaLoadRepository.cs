@@ -11,7 +11,11 @@ public static class StaminaLoadRepository
 
     public static IReadOnlyList<StaminaLoadEntry> All
     {
-        get { EnsureLoaded(); return entries; }
+        get
+        {
+            EnsureLoaded();
+            return entries;
+        }
     }
 
     private static void EnsureLoaded()

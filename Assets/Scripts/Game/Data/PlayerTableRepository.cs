@@ -25,7 +25,11 @@ public static class PlayerTableRepository
     // CSV에 적힌 순서 그대로
     public static IReadOnlyList<PlayerStats> All
     {
-        get { EnsureLoaded(); return ordered; }
+        get
+        {
+            EnsureLoaded();
+            return ordered;
+        }
     }
 
     private static void EnsureLoaded()

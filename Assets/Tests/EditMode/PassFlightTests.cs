@@ -20,11 +20,20 @@ public class PassFlightTests
     private sealed class PassThenChase : BehaviorNode
     {
         private readonly int passer; private readonly int receiver; private bool done;
-        public PassThenChase(int passer, int receiver) { this.passer = passer; this.receiver = receiver; }
+        public PassThenChase(int passer, int receiver)
+        {
+            this.passer = passer;
+            this.receiver = receiver;
+        }
         public override NodeState Tick(IPlayerContext ctx)
         {
             if (ctx.PlayerId != passer) { return NodeState.Success; }
-            if (!done && ctx.OwnsBall) { PassFlightTestsHelper.PassWithLead(ctx, receiver); done = true; return NodeState.Success; }
+            if (!done && ctx.OwnsBall)
+            {
+                PassFlightTestsHelper.PassWithLead(ctx, receiver);
+                done = true;
+                return NodeState.Success;
+            }
             ctx.MoveToward(ctx.BallX, ctx.BallZ);
             return NodeState.Success;
         }
@@ -212,7 +221,11 @@ public class PassFlightTests
         sim.Ball = BallRules.Own(sim.Ball, passer.PlayerId, passer.X, passer.Z);
 
         int ticks = 0;
-        while (ticks < 600 && !(sim.Ball.Phase == BallPhase.Owned && sim.Ball.OwnerId == receiver.PlayerId)) { sim.Tick(Dt); ticks++; }
+        while (ticks < 600 && !(sim.Ball.Phase == BallPhase.Owned && sim.Ball.OwnerId == receiver.PlayerId))
+        {
+            sim.Tick(Dt);
+            ticks++;
+        }
         Assert.AreEqual(receiver.PlayerId, sim.Ball.OwnerId, $"12초 안에 리시버가 멈춘 공을 잡는다(공 {sim.Ball.Phase} ({sim.Ball.X:0.0},{sim.Ball.Z:0.0}), 리시버 ({receiver.X:0.0},{receiver.Z:0.0}))");
     }
 

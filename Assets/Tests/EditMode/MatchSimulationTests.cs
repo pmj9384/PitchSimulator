@@ -40,7 +40,11 @@ internal static class PassFlightTestsHelper
 
         public override NodeState Tick(IPlayerContext ctx)
         {
-            if (!done && ctx.OwnsBall) { ctx.Shoot(); done = true; }
+            if (!done && ctx.OwnsBall)
+            {
+                ctx.Shoot();
+                done = true;
+            }
             return NodeState.Success;
         }
     }
@@ -75,7 +79,11 @@ internal static class PassFlightTestsHelper
 
         public override NodeState Tick(IPlayerContext ctx)
         {
-            if (!done && ctx.PlayerId == passer && ctx.OwnsBall) { PassWithLead(ctx, receiver); done = true; }
+            if (!done && ctx.PlayerId == passer && ctx.OwnsBall)
+            {
+                PassWithLead(ctx, receiver);
+                done = true;
+            }
             return NodeState.Success;
         }
     }
@@ -372,7 +380,11 @@ public class MatchSimulationTests
         sim.Ball = BallRules.Kick(BallState.FreeAt(0f, 0f), 1f, 0f, MatchTuning.ParrySpeed);
 
         int ticks = 0;
-        while (sim.Ball.Phase != BallPhase.Owned && ticks < 100) { sim.Tick(Dt); ticks++; }
+        while (sim.Ball.Phase != BallPhase.Owned && ticks < 100)
+        {
+            sim.Tick(Dt);
+            ticks++;
+        }
         Assert.AreEqual(0, sim.Ball.OwnerId, "경로 위 선수가 잡는다");
         Assert.Less(ticks, 100, "공이 멈추기(100틱) 전에 잡아야 한다");
     }

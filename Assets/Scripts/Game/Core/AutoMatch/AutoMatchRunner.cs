@@ -43,7 +43,11 @@ namespace Game.Core.AutoMatch
                 homeOwned += owned == 0 ? 0.5f : (float)r.HomeOwnedTicks / owned;
                 wideShare += owned == 0 ? 0f : (float)r.WideOwnedTicks / owned;
                 topRoleShare += r.TopRoleShare;
-                if (r.HomeShots + r.AwayShots > 0) { shotAbsZ += r.MeanShotAbsZ; shotMatches++; }
+                if (r.HomeShots + r.AwayShots > 0)
+                {
+                    shotAbsZ += r.MeanShotAbsZ;
+                    shotMatches++;
+                }
             }
             float n = results.Count;
             s.HomeWinRate = homeWins / n; s.AwayWinRate = awayWins / n; s.DrawRate = draws / n;

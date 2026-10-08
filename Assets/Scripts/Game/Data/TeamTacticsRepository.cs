@@ -22,7 +22,11 @@ public static class TeamTacticsRepository
 
     public static IReadOnlyList<TeamTactics> All
     {
-        get { EnsureLoaded(); return ordered; }
+        get
+        {
+            EnsureLoaded();
+            return ordered;
+        }
     }
 
     private static void EnsureLoaded()

@@ -81,7 +81,11 @@ public class HalfTimeTests
     {
         MatchSimulation a = Assemble(seed: 7);
         MatchSimulation b = Assemble(seed: 7);
-        for (int i = 0; i < MatchTuning.MatchTicks; i++) { a.Tick(MatchTuning.FixedStep); b.Tick(MatchTuning.FixedStep); }
+        for (int i = 0; i < MatchTuning.MatchTicks; i++)
+        {
+            a.Tick(MatchTuning.FixedStep);
+            b.Tick(MatchTuning.FixedStep);
+        }
         Assert.AreEqual(a.HomeGoals, b.HomeGoals);
         Assert.AreEqual(a.AwayGoals, b.AwayGoals);
         Assert.AreEqual(a.PassCount, b.PassCount);

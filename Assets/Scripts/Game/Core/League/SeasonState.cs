@@ -371,7 +371,13 @@ namespace Game.Core.League
         public List<Player> roster = new List<Player>();
         public List<Slot> lineup = new List<Slot>();
 
-        [Serializable] public sealed class Result { public int home; public int away; public int homeGoals; public int awayGoals; }
+        [Serializable] public sealed class Result
+        {
+            public int home;
+            public int away;
+            public int homeGoals;
+            public int awayGoals;
+        }
         [Serializable]
         public sealed class Player
         {
@@ -380,7 +386,14 @@ namespace Game.Core.League
             public int[] build = Array.Empty<int>();
             public int[]? instructions;               // 09-30 추가. 개인 지시 오프셋(PlayerDial 순서). 지시가 없으면 null, 옛 세이브에도 없어 null → 역할 값 그대로
         }
-        [Serializable] public sealed class Slot { public int playerId; public float attackX; public float attackZ; public float defendX; public float defendZ; }
+        [Serializable] public sealed class Slot
+        {
+            public int playerId;
+            public float attackX;
+            public float attackZ;
+            public float defendX;
+            public float defendZ;
+        }
 
         // 바꾼 팀 전술 값. 이름·설명은 기준 카드에서 다시 읽으므로 판정에 쓰는 값만 저장한다
         [Serializable]

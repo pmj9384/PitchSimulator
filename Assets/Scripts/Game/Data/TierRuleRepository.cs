@@ -21,7 +21,11 @@ public static class TierRuleRepository
 
     public static IReadOnlyList<TierRule> All
     {
-        get { EnsureLoaded(); return ordered; }
+        get
+        {
+            EnsureLoaded();
+            return ordered;
+        }
     }
 
     private static void EnsureLoaded()
