@@ -13,7 +13,7 @@ using UnityEngine.UI;
 // 전술 실측(10-06, 스펙 §6 "설정 대 실측")은 승점표와 같은 자리에 번갈아 보여 준다. 실측은 휘슬 순간 다 있어서 Show에서 만들고, 보기 버튼이 둘을 바꾼다
 public class ResultPanelUIElement : UIElement
 {
-    private const string HighlightColor = "#FFD54F";   // 내 행 강조(노랑). 표 안 다른 행은 기본 색
+    private static readonly string HighlightColor = "#" + ColorUtility.ToHtmlStringRGB(TacticsColors.Highlight);   // 내 행 강조(노랑). 전술 화면과 같은 색을 한 곳에서 읽는다(10-06 리뷰). 표 안 다른 행은 기본 색
 
     // 승점표 열 위치(TMP <pos> 태그, 텍스트 폭 기준 %). 한 TMP 텍스트에 표 전체를 쓰려고 열을 태그로 맞춘다. 행마다 오브젝트를 두면 팀 수(4~12)만큼 풀이 필요하다
     private const string ColRank = "<pos=0%>";
