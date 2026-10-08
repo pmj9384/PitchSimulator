@@ -191,7 +191,7 @@ namespace Game.Core.Match
             return PressRules.IsCounterPressing(behind, tactics[team].CounterPress, ticksSinceTurnover);
         }
 
-        // 팀별 압박 후보 목록. 누가 후보인지(개인 압박 거리 × 팀 배율, 역압박 ×2, 박스 앞 CB 전진)는 시뮬이 여기서만 정하고
+        // 팀별 압박 후보 목록. 누가 후보인지(개인 압박 거리 × 팀 배율, 역압박이면 그 배율 ×2, 박스 앞 CB 전진)는 시뮬이 여기서만 정하고
         // 팀 안에서 공 거리순 순위를 매긴다. 트리는 자기 순위만 보고 상한(MaxPressers) 안일 때만 간다(09-23 뭉침, 09-29 판정 한 곳으로)
         private void FillPressEligible()
         {

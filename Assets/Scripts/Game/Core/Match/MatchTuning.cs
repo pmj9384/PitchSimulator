@@ -34,7 +34,7 @@ namespace Game.Core.Match
         public const float InterceptRunSpeed = SpeedMpsAt50;                    // 가로채기 판정의 상대 달리기 속도. 09-23 밤까지 5(반응·가속 가정)였는데 이 시뮬의 선수는 가속 없이 즉시 전력이고 추격 예측까지 하니 판정이 실제보다 낙관적이었다. 킥 속도 역산으로 공이 느려지자 "안전" 패스를 압박 선수가 매번 끊는 결정적 왕복(100판 전부 0:0)이 됐다. 시뮬과 같은 값(7)으로
         public const float InterceptReach = 1.2f;                               // 달려와서 발을 뻗어 공을 건드리는 범위(m). 잡기 반경 0.8보다 넓다(밸런스 값)
         public static readonly float[] PressStartScale = { 0f, 1f, 1.5f };      // 압박 시작(안 감·표준·적극) → 개인 압박 거리 배율. 0은 안 씀(ShouldPress가 먼저 거름)
-        public const float CounterPressScale = 2f;                              // 역압박 중 개인 압박 거리 배율
+        public const float CounterPressScale = 2f;                              // 역압박 중 개인 압박 거리에 추가로 곱하는 배율(단계 배율 × 이 값. 표준 2.0·적극 3.0, 10-08)
         public static readonly int[] CounterPressThreshold = { int.MaxValue, 3, 2 }; // 역압박 성향(안 함·상황 봐서·적극) → 뺏긴 순간 우리 뒤 수비 수 문턱
         public const int CounterPressWindowTicks = 300;                         // 역압박 창 6초(과르디올라 6초 룰, 2차 출처) ÷ 0.02s
         public const float ShotSpreadMin = 2.5f;                                // shot 100의 조준 반폭(m). 골문 반폭 3.66 안
