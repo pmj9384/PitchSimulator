@@ -57,7 +57,7 @@ namespace Game.Core.League
     // 생성 규칙이 바뀌면 Version을 올린다. 세이브의 버전과 다르면 시즌을 새로 시작한다(1차 출시 허용)
     public static class TeamGenerator
     {
-        public const int Version = 1;
+        public const int Version = 2;   // 2: 10-08 노출된 변형에서만 뽑는다(073990c). 같은 시드의 상대가 바뀌므로 1로 시작한 시즌은 새로 시작한다
         public const int MaxRetries = 100;
 
         public static List<GeneratedTeam> Generate(int seasonSeed, TierRule tier, IReadOnlyList<PlayerStats> table,

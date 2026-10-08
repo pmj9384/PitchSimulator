@@ -33,6 +33,13 @@ namespace Game.Core.AI
                     new ConditionNode(ctx => ctx.OwnsBall && WantsShot(ctx)),
                     new ActionNode(ctx => ctx.Shoot())),
 
+                // ②c 운반(10-08 결정 7, 09-30 B 실험): 공격수(ST·AM·W)가 슛 사거리 안·우리 진영 밖에서 앞 CarryComfortZone 안에 상대가 없으면
+                // 역습·돌파·패스보다 먼저 골 쪽으로 몬다. 전엔 슛 문턱 밖에서 받은 공격수가 늘 다시 패스해서 "ST가 정면 11m에 서 있을 때"만 득점이 났다
+                // (ST 전진 폭 20이면 0.17골, 25면 0.47). 돌파 뒤·패스 앞에 두면 전진 20이 0.10으로 더 죽었다(MatchTuning.CarryComfortZone 주석)
+                new SequenceNode(
+                    new ConditionNode(ctx => ShouldCarry(ctx)),
+                    new ActionNode(ctx => ctx.MoveToward(FieldBounds.HalfLength * ctx.AttackSign, 0f))),
+
                 // ③ 역습 중 → 나보다 확실히 앞선 아군 중 가장 앞선 이에게, 안전 검사 없이(스펙 §6 "첫 패스 전방"). 앞선 아군이 없으면 ④·⑤로
                 new SequenceNode(
                     new ConditionNode(ctx => ctx.OwnsBall && ctx.IsCountering && CounterTarget(ctx) != -1),
@@ -260,6 +267,25 @@ namespace Game.Core.AI
                 }
             }
             ctx.MoveToward(FieldBounds.HalfLength * ctx.AttackSign, 0f);
+        }
+
+        // 운반 조건: 공격수가 공을 갖고 있고, 우리 진영 서드가 아니고, 슛 사거리 안이고, 앞 여유 거리 안에 상대가 없다. 역할은 PlayerTable의 자리 id로 본다
+        private static bool ShouldCarry(IPlayerContext ctx)
+        {
+            if (!ctx.OwnsBall || ctx.IsGoalkeeper) { return false; }
+            if (ctx.BallThird == Tactics.Third.Own) { return false; }
+            if (!IsCarryRole(ctx.Stats.RoleId)) { return false; }
+            if (MatchRules.ShotDistance(ctx.X, ctx.Z, ctx.AttackSign) > MatchTuning.MaxShotRange) { return false; }
+            return !DribbleRules.HasDefenderAhead(ctx.X, ctx.Z, ctx.AttackSign, ctx.Opponents, MatchTuning.CarryComfortZone);
+        }
+
+        private static bool IsCarryRole(string roleId)
+        {
+            for (int i = 0; i < MatchTuning.CarryRoles.Length; i++)
+            {
+                if (string.Equals(MatchTuning.CarryRoles[i], roleId, StringComparison.OrdinalIgnoreCase)) { return true; }
+            }
+            return false;
         }
 
         // 돌파 조건: 공을 갖고 있고, 이번 소유에 돌파 의도가 있고, 앞 8m 안에 상대가 있다
