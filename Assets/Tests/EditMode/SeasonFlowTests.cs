@@ -344,12 +344,12 @@ public class SeasonFlowTests
         PlayerStats before = state.FindRosterPlayer(striker).Stats;
         state.SetPlayerInstruction(striker, PlayerDial.PressRange, 2);
 
-        state.SetPlayerRole(striker, "st_targetman", table);
+        state.SetPlayerRole(striker, "st_advanced", table);
 
         RosterPlayer after = state.FindRosterPlayer(striker);
-        PlayerStats targetman = PlayerTableLookup.FindVariant(table, "st_targetman")!;
-        Assert.AreEqual("st_targetman", after.Stats.VariantId);
-        Assert.AreEqual(targetman.HoldUp, after.Stats.HoldUp, "지시 값은 새 역할 것");
+        PlayerStats advanced = PlayerTableLookup.FindVariant(table, "st_advanced")!;
+        Assert.AreEqual("st_advanced", after.Stats.VariantId);
+        Assert.AreEqual(advanced.HoldUp, after.Stats.HoldUp, "지시 값은 새 역할 것");
         Assert.AreEqual(before.Shot, after.Stats.Shot, "능력치는 그대로(스탯은 전술 창에서 안 바뀐다)");
         Assert.AreEqual(before.Speed, after.Stats.Speed);
         Assert.IsFalse(after.HasInstructions, "개인 지시는 역할 기준이라 역할을 바꾸면 지워진다");
@@ -421,14 +421,14 @@ public class SeasonFlowTests
         // 새 시즌의 로스터는 기본 편성에서 다시 만든다. 그대로 두면 승격하자마자 개인 전술이 풀린다
         SeasonState previous = SeasonState.NewSeason(4, 42, myRows, table);
         int striker = FirstPlayerOfRole(previous, "ST");
-        previous.SetPlayerRole(striker, "st_targetman", table);
+        previous.SetPlayerRole(striker, "st_advanced", table);
         previous.SetPlayerInstruction(striker, PlayerDial.HoldUp, -1);
 
         SeasonState next = SeasonState.NewSeason(3, 43, myRows, table);
         next.AdoptPlayerTactics(previous.Roster, table);
 
         RosterPlayer carried = next.FindRosterPlayer(striker);
-        Assert.AreEqual("st_targetman", carried.Stats.VariantId);
+        Assert.AreEqual("st_advanced", carried.Stats.VariantId);
         Assert.AreEqual(-1, carried.Instructions[(int)PlayerDial.HoldUp]);
     }
 

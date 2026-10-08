@@ -114,6 +114,22 @@ public class LeagueSeasonTests
     }
 
     [Test]
+    public void 생성_팀의_변형은_전부_노출된_역할이다()
+    {
+        // 10-08 결정 ④: 유저가 고를 수 있는 역할 = 생성기가 뽑는 역할. 잠긴 ST 변형이 2·1부 상대의 공격을 무너뜨렸다(득점 0.25 미만 팀 39%·34%)
+        for (int seed = 1; seed <= 5; seed++)
+        {
+            foreach (int tier in new[] { 4, 3, 2, 1 })   // 4부는 기본 변형(역할의 첫 행)이라 첫 행이 잠기면 여기서 걸린다
+            {
+                foreach (GeneratedTeam team in TeamGenerator.Generate(seed, Tier(tier), table, formations, names))
+                {
+                    foreach (PlayerStats p in team.Players) { Assert.IsTrue(p.Exposed, $"{tier}부 시드 {seed} {team.Name}: {p.VariantId}"); }
+                }
+            }
+        }
+    }
+
+    [Test]
     public void 일부는_12팀_전_슬롯_무작위라도_100번_안에_유일하게_만들어진다()
     {
         for (int seed = 1; seed <= 5; seed++)
