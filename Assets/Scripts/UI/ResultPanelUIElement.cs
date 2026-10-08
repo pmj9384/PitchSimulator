@@ -84,11 +84,12 @@ public class ResultPanelUIElement : UIElement
         nextButton.interactable = true;
         nextButtonLabel.text = season.IsOver ? "로비로" : "다음 경기";
         statusText.text = season.LastReportFailed ? "결과를 저장하지 못했다" : string.Empty;   // 실패를 성공처럼 보이지 않게(09-28 리뷰)
-        roundText.text = $"{season.Tier.Tier}부 {season.State.RoundsPlayed}/{season.Tier.Matches} 라운드";
+        roundText.text = season.RoundLine();   // 정규 라운드 또는 승강전 단계·합산(10-08)
         try
         {
             tableContent = BuildTable(season);
-            if (!season.LastReportFailed && season.IsOver) { statusText.text = OutcomeLine(season.Outcome(), season.Tier.Tier); }   // 시즌 마지막 판: 승강 판정(09-28)
+            if (!season.LastReportFailed && season.IsOver) { statusText.text = OutcomeLine(season.Outcome(), season.Tier.Tier); }   // 시즌 마지막 판: 승강 판정(09-28). 승강전이 남았으면 IsOver가 거짓이라 여기 안 온다(10-08)
+            else if (!season.LastReportFailed && season.IsRegularSeasonOver) { statusText.text = PlayoffNextLine(season.PendingPlayoff); }
         }
         catch (System.Exception e)
         {
@@ -125,7 +126,16 @@ public class ResultPanelUIElement : UIElement
         gameManager.RestartGame(skipReady: false);
     }
 
-    // 시즌 끝 문구. 2·3위(승강전 대상)는 승강전(10-05)이 생기기 전까지 잔류로 보여 준다: 없는 기능을 문구로 약속하지 않는다
+    // 승강전이 남았을 때 다음 경기 안내(10-08)
+    private static string PlayoffNextLine(PlayoffStage pending)
+    {
+        if (pending == PlayoffStage.Semifinal) { return "다음: 승강 PO 단판"; }
+        if (pending == PlayoffStage.LegOne) { return "다음: 승강전 1차전"; }
+        if (pending == PlayoffStage.LegTwo) { return "다음: 승강전 2차전"; }
+        return string.Empty;
+    }
+
+    // 시즌 끝 문구. 승강전 결과까지 Outcome에 들어 있다(10-08)
     private static string OutcomeLine(SeasonOutcome outcome, int tier)
     {
         if (outcome.Kind == SeasonOutcomeKind.Champion) { return $"시즌 종료 · {tier}부 우승!"; }

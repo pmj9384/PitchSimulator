@@ -115,7 +115,7 @@ public class SeasonFlowTests
             SeasonRunner.PlayRound(state, opponents, schedule, presets, setup.ResultFor(2, 0));   // 내가 다 이긴 걸로
         }
 
-        Assert.IsTrue(SeasonProgress.IsOver(state, tier));
+        Assert.IsTrue(SeasonProgress.IsOver(state, tier), "1위는 승강전 없이 끝");
         Assert.AreEqual(3, SeasonProgress.NextTier(state, tier), "4부 1위 → 3부");
         Assert.AreEqual(tier.Teams * (tier.Teams - 1) / 2, state.Results.Count, "라운드마다 전 경기가 한 번에 들어간다");
     }
@@ -170,13 +170,13 @@ public class SeasonFlowTests
         Assert.AreEqual(SeasonOutcomeKind.Champion, champion.Kind, "1부 1위는 우승(부 그대로)");
         Assert.AreEqual(1, champion.NextTier);
 
-        // 전부 비겨 7점, 1번 팀이 2번 팀을 세 번 이겨 9점 → 내가 2위(승강전 대상). 승강전(10-05) 전까진 잔류
+        // 전부 비겨 7점, 1번 팀이 2번 팀을 세 번 이겨 9점 → 내가 2위(승강전 대상). 승강전(10-08)이 남아 시즌은 아직 안 끝났고 판정도 못 낸다
         var extra = new List<MatchResult> { new MatchResult(1, 2, 1, 0), new MatchResult(1, 2, 1, 0), new MatchResult(1, 2, 1, 0) };
         SeasonState second = FinishedSeason(3, 1, 1, extra);
-        SeasonOutcome playoff = SeasonProgress.Outcome(second, Tier(3));
-        Assert.AreEqual(2, playoff.FinalRank);
-        Assert.AreEqual(SeasonOutcomeKind.Stayed, playoff.Kind);
-        Assert.AreEqual(SeasonProgress.NextTier(second, Tier(3)), playoff.NextTier, "문구와 실제 다음 부가 같은 판정");
+        Assert.IsTrue(SeasonProgress.IsRegularSeasonOver(second, Tier(3)));
+        Assert.IsFalse(SeasonProgress.IsOver(second, Tier(3)), "2위는 승강 PO가 남았다");
+        Assert.AreEqual(PlayoffStage.Semifinal, SeasonProgress.PendingStage(second, Tier(3)));
+        Assert.Throws<System.InvalidOperationException>(() => SeasonProgress.Outcome(second, Tier(3)), "끝나기 전엔 판정이 없다");
     }
 
     // 인게임은 ComputeRound를 백그라운드 스레드에서 부르고 AddRound는 메인 스레드에서 따로 한다(09-28 G1). 계산이 상태를 건드리면 스레드 경합이 되고,

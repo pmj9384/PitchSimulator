@@ -82,10 +82,12 @@ namespace Game.Core.League
         public string MyPresetId { get; private set; }   // 내 팀 기준 카드(TacticPresets presetId). 바꾸는 곳은 SetMyPreset 하나(팀 전술 설정창, 09-30)
         public TeamTactics? MyCustomTactics { get; private set; }   // 슬라이더·세부 표로 바꾼 값 전체. null = 기준 카드 값 그대로(09-30)
         public IReadOnlyList<MatchResult> Results => results;
+        public IReadOnlyList<PlayoffResult> PlayoffResults => playoff;   // 승강전 결과(10-08). 정규 시즌 뒤에만 쌓인다. 옛 세이브는 비어 있음
         public IReadOnlyList<RosterPlayer> Roster => roster;
         public IReadOnlyList<LineupEntry> Lineup => lineup;
 
         private readonly List<MatchResult> results;
+        private readonly List<PlayoffResult> playoff = new List<PlayoffResult>();
         private readonly List<RosterPlayer> roster;
         private readonly List<LineupEntry> lineup;
 
@@ -260,6 +262,12 @@ namespace Game.Core.League
             RoundsPlayed++;
         }
 
+        // 승강전 한 경기(10-08). 단계 순서는 PlayoffRules.NextStage가 정하고 여기선 쌓기만 한다
+        public void AddPlayoffResult(PlayoffResult result)
+        {
+            playoff.Add(result);
+        }
+
         public RosterPlayer FindRosterPlayer(int playerId)
         {
             for (int i = 0; i < roster.Count; i++)
@@ -296,8 +304,13 @@ namespace Game.Core.League
         // ── 세이브 왕복. 로스터 선수는 variantId + 빌드 9개만 저장(다이얼은 PlayerTable에서 다시 읽는다. 스카우트가 빌드를 바꾸는 날을 위해 빌드는 저장)
         public SeasonSave ToSave()
         {
-            var save = new SeasonSave { tier = Tier, seasonSeed = SeasonSeed, generatorVersion = GeneratorVersion, roundsPlayed = RoundsPlayed, scoutAttempts = ScoutAttempts, myPresetId = MyPresetId };
+            var save = new SeasonSave { tier = Tier, seasonSeed = SeasonSeed, generatorVersion = GeneratorVersion, roundsPlayed = RoundsPlayed, scoutAttempts = ScoutAttempts, myPresetId = MyPresetId, playoff = new List<SeasonSave.PlayoffEntry>() };
             if (MyCustomTactics != null) { save.myTactics = SeasonSave.TacticsValues.From(MyCustomTactics); }
+            for (int i = 0; i < playoff.Count; i++)
+            {
+                PlayoffResult r = playoff[i];
+                save.playoff.Add(new SeasonSave.PlayoffEntry { stage = (int)r.Stage, home = r.HomeTeamId, away = r.AwayTeamId, homeGoals = r.HomeGoals, awayGoals = r.AwayGoals, homePens = r.HomePenalties, awayPens = r.AwayPenalties });
+            }
             for (int i = 0; i < results.Count; i++)
             {
                 MatchResult r = results[i];
@@ -352,7 +365,17 @@ namespace Game.Core.League
                 results.Add(new MatchResult(r.home, r.away, r.homeGoals, r.awayGoals));
             }
             TeamTactics? custom = save.myTactics == null ? null : save.myTactics.ToTactics(save.myPresetId ?? DefaultPresetId);   // 범위는 생성자가 검증한다
-            return new SeasonState(save.tier, save.seasonSeed, save.generatorVersion, roster, lineup, results, save.roundsPlayed, save.scoutAttempts, save.myPresetId, custom);
+            var state = new SeasonState(save.tier, save.seasonSeed, save.generatorVersion, roster, lineup, results, save.roundsPlayed, save.scoutAttempts, save.myPresetId, custom);
+            if (save.playoff != null)   // 옛 세이브(10-08 전)엔 없어 null = 승강전 전
+            {
+                for (int i = 0; i < save.playoff.Count; i++)
+                {
+                    SeasonSave.PlayoffEntry e = save.playoff[i];
+                    if (e.stage < (int)PlayoffStage.Semifinal || e.stage > (int)PlayoffStage.LegTwo) { throw new InvalidOperationException($"[SeasonState] 승강전 단계가 범위 밖이다({e.stage})"); }
+                    state.playoff.Add(new PlayoffResult((PlayoffStage)e.stage, e.home, e.away, e.homeGoals, e.awayGoals, e.homePens, e.awayPens));
+                }
+            }
+            return state;
         }
     }
 
@@ -370,6 +393,18 @@ namespace Game.Core.League
         public List<Result> results = new List<Result>();
         public List<Player> roster = new List<Player>();
         public List<Slot> lineup = new List<Slot>();
+        public List<PlayoffEntry>? playoff;   // 10-08 추가. 승강전 결과. 옛 세이브엔 없어 null → 승강전 전
+
+        [Serializable] public sealed class PlayoffEntry
+        {
+            public int stage;
+            public int home;
+            public int away;
+            public int homeGoals;
+            public int awayGoals;
+            public int homePens;
+            public int awayPens;
+        }
 
         [Serializable] public sealed class Result
         {

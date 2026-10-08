@@ -67,6 +67,75 @@ namespace Game.Core.League
                 state.MyTactics(presets), FindPreset(presets, opponent.PresetId), opponent.Name);   // 내 전술 = 바꾼 값 또는 기준 카드(09-30)
         }
 
+        // ── 승강전(10-08, 스펙 §10 10-08 구현 설계). 내 팀이 걸린 경기만 치른다
+
+        // 다른 부의 승강전 상대. [가정] 상위 부(도전자일 때)는 그 부 생성 목록의 마지막 팀이 "최하위 바로 위"를 맡고,
+        // 하위 부(수성일 때)는 생성 2·3번 팀의 단판 PO(2번 홈)를 헤드리스로 돌려 승자가 올라온다. id는 1000 + 생성 id, 이름엔 부를 붙인다
+        public static GeneratedTeam ForeignTeam(int seasonSeed, TierRule otherTier, PlayoffRole role, IReadOnlyList<PlayerStats> table,
+            IReadOnlyList<FormationTemplate> formations, TeamNameTable names, IReadOnlyList<TeamTactics> presets)
+        {
+            List<GeneratedTeam> teams = TeamGenerator.Generate(seasonSeed, otherTier, table, formations, names);
+            if (teams.Count < 3) { throw new InvalidOperationException($"[SeasonRunner] {otherTier.Tier}부 생성 팀이 3개 미만이다({teams.Count})"); }
+
+            GeneratedTeam picked;
+            if (role == PlayoffRole.Challenger)
+            {
+                picked = teams[teams.Count - 1];
+            }
+            else
+            {
+                GeneratedTeam home = teams[1];
+                GeneratedTeam away = teams[2];
+                var f = new Fixture(otherTier.Matches, home.TeamId, away.TeamId);
+                MatchSimulation sim = MatchAssembler.Create(home.ToLineup(asHome: true), away.ToLineup(asHome: false), FindPreset(presets, home.PresetId), FindPreset(presets, away.PresetId), MatchSeed(seasonSeed, f));
+                var probe = new MatchProbe(sim);
+                probe.Run(MatchTuning.MatchTicks, MatchTuning.FixedStep);
+                picked = LeagueRules.PlayoffWinner(home.TeamId, away.TeamId, sim.HomeGoals, sim.AwayGoals) == home.TeamId ? home : away;
+            }
+            return new GeneratedTeam(PlayoffRules.ForeignTeamIdBase + picked.TeamId, $"{picked.Name} ({otherTier.Tier}부)", picked.FormationId, picked.PresetId,
+                new List<StageEntry>(picked.Rows), new List<PlayerStats>(picked.Players));
+        }
+
+        // 이번 승강전 경기의 재료. 단판은 같은 부 상대, 1·2차전은 다른 부 팀(foreign). 라운드 번호는 정규 뒤에 이어 붙여 시드가 안 겹친다
+        public static MatchSetup SetupPlayoffMatch(SeasonState state, TierRule tier, PlayoffPlan plan, PlayoffStage stage,
+            IReadOnlyList<GeneratedTeam> opponents, GeneratedTeam? foreign, IReadOnlyList<TeamTactics> presets)
+        {
+            int me = SeasonState.MyTeamId;
+            GeneratedTeam opponent;
+            bool myHome;
+            if (stage == PlayoffStage.Semifinal)
+            {
+                opponent = Find(opponents, plan.SemifinalOpponentId);
+                myHome = plan.SemifinalAtHome;
+            }
+            else
+            {
+                if (foreign == null) { throw new InvalidOperationException("[SeasonRunner] 승강전 1·2차전엔 다른 부 팀이 필요하다"); }
+                opponent = foreign;
+                bool challengerHomeFirst = plan.Role == PlayoffRole.Challenger;   // 도전자 1차전 홈·2차전 원정, 수성은 반대
+                myHome = stage == PlayoffStage.LegOne ? challengerHomeFirst : !challengerHomeFirst;
+            }
+            var fixture = new Fixture(tier.Matches + (int)stage - 1, myHome ? me : opponent.TeamId, myHome ? opponent.TeamId : me);
+            return new MatchSetup(fixture, MatchSeed(state.SeasonSeed, fixture), state.MyLineup(), opponent.ToLineup(asHome: false),
+                state.MyTactics(presets), FindPreset(presets, opponent.PresetId), opponent.Name);
+        }
+
+        // 내 승강전 경기의 결과. 2차전에서 합산 동점이면 승부차기까지 여기서 정한다(주사위 = 경기 시드 + 1, 결정적)
+        public static PlayoffResult ResolvePlayoff(MatchSetup setup, PlayoffStage stage, MatchResult myResult, PlayoffResult? legOne)
+        {
+            var result = new PlayoffResult(stage, myResult.HomeTeamId, myResult.AwayTeamId, myResult.HomeGoals, myResult.AwayGoals);
+            if (stage != PlayoffStage.LegTwo) { return result; }
+            if (legOne == null) { throw new InvalidOperationException("[SeasonRunner] 2차전엔 1차전 결과가 필요하다"); }
+            if (PlayoffRules.AggregateWinner(legOne.Value, result) != -1) { return result; }
+
+            IReadOnlyList<LineupSlot> home = setup.MyTeamIsHome ? setup.Team0 : setup.Team1;
+            IReadOnlyList<LineupSlot> away = setup.MyTeamIsHome ? setup.Team1 : setup.Team0;
+            var rng = new Random(unchecked(setup.Seed + 1));
+            ShootoutResult pens = PlayoffRules.Shootout(PlayoffRules.TopShooters(home, PlayoffRules.ShootoutKickers), PlayoffRules.KeeperHandling(home),
+                PlayoffRules.TopShooters(away, PlayoffRules.ShootoutKickers), PlayoffRules.KeeperHandling(away), () => (float)rng.NextDouble());
+            return new PlayoffResult(stage, myResult.HomeTeamId, myResult.AwayTeamId, myResult.HomeGoals, myResult.AwayGoals, pens.HomeScore, pens.AwayScore);
+        }
+
         private static MatchResult Simulate(int seasonSeed, Fixture f, IReadOnlyList<GeneratedTeam> opponents, IReadOnlyList<TeamTactics> presets)
         {
             MatchSimulation sim = Assemble(seasonSeed, f, opponents, presets);
