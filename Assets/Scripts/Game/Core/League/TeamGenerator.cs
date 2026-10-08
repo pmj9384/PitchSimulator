@@ -134,19 +134,13 @@ namespace Game.Core.League
             throw new InvalidOperationException($"[TeamGenerator] PlayerTable에 역할 {roleId}이 없다");
         }
 
+        // 노출된 변형 중에서만 뽑는다(10-08 결정 ④): 유저가 고를 수 있는 역할 = 생성기가 뽑는 역할. 54종 전체에서 뽑던 땐 잠긴 ST 변형(득점 0에 가까운 것)이
+        // 2·1부 상대의 공격을 무너뜨려 2부 39%·1부 34%의 팀이 경기당 0.25골 미만이었다(실험/2026-09-30-공격-칼날-진단.md)
         private static PlayerStats RandomVariant(IReadOnlyList<PlayerStats> table, string roleId, Random rng)
         {
-            int count = 0;
-            for (int i = 0; i < table.Count; i++) { if (table[i].RoleId == roleId) { count++; } }
-            if (count == 0) { throw new InvalidOperationException($"[TeamGenerator] PlayerTable에 역할 {roleId}이 없다"); }
-            int pick = rng.Next(count);
-            for (int i = 0; i < table.Count; i++)
-            {
-                if (table[i].RoleId != roleId) { continue; }
-                if (pick == 0) { return table[i]; }
-                pick--;
-            }
-            throw new InvalidOperationException("unreachable");
+            List<PlayerStats> exposed = PlayerTableLookup.ExposedVariants(table, roleId);
+            if (exposed.Count == 0) { throw new InvalidOperationException($"[TeamGenerator] PlayerTable에 노출된 역할 {roleId}이 없다"); }
+            return exposed[rng.Next(exposed.Count)];
         }
 
         private static FormationTemplate FindFormation(IReadOnlyList<FormationTemplate> formations, string id)
