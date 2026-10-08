@@ -64,7 +64,7 @@ namespace Game.Core.League
             int opponentId = mine.HomeTeamId == SeasonState.MyTeamId ? mine.AwayTeamId : mine.HomeTeamId;
             GeneratedTeam opponent = Find(opponents, opponentId);
             return new MatchSetup(mine, MatchSeed(state.SeasonSeed, mine), state.MyLineup(), opponent.ToLineup(asHome: false),
-                FindPreset(presets, state.MyPresetId), FindPreset(presets, opponent.PresetId), opponent.Name);
+                state.MyTactics(presets), FindPreset(presets, opponent.PresetId), opponent.Name);   // 내 전술 = 바꾼 값 또는 기준 카드(09-30)
         }
 
         private static MatchResult Simulate(int seasonSeed, Fixture f, IReadOnlyList<GeneratedTeam> opponents, IReadOnlyList<TeamTactics> presets)

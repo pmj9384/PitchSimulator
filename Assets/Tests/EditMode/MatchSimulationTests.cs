@@ -31,6 +31,21 @@ internal static class PassFlightTestsHelper
         }
     }
 
+    // 켜진 뒤 공을 가진 선수가 한 번 슛(하프타임 직전 슛 테스트, 09-30). 켜기 전엔 아무 의도도 없다
+    internal sealed class ShootWhenArmed : BehaviorNode
+    {
+        public bool Armed;
+        private bool done;
+
+        public override NodeState Tick(IPlayerContext ctx)
+        {
+            if (!Armed || done || !ctx.OwnsBall) { return NodeState.Success; }
+            ctx.Shoot();
+            done = true;
+            return NodeState.Success;
+        }
+    }
+
     // 지정 선수가 공을 가지면 한 번 지정 동료에게 패스
     internal sealed class PassOnce : BehaviorNode
     {
@@ -74,6 +89,16 @@ public class MatchSimulationTests
     private static PlayerStats Keeper()
     {
         return new PlayerStats { RoleId = "GK", VariantId = "gk_standard", Speed = 30, Stamina = 30, Pass = 30, Shot = 5, Tackle = 10, Positioning = 15, Reflexes = 80, Handling = 60, Diving = 40, PressRange = 3f, ShotBias = 0.9f, PassLength = 25f };
+    }
+
+    // 박스 앞 전진(09-29 D1)·슛 블록(D3) 테스트용 CB. 스탯은 GK 값을 빌리고 역할만 CB, 압박 거리 6m
+    private static PlayerStats CenterBack()
+    {
+        PlayerStats cb = Keeper();
+        cb.RoleId = "CB";
+        cb.VariantId = "cb_test";
+        cb.PressRange = 6f;
+        return cb;
     }
 
     // 주사위 수열. 다 쓰면 예외: 슛이 예상보다 많이 굴리면 테스트가 알아챈다
@@ -436,11 +461,9 @@ public class MatchSimulationTests
     public void 공이_박스_앞에_오면_압박_거리_밖이어도_가장_가까운_센터백이_압박_1순위가_된다()
     {
         // 09-29 수비 D1. 팀 0 CB(압박 거리 6m)가 공에서 9m. 공은 팀 0 골라인에서 18m(전진 구역 안), 팀 1이 소유
-        PlayerStats cb = Keeper(); cb.RoleId = "CB"; cb.VariantId = "cb_test"; cb.PressRange = 6f;
-        PlayerStats other = Keeper(); other.RoleId = "CB"; other.VariantId = "cb_test"; other.PressRange = 6f;
         var sim = new MatchSimulation(() => 0.99f, new PassFlightTestsHelper.NoOp());
-        PlayerState near = sim.AddPlayer(new PlayerState(0, 0, cb, -43.5f, 0f));
-        PlayerState far = sim.AddPlayer(new PlayerState(1, 0, other, -45f, 15f));
+        PlayerState near = sim.AddPlayer(new PlayerState(0, 0, CenterBack(), -43.5f, 0f));
+        PlayerState far = sim.AddPlayer(new PlayerState(1, 0, CenterBack(), -45f, 15f));
         sim.AddPlayer(new PlayerState(2, 1, Striker(), -34.5f, 0f));
         sim.Kickoff();
         sim.Ball = BallRules.Own(sim.Ball, 2, -34.5f, 0f);
@@ -449,7 +472,7 @@ public class MatchSimulationTests
         Assert.AreEqual(int.MaxValue, far.PressRank, "다른 CB는 후보가 아니다(압박 거리 밖)");
 
         var outside = new MatchSimulation(() => 0.99f, new PassFlightTestsHelper.NoOp());
-        PlayerState cbOut = outside.AddPlayer(new PlayerState(0, 0, cb, -30f, 0f));
+        PlayerState cbOut = outside.AddPlayer(new PlayerState(0, 0, CenterBack(), -30f, 0f));
         outside.AddPlayer(new PlayerState(2, 1, Striker(), -21f, 0f));
         outside.Kickoff();
         outside.Ball = BallRules.Own(outside.Ball, 2, -21f, 0f);
@@ -464,8 +487,7 @@ public class MatchSimulationTests
         var sim = new MatchSimulation(() => 0f, new PassFlightTestsHelper.ShootOnce());
         sim.AddPlayer(new PlayerState(0, 0, Striker(), 40f, 0f));
         sim.AddPlayer(new PlayerState(1, 1, Keeper(), 50f, 0f));
-        PlayerStats cb = Keeper(); cb.RoleId = "CB"; cb.VariantId = "cb_test";
-        sim.AddPlayer(new PlayerState(2, 1, cb, 41.5f, -0.3f));   // 주사위 0이면 조준이 -Z 쪽(약 -12.6°)이라 그 쪽에 선다
+        sim.AddPlayer(new PlayerState(2, 1, CenterBack(), 41.5f, -0.3f));   // 주사위 0이면 조준이 -Z 쪽(약 -12.6°)이라 그 쪽에 선다
         sim.Kickoff();
         sim.Ball = BallRules.Own(sim.Ball, 0, 40f, 0f);
         var outcomes = new List<ShotOutcome>();
@@ -477,5 +499,115 @@ public class MatchSimulationTests
         Assert.AreEqual(BallPhase.Flight, sim.Ball.Phase, "튕긴 공은 누구 것도 아닌 비행");
         sim.Tick(Dt);
         Assert.AreNotEqual(0, sim.Ball.OwnerId, "슈터는 바로 못 잡는다");
+    }
+
+    [Test]
+    public void 팀_1도_박스_앞에서_가장_가까운_센터백이_압박_1순위가_된다()
+    {
+        // 09-30 리뷰: D1 대칭. 팀 1 골라인은 x = +52.5. 공은 거기서 18m, 팀 0이 소유
+        var sim = new MatchSimulation(() => 0.99f, new PassFlightTestsHelper.NoOp());
+        sim.AddPlayer(new PlayerState(0, 0, Striker(), 34.5f, 0f));
+        PlayerState near = sim.AddPlayer(new PlayerState(1, 1, CenterBack(), 43.5f, 0f));
+        PlayerState far = sim.AddPlayer(new PlayerState(2, 1, CenterBack(), 45f, 15f));
+        sim.Kickoff();
+        sim.Ball = BallRules.Own(sim.Ball, 0, 34.5f, 0f);
+        sim.Tick(Dt);
+        Assert.AreEqual(0, near.PressRank, "가장 가까운 CB가 전진");
+        Assert.AreEqual(int.MaxValue, far.PressRank, "다른 CB는 후보가 아니다");
+    }
+
+    [Test]
+    public void 팀_1_슈터의_슛도_앞의_수비수가_막는다()
+    {
+        // 09-30 리뷰: D3 대칭. 팀 1 슈터 (-40,0)가 -X 골로 슛. 블록 판정과 튕김 방향(+X)만 본다.
+        // 튕김을 스냅샷 좌표로 계산하는 것(블로커가 먼저 움직인 틱)은 여기서 검증되지 않는다: ShootOnce가 블로커를 움직이지 않는다
+        var sim = new MatchSimulation(() => 0f, new PassFlightTestsHelper.ShootOnce());
+        sim.AddPlayer(new PlayerState(0, 0, CenterBack(), -41.5f, -0.3f));
+        sim.AddPlayer(new PlayerState(1, 0, Keeper(), -50f, 0f));
+        sim.AddPlayer(new PlayerState(2, 1, Striker(), -40f, 0f));
+        sim.Kickoff();
+        sim.Ball = BallRules.Own(sim.Ball, 2, -40f, 0f);
+        var outcomes = new List<ShotOutcome>();
+        sim.ShotResolved += r => outcomes.Add(r.Outcome);
+        sim.Tick(Dt);
+        Assert.AreEqual(1, outcomes.Count);
+        Assert.AreEqual(ShotOutcome.Blocked, outcomes[0]);
+        Assert.Greater(sim.Ball.VelX, 0f, "슛 반대 방향(+X)으로 튕긴다");
+    }
+
+    [Test]
+    public void 태클에_실패해_얼어_있는_수비수는_슛을_막지_못한다()
+    {
+        // 09-30 리뷰: 블록 후보도 압박·루즈볼 후보처럼 얼어 있는 선수를 뺀다. 위치는 막힌 슛 테스트와 같다
+        var sim = new MatchSimulation(() => 0f, new PassFlightTestsHelper.ShootOnce());
+        sim.AddPlayer(new PlayerState(0, 0, Striker(), 40f, 0f));
+        sim.AddPlayer(new PlayerState(1, 1, Keeper(), 50f, 0f));
+        PlayerState frozen = sim.AddPlayer(new PlayerState(2, 1, CenterBack(), 41.5f, -0.3f));
+        sim.Kickoff();
+        frozen.FrozenTicks = MatchTuning.TackleFailFreezeTicks;
+        sim.Ball = BallRules.Own(sim.Ball, 0, 40f, 0f);
+        var outcomes = new List<ShotOutcome>();
+        sim.ShotResolved += r => outcomes.Add(r.Outcome);
+        sim.Tick(Dt);
+        CollectionAssert.DoesNotContain(outcomes, ShotOutcome.Blocked);
+        Assert.AreEqual(BallPhase.Flight, sim.Ball.Phase, "슛은 그대로 날아간다");
+        Assert.Greater(sim.Ball.VelX, 0f, "골 쪽(+X)으로");
+    }
+
+    // 하프타임 한 틱 전에 슛을 쏘게 해 두고 하프타임 틱까지 돌린다. 슈터 (20,0)에서 골까지 32.5m라 공은 1초 넘게 난다
+    private static (MatchSimulation sim, List<ShotOutcome> outcomes) ShotAtHalfTime(float roll)
+    {
+        var tree = new PassFlightTestsHelper.ShootWhenArmed();
+        var sim = new MatchSimulation(() => roll, tree);
+        PlayerState shooter = sim.AddPlayer(new PlayerState(0, 0, Striker(), -10f, 0f));
+        sim.AddPlayer(new PlayerState(1, 1, Keeper(), 52f, 0f));
+        sim.AddPlayer(new PlayerState(2, 1, Striker(), 30f, 25f));   // 후반 킥오프를 받을 팀 1 필드 선수. 슛 라인에서 멀리
+        sim.KickoffBy(0);
+        int halfTimeTick = MatchClock.HalfTimeTick(AddedTime.None);
+        for (int i = 0; i < halfTimeTick - 2; i++) { sim.Tick(Dt); }
+
+        shooter.X = 20f;
+        shooter.Z = 0f;
+        sim.Ball = BallRules.Own(sim.Ball, 0, 20f, 0f);
+        tree.Armed = true;
+        var outcomes = new List<ShotOutcome>();
+        sim.ShotResolved += r => outcomes.Add(r.Outcome);
+        sim.Tick(Dt);   // 하프타임 한 틱 전: 슛
+        Assert.AreEqual(BallPhase.Flight, sim.Ball.Phase, "하프타임 직전에 슛이 날아가는 중");
+        Assert.IsEmpty(outcomes);
+        sim.Tick(Dt);   // 하프타임 틱
+        Assert.IsTrue(sim.SidesSwitched, "하프타임이 지났다");
+        return (sim, outcomes);
+    }
+
+    [Test]
+    public void 하프타임_휘슬_순간_날아가던_골이_될_슛은_골로_남는다()
+    {
+        // 09-29 재검증 ②: 하프타임 리셋이 비행 중인 슛을 Finish 없이 지워 골이 사라졌다. 결과는 찬 순간 정해져 있으니 그 결과로 마감한다
+        (MatchSimulation sim, List<ShotOutcome> outcomes) = ShotAtHalfTime(0f);   // 주사위 0 = 골 판정 성공, 조준은 골문 안
+        CollectionAssert.AreEqual(new[] { ShotOutcome.Goal }, outcomes);
+        Assert.AreEqual(1, sim.HomeGoals);
+        Assert.AreEqual(1, sim.OwnerTeam(), "후반 킥오프는 전반에 킥오프하지 않은 팀 1(실점 팀 규칙보다 하프타임 규칙이 먼저)");
+    }
+
+    [Test]
+    public void 하프타임_휘슬_순간_날아가던_골이_아닌_슛은_빗나감으로_마감한다()
+    {
+        // 세이브가 될 슛이었을 수도 있지만 GK에 닿기 전이라 빗나감으로 센다. 슛 수와 결과 수가 어긋나지 않게 결과는 반드시 하나 낸다
+        (MatchSimulation sim, List<ShotOutcome> outcomes) = ShotAtHalfTime(0.99f);   // 주사위 0.99 = 골 판정 실패
+        CollectionAssert.AreEqual(new[] { ShotOutcome.Missed }, outcomes);
+        Assert.AreEqual(0, sim.HomeGoals);
+    }
+
+    [Test]
+    public void 킥오프_전에_바꾼_역할_값은_선수에게_다시_준다()
+    {
+        // 09-30 개인 전술: 선수는 세팅 국면(GameReady)에 스폰되므로, 그 화면에서 바꾼 역할·지시는 킥오프 때 다시 넣는다. 자리가 바뀌는 교체는 막는다
+        PlayerState striker = new PlayerState(0, 0, Striker(), 10f, 0f);
+        PlayerStats changed = Striker();
+        changed.PressRange = 14f;
+        striker.ReplaceStats(changed);
+        Assert.AreEqual(14f, striker.Stats.PressRange);
+        Assert.Throws<System.InvalidOperationException>(() => striker.ReplaceStats(Keeper()), "필드 선수를 골키퍼 값으로 바꿀 수 없다");
     }
 }

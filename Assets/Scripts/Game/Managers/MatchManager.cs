@@ -13,7 +13,6 @@ public class MatchManager : InGameManager
     public const int Draw = -1;                 // EndMatch의 무승부 표식
 
     [SerializeField] private BallView ballView;   // 씬의 공(구). 순수 BallState를 비춘다
-    [SerializeField] private bool autoKickoff = true;   // 임시: 프리셋 선택 화면(플랜 10-01)이 오면 킥오프 버튼으로 바꾸고 지운다
     [SerializeField] private float halfTimeHoldSec = 2f;   // 하프타임 멈춤(연출). 시뮬 틱은 안 돌아 러너·시즌 결과와 무관. 0이면 멈춤 없음
     [SerializeField] private float celebrationSec = 3f;    // 골 세리머니(연출, 09-29 유저 Play "골 넣은 사람 세리머니 시간을 줘야"). 시뮬 틱은 안 돈다. 0이면 없음
     [SerializeField] private float kickoffSetSec = 1f;     // 킥오프 전 제자리 멈춤(연출, 09-29). 경기 시작·골 뒤. 하프타임은 halfTimeHoldSec이 맡는다
@@ -33,6 +32,7 @@ public class MatchManager : InGameManager
     private bool holdIsHalfTime;
     private int goalScorerId = BallState.NoOwner;   // 이번 틱 골 넣은 선수. ShotResolved에서 받는다
     private readonly GoalCelebration celebration = new GoalCelebration();   // 세리머니 안무. 언제 시작·끝낼지는 여기서 정한다
+    private bool celebrationBeforeHalfTime;   // 이번 세리머니가 하프타임 틱의 골인가. 끝나면 킥오프 준비 대신 하프타임 멈춤
 
     public bool InHalfTimeHold => holdTicksLeft > 0 && holdIsHalfTime;   // HUD가 "하프타임" 자막을 띄운다
     public bool InCelebration => celebration.IsPlaying;                   // HUD가 골 자막을 세리머니 내내 유지한다
@@ -57,6 +57,7 @@ public class MatchManager : InGameManager
         holdTicksLeft = 0;
         holdIsHalfTime = false;
         goalScorerId = BallState.NoOwner;
+        celebrationBeforeHalfTime = false;
         celebration.Stop();
         rng = new System.Random(setup.Seed);
         kickoffTeam = setup.KickoffTeam;
@@ -66,8 +67,6 @@ public class MatchManager : InGameManager
             ResetAfterEveryShot = false   // 4국면 트리(09-18): 세이브 뒤 GK가 배급한다. 리트머스 때만 true였다
         };
         Simulation.SetAddedTime(AddedTime.FromSeed(setup.Seed));   // 러너(MatchAssembler)와 같은 식
-        Simulation.SetTactics(0, setup.Tactics0);   // 내 프리셋(세이브)·상대 프리셋(생성 팀)
-        Simulation.SetTactics(1, setup.Tactics1);
         Simulation.ShotResolved += LogShot;
         Simulation.ShotResolved += OnShotResolved;
         Simulation.PossessionChanged += LogPossession;
@@ -84,11 +83,34 @@ public class MatchManager : InGameManager
         Simulation.AddPlayer(player);
     }
 
+    // 전술은 킥오프 순간에 확정한다(09-30): GameReady 동안 팀 전술 설정창이 내 전술을 바꾸므로 ResetMatch에서 읽으면 옛 값이 들어간다.
+    // 설정창의 입력(SeasonSystem.SetMyPreset·SetMyTactics)이 이번 경기 재료를 비워 두므로 여기서 다시 읽으면 새 전술이 들어가고, 시드·상대·킥오프 팀은 ResetMatch 때와 같다.
+    // 킥오프 전에 전술을 읽는 코드는 없다(스폰·자리·HUD 모두 라인업만 본다, 09-30 확인). GamePlay 진입 훅은 경기당 한 번(일시정지 복귀는 훅을 다시 안 쏜다)
     private void StartMatch()
     {
+        MatchSetup setup = GameDataManager.Instance.Season.CurrentMatch;
+        Simulation.SetTactics(0, setup.Tactics0);   // 내 전술(설정창·세이브)
+        Simulation.SetTactics(1, setup.Tactics1);   // 상대 프리셋(생성 팀)
+        ApplyMyPlayerTactics(setup.Team0);
         Simulation.KickoffBy(kickoffTeam);
         SnapViews();   // 킥오프 자리로 순간이동(보간하면 전 자리에서 미끄러져 온다)
         Hold(kickoffSetSec, halfTime: false);
+    }
+
+    // 개인 전술도 킥오프 순간에 확정한다(09-30): 선수는 GameReady에 스폰돼 그때의 역할 값을 들고 있다. 세팅 화면에서 바꾼 역할·개인 지시를 다시 넣는다.
+    // 내 팀은 시뮬 팀 0이고 스폰 순서가 라인업 순서다(StageManager.Spawn). 수가 안 맞으면 조용히 넘기지 않고 알린다
+    private void ApplyMyPlayerTactics(IReadOnlyList<LineupSlot> lineup)
+    {
+        IReadOnlyList<PlayerState> players = Simulation.Players;
+        int slot = 0;
+        for (int i = 0; i < players.Count; i++)
+        {
+            if (players[i].Team != 0) { continue; }
+            if (slot >= lineup.Count) { break; }
+            players[i].ReplaceStats(lineup[slot].Stats);
+            slot++;
+        }
+        if (slot != lineup.Count) { Debug.LogError($"[Match] 내 팀 선수 {slot}명 ≠ 라인업 {lineup.Count}명. 개인 전술이 일부만 들어갔다"); }
     }
 
     #region 심장: 고정 스텝 틱
@@ -96,11 +118,6 @@ public class MatchManager : InGameManager
     private void FixedUpdate()
     {
         if (Simulation == null) { return; }   // GameReady 훅이 중간에 끊겨 시뮬이 없으면(예: 시즌 종료 상태 진입) 매 스텝 NRE 대신 조용히 멈춘다
-        if (autoKickoff && GameManager.CurrentState == GameManager.GameState.GameReady && Simulation.Players.Count > 0)
-        {
-            GameManager.SetGameState(GameManager.GameState.GamePlay);   // GameReady 진입 훅 체인 밖(다음 고정 스텝)에서 전환
-            return;
-        }
         if (!IsRunning) { return; }
 
         // 연출 멈춤(세리머니 → 킥오프 준비·하프타임): 시뮬을 안 돌린다. 일시정지(GameStop)면 위에서 이미 멈춘다
@@ -121,6 +138,7 @@ public class MatchManager : InGameManager
             return;
         }
 
+        // 이번 틱이 하프타임 틱인지 미리 안다. 전제: Ticks와 시뮬 내부 tickCount가 늘 같다(Simulation.Tick을 부르는 곳은 여기 한 곳, 09-30 리뷰)
         bool halfTimeTick = Ticks + 1 == MatchClock.HalfTimeTick(Simulation.Added);
         goalScorerId = BallState.NoOwner;
         Simulation.Tick(MatchTuning.FixedStep);   // Unity 설정(Fixed Timestep)이 아니라 코어 상수로 흐른다: 설정이 바뀌어도 같은 시드 = 같은 경기(러너와 동일). 호출 주기만 설정이 정한다
@@ -128,7 +146,9 @@ public class MatchManager : InGameManager
 
         if (goalScorerId != BallState.NoOwner)
         {
-            // 시뮬은 이 틱에 이미 킥오프 자리로 리셋했다. 화면은 골 순간에 머물고 세리머니 뒤에 킥오프 자리로 스냅한다
+            // 시뮬은 이 틱에 이미 킥오프 자리로 리셋했다. 화면은 골 순간에 머물고 세리머니 뒤에 킥오프 자리로 스냅한다.
+            // 하프타임 틱의 골(휘슬 순간 날아가던 슛, 09-30)이면 세리머니 뒤에 하프타임 멈춤을 이어 준다: 그냥 두면 킥오프 준비 1초로 끝나 "하프타임" 자막이 안 뜬다
+            celebrationBeforeHalfTime = halfTimeTick;
             BeginCelebration();
             return;
         }
@@ -194,7 +214,13 @@ public class MatchManager : InGameManager
     private void EndCelebration()
     {
         SnapViews();
-        if (Ticks < MatchTuning.MatchTicks) { Hold(kickoffSetSec, halfTime: false); }
+        if (Ticks >= MatchTuning.MatchTicks) { return; }
+        if (celebrationBeforeHalfTime)
+        {
+            Hold(halfTimeHoldSec, halfTime: true);
+            return;
+        }
+        Hold(kickoffSetSec, halfTime: false);
     }
 
     private void HoldAllViews()

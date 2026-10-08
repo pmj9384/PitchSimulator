@@ -185,15 +185,7 @@ namespace Game.Core.League
         // 전 필드 복사(PlayerTable 행은 공유 객체라 빌드를 바꾸기 전에 복사한다)
         public static PlayerStats Copy(PlayerStats src)
         {
-            return new PlayerStats
-            {
-                RoleId = src.RoleId, VariantId = src.VariantId, Exposed = src.Exposed, Focus = src.Focus,
-                Speed = src.Speed, Stamina = src.Stamina, Pass = src.Pass, Shot = src.Shot, Tackle = src.Tackle, Positioning = src.Positioning,
-                Reflexes = src.Reflexes, Handling = src.Handling, Diving = src.Diving,
-                PushUp = src.PushUp, PressRange = src.PressRange, ShotBias = src.ShotBias, PassLength = src.PassLength, Width = src.Width,
-                LineHeight = src.LineHeight, RoamRadius = src.RoamRadius, PassRisk = src.PassRisk, Dribble = src.Dribble, HoldUp = src.HoldUp,
-                GkRushRadius = src.GkRushRadius, DisplayName = src.DisplayName, Description = src.Description, Icon = src.Icon,
-            };
+            return src.Clone();   // 필드를 하나씩 나열하던 것을 PlayerStats.Clone으로 모았다(09-30: 다이얼을 더할 때 빠뜨릴 자리가 둘이 되지 않게)
         }
 
         private static int Round(float v)

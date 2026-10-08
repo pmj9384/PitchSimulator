@@ -1,5 +1,5 @@
-using System.Collections.Generic;
 using System;
+using System.Collections.Generic;
 using Game.Core.Match;
 using Game.Core.Placement;
 using NUnit.Framework;
@@ -142,9 +142,9 @@ public class ShotProbabilityTests
     public void 압박받는_슛은_로짓만큼_확률이_줄고_0은_0이다()
     {
         // 09-29 수비 D3. 0.25를 로짓 0.4 깎으면 약 0.18(StatsBomb 예시와 같은 크기)
-        Assert.AreEqual(0.182f, MatchRules.UnderPressure(0.25f, 0.4f), 0.002f);
-        Assert.Less(MatchRules.UnderPressure(0.1f, 0.4f), 0.1f);
-        Assert.AreEqual(0f, MatchRules.UnderPressure(0f, 0.4f));
+        Assert.AreEqual(0.182f, MatchRules.PressuredShotProbability(0.25f, 0.4f), 0.002f);
+        Assert.Less(MatchRules.PressuredShotProbability(0.1f, 0.4f), 0.1f);
+        Assert.AreEqual(0f, MatchRules.PressuredShotProbability(0f, 0.4f));
     }
 
     [Test]
@@ -160,6 +160,28 @@ public class ShotProbabilityTests
         };
         Assert.AreEqual(5, MatchRules.ShotBlocker(40f, 0f, 52.5f, 0f, opp, 9, 2f, 20f));
         Assert.AreEqual(-1, MatchRules.ShotBlocker(40f, 0f, 52.5f, 0f, new List<TargetInfo> { opp[2], opp[3] }, 9, 2f, 20f));
+    }
+
+    [Test]
+    public void 슛_블록은_정확히_2m와_20도_안쪽까지_포함한다()
+    {
+        // 09-30 리뷰: 코드는 <=(경계 포함). 슈터 (40,0) → 골 (52.5,0)
+        var exactRange = new List<TargetInfo> { new TargetInfo(5, 42f, 0f) };
+        Assert.AreEqual(5, MatchRules.ShotBlocker(40f, 0f, 52.5f, 0f, exactRange, 9, 2f, 20f), "정확히 2m 정면은 후보");
+        var beyondRange = new List<TargetInfo> { new TargetInfo(5, 42.01f, 0f) };
+        Assert.AreEqual(-1, MatchRules.ShotBlocker(40f, 0f, 52.5f, 0f, beyondRange, 9, 2f, 20f), "2.01m는 밖");
+
+        var insideCone = new List<TargetInfo> { AtAngle(5, 1.5f, 19.9f) };
+        Assert.AreEqual(5, MatchRules.ShotBlocker(40f, 0f, 52.5f, 0f, insideCone, 9, 2f, 20f), "19.9°는 안");
+        var outsideCone = new List<TargetInfo> { AtAngle(5, 1.5f, 20.1f) };
+        Assert.AreEqual(-1, MatchRules.ShotBlocker(40f, 0f, 52.5f, 0f, outsideCone, 9, 2f, 20f), "20.1°는 밖");
+    }
+
+    // 슈터 (40,0)에서 슛 방향(+X) 기준 deg만큼 돌린 dist 거리의 상대
+    private static TargetInfo AtAngle(int playerId, float dist, float deg)
+    {
+        double rad = deg * Math.PI / 180.0;
+        return new TargetInfo(playerId, 40f + dist * (float)Math.Cos(rad), dist * (float)Math.Sin(rad));
     }
 
     [Test]

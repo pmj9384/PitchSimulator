@@ -154,6 +154,68 @@ public class SeasonSystem : ISaveLoad
         }
     }
 
+    // 팀 전술 설정창(09-30)의 입구 3개: 카드·슬라이더·세부 표. 규칙(없는 id 거부, 기준 카드 유지/교체, 범위 검증)은 SeasonState가 정하고 여기는 앞뒤만 맡는다.
+    // 카드: 없는 id면 SeasonState가 던지고 아무것도 안 바뀐다
+    public void SetMyPreset(string presetId)
+    {
+        ThrowIfReporting();
+        State.SetMyPreset(presetId, TeamTacticsRepository.All);
+        CommitMyTactics();
+    }
+
+    // 슬라이더: 기준 카드는 그대로
+    public void SetMyTactics(TeamTactics tactics)
+    {
+        ThrowIfReporting();
+        State.SetMyTactics(tactics, TeamTacticsRepository.All);
+        CommitMyTactics();
+    }
+
+    // 세부 표: 어떤 카드와 값이 같아지면 그 카드를 고른 것으로
+    public void SetMyTacticsFromTable(TeamTactics tactics)
+    {
+        ThrowIfReporting();
+        State.SetMyTacticsFromTable(tactics, TeamTacticsRepository.All);
+        CommitMyTactics();
+    }
+
+    // 개인 전술(09-30): 전술 화면에서 필드의 선수 칩을 눌러 역할과 개인 지시를 정한다. 규칙(같은 자리의 노출된 역할만, 지시 범위)은 SeasonState가 정한다.
+    // 이번 경기 재료에는 내 라인업의 선수 값도 들어 있어서 팀 전술과 같이 비우고 저장한다
+    public void SetPlayerRole(int playerId, string variantId)
+    {
+        ThrowIfReporting();
+        State.SetPlayerRole(playerId, variantId, PlayerTableRepository.All);
+        CommitMyTactics();
+    }
+
+    public void SetPlayerInstruction(int playerId, PlayerDial dial, int offset)
+    {
+        ThrowIfReporting();
+        State.SetPlayerInstruction(playerId, dial, offset);
+        CommitMyTactics();
+    }
+
+    public void ClearPlayerInstructions(int playerId)
+    {
+        ThrowIfReporting();
+        State.ClearPlayerInstructions(playerId);
+        CommitMyTactics();
+    }
+
+    // CurrentMatch·PrepareNextMatch와 같은 방어선: 지금은 설정창이 GameReady(보고가 끝난 뒤)에만 떠서 겹칠 길이 없지만, 새 진입 경로가 생겨도 조용히 틀리지 않게(09-30 리뷰)
+    private void ThrowIfReporting()
+    {
+        if (IsReporting) { throw new InvalidOperationException("[Season] 이번 라운드 결과를 아직 처리 중이다. 끝난 뒤에 전술을 바꾼다"); }
+    }
+
+    // 이번 경기 재료(currentMatch)의 내 전술이 옛 값이라 비운다. 다시 만들어도 시드·상대·킥오프 팀은 같다(SeasonFlowTests).
+    // 바꾸는 즉시 저장한다: 킥오프 전에 앱을 꺼도 다음에 켜면 바꾼 전술로 열린다
+    private void CommitMyTactics()
+    {
+        currentMatch = null;
+        SaveLoadSystem.Instance.Save();
+    }
+
     // 경기가 차려질 때(MatchManager.ResetMatch) 부른다. 시즌이 끝났으면 다음 부에서 새 시즌(승격 연출은 09-28 결과 화면)
     public void PrepareNextMatch()
     {
@@ -166,7 +228,12 @@ public class SeasonSystem : ISaveLoad
     {
         int nextTier = SeasonProgress.NextTier(State, Tier);
         Debug.Log($"[Season] {Tier.Tier}부 시즌 종료 → {nextTier}부 새 시즌");
+        TeamTactics custom = State.MyCustomTactics;   // 바꾼 전술도 다음 시즌으로 이어 간다(09-30). 카드만 넘기면 승격하자마자 세팅이 풀린다
+        // 시즌이 끝난 뒤 로비 전술 화면에서 바꾼 값도 끝난 시즌의 State에 들어가 있다가 여기서 읽혀 새 시즌으로 넘어간다(09-30 리뷰: 로비 편집 경로가 생기며 처음 도달 가능해진 순서)
+        IReadOnlyList<RosterPlayer> previousRoster = State.Roster;   // 역할·개인 지시도 이어 간다. 새 시즌 로스터는 기본 편성에서 다시 만들어져 그대로 두면 풀린다
         StartSeason(nextTier, unchecked(State.SeasonSeed + 1), State.MyPresetId);   // 다음 시즌 시드도 결정적(이전 시드 + 1)
+        if (custom != null) { State.SetMyTactics(custom, TeamTacticsRepository.All); }
+        State.AdoptPlayerTactics(previousRoster, PlayerTableRepository.All);
         SaveLoadSystem.Instance.Save();
     }
 

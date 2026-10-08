@@ -66,7 +66,7 @@ namespace Game.Core.Match
 
         // 압박받는 슛(09-29 수비 D3): 슈터 발 뻗는 범위(PressedRadius) 안에 상대가 있으면 로짓에서 penalty를 뺀다.
         // StatsBomb "Closing down": 슛의 약 65%가 압박 속에서 나오고 무압박 슛이 더 잘 들어간다. 슛 경로 수비수 예시 xG 0.25 → 0.18은 로짓 약 -0.4
-        public static float UnderPressure(float probability, float logitPenalty)
+        public static float PressuredShotProbability(float probability, float logitPenalty)
         {
             if (probability <= 0f) { return 0f; }
             float p = Math.Min(probability, 0.9999f);

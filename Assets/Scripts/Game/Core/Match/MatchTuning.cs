@@ -40,8 +40,8 @@ namespace Game.Core.Match
         public const float ShotSpreadMin = 2.5f;                                // shot 100의 조준 반폭(m). 골문 반폭 3.66 안
         public const float ShotSpreadMax = 6f;                                  // shot 0의 조준 반폭(m). 골문 밖까지 퍼진다
         public const float MatchSeconds = 180f;   // 스펙 §0: 실시간 3분 = 게임 내 90분. 러너·시즌·인게임·테스트가 전부 이 한 곳을 본다(09-27 리뷰 X4)
-        public const int MatchTicks = 9000;
-        public const int HalfTimeTick = MatchTicks / 2;   // 45분. 후반 킥오프는 전반 킥오프를 안 한 팀(실제 규칙). 진영 교체는 없다(스펙 §11 1차, 09-27 유저 결정)        // = MatchSeconds / FixedStep. float 나눗셈으로 파생하지 않고 정수로 못 박는다(테스트가 둘의 일치를 잠근다)
+        public const int MatchTicks = 9000;       // = MatchSeconds / FixedStep. float 나눗셈으로 파생하지 않고 정수로 못 박는다(테스트가 둘의 일치를 잠근다)
+        public const int HalfTimeTick = MatchTicks / 2;   // 추가시간이 없을 때의 45:00 틱. 시계 테스트만 쓴다. 실제 하프타임 틱은 표시 추가시간을 반영한 MatchClock.HalfTimeTick이고, 진영 교체·킥오프 교대는 MatchSimulation.Tick이 한다(09-27)
         public const float FixedStep = 0.02f;                                   // 고정 스텝(초). 볼 끌기 초 → 틱 변환
         public const float PassLeadMax = 8f;                                    // 리드 패스가 리시버보다 앞설 수 있는 최대 거리(m). 너무 앞이면 상대 라인 뒤로 나간다
         public const float DribbleReluctance = 0.3f;                            // 개인 드리블 성향이 이 미만이면 골 대신 가까운 아군 쪽으로 몰아 패스를 노린다
@@ -87,7 +87,7 @@ namespace Game.Core.Match
         // 박스 앞 센터백 전진(09-29 수비 D1): 공이 우리 골라인에서 이 거리 안(박스 폭 안)에 오면 공에 가장 가까운 CB는 개인 압박 거리와 상관없이 압박 후보가 된다.
         // 코칭 원칙: 박스 근처에선 가장 가까운 CB가 나가고 나머지가 메운다(Coaches' Voice "The modern centre-back"). 박스 깊이 + 5m는 출처 없는 출발값
         public const float BoxStepOutDepth = Placement.FieldBounds.PenaltyBoxDepth + 5f;
-        // 슈터 압박·슛 블록(09-29 수비 D3, MatchRules.UnderPressure·ShotBlocker 주석). 블록 확률·튕기는 속도는 출처 없는 출발값
+        // 슈터 압박·슛 블록(09-29 수비 D3, MatchRules.PressuredShotProbability·ShotBlocker 주석). 블록 확률·튕기는 속도는 출처 없는 출발값
         public const float ShotPressureLogit = 0.4f;     // 압박받는 슛의 로짓 감소
         public const float ShotBlockRange = TackleRange;  // 슛을 막을 수 있는 수비수 거리(발 뻗어 막는 범위 = 태클 사거리)
         public const float ShotBlockConeDeg = 20f;       // 슛 방향 기준 각도

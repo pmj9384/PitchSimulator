@@ -122,7 +122,7 @@ namespace Game.Core.AI
             int diving = ctx.OpponentKeeper != null ? ctx.OpponentKeeper.Diving : 50;
             float chance = MatchRules.ShotProbability(ctx.X, ctx.Z, ctx.AttackSign, ctx.Stats.Shot, reflexes, diving);
             if (!IsPressed(ctx)) { return chance; }
-            return MatchRules.UnderPressure(chance, MatchTuning.ShotPressureLogit);   // 시뮬 Shoot과 같은 식(09-29 D3)
+            return MatchRules.PressuredShotProbability(chance, MatchTuning.ShotPressureLogit);   // 시뮬 Shoot과 같은 식(09-29 D3)
         }
 
         private static int Third(IPlayerContext ctx)

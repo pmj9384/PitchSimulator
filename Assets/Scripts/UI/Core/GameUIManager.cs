@@ -35,10 +35,21 @@ public class GameUIManager : InGameManager
         GameManager.AddGameStateEnterAction(GameManager.GameState.GameClear, ShowResultPanelDelayed);
         GameManager.AddGameStateEnterAction(GameManager.GameState.GameOver, ShowResultPanelDelayed);
 
-        GameManager.AddGameStateEnterAction(GameManager.GameState.GameReady, () =>
-        {
-            ShowUIElement(UIElementEnums.MatchHud);   // 판이 차려질 때부터 보인다. 휘슬 뒤 결과 화면이 뜰 때까지 경기 종료 자막을 보여 주고 그때 꺼진다
-        });
+        // GameReady = 선수 세팅 국면(09-30): 팀 전술 설정창만 보인다. HUD를 같이 켜 두면 반투명 패널 뒤로 글자가 비친다(09-29 결과 화면과 같은 원인)
+        GameManager.AddGameStateEnterAction(GameManager.GameState.GameReady, ShowTacticsPanel);
+        // 킥오프: 설정창을 닫고 HUD를 켠다. HUD는 휘슬 뒤 결과 화면이 뜰 때까지 경기 종료 자막을 보여 주고 그때 꺼진다
+        GameManager.AddGameStateEnterAction(GameManager.GameState.GamePlay, ShowMatchHud);
+    }
+
+    private void ShowTacticsPanel()
+    {
+        ShowUIElement(UIElementEnums.TacticsPanel);
+    }
+
+    private void ShowMatchHud()
+    {
+        HideUIElement(UIElementEnums.TacticsPanel);
+        ShowUIElement(UIElementEnums.MatchHud);
     }
 
     public void InitializedUIElements()
