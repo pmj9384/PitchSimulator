@@ -6,7 +6,7 @@ using UnityEngine.UI;
 // 코드가 값을 채울 때(SetLevel)는 Changed를 쏘지 않는다: 카드·슬라이더가 표를 다시 채울 때마다 "사용자가 바꿨다"로 저장되는 순환을 막는다
 public class TacticLevelSelector : MonoBehaviour
 {
-    private static readonly Color SelectedColor = new Color(1f, 0.835f, 0.31f);   // 카드 강조와 같은 노랑(#FFD54F)
+    private static readonly Color SelectedColor = TacticsColors.Highlight;
     private static readonly Color NormalColor = Color.white;
 
     [SerializeField] private Button[] levelButtons;   // 0·1·2 순서
