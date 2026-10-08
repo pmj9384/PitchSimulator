@@ -114,6 +114,36 @@ public class LeagueSeasonTests
     }
 
     [Test]
+    public void 일부는_빌드를_재분배해_수비는_tackle_공격은_shot이_오르고_총점은_그대로다()
+    {
+        // 스펙 §10 1부 "빌드 재분배(피지컬 CB·기술 ST)", 10-08 [가정] 역할 묶음별 5점 이동
+        foreach (GeneratedTeam team in TeamGenerator.Generate(5, Tier(1), table, formations, names))
+        {
+            for (int i = 0; i < team.Players.Count; i++)
+            {
+                PlayerStats p = team.Players[i];
+                PlayerStats baseline = PlayerTableLookup.FindVariant(table, team.Rows[i].Id)!;
+                Assert.AreEqual(300, p.BuildTotal, $"{p.VariantId} 총점");
+                if (p.RoleId == "CB" || p.RoleId == "FB" || p.RoleId == "DM")
+                {
+                    Assert.Greater(p.Tackle, baseline.Tackle, $"{p.VariantId} tackle");
+                    Assert.Less(p.Pass, baseline.Pass, $"{p.VariantId} pass");
+                }
+                if (p.RoleId == "ST" || p.RoleId == "W" || p.RoleId == "AM")
+                {
+                    Assert.Greater(p.Shot, baseline.Shot, $"{p.VariantId} shot");
+                    Assert.Less(p.Tackle, baseline.Tackle, $"{p.VariantId} tackle");
+                }
+                if (p.RoleId == "GK" || p.RoleId == "CM") { Assert.AreEqual(baseline.Tackle, p.Tackle, $"{p.VariantId}는 그대로"); }
+            }
+        }
+        foreach (GeneratedTeam team in TeamGenerator.Generate(5, Tier(2), table, formations, names))
+        {
+            Assert.AreEqual(290, team.Players[0].BuildTotal, "2부는 재분배 없음(총점만 축소)");
+        }
+    }
+
+    [Test]
     public void 생성_팀의_변형은_전부_노출된_역할이다()
     {
         // 10-08 결정 ④: 유저가 고를 수 있는 역할 = 생성기가 뽑는 역할. 잠긴 ST 변형이 2·1부 상대의 공격을 무너뜨렸다(득점 0.25 미만 팀 39%·34%)
