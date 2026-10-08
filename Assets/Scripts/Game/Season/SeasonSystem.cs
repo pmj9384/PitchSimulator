@@ -278,6 +278,14 @@ public class SeasonSystem : ISaveLoad
         CommitMyTactics();
     }
 
+    // 배치(스펙 §8, 10-08): 전술 화면 필드에서 칩을 끌어 놓은 편성 자리. 규칙은 SeasonState가 정한다
+    public void MoveLineupSlot(int playerId, bool defending, float x, float z)
+    {
+        ThrowIfReporting();
+        State.MoveLineupSlot(playerId, defending, x, z);
+        CommitMyTactics();
+    }
+
     // CurrentMatch·PrepareNextMatch와 같은 방어선: 지금은 설정창이 GameReady(보고가 끝난 뒤)에만 떠서 겹칠 길이 없지만, 새 진입 경로가 생겨도 조용히 틀리지 않게(09-30 리뷰)
     private void ThrowIfReporting()
     {

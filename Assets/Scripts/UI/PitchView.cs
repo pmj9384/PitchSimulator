@@ -12,7 +12,8 @@ using UnityEngine;
 // 편성 자리 + 팀 전진 정도 + 개인 전진 폭·측면 쏠림·라인 높이. 그래서 "얼마나 앞으로" 슬라이더나 폭을 바꾸면 칩이 같이 움직인다(읽히는 전술).
 // 공 위치에 따라 달라지는 값은 공이 필드 한가운데 있을 때로 고정해 보여 준다: 서드별 폭은 중원 값을 쓰고, 공 지향 슬라이드(SlideTowardBall)는 공이 (0, 0)이면 0이라 부르지 않는다.
 // 칩을 누르면 그 선수를 고른다(09-30 개인 전술: 고른 선수의 역할·개인 지시를 옆 패널이 보여 준다). 자리는 개인 지시까지 얹은 값으로 그린다.
-// 자리를 끌어서 옮기는 배치는 배치 UI 몫(스펙 §8)
+// 배치(10-08, 스펙 §8 10-08 구현 설계): 칩을 끌어 놓으면 그 자리에서 전진·폭·개인 다이얼 오프셋을 빼 편성 자리로 저장한다. 공격 시/수비 시 탭이 "같은 선수를 두 번 놓는" 토글이다.
+// 내 진영 절반 밖이거나 다른 칩과 1.2m 안이면 칩을 원래 자리로 되돌리고 잠깐 빨갛게 한다
 public class PitchView : MonoBehaviour
 {
     private const int AttackPhase = 0;
@@ -55,7 +56,50 @@ public class PitchView : MonoBehaviour
         {
             chips[i].Initialize();
             chips[i].Clicked += OnChipClicked;
+            chips[i].Dropped += OnChipDropped;
         }
+    }
+
+    // 칩을 놓은 자리(필드 로컬 좌표) → 필드 좌표 → 편성 자리(지금 보이는 자리와 편성 자리의 차이를 뺀다) → 판정 → 저장. 안 되면 되돌린다
+    private void OnChipDropped(PitchChip chip, Vector2 local)
+    {
+        int index = Array.IndexOf(chips, chip);
+        SeasonState state = State;
+        LineupEntry entry = state.Lineup[index];
+        bool defending = phaseTabs.SelectedIndex == DefendPhase;
+
+        var field = chip.transform.parent as RectTransform;
+        if (field == null) { PlaceChips(); return; }
+        (float x, float z) dropped = FromLocal(field, local);
+        (float x, float z) shown = ShownHome(state, entry, defending);
+        float baseX = dropped.x - (shown.x - (defending ? entry.DefendX : entry.AttackX));
+        float baseZ = dropped.z - (shown.z - (defending ? entry.DefendZ : entry.AttackZ));
+
+        PlacementVerdict verdict = state.EvaluateLineupSlot(entry.PlayerId, defending, baseX, baseZ);
+        if (verdict != PlacementVerdict.Ok)
+        {
+            PlaceChips();
+            chip.FlashRejected();
+            return;
+        }
+        GameDataManager.Instance.Season.MoveLineupSlot(entry.PlayerId, defending, baseX, baseZ);
+        PlaceChips();
+    }
+
+    private static (float x, float z) ShownHome(SeasonState state, LineupEntry entry, bool defending)
+    {
+        PlayerStats stats = state.FindRosterPlayer(entry.PlayerId).EffectiveStats();
+        if (defending) { return DefendHome(entry, stats); }
+        return AttackHome(entry, stats, state.MyTactics(TeamTacticsRepository.All));
+    }
+
+    // 필드 그림 로컬 좌표 → 필드 좌표(ToAnchor의 역)
+    private static (float x, float z) FromLocal(RectTransform field, Vector2 local)
+    {
+        Rect r = field.rect;
+        float u = (local.x - r.xMin) / r.width;
+        float v = (local.y - r.yMin) / r.height;
+        return (u * 2f * FieldBounds.HalfLength - FieldBounds.HalfLength, v * 2f * FieldBounds.HalfWidth - FieldBounds.HalfWidth);
     }
 
     // 고른 선수가 라인업에 없으면(화면을 처음 열 때, 시즌이 바뀌어 선수 id가 달라졌을 때) 첫 선수를 고른다
