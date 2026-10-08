@@ -14,12 +14,14 @@ namespace Game.Core.Match
             return System.Math.Abs(ballZ) <= Placement.FieldBounds.PenaltyBoxHalfWidth;
         }
 
-        // 공까지 거리가 개인 압박 거리 × 배율 안이면 압박. 경계 포함. 압박 시작이 "안 감"이면 역압박 중이어도 안 간다
+        // 공까지 거리가 개인 압박 거리 × 배율 안이면 압박. 경계 포함. 압박 시작이 "안 감"이면 역압박 중이어도 안 간다.
+        // 역압박 중엔 단계 배율에 역압박 배율을 곱한다(10-08 결정 ⑥). 2로 덮어쓰던 땐 뺏긴 직후 6초가 대부분인 상대 진영 압박에서 표준과 적극이 같은 거리를 봤다(09-30 스윕)
         public static bool ShouldPress(float distToBall, float pressRange, int pressStartLevel, bool counterPressing)
         {
             if (pressStartLevel == 0) { return false; }
 
-            float scale = counterPressing ? MatchTuning.CounterPressScale : MatchTuning.PressStartScale[pressStartLevel];
+            float scale = MatchTuning.PressStartScale[pressStartLevel];
+            if (counterPressing) { scale *= MatchTuning.CounterPressScale; }
             return distToBall <= pressRange * scale;
         }
 

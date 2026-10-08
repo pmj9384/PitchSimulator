@@ -2,7 +2,7 @@ using Game.Core.Match;
 using NUnit.Framework;
 
 // PressRules 검증(09-18 확정 스펙 §6). ①팀 압박 시작이 "안 감"이면 아무도 안 감 ②반경 = 개인 압박 거리 × 팀 배율(표준 1.0·적극 1.5)
-// ③역압박 중 ×2.0 ④역압박 판정 = 뺏긴 순간 우리 뒤 수비 수 ≥ 문턱, 창 300틱
+// ③역압박 중 단계 배율 ×2.0 = 표준 2.0·적극 3.0(10-08) ④역압박 판정 = 뺏긴 순간 우리 뒤 수비 수 ≥ 문턱, 창 300틱
 public class PressRulesTests
 {
     [Test]
@@ -70,11 +70,21 @@ public class PressRulesTests
     }
 
     [Test]
-    public void 역압박_중이면_배율_2다()
+    public void 역압박_중이면_단계_배율에_2를_곱한다()
     {
-        Assert.IsTrue(PressRules.ShouldPress(20f, 12f, 1, counterPressing: true), "12 × 2.0 = 24 ≥ 20");
+        Assert.IsTrue(PressRules.ShouldPress(20f, 12f, 1, counterPressing: true), "표준: 12 × 1.0 × 2 = 24 ≥ 20");
         Assert.IsFalse(PressRules.ShouldPress(25f, 12f, 1, counterPressing: true));
         Assert.IsFalse(PressRules.ShouldPress(1f, 12f, 0, counterPressing: true), "안 감은 역압박도 안 감");
+    }
+
+    // 10-08 결정 ⑥: 역압박 창 안에서 배율을 2로 덮으면 표준과 적극이 같은 거리를 봐서 상대 진영 압박 2단이 같은 결과였다(09-30 스윕)
+    [Test]
+    public void 역압박_중에도_압박_시작_단계가_다른_거리를_본다()
+    {
+        Assert.IsFalse(PressRules.ShouldPress(30f, 12f, 1, counterPressing: true), "표준: 24 < 30");
+        Assert.IsTrue(PressRules.ShouldPress(30f, 12f, 2, counterPressing: true), "적극: 12 × 1.5 × 2 = 36 ≥ 30");
+        Assert.IsTrue(PressRules.ShouldPress(36f, 12f, 2, counterPressing: true), "적극 경계 포함");
+        Assert.IsFalse(PressRules.ShouldPress(36.1f, 12f, 2, counterPressing: true));
     }
 
     [Test]
