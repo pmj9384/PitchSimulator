@@ -379,15 +379,22 @@ namespace Game.Core.Match
             }
         }
 
-        // 고정 스텝 한 틱. 순서가 곧 규칙이다: 공 이동 → 라인 아웃 → 잡기/소유 → 슛 결과 → 선수 판단 → 선수 실행(PlayerId 순)
+        // 고정 스텝 한 틱. 종료 틱이면 그 틱의 처리가 끝난 뒤에도 날아가는 슛을 마감한다(경기는 MatchTicks에서 멈춘다: 매니저·러너·시즌이 같은 수만큼 부른다)
         public void Tick(float deltaTime)
+        {
+            Advance(deltaTime);
+            if (tickCount == MatchTuning.MatchTicks) { FinishShotAtWhistle(); }
+        }
+
+        // 한 틱의 진행. 순서가 곧 규칙이다: 공 이동 → 라인 아웃 → 잡기/소유 → 슛 결과 → 선수 판단 → 선수 실행(PlayerId 순)
+        private void Advance(float deltaTime)
         {
             tickCount++;
             if (tickCount == MatchClock.HalfTimeTick(Added) && firstKickoffTeam >= 0)
             {
                 // 하프타임(IFAB 8조, 09-27): 진영 교체 + 중앙 리셋 + 전반 킥오프를 안 한 팀이 킥오프. 난수를 안 써 결정성 그대로.
                 // 러너·시즌·인게임이 같은 Tick을 타므로 같은 시드 = 같은 경기
-                FinishShotAtHalfTime();   // 리셋 전에: 날아가던 슛의 결과를 먼저 낸다. 골이어도 후반 킥오프는 하프타임 규칙(아래)을 따른다
+                FinishShotAtWhistle();   // 리셋 전에: 날아가던 슛의 결과를 먼저 낸다. 골이어도 후반 킥오프는 하프타임 규칙(아래)을 따른다
                 for (int i = 0; i < players.Count; i++)
                 {
                     players[i].SwitchSides();
@@ -819,7 +826,7 @@ namespace Game.Core.Match
             }
         }
 
-        // 골 한 번: 득점 팀 골 수 + 결과 보고. 골라인 도달과 하프타임 마감이 같이 쓴다. 킥오프는 부르는 쪽이 정한다(실점 팀 / 후반 킥오프 팀)
+        // 골 한 번: 득점 팀 골 수 + 결과 보고. 골라인 도달과 휘슬 마감이 같이 쓴다. 킥오프는 부르는 쪽이 정한다(실점 팀 / 후반 킥오프 팀 / 종료면 없음)
         private int ScoreGoal()
         {
             int scorerTeam = TeamOfSign(shooterAttackSign);
@@ -828,11 +835,13 @@ namespace Game.Core.Match
             return scorerTeam;
         }
 
-        // 하프타임 휘슬 순간 날아가던 슛(09-29 재검증 ②, 09-30 수정). 하프타임 리셋(KickoffBy → Kickoff)이 shotInFlight만 지워
+        // 휘슬(하프타임·종료) 순간 날아가던 슛. 하프타임(09-29 재검증 ②, 09-30 수정): 하프타임 리셋(KickoffBy → Kickoff)이 shotInFlight만 지워
         // 결과 보고 없이 슛이 사라졌고 골이 될 슛이면 골도 사라졌다(경기의 약 7%가 하프타임 순간 슛 비행 중, 골 소실 약 1%).
         // 휘슬을 슛 뒤로 미루면(방식 A) 시계·HUD·러너·연출 멈춤이 전부 하프타임 틱에 묶여 있어 같이 바뀐다. 결과는 찬 순간 정해져 있으니(shotWillScore) 그 결과로 마감한다.
-        // 골이 아닌 슛은 세이브가 될 슛이었을 수도 있지만 GK에 닿기 전이라 빗나감으로 센다
-        private void FinishShotAtHalfTime()
+        // 골이 아닌 슛은 세이브가 될 슛이었을 수도 있지만 GK에 닿기 전이라 빗나감으로 센다.
+        // 종료 휘슬도 같은 부류라 같이 쓴다(10-06): 경기가 MatchTicks에서 멈추면 그때 날아가던 슛은 결과 보고가 없었고 골이 될 슛이면 골도 사라졌다.
+        // 종료 때는 킥오프로 리셋하지 않는다. 경기가 끝났다
+        private void FinishShotAtWhistle()
         {
             if (!shotInFlight) { return; }
             if (!shotWillScore)
