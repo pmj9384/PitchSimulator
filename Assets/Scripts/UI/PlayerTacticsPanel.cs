@@ -129,6 +129,7 @@ public class PlayerTacticsPanel : MonoBehaviour
     {
         roles.Clear();
         roles.AddRange(PlayerTableLookup.ExposedVariants(PlayerTableRepository.All, current.RoleId));
+        if (!current.Exposed) { roles.Insert(0, current); }   // 업데이트로 잠긴 역할을 쓰고 있으면 그 역할은 보이고 돌아올 수 있다(10-08). 새로 고를 순 없다
         if (roles.Count > roleButtons.Length)
         {
             Debug.LogError($"[PlayerTacticsPanel] {current.RoleId}의 노출된 역할 {roles.Count}개 > 버튼 {roleButtons.Length}개. 뒤쪽 역할이 안 보인다");

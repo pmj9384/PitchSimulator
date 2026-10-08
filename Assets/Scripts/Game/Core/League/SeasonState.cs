@@ -180,10 +180,15 @@ namespace Game.Core.League
             {
                 throw new InvalidOperationException($"[SeasonState] 선수 {playerId}({current.RoleId})에게 줄 수 없는 역할: {variantId}(자리 {variant.RoleId}, 노출 {variant.Exposed})");
             }
+            ApplyRole(index, variant);
+        }
 
+        // 역할을 바꾸고 개인 지시를 지운다. 받아도 되는지는 부르는 쪽이 정한다(새로 고를 땐 노출까지, 이월은 같은 자리만)
+        private void ApplyRole(int index, PlayerStats variant)
+        {
             PlayerStats next = variant.Clone();
-            CopyBuild(current, next);
-            roster[index] = new RosterPlayer(playerId, next);
+            CopyBuild(roster[index].Stats, next);
+            roster[index] = new RosterPlayer(roster[index].PlayerId, next);
         }
 
         // 개인 지시 한 칸. 범위 밖·해당 없는 다이얼이면 던지고 아무것도 안 바뀐다(RosterPlayer 생성자가 검증)
@@ -202,7 +207,7 @@ namespace Game.Core.League
         }
 
         // 새 시즌의 로스터는 기본 편성에서 다시 만들어진다(SeasonFactory). 이전 시즌의 역할과 개인 지시를 같은 선수 id로 옮겨 온다.
-        // 이전 역할이 표에서 사라졌거나 잠겼으면 그 선수는 기본 역할로 둔다(업데이트로 표가 바뀐 경우)
+        // 이전 역할이 표에서 사라졌거나 자리가 다르면 그 선수는 기본 역할로 둔다. 잠긴 역할은 옮긴다(10-08: 업데이트로 잠겨도 쓰던 것은 남는다, PlayerTableLookup.IsSamePosition 주석)
         public void AdoptPlayerTactics(IReadOnlyList<RosterPlayer> previousRoster, IReadOnlyList<PlayerStats> table)
         {
             for (int i = 0; i < previousRoster.Count; i++)
@@ -210,18 +215,13 @@ namespace Game.Core.League
                 RosterPlayer previous = previousRoster[i];
                 int index = IndexOfRosterPlayer(previous.PlayerId);
                 if (index < 0) { continue; }
-                if (!CanTakeRole(roster[index].Stats, previous.Stats.VariantId, table)) { continue; }
+                PlayerStats? variant = PlayerTableLookup.FindVariant(table, previous.Stats.VariantId);
+                if (variant == null) { continue; }
+                if (!PlayerTableLookup.IsSamePosition(variant, roster[index].Stats.RoleId)) { continue; }
 
-                SetPlayerRole(previous.PlayerId, previous.Stats.VariantId, table);
+                ApplyRole(index, variant);
                 roster[index] = new RosterPlayer(previous.PlayerId, roster[index].Stats, previous.CopyInstructions());
             }
-        }
-
-        private static bool CanTakeRole(PlayerStats current, string variantId, IReadOnlyList<PlayerStats> table)
-        {
-            PlayerStats? variant = PlayerTableLookup.FindVariant(table, variantId);
-            if (variant == null) { return false; }
-            return PlayerTableLookup.IsAssignable(variant, current.RoleId);
         }
 
         private static void CopyBuild(PlayerStats from, PlayerStats to)

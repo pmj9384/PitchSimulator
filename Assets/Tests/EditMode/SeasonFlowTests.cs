@@ -432,6 +432,31 @@ public class SeasonFlowTests
         Assert.AreEqual(-1, carried.Instructions[(int)PlayerDial.HoldUp]);
     }
 
+    [Test]
+    public void 업데이트로_잠긴_역할을_쓰던_선수는_새_시즌에도_그_역할과_개인_지시를_지킨다()
+    {
+        // 10-08: 타깃맨·폴스 9를 잠갔다. 잠그기 전 세이브의 선수가 새 시즌에서 포처로 조용히 돌아가면 "내 타깃맨이 사라졌다"가 된다(FM·FC는 준 것을 지운 적 없다)
+        var tableWhenExposed = new List<PlayerStats>();
+        foreach (PlayerStats row in table)
+        {
+            PlayerStats copy = row.Clone();
+            if (copy.VariantId == "st_targetman") { copy.Exposed = true; }
+            tableWhenExposed.Add(copy);
+        }
+        SeasonState previous = SeasonState.NewSeason(4, 42, myRows, tableWhenExposed);
+        int striker = FirstPlayerOfRole(previous, "ST");
+        previous.SetPlayerRole(striker, "st_targetman", tableWhenExposed);
+        previous.SetPlayerInstruction(striker, PlayerDial.HoldUp, 2);
+
+        SeasonState next = SeasonState.NewSeason(3, 43, myRows, table);
+        next.AdoptPlayerTactics(previous.Roster, table);
+
+        RosterPlayer carried = next.FindRosterPlayer(striker);
+        Assert.AreEqual("st_targetman", carried.Stats.VariantId, "잠겨도 쓰던 역할은 남는다");
+        Assert.AreEqual(2, carried.Instructions[(int)PlayerDial.HoldUp]);
+        Assert.Throws<System.InvalidOperationException>(() => next.SetPlayerRole(striker, "st_targetman", table), "새로 고르는 건 여전히 막힌다");
+    }
+
     // 다음 시즌으로 바꾼 전술을 이어 가는 것(SeasonSystem.StartNextSeason)은 여기서 못 잠근다: SeasonSystem이 SaveLoadSystem 싱글턴에 묶여 EditMode에서 못 만든다
 
     [Test]
