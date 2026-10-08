@@ -119,7 +119,7 @@ public class LeagueSeasonTests
         // 10-08 결정 ④: 유저가 고를 수 있는 역할 = 생성기가 뽑는 역할. 잠긴 ST 변형이 2·1부 상대의 공격을 무너뜨렸다(득점 0.25 미만 팀 39%·34%)
         for (int seed = 1; seed <= 5; seed++)
         {
-            foreach (int tier in new[] { 3, 2, 1 })
+            foreach (int tier in new[] { 4, 3, 2, 1 })   // 4부는 기본 변형(역할의 첫 행)이라 첫 행이 잠기면 여기서 걸린다
             {
                 foreach (GeneratedTeam team in TeamGenerator.Generate(seed, Tier(tier), table, formations, names))
                 {
