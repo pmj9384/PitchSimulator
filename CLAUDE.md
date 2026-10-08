@@ -40,19 +40,24 @@
 
 ## 검증 — Unity CLI (MCP 서버는 CLI가 호스팅)
 
+CLI는 Homebrew cask `unity-cli`(2026-10-06 기준 `1.0.0-beta.12`, 올릴 땐 `brew upgrade --cask unity-cli`). 아래 명령은 그 버전에서 직접 돌려 확인했다.
 에디터가 열려 있으면 파이프라인 서버(`com.unity.pipeline`)로 붙는다. `unity status --json`에 ready면:
 
 ```bash
-unity command run_tests --mode EditMode --json     # 동기, data.result.Summary.Failed == 0
-unity command recompile && unity command recompile_status
-unity command console_status --json           # compilationFailed·경고 수. 본문은 console --level warning --tail 30
-unity command get_scene_hierarchy --json           # 씬 읽기
-unity command screenshot --view game --json        # Play 중 화면
+unity command editor_status --result-only          # playMode가 stopped인지 먼저 본다(Play 중 재컴파일·테스트 금지)
+unity recompile --json                             # 컴파일하고 끝날 때까지 기다린다. data.failed == false, data.summary.errors == 0
+unity command run_tests --mode EditMode --timeout 300 --result-only   # Summary.Failed == 0. 10-06에 285개 약 55초
+unity command console_status --result-only         # compilationFailed·경고 수. 본문은 console --level warning --tail 30
+unity command get_scene_hierarchy --result-only    # 씬 읽기
+unity command screenshot --view game --result-only # Play 중 화면, path에 PNG 경로
 ```
 
-- 씬 배선은 `create_gameobject`·`attach_script`·`set_serialized_field`·`set_parent`·`save_scene`으로 직접 한다. YAML 편집·1회성 에디터 도구 불필요
-- 결과 `data.result`가 문자열로 오는 명령이 있다(`recompile_status`) — 문자열이면 한 번 더 파싱
-- 에디터가 닫혀 있으면 배치: `unity projects verify .` · `unity run .` · `unity test . --mode EditMode`
+- **`unity command`의 기본 제한 시간은 30초다.** EditMode 전체는 55초쯤 걸려서 `--timeout`을 안 주면 응답이 비어 온다(테스트는 에디터에서 끝까지 돈다). 09-30에 "30초 타임아웃"으로 보였던 것이 이것이다
+- `--result-only`는 겉 봉투(command·parameters·target)를 떼고 결과만 준다. 이 옵션 없이 `--json`으로 받으면 `data.result`가 문자열로 오는 명령이 있다(`recompile_status`) — 문자열이면 한 번 더 파싱
+- `unity recompile`이 `unity command recompile && unity command recompile_status` 두 줄을 대신한다. 경고까지 실패로 보려면 `--strict`. 분석기 오류가 `data.errors`에 같이 나오는지는 아직 실패 사례로 확인하지 않았다(`recompile_status`의 errors[]는 확인됨)
+- 씬 배선은 `create_gameobject`·`attach_script`·`set_serialized_field`·`set_parent`·`save_scene`으로 직접 한다. YAML 편집·1회성 에디터 도구 불필요. 여러 개를 한 Undo로 묶으려면 `batch`
+- 명령을 찾을 때: 에디터 명령은 `unity list`, CLI 명령은 `unity commands --grep <말>`
+- 에디터가 닫혀 있으면 배치: `unity projects verify .` · `unity run .` · `unity test . --mode EditMode`. `unity test --affected --since develop`(바뀐 코드가 닿는 테스트만)은 beta.9에 생겼고 아직 안 돌려 봤다
 - **동작 검증은 유저 Play Mode.** 체크리스트를 제시한다. `editor_play`는 에디터가 앞에 있어야 프레임이 돈다(뒤에 있으면 frameCount 1에서 멈춤) — AI는 콘솔 오류 확인까지만
 
 ## 정적 검사 (2026-09-15 세팅, 경고 0 정책)
