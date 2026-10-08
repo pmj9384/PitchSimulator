@@ -57,7 +57,7 @@ namespace Game.Core.League
     // 생성 규칙이 바뀌면 Version을 올린다. 세이브의 버전과 다르면 시즌을 새로 시작한다(1차 출시 허용)
     public static class TeamGenerator
     {
-        public const int Version = 2;   // 2: 10-08 노출된 변형에서만 뽑는다(073990c). 같은 시드의 상대가 바뀌므로 1로 시작한 시즌은 새로 시작한다
+        public const int Version = 3;   // 2: 10-08 노출된 변형에서만 뽑는다(073990c). 3: 10-08 1부 빌드 재분배. 규칙이 바뀌면 같은 시드의 상대가 달라지므로 이전 버전 시즌은 새로 시작한다
         public const int MaxRetries = 100;
 
         public static List<GeneratedTeam> Generate(int seasonSeed, TierRule tier, IReadOnlyList<PlayerStats> table,
@@ -119,7 +119,8 @@ namespace Game.Core.League
                     Stage = index, Side = StageEntry.SideEnemy, Kind = StageEntry.KindPlayer, Id = variant.VariantId, Count = 1,
                     PosX = -slot.PosX, PosZ = slot.PosZ, PosX2 = -defendX, PosZ2 = defendZ,
                 });
-                players.Add(BuildScaler.Scale(variant, tier.TotalPoints));
+                PlayerStats scaled = BuildScaler.Scale(variant, tier.TotalPoints);
+                players.Add(tier.Rebuild ? BuildScaler.Rebuild(scaled, slot.RoleId) : scaled);   // 1부: 빌드 재분배(스펙 §10, 10-08)
             }
             return new GeneratedTeam(index, name, formationId, presetId, rows, players);
         }
@@ -177,6 +178,51 @@ namespace Game.Core.League
         }
 
         // 전 필드 복사(PlayerTable 행은 공유 객체라 빌드를 바꾸기 전에 복사한다)
+        // 빌드 재분배(스펙 §10 1부 "피지컬 CB·기술 ST", 10-08 [가정]): 총점은 그대로 두고 역할 묶음별로 RebuildShift씩 옮긴다.
+        // 수비(CB·FB·DM)는 pass·shot → tackle·speed, 공격(ST·W·AM)은 tackle·positioning → shot·pass. GK·CM은 그대로. 옮길 값이 모자라면 있는 만큼만
+        public const int RebuildShift = 5;
+
+        public static PlayerStats Rebuild(PlayerStats src, string roleId)
+        {
+            PlayerStats p = Copy(src);
+            if (IsDefender(roleId))
+            {
+                int fromPass = Math.Min(RebuildShift, p.Pass);
+                int fromShot = Math.Min(RebuildShift, p.Shot);
+                p.Pass -= fromPass;
+                p.Shot -= fromShot;
+                p.Tackle += fromPass;
+                p.Speed += fromShot;
+                return p;
+            }
+            if (IsAttacker(roleId))
+            {
+                int fromTackle = Math.Min(RebuildShift, p.Tackle);
+                int fromPositioning = Math.Min(RebuildShift, p.Positioning);
+                p.Tackle -= fromTackle;
+                p.Positioning -= fromPositioning;
+                p.Shot += fromTackle;
+                p.Pass += fromPositioning;
+                return p;
+            }
+            return p;
+        }
+
+        private static bool IsDefender(string roleId)
+        {
+            return IsRole(roleId, "CB") || IsRole(roleId, "FB") || IsRole(roleId, "DM");
+        }
+
+        private static bool IsAttacker(string roleId)
+        {
+            return IsRole(roleId, "ST") || IsRole(roleId, "W") || IsRole(roleId, "AM");
+        }
+
+        private static bool IsRole(string roleId, string expected)
+        {
+            return string.Equals(roleId, expected, StringComparison.OrdinalIgnoreCase);
+        }
+
         public static PlayerStats Copy(PlayerStats src)
         {
             return src.Clone();   // 필드를 하나씩 나열하던 것을 PlayerStats.Clone으로 모았다(09-30: 다이얼을 더할 때 빠뜨릴 자리가 둘이 되지 않게)

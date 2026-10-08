@@ -23,6 +23,7 @@ public class SeasonSystem : ISaveLoad
     public IReadOnlyList<Fixture> Schedule { get; private set; }
 
     private MatchSetup currentMatch;   // 이번 라운드 내 경기. Match·Stage 매니저가 같은 객체를 읽는다. 결과 보고 뒤 비운다
+    private GeneratedTeam foreignTeam;   // 승강전 1·2차전의 다른 부 상대(10-08). 처음 필요할 때 만들고 시즌이 바뀌면 비운다
 
     public SeasonSystem()
     {
@@ -61,6 +62,9 @@ public class SeasonSystem : ISaveLoad
     }
 
     public bool IsOver => SeasonProgress.IsOver(State, Tier);
+    public bool IsRegularSeasonOver => SeasonProgress.IsRegularSeasonOver(State, Tier);
+    public PlayoffStage PendingPlayoff => SeasonProgress.PendingStage(State, Tier);   // 승강전(10-08). None = 대상 아님, Done = 끝
+    public PlayoffPlan PlayoffPlan => SeasonProgress.Plan(State, Tier);
 
     public LeagueTable Table()
     {
@@ -77,6 +81,7 @@ public class SeasonSystem : ISaveLoad
     public string TeamName(int teamId)
     {
         if (teamId == SeasonState.MyTeamId) { return MyTeamName; }
+        if (foreignTeam != null && teamId == foreignTeam.TeamId) { return foreignTeam.Name; }   // 승강전 상대(다른 부)
         return SeasonRunner.Find(Opponents, teamId).Name;   // 없는 id면 Find가 던진다
     }
 
@@ -90,7 +95,7 @@ public class SeasonSystem : ISaveLoad
             if (IsOver) { throw new InvalidOperationException($"[Season] {Tier.Tier}부 시즌이 끝났다({State.RoundsPlayed}/{Tier.Matches}). PrepareNextMatch()로 다음 시즌을 연다"); }
             if (currentMatch == null)
             {
-                currentMatch = SeasonRunner.SetupMyMatch(State, Opponents, Schedule, TeamTacticsRepository.All, State.RoundsPlayed);
+                currentMatch = IsRegularSeasonOver ? SetupPlayoff() : SeasonRunner.SetupMyMatch(State, Opponents, Schedule, TeamTacticsRepository.All, State.RoundsPlayed);
             }
             return currentMatch;
         }
@@ -111,6 +116,13 @@ public class SeasonSystem : ISaveLoad
         }
         IsReporting = true;
         LastReportFailed = false;
+
+        if (IsRegularSeasonOver)
+        {
+            ReportPlayoffResult(myResult);   // 승강전(10-08): 헤드리스 경기가 없어 동기. 승부차기까지 여기서 정하고 저장한다
+            IsReporting = false;
+            return;
+        }
 
         SeasonState state = State;
         bool recorded = false;
@@ -152,6 +164,70 @@ public class SeasonSystem : ISaveLoad
         {
             IsReporting = false;
         }
+    }
+
+    // ── 승강전(10-08). 재료는 SeasonRunner, 흐름 판정은 SeasonProgress. 여기는 다른 부 팀 캐시와 저장만
+    private MatchSetup SetupPlayoff()
+    {
+        PlayoffPlan plan = PlayoffPlan;
+        PlayoffStage stage = PendingPlayoff;
+        if (stage != PlayoffStage.Semifinal && foreignTeam == null)
+        {
+            TierRule other = TierRuleRepository.Get(plan.OtherTier);
+            foreignTeam = SeasonRunner.ForeignTeam(State.SeasonSeed, other, plan.Role, PlayerTableRepository.All, FormationTemplateRepository.All, TeamNameRepository.Table, TeamTacticsRepository.All);
+        }
+        return SeasonRunner.SetupPlayoffMatch(State, Tier, plan, stage, Opponents, foreignTeam, TeamTacticsRepository.All);
+    }
+
+    private void ReportPlayoffResult(MatchResult myResult)
+    {
+        try
+        {
+            PlayoffStage stage = PendingPlayoff;
+            if (stage == PlayoffStage.None || stage == PlayoffStage.Done) { throw new InvalidOperationException($"[Season] 치를 승강전이 없다({stage})"); }
+            MatchSetup setup = currentMatch ?? SetupPlayoff();
+            PlayoffResult? legOne = stage == PlayoffStage.LegTwo ? State.PlayoffResults[State.PlayoffResults.Count - 1] : (PlayoffResult?)null;
+            State.AddPlayoffResult(SeasonRunner.ResolvePlayoff(setup, stage, myResult, legOne));
+            currentMatch = null;
+            SaveLoadSystem.Instance.Save();
+            Debug.Log($"[Season] {Tier.Tier}부 승강전 {stage} 완료" + (IsOver ? " → 시즌 종료" : string.Empty));
+        }
+        catch (Exception e)
+        {
+            LastReportFailed = true;
+            Debug.LogError($"[Season] 승강전 결과 처리 실패: {e}");
+        }
+    }
+
+    // 결과 화면의 라운드 자리 문구. 정규 시즌이면 "n부 r/m 라운드", 승강전이면 단계와 합산
+    public string RoundLine()
+    {
+        if (!IsRegularSeasonOver) { return $"{Tier.Tier}부 {State.RoundsPlayed}/{Tier.Matches} 라운드"; }
+        IReadOnlyList<PlayoffResult> results = State.PlayoffResults;
+        if (results.Count == 0) { return $"{Tier.Tier}부 정규 시즌 종료"; }
+        PlayoffResult last = results[results.Count - 1];
+        if (last.Stage == PlayoffStage.Semifinal) { return $"{Tier.Tier}부 승강 PO 단판 · {(PlayoffRules.SemifinalWinner(last) == SeasonState.MyTeamId ? "승리" : "패배")}"; }
+        if (last.Stage == PlayoffStage.LegOne) { return "승강전 1차전"; }
+        PlayoffResult legOne = results[results.Count - 2];
+        int mine = MyAggregate(legOne, last);
+        int theirs = TheirAggregate(legOne, last);
+        string pens = last.HomePenalties + last.AwayPenalties > 0 ? $" · 승부차기 {(MyIsHome(last) ? last.HomePenalties : last.AwayPenalties)}:{(MyIsHome(last) ? last.AwayPenalties : last.HomePenalties)}" : string.Empty;
+        return $"승강전 2차전 · 합산 {mine}:{theirs}{pens}";
+    }
+
+    private static bool MyIsHome(PlayoffResult r)
+    {
+        return r.HomeTeamId == SeasonState.MyTeamId;
+    }
+
+    private static int MyAggregate(PlayoffResult legOne, PlayoffResult legTwo)
+    {
+        return (MyIsHome(legOne) ? legOne.HomeGoals : legOne.AwayGoals) + (MyIsHome(legTwo) ? legTwo.HomeGoals : legTwo.AwayGoals);
+    }
+
+    private static int TheirAggregate(PlayoffResult legOne, PlayoffResult legTwo)
+    {
+        return (MyIsHome(legOne) ? legOne.AwayGoals : legOne.HomeGoals) + (MyIsHome(legTwo) ? legTwo.AwayGoals : legTwo.HomeGoals);
     }
 
     // 팀 전술 설정창(09-30)의 입구 3개: 카드·슬라이더·세부 표. 규칙(없는 id 거부, 기준 카드 유지/교체, 범위 검증)은 SeasonState가 정하고 여기는 앞뒤만 맡는다.
@@ -249,6 +325,7 @@ public class SeasonSystem : ISaveLoad
         Opponents = TeamGenerator.Generate(state.SeasonSeed, Tier, PlayerTableRepository.All, FormationTemplateRepository.All, TeamNameRepository.Table);
         Schedule = SeasonSchedule.RoundRobin(Tier.Teams);
         currentMatch = null;
+        foreignTeam = null;
     }
 
     private static int NewSeed()

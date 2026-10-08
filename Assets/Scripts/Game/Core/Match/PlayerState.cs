@@ -82,7 +82,7 @@ namespace Game.Core.Match
             AttackHomeZ = attackZ;
             DefendHomeX = defendX;
             DefendHomeZ = defendZ;
-            IsGoalkeeper = string.Equals(stats.RoleId, "GK", System.StringComparison.OrdinalIgnoreCase);
+            IsGoalkeeper = stats.IsKeeper;
         }
 
         // 킥오프 전 개인 전술(09-30): 선수는 세팅 국면에 스폰되므로, 그 화면에서 바꾼 역할·개인 지시 값을 킥오프 때 다시 받는다.
