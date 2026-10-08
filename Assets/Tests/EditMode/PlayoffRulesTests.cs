@@ -116,6 +116,26 @@ public class PlayoffRulesTests
     }
 
     [Test]
+    public void 승자_판정은_진행과_같은_해석이고_합산_골은_팀별로_센다()
+    {
+        var plan = new PlayoffPlan(PlayoffRole.Challenger, 3, true, 3);
+        var lostSemi = new List<PlayoffResult> { new PlayoffResult(PlayoffStage.Semifinal, 0, 3, 0, 1) };
+        Assert.IsFalse(PlayoffRules.IsWinner(plan, lostSemi, 0), "단판 패배");
+
+        var legOne = new PlayoffResult(PlayoffStage.LegOne, 0, 1005, 2, 1);
+        var legTwo = new PlayoffResult(PlayoffStage.LegTwo, 1005, 0, 0, 0);
+        var won = new List<PlayoffResult> { new PlayoffResult(PlayoffStage.Semifinal, 0, 3, 1, 1), legOne, legTwo };
+        Assert.IsTrue(PlayoffRules.IsWinner(plan, won, 0), "합산 2:1");
+        Assert.IsFalse(PlayoffRules.IsWinner(plan, won.GetRange(0, 2), 0), "아직 2차전 전");
+        Assert.AreEqual(2, PlayoffRules.AggregateGoals(legOne, legTwo, 0));
+        Assert.AreEqual(1, PlayoffRules.AggregateGoals(legOne, legTwo, 1005));
+
+        var defender = new PlayoffPlan(PlayoffRole.Defender, -1, false, 4);
+        var lostLegs = new List<PlayoffResult> { new PlayoffResult(PlayoffStage.LegOne, 1004, 0, 1, 0), new PlayoffResult(PlayoffStage.LegTwo, 0, 1004, 0, 0) };
+        Assert.IsFalse(PlayoffRules.IsWinner(defender, lostLegs, 0), "수성 합산 0:1");
+    }
+
+    [Test]
     public void 승부차기_확률은_0_5와_0_95_사이고_같은_주사위면_같은_결과다()
     {
         Assert.AreEqual(0.76f, PlayoffRules.PenaltyChance(50, 50), 0.0001f);

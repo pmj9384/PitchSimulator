@@ -43,6 +43,23 @@ public class PlacementRulesTests
     }
 
     [Test]
+    public void 필드_좌표와_그림_비율은_왕복하고_드롭_자리에서_오프셋을_빼면_편성_자리다()
+    {
+        // 칩 드래그(10-08): 그림 비율 → 좌표가 좌표 → 비율의 역이 아니면 저장 때마다 칩이 밀린다
+        (float u, float v) unit = FieldBounds.ToUnit(-30f, 12f);
+        (float x, float z) back = FieldBounds.FromUnit(unit.u, unit.v);
+        Assert.AreEqual(-30f, back.x, 0.001f);
+        Assert.AreEqual(12f, back.z, 0.001f);
+        Assert.AreEqual((0f, 0f), FieldBounds.ToUnit(-FieldBounds.HalfLength, -FieldBounds.HalfWidth), "왼쪽 아래 구석 = (0, 0)");
+        Assert.AreEqual((1f, 1f), FieldBounds.ToUnit(FieldBounds.HalfLength, FieldBounds.HalfWidth));
+
+        // 편성 (-40, 0)에 전진 +5·폭 +3이 얹혀 (-35, 3)으로 보이는 칩을 (-20, 10)에 놓으면 편성은 (-25, 7)
+        (float x, float z) basePos = FieldBounds.BaseFromShown(-20f, 10f, -35f, 3f, -40f, 0f);
+        Assert.AreEqual(-25f, basePos.x, 0.001f);
+        Assert.AreEqual(7f, basePos.z, 0.001f);
+    }
+
+    [Test]
     public void 라인업_자리_옮기기는_한쪽만_바꾸고_안_되면_던지며_세이브로_왕복한다()
     {
         SeasonState state = SeasonState.NewSeason(4, 42, myRows, table);

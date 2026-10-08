@@ -64,7 +64,7 @@ namespace Game.Core.League
             if (tier.Tier == LeagueRules.TopTier && rank == 1) { return new SeasonOutcome(SeasonOutcomeKind.Champion, rank, tier.Tier); }
 
             PlayoffPlan plan = PlayoffRules.Plan(table, tier.Tier, SeasonState.MyTeamId);
-            if (plan.Role != PlayoffRole.None && WonPlayoff(plan, state.PlayoffResults))
+            if (WonPlayoff(plan, state.PlayoffResults))
             {
                 // 도전자가 이기면 승격, 수성 팀이 이기면 잔류
                 if (plan.Role == PlayoffRole.Challenger) { return new SeasonOutcome(SeasonOutcomeKind.Promoted, rank, tier.Tier - 1); }
@@ -74,18 +74,10 @@ namespace Game.Core.League
             return new SeasonOutcome(SeasonOutcomeKind.Stayed, rank, tier.Tier);
         }
 
-        // 승강전을 내가 이겼나. 도전자는 단판 PO를 지면 거기서 끝이다
+        // 승강전을 내가 이겼나. 진행(NextStage)과 승자 해석이 PlayoffRules 한 곳에 있다(10-08 리뷰)
         public static bool WonPlayoff(PlayoffPlan plan, IReadOnlyList<PlayoffResult> results)
         {
-            if (plan.Role == PlayoffRole.None) { return false; }
-            int legStart = plan.Role == PlayoffRole.Challenger ? 1 : 0;
-            if (plan.Role == PlayoffRole.Challenger)
-            {
-                if (results.Count == 0) { return false; }
-                if (PlayoffRules.SemifinalWinner(results[0]) != SeasonState.MyTeamId) { return false; }
-            }
-            if (results.Count < legStart + 2) { return false; }
-            return PlayoffRules.TieWinner(results[legStart], results[legStart + 1]) == SeasonState.MyTeamId;
+            return PlayoffRules.IsWinner(plan, results, SeasonState.MyTeamId);
         }
 
         // 다음 시즌 부. 판정은 Outcome 한 곳(결과 화면 문구와 실제 다음 부가 갈리지 않게, 09-28)

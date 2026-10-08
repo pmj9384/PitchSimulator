@@ -89,7 +89,7 @@ namespace Game.Core.Match
         // 같은 자리 안의 값만 받는다. 골키퍼 여부가 바뀌면 시뮬의 명부(keeperIds)와 어긋나니 던진다
         public void ReplaceStats(PlayerStats stats)
         {
-            bool keeper = string.Equals(stats.RoleId, "GK", System.StringComparison.OrdinalIgnoreCase);
+            bool keeper = stats.IsKeeper;
             if (keeper != IsGoalkeeper) { throw new System.InvalidOperationException($"[PlayerState] 선수 {PlayerId}: 골키퍼 여부가 다른 값({stats.RoleId})으로는 바꿀 수 없다"); }
             Stats = stats;
         }

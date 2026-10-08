@@ -101,7 +101,7 @@ unity command screenshot --view game --result-only # Play 중 화면, path에 PN
 
 MonoBehaviour 의존 없는 판정은 순수 C#(`Game.Core` asmdef, `noEngineReferences`)으로 뺀다.
 
-- **EditMode 대상**: 공 소유 판정(가장 가까운 선수·타이브레이크), 패스 가로채기, 슛 성공 확률(거리·각도), 세팅 배치 판정(11명·GK 1·간격), 파서 전건 대조
+- **EditMode 대상**: 공 소유 판정(가장 가까운 선수·타이브레이크), 패스 가로채기, 슛 성공 확률(거리·각도), 세팅 배치 판정(내 진영 절반·간격. 11명·GK 1은 로스터 고정이라 늘 참)·승강전 판정(계획·합산·승부차기), 파서 전건 대조
 - **PlayMode·수동**: 트리 흐름, 이동, 카메라. 노드 안 판단은 `MatchRules` 순수 함수로 빼고 노드는 얇은 어댑터
 
 ## 레퍼런스 스킬

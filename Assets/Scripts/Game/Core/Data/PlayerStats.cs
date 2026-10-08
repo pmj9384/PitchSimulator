@@ -15,8 +15,8 @@ namespace Game.Core.Data
 
         public string RoleId { get; set; } = string.Empty;      // 자리: GK·CB·FB·DM·CM·AM·W·ST
         public string VariantId { get; set; } = string.Empty;   // 변형: poacher·targetman·false9 …. 프리셋 키. 편성 CSV의 id가 이것을 가리킨다
-        public bool Exposed { get; set; }
-        public bool IsKeeper => string.Equals(RoleId, "GK", System.StringComparison.OrdinalIgnoreCase);   // 자리 판정 한 곳(10-08). PlayerState.IsGoalkeeper도 이 값을 쓴다                       // 1차 출시에 세팅 화면에 보이나. 나머지는 CSV에 있되 잠금
+        public bool Exposed { get; set; }                       // 1차 출시에 세팅 화면에 보이나. 나머지는 CSV에 있되 잠금
+        public bool IsKeeper => string.Equals(RoleId, "GK", System.StringComparison.OrdinalIgnoreCase);   // 자리 판정 한 곳(10-08). PlayerState.IsGoalkeeper도 이 값을 쓴다
         public int Focus { get; set; }                          // 기본 포커스: 0 수비 · 1 균형 · 2 공격(전진 오프셋 하나)
 
         // ── 빌드(능력) 공통 6. MatchRules 판정 함수의 입력값
