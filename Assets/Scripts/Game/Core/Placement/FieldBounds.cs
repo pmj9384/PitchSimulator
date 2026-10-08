@@ -19,5 +19,22 @@ namespace Game.Core.Placement
 
         // 선수 사이 최소 간격(스펙 §8 "격자 없음, 최소 간격 검사"). 같은 행 count>1 스폰도 이 간격으로 벌린다
         public const float MinSpacing = 1.2f;
+
+        // 필드 좌표(중앙 원점, +X가 팀 0의 상대 골) ↔ 필드 그림 안 0~1 비율. 전술 화면 칩이 양쪽으로 쓴다(10-08 배치: 드롭 위치를 좌표로 되돌릴 때 ToUnit의 역이어야 칩이 저장 때마다 밀리지 않는다)
+        public static (float u, float v) ToUnit(float x, float z)
+        {
+            return ((x + HalfLength) / (2f * HalfLength), (z + HalfWidth) / (2f * HalfWidth));
+        }
+
+        public static (float x, float z) FromUnit(float u, float v)
+        {
+            return (u * 2f * HalfLength - HalfLength, v * 2f * HalfWidth - HalfWidth);
+        }
+
+        // 배치(10-08): 칩이 보이는 자리 = 편성 자리 + 오프셋(전진 정도·개인 다이얼). 놓은 자리에 그대로 서게 하려면 그 오프셋을 뺀 값을 편성 자리로 저장한다
+        public static (float x, float z) BaseFromShown(float droppedX, float droppedZ, float shownX, float shownZ, float baseX, float baseZ)
+        {
+            return (droppedX - (shownX - baseX), droppedZ - (shownZ - baseZ));
+        }
     }
 }

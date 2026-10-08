@@ -206,28 +206,31 @@ public class SeasonSystem : ISaveLoad
         IReadOnlyList<PlayoffResult> results = State.PlayoffResults;
         if (results.Count == 0) { return $"{Tier.Tier}부 정규 시즌 종료"; }
         PlayoffResult last = results[results.Count - 1];
-        if (last.Stage == PlayoffStage.Semifinal) { return $"{Tier.Tier}부 승강 PO 단판 · {(PlayoffRules.SemifinalWinner(last) == SeasonState.MyTeamId ? "승리" : "패배")}"; }
+        if (last.Stage == PlayoffStage.Semifinal) { return $"{Tier.Tier}부 승강 PO 단판 · {SemifinalLine(last)}"; }
         if (last.Stage == PlayoffStage.LegOne) { return "승강전 1차전"; }
         PlayoffResult legOne = results[results.Count - 2];
-        int mine = MyAggregate(legOne, last);
-        int theirs = TheirAggregate(legOne, last);
-        string pens = last.HomePenalties + last.AwayPenalties > 0 ? $" · 승부차기 {(MyIsHome(last) ? last.HomePenalties : last.AwayPenalties)}:{(MyIsHome(last) ? last.AwayPenalties : last.HomePenalties)}" : string.Empty;
+        int me = SeasonState.MyTeamId;
+        int mine = PlayoffRules.AggregateGoals(legOne, last, me);
+        int theirs = PlayoffRules.AggregateGoals(legOne, last, last.HomeTeamId == me ? last.AwayTeamId : last.HomeTeamId);
+        string pens = PenaltyLine(last, me);
         return $"승강전 2차전 · 합산 {mine}:{theirs}{pens}";
     }
 
-    private static bool MyIsHome(PlayoffResult r)
+    // 단판은 무승부면 홈(2위)이 올라간다. 제목(무승부)과 어긋나 보이지 않게 사유를 붙인다(10-08 리뷰)
+    private static string SemifinalLine(PlayoffResult semi)
     {
-        return r.HomeTeamId == SeasonState.MyTeamId;
+        bool won = PlayoffRules.SemifinalWinner(semi) == SeasonState.MyTeamId;
+        if (semi.HomeGoals != semi.AwayGoals) { return won ? "승리" : "패배"; }
+        return won ? "무승부, 상위 순위(2위)로 진출" : "무승부, 상위 순위(2위)가 진출";
     }
 
-    private static int MyAggregate(PlayoffResult legOne, PlayoffResult legTwo)
+    private static string PenaltyLine(PlayoffResult legTwo, int me)
     {
-        return (MyIsHome(legOne) ? legOne.HomeGoals : legOne.AwayGoals) + (MyIsHome(legTwo) ? legTwo.HomeGoals : legTwo.AwayGoals);
-    }
-
-    private static int TheirAggregate(PlayoffResult legOne, PlayoffResult legTwo)
-    {
-        return (MyIsHome(legOne) ? legOne.AwayGoals : legOne.HomeGoals) + (MyIsHome(legTwo) ? legTwo.AwayGoals : legTwo.HomeGoals);
+        if (legTwo.HomePenalties + legTwo.AwayPenalties == 0) { return string.Empty; }
+        bool myHome = legTwo.HomeTeamId == me;
+        int mine = myHome ? legTwo.HomePenalties : legTwo.AwayPenalties;
+        int theirs = myHome ? legTwo.AwayPenalties : legTwo.HomePenalties;
+        return $" · 승부차기 {mine}:{theirs}";
     }
 
     // 팀 전술 설정창(09-30)의 입구 3개: 카드·슬라이더·세부 표. 규칙(없는 id 거부, 기준 카드 유지/교체, 범위 검증)은 SeasonState가 정하고 여기는 앞뒤만 맡는다.
@@ -275,6 +278,14 @@ public class SeasonSystem : ISaveLoad
     {
         ThrowIfReporting();
         State.ClearPlayerInstructions(playerId);
+        CommitMyTactics();
+    }
+
+    // 배치(스펙 §8, 10-08): 전술 화면 필드에서 칩을 끌어 놓은 편성 자리. 규칙은 SeasonState가 정한다
+    public void MoveLineupSlot(int playerId, bool defending, float x, float z)
+    {
+        ThrowIfReporting();
+        State.MoveLineupSlot(playerId, defending, x, z);
         CommitMyTactics();
     }
 

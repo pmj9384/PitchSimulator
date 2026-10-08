@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Game.Core.AutoMatch;
 using Game.Core.Data;
 using Game.Core.Match;
+using Game.Core.Placement;
 using Game.Core.Tactics;
 
 namespace Game.Core.League
@@ -266,6 +267,41 @@ namespace Game.Core.League
         public void AddPlayoffResult(PlayoffResult result)
         {
             playoff.Add(result);
+        }
+
+        // 배치(스펙 §8, 10-08): 라인업 한 선수의 편성 자리(공격 시 또는 수비 시)를 옮긴다. 내 진영 절반 안·다른 선수와 최소 간격은 PlacementRules가 답하고,
+        // 안 되면 던지고 아무것도 안 바뀐다(UI는 먼저 Evaluate로 물어 보고 되돌린다). 값은 편성 좌표(전진 정도·개인 다이얼을 얹기 전)다
+        public void MoveLineupSlot(int playerId, bool defending, float x, float z)
+        {
+            int index = LineupIndexOf(playerId);
+            PlacementVerdict verdict = EvaluateLineupSlot(playerId, defending, x, z);
+            if (verdict != PlacementVerdict.Ok) { throw new InvalidOperationException($"[SeasonState] 선수 {playerId}를 ({x:0.0}, {z:0.0})에 둘 수 없다: {verdict}"); }
+
+            LineupEntry e = lineup[index];
+            lineup[index] = defending
+                ? new LineupEntry(e.PlayerId, e.AttackX, e.AttackZ, x, z)
+                : new LineupEntry(e.PlayerId, x, z, e.DefendX, e.DefendZ);
+        }
+
+        public PlacementVerdict EvaluateLineupSlot(int playerId, bool defending, float x, float z)
+        {
+            var occupied = new List<(float X, float Z)>(lineup.Count - 1);
+            for (int i = 0; i < lineup.Count; i++)
+            {
+                LineupEntry e = lineup[i];
+                if (e.PlayerId == playerId) { continue; }
+                occupied.Add(defending ? (e.DefendX, e.DefendZ) : (e.AttackX, e.AttackZ));
+            }
+            return PlacementRules.Evaluate(x, z, MyTeamId, occupied, FieldBounds.MinSpacing);
+        }
+
+        private int LineupIndexOf(int playerId)
+        {
+            for (int i = 0; i < lineup.Count; i++)
+            {
+                if (lineup[i].PlayerId == playerId) { return i; }
+            }
+            throw new InvalidOperationException($"[SeasonState] 라인업에 없는 선수 id {playerId}");
         }
 
         public RosterPlayer FindRosterPlayer(int playerId)

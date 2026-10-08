@@ -131,6 +131,25 @@ namespace Game.Core.League
             return PlayoffStage.Done;
         }
 
+        // 내가 승강전을 이겼나. 도전자는 단판을 지면 거기서 끝. NextStage와 같은 결과 해석을 쓴다(진행과 승자가 한 곳)
+        public static bool IsWinner(PlayoffPlan plan, IReadOnlyList<PlayoffResult> results, int myTeamId)
+        {
+            if (plan.Role == PlayoffRole.None) { return false; }
+            if (NextStage(plan, results, myTeamId) != PlayoffStage.Done) { return false; }
+
+            int legStart = plan.Role == PlayoffRole.Challenger ? 1 : 0;
+            if (results.Count < legStart + 2) { return false; }   // 도전자가 단판에서 떨어진 경우
+            return TieWinner(results[legStart], results[legStart + 1]) == myTeamId;
+        }
+
+        // 한 팀의 2경기 합산 골. 1차전 홈이 2차전 원정이다
+        public static int AggregateGoals(PlayoffResult legOne, PlayoffResult legTwo, int teamId)
+        {
+            int inOne = legOne.HomeTeamId == teamId ? legOne.HomeGoals : legOne.AwayGoals;
+            int inTwo = legTwo.HomeTeamId == teamId ? legTwo.HomeGoals : legTwo.AwayGoals;
+            return inOne + inTwo;
+        }
+
         // 단판 PO: 무승부면 홈(2위)
         public static int SemifinalWinner(PlayoffResult semi)
         {
@@ -180,9 +199,16 @@ namespace Game.Core.League
                 if (roll() < PenaltyChance(homeShots[round % homeShots.Count], awayKeeperHandling)) { home++; }
                 if (roll() < PenaltyChance(awayShots[round % awayShots.Count], homeKeeperHandling)) { away++; }
                 round++;
-                if (round >= ShootoutRounds && home != away) { return new ShootoutResult(home, away); }
+                if (IsDecided(round, home, away)) { return new ShootoutResult(home, away); }
                 if (round > 100) { throw new InvalidOperationException("[PlayoffRules] 승부차기가 100회를 넘었다"); }
             }
+        }
+
+        // 5회를 다 찼고 점수가 다르면 끝
+        private static bool IsDecided(int round, int home, int away)
+        {
+            if (round < ShootoutRounds) { return false; }
+            return home != away;
         }
 
         // 키커 = 필드 선수 중 shot 높은 순 5명. 동률은 라인업 순서. GK는 뺀다
@@ -194,15 +220,19 @@ namespace Game.Core.League
                 if (lineup[i].Stats.IsKeeper) { continue; }
                 order.Add(i);
             }
-            order.Sort((x, y) =>
-            {
-                int byShot = lineup[y].Stats.Shot.CompareTo(lineup[x].Stats.Shot);
-                return byShot != 0 ? byShot : x.CompareTo(y);
-            });
+            order.Sort((x, y) => CompareByShotThenIndex(lineup, x, y));
             var shots = new List<int>(count);
             for (int i = 0; i < order.Count && i < count; i++) { shots.Add(lineup[order[i]].Stats.Shot); }
             if (shots.Count == 0) { throw new InvalidOperationException("[PlayoffRules] 라인업에 필드 선수가 없다"); }
             return shots;
+        }
+
+        // shot 내림차순, 같으면 라인업 순서(앞이 먼저)
+        private static int CompareByShotThenIndex(IReadOnlyList<LineupSlot> lineup, int x, int y)
+        {
+            int byShot = lineup[y].Stats.Shot.CompareTo(lineup[x].Stats.Shot);
+            if (byShot != 0) { return byShot; }
+            return x.CompareTo(y);
         }
 
         public static int KeeperHandling(IReadOnlyList<LineupSlot> lineup)

@@ -66,7 +66,7 @@ namespace Game.Core.Tactics
         // 골키퍼는 출격 반경만, 필드 선수는 출격 반경만 빼고. 골키퍼의 배급은 팀 전술(GK 배급)이 정한다
         public static bool AppliesTo(PlayerDial dial, PlayerStats roleStats)
         {
-            bool isKeeper = string.Equals(roleStats.RoleId, "GK", StringComparison.OrdinalIgnoreCase);
+            bool isKeeper = roleStats.IsKeeper;
             bool keeperDial = dial == PlayerDial.GkRushRadius;
             return isKeeper == keeperDial;
         }

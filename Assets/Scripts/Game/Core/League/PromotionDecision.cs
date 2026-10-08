@@ -1,6 +1,6 @@
 namespace Game.Core.League
 {
-    // 시즌 끝 승강 판정(스펙 §10, K리그 현행 축소). 승강전 2경기 합산·승부차기는 다음 칸(09-27·10-05)
+    // 시즌 끝 승강 판정(스펙 §10, K리그 현행 축소). 여기는 순위표에서 나오는 자리(1위·2위·3위·최하위)까지. 승강전 진행·합산·승부차기는 PlayoffRules(10-08)
     public sealed class PromotionDecision
     {
         public const int None = -1;

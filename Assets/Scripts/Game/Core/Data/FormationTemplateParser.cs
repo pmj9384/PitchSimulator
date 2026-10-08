@@ -73,7 +73,7 @@ namespace Game.Core.Data
             {
                 FormationSlot s = slots[i];
                 if (!seenSlots.Add(s.Slot)) { throw new FormatException($"FormationTemplates {id}: slot {s.Slot} 중복"); }
-                if (s.RoleId == "GK") { keepers++; }
+                if (string.Equals(s.RoleId, "GK", StringComparison.OrdinalIgnoreCase)) { keepers++; }   // 슬롯은 PlayerStats가 아니라 roleId 문자열. Roles 집합과 같은 IgnoreCase(10-08 리뷰)
                 if (s.PosX >= 0f || s.PosX2 >= 0f) { throw new FormatException($"FormationTemplates {id} slot {s.Slot}: 자기 진영(x < 0)이어야 한다"); }
                 if (s.PosX < -limitX || s.PosX2 < -limitX || Math.Abs(s.PosZ) > limitZ || Math.Abs(s.PosZ2) > limitZ) { throw new FormatException($"FormationTemplates {id} slot {s.Slot}: 필드 밖"); }
                 for (int j = 0; j < i; j++)
