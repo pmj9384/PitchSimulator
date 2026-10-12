@@ -208,6 +208,7 @@ public class LeagueSeasonTests
         Assert.AreEqual(st.PushUp, scaled.PushUp);
         Assert.AreEqual(300, st.BuildTotal, "원본은 안 바뀐다");
         Assert.AreSame(st, BuildScaler.Scale(st, 300), "300이면 복사 없이 원본");
+        Assert.AreEqual(300, BuildScaler.Scale(scaled, 300).BuildTotal, "줄인 선수를 다시 늘려도 합계가 맞는다(스카우트 영입, 10-12)");
         for (int total = 250; total <= 300; total += 5)
         {
             foreach (PlayerStats p in table) { Assert.AreEqual(total, BuildScaler.Scale(p, total).BuildTotal, $"{p.VariantId} {total}"); }
@@ -286,7 +287,8 @@ public class LeagueSeasonTests
     {
         SeasonState state = SeasonState.NewSeason(4, 42, myRows, table);
         state.AddRound(new List<MatchResult> { new MatchResult(0, 3, 2, 1), new MatchResult(1, 2, 0, 0) });
-        state.ScoutAttempts = 2;
+        state.SpendScoutAttempt(1, 0);   // 시도 2회(10-12: 카운터는 SpendScoutAttempt로만 오른다)
+        state.SpendScoutAttempt(1, 0);
 
         SeasonSave save = state.ToSave();
         SeasonState back = SeasonState.FromSave(save, table);
