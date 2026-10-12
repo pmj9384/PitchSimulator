@@ -47,3 +47,7 @@ ProjectSettings/AndroidResolverDependencies.xml
 
 # 자동 대전 러너 산출물(Tools/Match 메뉴)
 /Reports/
+
+# 빌드 산출물(BuildScript OutputDir)과 Unity CLI 임시 폴더
+Builds/
+.utmp/
