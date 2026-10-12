@@ -8,11 +8,11 @@ using Game.Core.Tactics;
 using UnityEngine;
 
 // 전술 화면의 필드(09-30, FM·EA FC 전술 화면이 화면 절반을 필드로 쓰는 것을 따름). 내 11명을 칩으로 세운다.
-// 공격 시 / 수비 시 자리를 토글로 본다(스펙 §4-3 자리 2쌍). 자리는 경기가 쓰는 식 그대로 계산한다(PositionRules.AttackHome·DefendHome):
+// 공격할 때 / 수비할 때 자리를 토글로 본다(스펙 §4-3 자리 2쌍). 자리는 경기가 쓰는 식 그대로 계산한다(PositionRules.AttackHome·DefendHome):
 // 편성 자리 + 팀 전진 정도 + 개인 전진 폭·측면 쏠림·라인 높이. 그래서 "얼마나 앞으로" 슬라이더나 폭을 바꾸면 칩이 같이 움직인다(읽히는 전술).
 // 공 위치에 따라 달라지는 값은 공이 필드 한가운데 있을 때로 고정해 보여 준다: 서드별 폭은 중원 값을 쓰고, 공 지향 슬라이드(SlideTowardBall)는 공이 (0, 0)이면 0이라 부르지 않는다.
 // 칩을 누르면 그 선수를 고른다(09-30 개인 전술: 고른 선수의 역할·개인 지시를 옆 패널이 보여 준다). 자리는 개인 지시까지 얹은 값으로 그린다.
-// 배치(10-08, 스펙 §8 10-08 구현 설계): 칩을 끌어 놓으면 그 자리에서 전진·폭·개인 다이얼 오프셋을 빼 편성 자리로 저장한다. 공격 시/수비 시 탭이 "같은 선수를 두 번 놓는" 토글이다.
+// 배치(10-08, 스펙 §8 10-08 구현 설계): 칩을 끌어 놓으면 그 자리에서 전진·폭·개인 다이얼 오프셋을 빼 편성 자리로 저장한다. 공격할 때/수비할 때 탭이 "같은 선수를 두 번 놓는" 토글이다.
 // 내 진영 절반 밖이거나 다른 칩과 1.2m 안이면 칩을 원래 자리로 되돌리고 잠깐 빨갛게 한다
 public class PitchView : MonoBehaviour
 {
@@ -22,7 +22,7 @@ public class PitchView : MonoBehaviour
     public const int NoPlayer = -1;
 
     [SerializeField] private PitchChip[] chips;   // 11개 고정(FormationTemplate.SlotCount)
-    [SerializeField] private TabGroup phaseTabs;  // 0 = 공격 시, 1 = 수비 시
+    [SerializeField] private TabGroup phaseTabs;  // 0 = 공격할 때, 1 = 수비할 때
 
     // 칩을 눌러 선수를 고를 때(playerId). 전술 화면(TacticsBoardView)이 개인 전술 패널을 그 선수로 바꾼다
     public event Action<int> PlayerSelected;

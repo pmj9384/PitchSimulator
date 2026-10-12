@@ -79,6 +79,25 @@ public class TeamTacticsPanel : MonoBehaviour
             allSelectors[i].Initialize();
             allSelectors[i].Changed += OnTableChanged;
         }
+        ApplyLevelNames();
+    }
+
+    // 3단 버튼 글자는 코드 한 곳(TacticLevelNames)에서. 결과 화면(TacticsReadoutText)과 같은 배열을 쓴다(10-12)
+    private void ApplyLevelNames()
+    {
+        SetRowLabels(passStyle, TacticLevelNames.PassStyle);
+        SetRowLabels(passRisk, TacticLevelNames.PassRisk);
+        SetRowLabels(tempo, TacticLevelNames.Tempo);
+        SetRowLabels(width, TacticLevelNames.Width);
+        SetRowLabels(pressStart, TacticLevelNames.PressStart);
+        counter.SetLabels(TacticLevelNames.Counter);
+        counterPress.SetLabels(TacticLevelNames.CounterPress);
+        gkDistribution.SetLabels(TacticLevelNames.GkDistribution);
+    }
+
+    private static void SetRowLabels(TacticLevelSelector[] row, string[] names)
+    {
+        for (int i = 0; i < row.Length; i++) { row[i].SetLabels(names); }
     }
 
     #region 입력

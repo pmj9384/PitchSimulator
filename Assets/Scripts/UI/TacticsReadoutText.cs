@@ -10,12 +10,11 @@ public static class TacticsReadoutText
 {
     private const string ColLabel = "<pos=0%>";
     private static readonly string[] ColThird = { "<pos=40%>", "<pos=60%>", "<pos=80%>" };   // Third 순서
-    private static readonly string[] ThirdNames = { "우리 진영", "중앙", "상대 진영" };
-
-    // 값 0·1·2의 이름. 팀 전술 세부 표의 버튼 글자와 같은 말이다(TeamTactics 주석)
-    private static readonly string[] PassStyleNames = { "짧게", "직접", "롱볼" };
-    private static readonly string[] PressStartNames = { "안 감", "표준", "적극" };
-    private static readonly string[] CounterNames = { "안 함", "상황 봐서", "적극" };
+    // 3단 이름·서드 이름은 TacticLevelNames 한 곳(10-12). 설정창 버튼 글자도 같은 배열을 쓴다
+    private static readonly string[] ThirdNames = TacticLevelNames.Thirds;
+    private static readonly string[] PassStyleNames = TacticLevelNames.PassStyle;
+    private static readonly string[] PressStartNames = TacticLevelNames.PressStart;
+    private static readonly string[] CounterNames = TacticLevelNames.Counter;
 
     private static readonly string SettingColorOpen = $"<color=#{ColorUtility.ToHtmlStringRGB(TacticsColors.Highlight)}>";
     private const string ColorClose = "</color>";
