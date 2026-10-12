@@ -49,7 +49,6 @@ namespace Game.Core.League
         }
     }
 
-    // 라인업 한 자리: 로스터 선수 id + 자리 2쌍(공격 시/수비 시)
     // 스카우트 시도 기록(10-12): 어느 팀의 몇 번째 선수를 노렸나. 같은 선수 재시도 보정의 재료
     public readonly struct ScoutTarget
     {
@@ -63,6 +62,7 @@ namespace Game.Core.League
         }
     }
 
+    // 라인업 한 자리: 로스터 선수 id + 자리 2쌍(공격 시/수비 시)
     public readonly struct LineupEntry
     {
         public readonly int PlayerId;
@@ -287,7 +287,7 @@ namespace Game.Core.League
         }
 
         // ── 스카우트(스펙 §4-5, 10-12). 판정은 ScoutRules, 여기는 시도 소모·기록·영입 교체만
-        public int RetriesOn(int teamId, int playerIndex)
+        public int ScoutRetriesOn(int teamId, int playerIndex)
         {
             int n = 0;
             for (int i = 0; i < scoutTargets.Count; i++)
@@ -305,17 +305,23 @@ namespace Game.Core.League
             scoutTargets.Add(new ScoutTarget(teamId, playerIndex));
         }
 
-        public void AddScoutAttempt()
+        public void AddExtraScoutAttempt()
         {
             ScoutExtraAttempts++;
+        }
+
+        // 영입 대상이 이 자리에 들어갈 수 있나(같은 자리만). 화면이 내 선수 목록을 걸러 보이고, TryScout은 시도를 소모하기 전에 묻는다(10-12 리뷰: 소모 뒤에 던지면 시도만 샌다)
+        public bool CanReplacePlayer(int myPlayerId, PlayerStats scouted)
+        {
+            PlayerStats current = roster[RosterIndex(myPlayerId)].Stats;
+            return PlayerTableLookup.IsSamePosition(scouted, current.RoleId);
         }
 
         // 영입 = 내 선수 1명과 교체. 대상의 역할(변형)·다이얼을 가져오고 빌드는 내 총점(300)으로 재분배한다(강화 아님). 같은 자리만. 개인 지시는 역할이 바뀌므로 지운다
         public void ReplacePlayer(int myPlayerId, PlayerStats scouted)
         {
             int index = RosterIndex(myPlayerId);
-            PlayerStats current = roster[index].Stats;
-            if (!PlayerTableLookup.IsSamePosition(scouted, current.RoleId)) { throw new InvalidOperationException($"[SeasonState] 선수 {myPlayerId}({current.RoleId}) 자리에 {scouted.RoleId} 선수를 넣을 수 없다"); }
+            if (!CanReplacePlayer(myPlayerId, scouted)) { throw new InvalidOperationException($"[SeasonState] 선수 {myPlayerId}({roster[index].Stats.RoleId}) 자리에 {scouted.RoleId} 선수를 넣을 수 없다"); }
             PlayerStats incoming = BuildScaler.Copy(scouted);
             incoming = BuildScaler.Scale(incoming, PlayerStats.TotalPoints);
             roster[index] = new RosterPlayer(myPlayerId, incoming);
@@ -492,7 +498,7 @@ namespace Game.Core.League
         public List<Slot> lineup = new List<Slot>();
         public List<PlayoffEntry>? playoff;   // 10-08 추가. 승강전 결과. 옛 세이브엔 없어 null → 승강전 전
         public int scoutExtra;                // 10-12 추가. 코인으로 산 스카우트 시도. 옛 세이브엔 없어 0
-        public List<ScoutEntry>? scoutTargets = new List<ScoutEntry>();   // 10-12 추가. 이번 시즌 시도한 (팀, 선수 번호). 옛 세이브엔 없어 null
+        public List<ScoutEntry>? scoutTargets;   // 10-12 추가. 이번 시즌 시도한 (팀, 선수 번호). 옛 세이브엔 없어 null(playoff와 같은 꼴. 초기화자를 두면 Json.NET이 빈 목록을 남겨 주석과 어긋난다)
 
         [Serializable] public sealed class ScoutEntry
         {

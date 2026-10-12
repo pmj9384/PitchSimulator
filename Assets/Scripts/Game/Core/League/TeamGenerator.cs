@@ -180,6 +180,10 @@ namespace Game.Core.League
             {
                 throw new InvalidOperationException($"[BuildScaler] {src.VariantId}를 {totalPoints}로 줄이니 음수 스탯이 생긴다");   // 지금 표(260~300)론 안 나지만 방어
             }
+            if (Largest(p) > StatMax)
+            {
+                throw new InvalidOperationException($"[BuildScaler] {src.VariantId}를 {totalPoints}로 늘리니 {StatMax}를 넘는 스탯이 생긴다");   // 표 최댓값 90이라 안 나지만 방어(10-12 리뷰)
+            }
             return p;
         }
 
@@ -247,6 +251,17 @@ namespace Game.Core.League
         private static int Round(float v)
         {
             return (int)Math.Round(v, MidpointRounding.AwayFromZero);
+        }
+
+        private static int Largest(PlayerStats p)
+        {
+            int[] values = { p.Speed, p.Stamina, p.Pass, p.Shot, p.Tackle, p.Positioning, p.Reflexes, p.Handling, p.Diving };
+            int best = values[0];
+            for (int i = 1; i < values.Length; i++)
+            {
+                best = Math.Max(best, values[i]);
+            }
+            return best;
         }
 
         // 가장 큰 스탯에 오차를 더한다(음수도). 큰 스탯이라 몇 점 차이가 비율로 가장 작다

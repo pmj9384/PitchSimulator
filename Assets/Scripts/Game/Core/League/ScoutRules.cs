@@ -36,17 +36,19 @@ namespace Game.Core.League
         public const int DrawCoins = 10;
         public const int LossCoins = 0;
 
-        // [가정] 별별 기본 확률. 출처 없음(프로스피A 공개 확률은 최저 등급 4%부터지만 그 게임은 구매 누적으로 오르는 구조)
-        private static readonly float[] BaseChance = { 0.8f, 0.6f, 0.4f, 0.25f, 0.15f };
-        public const float TopHalfBonus = 0.1f;      // [가정] 내 순위가 상위 절반이면 +, 하위면 −
-        public const float UnmetFactor = 0.5f;       // [가정] 상대해 보지 않은 팀은 절반
-        public const float RetryBonus = 0.1f;        // [가정] 같은 시즌 같은 선수 재시도마다 +
+        public const float TopHalfBonus = 0.1f;        // [가정] 내 순위가 상위 절반이면 +, 하위면 −
+        public const float UnmetFactor = 0.5f;         // [가정] 상대해 보지 않은 팀은 절반
+        public const float RetryBonus = 0.1f;          // [가정] 같은 시즌 같은 선수 재시도마다 +
         public const float MinChance = 0.05f;
         public const float MaxChance = 0.95f;
-        public const float BigDialDistanceCells = 6f; // [가정] 기본 변형에서 다이얼이 이만큼(칸 합) 벗어나면 ★3
+        public const float BigDialDistanceCells = 6f;  // [가정] 기본 변형에서 다이얼이 이만큼(칸 합) 벗어나면 ★3
+
+        // [가정] 별 등급별 기본 확률(★1~★5). 출처 없음(프로스피A 공개 확률은 최저 등급 4%부터지만 그 게임은 구매 누적으로 오르는 구조)
+        private static readonly float[] BaseChance = { 0.8f, 0.6f, 0.4f, 0.25f, 0.15f };
 
         // 별 = 조합의 특이성 + 부 차이(스펙 §4-5). 생성기가 노출 변형만 뽑아(10-08) 변형 희귀도로는 안 갈린다:
         // 기본 변형이 아닌가(★2, 다이얼 거리가 크면 ★3) / 자리 2쌍이 실제로 다른가(★3) / 빌드 재분배가 적용됐나(★4) → 최댓값, 둘 이상 겹치면 +1, 상위 부면 +1, 상한 5
+        // 상위 부 +1은 지금 앱에선 안 일어난다: 스카우트 풀이 내 부의 상대 팀뿐이라 SeasonSystem이 늘 같은 부를 넘긴다(10-12 리뷰). 다른 부 풀을 열 때를 위해 규칙만 둔다
         public static int Stars(PlayerStats target, StageEntry targetRow, TierRule targetTier, int myTier, IReadOnlyList<PlayerStats> table)
         {
             int stars = MinStars;
@@ -70,7 +72,7 @@ namespace Game.Core.League
             }
             if (traits >= 2) { stars++; }
             if (targetTier.Tier < myTier) { stars++; }   // 상위 부(번호가 작을수록 위)
-            return Math.Min(MaxStars, Math.Max(MinStars, stars));
+            return ClampStars(stars);
         }
 
         // 기본 변형과의 다이얼 거리를 개인 지시 칸 단위로 합산한다(단위가 다른 다이얼을 같은 자로 재기 위해 PlayerInstructions.Step으로 나눈다)
@@ -95,7 +97,7 @@ namespace Game.Core.League
         // 성공 확률: 별 기준값 × 내 팀 위상 × 상대해 봤는지 + 재시도 누적. myRank는 0부터(0 = 1위)
         public static float SuccessChance(int stars, int myRank, int teamCount, bool metBefore, int retries)
         {
-            int index = Math.Min(MaxStars, Math.Max(MinStars, stars)) - 1;
+            int index = ClampStars(stars) - 1;
             float chance = BaseChance[index];
             chance += myRank < teamCount / 2 ? TopHalfBonus : -TopHalfBonus;
             if (!metBefore) { chance *= UnmetFactor; }
@@ -116,11 +118,26 @@ namespace Game.Core.League
             return false;
         }
 
-        // 주사위 하나: (시즌 시드, 팀, 선수 번호, 시도 번호)에서만 나온다. 같은 세팅 = 같은 결과(경기 시드와 같은 원칙)
+        // 주사위 하나: (시즌 시드, 팀, 선수 번호, 시도 번호)에서만 나온다. 같은 세팅 = 같은 결과(경기 시드와 같은 원칙).
+        // System.Random을 쓰지 않는다: 구형 .NET Random은 가까운 시드의 첫 출력이 거의 선형이라(시도 번호 +1마다 약 +0.195, 10-12 리뷰에서 측정)
+        // 재시도 결과가 서로 예측 가능하게 묶인다. 네 값을 정수 해시(murmur3 fmix 계열)로 섞어 24비트를 [0, 1)로 편다. 정수 연산만이라 기기 간에 같다
         public static float Roll(int seasonSeed, int teamId, int playerIndex, int attemptIndex)
         {
-            var rng = new Random(unchecked(seasonSeed * 7919 + teamId * 104729 + playerIndex * 1000003 + attemptIndex * 31 + 17));
-            return (float)rng.NextDouble();
+            uint h = Mix((uint)seasonSeed);
+            h = Mix(h ^ (uint)teamId);
+            h = Mix(h ^ (uint)playerIndex);
+            h = Mix(h ^ (uint)attemptIndex);
+            return (h >> 8) / 16777216f;   // 2^24 → float 가수에 딱 맞는 균등 눈금
+        }
+
+        private static uint Mix(uint h)
+        {
+            h ^= h >> 16;
+            h *= 0x85EBCA6Bu;
+            h ^= h >> 13;
+            h *= 0xC2B2AE35u;
+            h ^= h >> 16;
+            return h;
         }
 
         public static bool Succeeds(float chance, float roll)
@@ -134,6 +151,19 @@ namespace Game.Core.League
             if (myGoals > theirGoals) { return WinCoins; }
             if (myGoals == theirGoals) { return DrawCoins; }
             return LossCoins;
+        }
+
+        // 홈·원정 어느 쪽이 나인지 골라 CoinsFor에 넘긴다(10-12 리뷰: 이 분기가 매니저에 있으면 테스트가 못 잠근다)
+        public static int CoinsFor(MatchResult result, int myTeamId)
+        {
+            if (result.HomeTeamId == myTeamId) { return CoinsFor(result.HomeGoals, result.AwayGoals); }
+            if (result.AwayTeamId == myTeamId) { return CoinsFor(result.AwayGoals, result.HomeGoals); }
+            throw new ArgumentException($"[ScoutRules] 팀 {myTeamId}의 경기가 아니다({result.HomeTeamId} vs {result.AwayTeamId})", nameof(result));
+        }
+
+        private static int ClampStars(int stars)
+        {
+            return Math.Min(MaxStars, Math.Max(MinStars, stars));
         }
     }
 }

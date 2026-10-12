@@ -283,30 +283,33 @@ public class SeasonSystem : ISaveLoad
         CommitMyTactics();
     }
 
-    // ── 스카우트(스펙 §4-5, 10-12). 판정은 ScoutRules, 소모·교체는 SeasonState, 코인은 PlayerAccountData. 여기는 재료를 모아 넘기고 저장만
+    // ── 스카우트(스펙 §4-5, 10-12). 판정은 ScoutRules, 소모·교체는 SeasonState, 코인은 PlayerAccountData. 여기는 재료를 모아 넘긴다. 저장은 TryScout·BuyScoutAttempt만
     // 미리보기: 별·확률만(주사위 안 굴림). 목록 화면이 선수마다 부른다
     public ScoutVerdict PreviewScout(int teamId, int playerIndex)
     {
         GeneratedTeam team = SeasonRunner.Find(Opponents, teamId);
         int stars = ScoutRules.Stars(team.Players[playerIndex], team.Rows[playerIndex], Tier, Tier.Tier, PlayerTableRepository.All);
-        float chance = ScoutRules.SuccessChance(stars, Table().RankOf(SeasonState.MyTeamId), Tier.Teams,
-            ScoutRules.MetBefore(State.Results, SeasonState.MyTeamId, teamId), State.RetriesOn(teamId, playerIndex));
+        int myRank = Table().RankOf(SeasonState.MyTeamId);
+        bool metBefore = ScoutRules.MetBefore(State.Results, SeasonState.MyTeamId, teamId);
+        int retries = State.ScoutRetriesOn(teamId, playerIndex);
+        float chance = ScoutRules.SuccessChance(stars, myRank, Tier.Teams, metBefore, retries);
         return new ScoutVerdict(stars, chance, 0f, rolled: false, success: false);
     }
 
-    // 지목 → 즉시 판정. 시도 1 소모, 성공이면 내 선수(같은 자리)와 교체. 주사위는 (시즌 시드, 팀, 선수, 시도 번호)라 같은 세팅 = 같은 결과
+    // 지목 → 즉시 판정. 시도 1 소모, 성공이면 내 선수(같은 자리)와 교체. 주사위는 (시즌 시드, 팀, 선수, 시도 번호)라 같은 세팅 = 같은 결과.
+    // 자리 검사는 시도를 소모하기 전에 한다(10-12 리뷰): 교체에서 던지면 시도만 줄고 저장은 안 되는 반쪽 상태가 된다
     public ScoutVerdict TryScout(int teamId, int playerIndex, int myPlayerId)
     {
         ThrowIfReporting();
+        GeneratedTeam team = SeasonRunner.Find(Opponents, teamId);
+        PlayerStats target = team.Players[playerIndex];
+        if (!State.CanReplacePlayer(myPlayerId, target)) { throw new InvalidOperationException($"[Season] 선수 {myPlayerId} 자리에 {target.RoleId}({teamId}팀 {playerIndex}번)는 못 들어간다"); }
+
         ScoutVerdict preview = PreviewScout(teamId, playerIndex);
         float roll = ScoutRules.Roll(State.SeasonSeed, teamId, playerIndex, State.ScoutAttempts);
         State.SpendScoutAttempt(teamId, playerIndex);
         bool success = ScoutRules.Succeeds(preview.Chance, roll);
-        if (success)
-        {
-            GeneratedTeam team = SeasonRunner.Find(Opponents, teamId);
-            State.ReplacePlayer(myPlayerId, team.Players[playerIndex]);
-        }
+        if (success) { State.ReplacePlayer(myPlayerId, target); }
         CommitMyTactics();
         return new ScoutVerdict(preview.Stars, preview.Chance, roll, rolled: true, success: success);
     }
@@ -316,18 +319,15 @@ public class SeasonSystem : ISaveLoad
     {
         ThrowIfReporting();
         if (!GameDataManager.Instance.PlayerAccountData.SpendCoin(ScoutRules.ExtraAttemptCoinPrice)) { return false; }
-        State.AddScoutAttempt();
+        State.AddExtraScoutAttempt();
         SaveLoadSystem.Instance.Save();
         return true;
     }
 
-    // 경기 결과 → 코인(승 30·무 10·패 0, [가정]). 코인 용처가 스카우트 시도뿐이라 수입도 시즌이 준다
+    // 경기 결과 → 코인(값은 ScoutRules 상수, [가정]). 코인 용처가 스카우트 시도뿐이라 수입도 시즌이 준다
     private static void AwardMatchCoins(MatchResult myResult)
     {
-        bool home = myResult.HomeTeamId == SeasonState.MyTeamId;
-        int mine = home ? myResult.HomeGoals : myResult.AwayGoals;
-        int theirs = home ? myResult.AwayGoals : myResult.HomeGoals;
-        GameDataManager.Instance.PlayerAccountData.AddCoins(ScoutRules.CoinsFor(mine, theirs));
+        GameDataManager.Instance.PlayerAccountData.AddCoins(ScoutRules.CoinsFor(myResult, SeasonState.MyTeamId));
     }
 
     // 배치(스펙 §8, 10-08): 전술 화면 필드에서 칩을 끌어 놓은 편성 자리. 규칙은 SeasonState가 정한다
