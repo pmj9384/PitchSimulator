@@ -8,7 +8,7 @@ using UnityEngine;
 using UnityEngine.UI;
 
 // 개인 전술 패널(09-30, 스펙 §4-2·전술-기획 3-2). 전술 화면(TacticsBoardView)의 왼쪽, [개인 전술] 탭.
-// 필드에서 고른 선수 한 명의 ①역할(같은 자리의 노출된 역할 중 하나)과 ②개인 지시(역할 값에서 다이얼마다 −2~+2칸)를 정한다.
+// 필드에서 고른 선수 한 명의 ①역할(같은 자리의 노출된 역할 중 하나)과 ②개인 지시(역할 기본값에서 다이얼마다 −2~+2칸)를 정한다.
 // FM·EA FC·FC 온라인이 같은 구조다: 필드에서 선수를 누르면 옆 패널에 그 선수의 역할과 지시가 뜬다(09-30 유저 지시).
 // 규칙(같은 자리·노출된 역할만, 지시 범위, 골키퍼는 출격 반경만)은 전부 순수 코어(SeasonState·PlayerInstructions), 여기는 화면과 입력만.
 // 능력치(빌드)는 여기서 못 바꾼다. 역할을 바꾸면 그 역할의 지시 값으로 바뀌고 개인 지시는 지워진다(SeasonState.SetPlayerRole).
@@ -20,7 +20,7 @@ public class PlayerTacticsPanel : MonoBehaviour
 
     // PlayerDial 순서
     private static readonly string[] DialNames = { "전진 폭", "측면 쏠림", "압박 거리", "라인 높이", "슛 성향", "패스 길이", "패스 리스크", "드리블 성향", "볼 끌기", "출격 반경" };
-    // 오프셋 −2~+2 순서. 가운데가 역할 값 그대로
+    // 오프셋 −2~+2 순서. 가운데가 역할 기본값 그대로
     private static readonly string[] StepWords = { "훨씬 덜", "덜", "역할 기본값", "더", "훨씬 더" };
 
     [Header("고른 선수")]
@@ -32,9 +32,9 @@ public class PlayerTacticsPanel : MonoBehaviour
     [SerializeField] private Image[] roleImages;
     [SerializeField] private TMP_Text[] roleLabels;
 
-    [Header("② 개인 지시 (역할 값 기준 −2~+2)")]
+    [Header("② 개인 지시 (역할 기본값 기준 −2~+2)")]
     [SerializeField] private PlayerDialRow[] dialRows;   // PlayerDial 순서 10줄. 선수에게 해당하는 줄만 보인다
-    [SerializeField] private Button resetButton;         // "역할 값으로 되돌리기". 지시가 하나라도 있을 때만 보인다
+    [SerializeField] private Button resetButton;         // "역할 기본값으로 되돌리기". 지시가 하나라도 있을 때만 보인다
 
     // 역할이나 개인 지시가 바뀔 때마다. 필드(PitchView)가 자리와 역할 이름을 다시 그리려고 듣는다
     public event Action Changed;

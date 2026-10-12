@@ -37,7 +37,11 @@ public class TacticLevelSelector : MonoBehaviour
         for (int i = 0; i < levelButtons.Length; i++)
         {
             TMP_Text label = levelButtons[i].GetComponentInChildren<TMP_Text>();
-            if (label == null) { continue; }
+            if (label == null)
+            {
+                Debug.LogWarning($"[TacticLevelSelector] {name} 버튼 {i} 아래에 글자가 없다. 프리팹을 확인한다");
+                continue;
+            }
             label.text = names[i];
         }
     }
