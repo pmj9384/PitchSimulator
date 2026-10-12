@@ -59,6 +59,8 @@ public class ScoutRulesTests
         {
             for (int i = 0; i < team.Players.Count; i++) { Assert.AreEqual(1, ScoutRules.Stars(team.Players[i], team.Rows[i], Tier(4), 4, table), team.Players[i].VariantId); }
         }
+        Assert.IsTrue(ScoutRules.AllStarsAreOne(Tier(4)), "4부 안내의 근거");
+        Assert.IsFalse(ScoutRules.AllStarsAreOne(Tier(3)));
         Assert.GreaterOrEqual(MaxStarsIn(3, 3), 2, "3부: 기본 아닌 변형이 있다");
         Assert.GreaterOrEqual(MaxStarsIn(2, 2), 3, "2부: 자리 2쌍");
         Assert.GreaterOrEqual(MaxStarsIn(1, 1), 4, "1부: 재분배");
