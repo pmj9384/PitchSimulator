@@ -21,7 +21,7 @@ public class PlayerTacticsPanel : MonoBehaviour
     // PlayerDial 순서
     private static readonly string[] DialNames = { "전진 폭", "측면 쏠림", "압박 거리", "라인 높이", "슛 성향", "패스 길이", "패스 리스크", "드리블 성향", "볼 끌기", "출격 반경" };
     // 오프셋 −2~+2 순서. 가운데가 역할 값 그대로
-    private static readonly string[] StepWords = { "훨씬 덜", "덜", "역할 값", "더", "훨씬 더" };
+    private static readonly string[] StepWords = { "훨씬 덜", "덜", "역할 기본값", "더", "훨씬 더" };
 
     [Header("고른 선수")]
     [SerializeField] private TMP_Text roleTitle;         // 자리 · 역할 이름

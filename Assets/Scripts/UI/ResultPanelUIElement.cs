@@ -109,7 +109,7 @@ public class ResultPanelUIElement : UIElement
     private void ShowView()
     {
         tableText.text = showingReadout ? readoutContent : tableContent;
-        viewButtonLabel.text = showingReadout ? "승점표 보기" : "전술 실측 보기";
+        viewButtonLabel.text = showingReadout ? "승점표 보기" : "전술 결과 보기";
     }
 
     // 다음 경기 = 같은 씬 재로드(결과 보고가 먼저 라운드를 올린다). 시즌이 끝났으면 다음 시즌 입구는 로비(PrepareNextMatch) 하나라 로비로 보낸다(09-27 리뷰 R1)
@@ -129,7 +129,7 @@ public class ResultPanelUIElement : UIElement
     // 승강전이 남았을 때 다음 경기 안내(10-08)
     private static string PlayoffNextLine(PlayoffStage pending)
     {
-        if (pending == PlayoffStage.Semifinal) { return "다음: 승강 PO 단판"; }
+        if (pending == PlayoffStage.Semifinal) { return "다음: 승강 플레이오프 단판"; }
         if (pending == PlayoffStage.LegOne) { return "다음: 승강전 1차전"; }
         if (pending == PlayoffStage.LegTwo) { return "다음: 승강전 2차전"; }
         return string.Empty;

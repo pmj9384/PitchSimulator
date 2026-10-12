@@ -206,7 +206,7 @@ public class SeasonSystem : ISaveLoad
         IReadOnlyList<PlayoffResult> results = State.PlayoffResults;
         if (results.Count == 0) { return $"{Tier.Tier}부 정규 시즌 종료"; }
         PlayoffResult last = results[results.Count - 1];
-        if (last.Stage == PlayoffStage.Semifinal) { return $"{Tier.Tier}부 승강 PO 단판 · {SemifinalLine(last)}"; }
+        if (last.Stage == PlayoffStage.Semifinal) { return $"{Tier.Tier}부 승강 플레이오프 단판 · {SemifinalLine(last)}"; }
         if (last.Stage == PlayoffStage.LegOne) { return "승강전 1차전"; }
         PlayoffResult legOne = results[results.Count - 2];
         int me = SeasonState.MyTeamId;
