@@ -154,7 +154,8 @@ namespace Game.Core.League
         }
     }
 
-    // 빌드 9개 합계를 부 총점으로 축소한 복사본(스펙 §4-1 "리그 로드 때 비율로 축소"). 반올림 오차는 가장 큰 스탯에 몰아 합계를 정확히 맞춘다.
+    // 빌드 9개 합계를 목표 총점으로 비율 조정한 복사본(스펙 §4-1 "리그 로드 때 비율로 축소"). 반올림 오차는 가장 큰 스탯에 몰아 합계를 정확히 맞춘다.
+    // 분모는 현재 합계라 줄이기(표 300 → 부 총점)와 늘리기(스카우트한 260점 선수 → 내 300, 10-12)에 같이 쓴다.
     // 다이얼·역할 문자열은 그대로 복사. 1부 "재분배"(rebuild)는 10-06 칸(3~1부 규칙)에서
     public static class BuildScaler
     {
@@ -163,9 +164,11 @@ namespace Game.Core.League
 
         public static PlayerStats Scale(PlayerStats src, int totalPoints)
         {
-            if (totalPoints == PlayerStats.TotalPoints) { return src; }
+            int currentTotal = src.BuildTotal;
+            if (totalPoints == currentTotal) { return src; }
+            if (currentTotal <= 0) { throw new InvalidOperationException($"[BuildScaler] {src.VariantId}의 합계가 {currentTotal}이라 비율을 낼 수 없다"); }
 
-            float ratio = (float)totalPoints / PlayerStats.TotalPoints;
+            float ratio = (float)totalPoints / currentTotal;
             PlayerStats p = Copy(src);
             p.Speed = Round(src.Speed * ratio); p.Stamina = Round(src.Stamina * ratio); p.Pass = Round(src.Pass * ratio);
             p.Shot = Round(src.Shot * ratio); p.Tackle = Round(src.Tackle * ratio); p.Positioning = Round(src.Positioning * ratio);

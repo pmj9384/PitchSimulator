@@ -208,6 +208,7 @@ public class LeagueSeasonTests
         Assert.AreEqual(st.PushUp, scaled.PushUp);
         Assert.AreEqual(300, st.BuildTotal, "원본은 안 바뀐다");
         Assert.AreSame(st, BuildScaler.Scale(st, 300), "300이면 복사 없이 원본");
+        Assert.AreEqual(300, BuildScaler.Scale(scaled, 300).BuildTotal, "줄인 선수를 다시 늘려도 합계가 맞는다(스카우트 영입, 10-12)");
         for (int total = 250; total <= 300; total += 5)
         {
             foreach (PlayerStats p in table) { Assert.AreEqual(total, BuildScaler.Scale(p, total).BuildTotal, $"{p.VariantId} {total}"); }
