@@ -217,6 +217,12 @@ namespace Game.Core.League
             return Math.Max(0, Math.Min(Math.Min(RebuildShift, source), StatMax - destination));
         }
 
+        // 재분배가 실제로 빌드를 옮기는 자리인가(GK·CM은 아니다). 스카우트 별 판정이 쓴다(10-12)
+        public static bool RebuildApplies(string roleId)
+        {
+            return IsDefender(roleId) || IsAttacker(roleId);
+        }
+
         private static bool IsDefender(string roleId)
         {
             return IsRole(roleId, "CB") || IsRole(roleId, "FB") || IsRole(roleId, "DM");

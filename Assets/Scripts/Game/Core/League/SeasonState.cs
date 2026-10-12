@@ -50,6 +50,19 @@ namespace Game.Core.League
     }
 
     // 라인업 한 자리: 로스터 선수 id + 자리 2쌍(공격 시/수비 시)
+    // 스카우트 시도 기록(10-12): 어느 팀의 몇 번째 선수를 노렸나. 같은 선수 재시도 보정의 재료
+    public readonly struct ScoutTarget
+    {
+        public readonly int TeamId;
+        public readonly int PlayerIndex;
+
+        public ScoutTarget(int teamId, int playerIndex)
+        {
+            TeamId = teamId;
+            PlayerIndex = playerIndex;
+        }
+    }
+
     public readonly struct LineupEntry
     {
         public readonly int PlayerId;
@@ -79,7 +92,10 @@ namespace Game.Core.League
         public int SeasonSeed { get; }
         public int GeneratorVersion { get; }
         public int RoundsPlayed { get; private set; }
-        public int ScoutAttempts { get; set; }
+        public int ScoutAttempts { get; private set; }       // 이번 시즌에 쓴 시도(실패 포함)
+        public int ScoutExtraAttempts { get; private set; }  // 코인으로 산 추가 시도(10-12)
+        public IReadOnlyList<ScoutTarget> ScoutTargets => scoutTargets;   // 이번 시즌 시도한 (팀, 선수 번호). 재시도 보정용
+        public int RemainingScoutAttempts => ScoutRules.AttemptsPerSeason + ScoutExtraAttempts - ScoutAttempts;
         public string MyPresetId { get; private set; }   // 내 팀 기준 카드(TacticPresets presetId). 바꾸는 곳은 SetMyPreset 하나(팀 전술 설정창, 09-30)
         public TeamTactics? MyCustomTactics { get; private set; }   // 슬라이더·세부 표로 바꾼 값 전체. null = 기준 카드 값 그대로(09-30)
         public IReadOnlyList<MatchResult> Results => results;
@@ -89,6 +105,7 @@ namespace Game.Core.League
 
         private readonly List<MatchResult> results;
         private readonly List<PlayoffResult> playoff = new List<PlayoffResult>();
+        private readonly List<ScoutTarget> scoutTargets = new List<ScoutTarget>();
         private readonly List<RosterPlayer> roster;
         private readonly List<LineupEntry> lineup;
 
@@ -269,6 +286,41 @@ namespace Game.Core.League
             playoff.Add(result);
         }
 
+        // ── 스카우트(스펙 §4-5, 10-12). 판정은 ScoutRules, 여기는 시도 소모·기록·영입 교체만
+        public int RetriesOn(int teamId, int playerIndex)
+        {
+            int n = 0;
+            for (int i = 0; i < scoutTargets.Count; i++)
+            {
+                if (scoutTargets[i].TeamId == teamId && scoutTargets[i].PlayerIndex == playerIndex) { n++; }
+            }
+            return n;
+        }
+
+        // 시도 1회 소모. 남은 시도가 없으면 던진다(화면이 먼저 막는다)
+        public void SpendScoutAttempt(int teamId, int playerIndex)
+        {
+            if (RemainingScoutAttempts <= 0) { throw new InvalidOperationException("[SeasonState] 남은 스카우트 시도가 없다"); }
+            ScoutAttempts++;
+            scoutTargets.Add(new ScoutTarget(teamId, playerIndex));
+        }
+
+        public void AddScoutAttempt()
+        {
+            ScoutExtraAttempts++;
+        }
+
+        // 영입 = 내 선수 1명과 교체. 대상의 역할(변형)·다이얼을 가져오고 빌드는 내 총점(300)으로 재분배한다(강화 아님). 같은 자리만. 개인 지시는 역할이 바뀌므로 지운다
+        public void ReplacePlayer(int myPlayerId, PlayerStats scouted)
+        {
+            int index = RosterIndex(myPlayerId);
+            PlayerStats current = roster[index].Stats;
+            if (!PlayerTableLookup.IsSamePosition(scouted, current.RoleId)) { throw new InvalidOperationException($"[SeasonState] 선수 {myPlayerId}({current.RoleId}) 자리에 {scouted.RoleId} 선수를 넣을 수 없다"); }
+            PlayerStats incoming = BuildScaler.Copy(scouted);
+            incoming = BuildScaler.Scale(incoming, PlayerStats.TotalPoints);
+            roster[index] = new RosterPlayer(myPlayerId, incoming);
+        }
+
         // 배치(스펙 §8, 10-08): 라인업 한 선수의 편성 자리(공격 시 또는 수비 시)를 옮긴다. 내 진영 절반 안·다른 선수와 최소 간격은 PlacementRules가 답하고,
         // 안 되면 던지고 아무것도 안 바뀐다(UI는 먼저 Evaluate로 물어 보고 되돌린다). 값은 편성 좌표(전진 정도·개인 다이얼을 얹기 전)다
         public void MoveLineupSlot(int playerId, bool defending, float x, float z)
@@ -342,6 +394,10 @@ namespace Game.Core.League
         {
             var save = new SeasonSave { tier = Tier, seasonSeed = SeasonSeed, generatorVersion = GeneratorVersion, roundsPlayed = RoundsPlayed, scoutAttempts = ScoutAttempts, myPresetId = MyPresetId, playoff = new List<SeasonSave.PlayoffEntry>() };
             if (MyCustomTactics != null) { save.myTactics = SeasonSave.TacticsValues.From(MyCustomTactics); }
+            save.scoutExtra = ScoutExtraAttempts;
+            var targets = new List<SeasonSave.ScoutEntry>(scoutTargets.Count);
+            for (int i = 0; i < scoutTargets.Count; i++) { targets.Add(new SeasonSave.ScoutEntry { team = scoutTargets[i].TeamId, player = scoutTargets[i].PlayerIndex }); }
+            save.scoutTargets = targets;
             for (int i = 0; i < playoff.Count; i++)
             {
                 PlayoffResult r = playoff[i];
@@ -402,6 +458,11 @@ namespace Game.Core.League
             }
             TeamTactics? custom = save.myTactics == null ? null : save.myTactics.ToTactics(save.myPresetId ?? DefaultPresetId);   // 범위는 생성자가 검증한다
             var state = new SeasonState(save.tier, save.seasonSeed, save.generatorVersion, roster, lineup, results, save.roundsPlayed, save.scoutAttempts, save.myPresetId, custom);
+            state.ScoutExtraAttempts = save.scoutExtra;
+            if (save.scoutTargets != null)   // 옛 세이브(10-12 전)엔 없어 null
+            {
+                for (int i = 0; i < save.scoutTargets.Count; i++) { state.scoutTargets.Add(new ScoutTarget(save.scoutTargets[i].team, save.scoutTargets[i].player)); }
+            }
             if (save.playoff != null)   // 옛 세이브(10-08 전)엔 없어 null = 승강전 전
             {
                 for (int i = 0; i < save.playoff.Count; i++)
@@ -430,6 +491,14 @@ namespace Game.Core.League
         public List<Player> roster = new List<Player>();
         public List<Slot> lineup = new List<Slot>();
         public List<PlayoffEntry>? playoff;   // 10-08 추가. 승강전 결과. 옛 세이브엔 없어 null → 승강전 전
+        public int scoutExtra;                // 10-12 추가. 코인으로 산 스카우트 시도. 옛 세이브엔 없어 0
+        public List<ScoutEntry>? scoutTargets = new List<ScoutEntry>();   // 10-12 추가. 이번 시즌 시도한 (팀, 선수 번호). 옛 세이브엔 없어 null
+
+        [Serializable] public sealed class ScoutEntry
+        {
+            public int team;
+            public int player;
+        }
 
         [Serializable] public sealed class PlayoffEntry
         {

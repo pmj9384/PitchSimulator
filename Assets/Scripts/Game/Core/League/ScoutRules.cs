@@ -1,0 +1,139 @@
+using System;
+using System.Collections.Generic;
+using Game.Core.Data;
+using Game.Core.Tactics;
+
+namespace Game.Core.League
+{
+    // 스카우트 한 번의 결과. 미리보기(Roll 전)는 Success가 false이고 Rolled가 false
+    public readonly struct ScoutVerdict
+    {
+        public readonly int Stars;
+        public readonly float Chance;
+        public readonly float Roll;
+        public readonly bool Rolled;
+        public readonly bool Success;
+
+        public ScoutVerdict(int stars, float chance, float roll, bool rolled, bool success)
+        {
+            Stars = stars;
+            Chance = chance;
+            Roll = roll;
+            Rolled = rolled;
+            Success = success;
+        }
+    }
+
+    // 스카우트 판정 순수 함수(스펙 §4-5, 10-12 구현 설계. 레퍼런스 프로야구 스피리츠 A의 "확률 공개·누적 보정").
+    // 상태·엔진·난수 없음: 별(난이도)·성공 확률·주사위 값만 답한다. 영입(교체)은 SeasonState, 화면은 UI 몫
+    public static class ScoutRules
+    {
+        public const int MinStars = 1;
+        public const int MaxStars = 5;
+        public const int AttemptsPerSeason = 2;        // [가정] 시즌당 기본 시도
+        public const int ExtraAttemptCoinPrice = 100;  // [가정] 코인으로 시도 +1
+        public const int WinCoins = 30;                // [가정] 경기 결과 코인 수입(코인 용처가 시도 횟수뿐이라 수입도 여기 둔다)
+        public const int DrawCoins = 10;
+        public const int LossCoins = 0;
+
+        // [가정] 별별 기본 확률. 출처 없음(프로스피A 공개 확률은 최저 등급 4%부터지만 그 게임은 구매 누적으로 오르는 구조)
+        private static readonly float[] BaseChance = { 0.8f, 0.6f, 0.4f, 0.25f, 0.15f };
+        public const float TopHalfBonus = 0.1f;      // [가정] 내 순위가 상위 절반이면 +, 하위면 −
+        public const float UnmetFactor = 0.5f;       // [가정] 상대해 보지 않은 팀은 절반
+        public const float RetryBonus = 0.1f;        // [가정] 같은 시즌 같은 선수 재시도마다 +
+        public const float MinChance = 0.05f;
+        public const float MaxChance = 0.95f;
+        public const float BigDialDistanceCells = 6f; // [가정] 기본 변형에서 다이얼이 이만큼(칸 합) 벗어나면 ★3
+
+        // 별 = 조합의 특이성 + 부 차이(스펙 §4-5). 생성기가 노출 변형만 뽑아(10-08) 변형 희귀도로는 안 갈린다:
+        // 기본 변형이 아닌가(★2, 다이얼 거리가 크면 ★3) / 자리 2쌍이 실제로 다른가(★3) / 빌드 재분배가 적용됐나(★4) → 최댓값, 둘 이상 겹치면 +1, 상위 부면 +1, 상한 5
+        public static int Stars(PlayerStats target, StageEntry targetRow, TierRule targetTier, int myTier, IReadOnlyList<PlayerStats> table)
+        {
+            int stars = MinStars;
+            int traits = 0;
+
+            PlayerStats baseline = TeamGenerator.DefaultVariant(table, target.RoleId);
+            if (!string.Equals(baseline.VariantId, target.VariantId, StringComparison.OrdinalIgnoreCase))
+            {
+                traits++;
+                stars = Math.Max(stars, DialDistanceCells(target, baseline) >= BigDialDistanceCells ? 3 : 2);
+            }
+            if (targetTier.DualPositions && HasDistinctDefendPosition(targetRow))
+            {
+                traits++;
+                stars = Math.Max(stars, 3);
+            }
+            if (targetTier.Rebuild && BuildScaler.RebuildApplies(target.RoleId))
+            {
+                traits++;
+                stars = Math.Max(stars, 4);
+            }
+            if (traits >= 2) { stars++; }
+            if (targetTier.Tier < myTier) { stars++; }   // 상위 부(번호가 작을수록 위)
+            return Math.Min(MaxStars, Math.Max(MinStars, stars));
+        }
+
+        // 기본 변형과의 다이얼 거리를 개인 지시 칸 단위로 합산한다(단위가 다른 다이얼을 같은 자로 재기 위해 PlayerInstructions.Step으로 나눈다)
+        public static float DialDistanceCells(PlayerStats a, PlayerStats b)
+        {
+            float cells = 0f;
+            for (int i = 0; i < PlayerInstructions.DialCount; i++)
+            {
+                var dial = (PlayerDial)i;
+                float step = Math.Abs(PlayerInstructions.StepOf(dial));
+                if (step <= 0f) { continue; }
+                cells += Math.Abs(PlayerInstructions.ValueOf(a, dial) - PlayerInstructions.ValueOf(b, dial)) / step;
+            }
+            return cells;
+        }
+
+        public static bool HasDistinctDefendPosition(StageEntry row)
+        {
+            return row.PosX != row.PosX2 || row.PosZ != row.PosZ2;
+        }
+
+        // 성공 확률: 별 기준값 × 내 팀 위상 × 상대해 봤는지 + 재시도 누적. myRank는 0부터(0 = 1위)
+        public static float SuccessChance(int stars, int myRank, int teamCount, bool metBefore, int retries)
+        {
+            int index = Math.Min(MaxStars, Math.Max(MinStars, stars)) - 1;
+            float chance = BaseChance[index];
+            chance += myRank < teamCount / 2 ? TopHalfBonus : -TopHalfBonus;
+            if (!metBefore) { chance *= UnmetFactor; }
+            chance += RetryBonus * Math.Max(0, retries);
+            return Math.Max(MinChance, Math.Min(MaxChance, chance));
+        }
+
+        // 그 팀과 정규 시즌에서 붙어 봤는가
+        public static bool MetBefore(IReadOnlyList<MatchResult> results, int myTeamId, int teamId)
+        {
+            for (int i = 0; i < results.Count; i++)
+            {
+                MatchResult r = results[i];
+                bool mine = r.HomeTeamId == myTeamId || r.AwayTeamId == myTeamId;
+                bool theirs = r.HomeTeamId == teamId || r.AwayTeamId == teamId;
+                if (mine && theirs) { return true; }
+            }
+            return false;
+        }
+
+        // 주사위 하나: (시즌 시드, 팀, 선수 번호, 시도 번호)에서만 나온다. 같은 세팅 = 같은 결과(경기 시드와 같은 원칙)
+        public static float Roll(int seasonSeed, int teamId, int playerIndex, int attemptIndex)
+        {
+            var rng = new Random(unchecked(seasonSeed * 7919 + teamId * 104729 + playerIndex * 1000003 + attemptIndex * 31 + 17));
+            return (float)rng.NextDouble();
+        }
+
+        public static bool Succeeds(float chance, float roll)
+        {
+            return roll < chance;
+        }
+
+        // 경기 결과 → 코인 수입. 내 팀 기준 골
+        public static int CoinsFor(int myGoals, int theirGoals)
+        {
+            if (myGoals > theirGoals) { return WinCoins; }
+            if (myGoals == theirGoals) { return DrawCoins; }
+            return LossCoins;
+        }
+    }
+}
