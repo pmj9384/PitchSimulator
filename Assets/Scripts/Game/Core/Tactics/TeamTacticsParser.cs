@@ -115,12 +115,25 @@ namespace Game.Core.Tactics
                 Map(r => r.PresetId).Name("presetId");
                 Map(r => r.DisplayName).Name("displayName");
                 Map(r => r.Description).Name("description");
-                Map(r => r.PassStyleOwn).Name("passStyleOwn"); Map(r => r.PassStyleMid).Name("passStyleMid"); Map(r => r.PassStyleOpp).Name("passStyleOpp");
-                Map(r => r.PassRiskOwn).Name("passRiskOwn"); Map(r => r.PassRiskMid).Name("passRiskMid"); Map(r => r.PassRiskOpp).Name("passRiskOpp");
-                Map(r => r.TempoOwn).Name("tempoOwn"); Map(r => r.TempoMid).Name("tempoMid"); Map(r => r.TempoOpp).Name("tempoOpp");
-                Map(r => r.WidthOwn).Name("widthOwn"); Map(r => r.WidthMid).Name("widthMid"); Map(r => r.WidthOpp).Name("widthOpp");
-                Map(r => r.PressStartOwn).Name("pressStartOwn"); Map(r => r.PressStartMid).Name("pressStartMid"); Map(r => r.PressStartOpp).Name("pressStartOpp");
-                Map(r => r.Counter).Name("counter"); Map(r => r.CounterPress).Name("counterPress"); Map(r => r.GkDistribution).Name("gkDistribution"); Map(r => r.Mentality).Name("mentality");
+                Map(r => r.PassStyleOwn).Name("passStyleOwn");
+                Map(r => r.PassStyleMid).Name("passStyleMid");
+                Map(r => r.PassStyleOpp).Name("passStyleOpp");
+                Map(r => r.PassRiskOwn).Name("passRiskOwn");
+                Map(r => r.PassRiskMid).Name("passRiskMid");
+                Map(r => r.PassRiskOpp).Name("passRiskOpp");
+                Map(r => r.TempoOwn).Name("tempoOwn");
+                Map(r => r.TempoMid).Name("tempoMid");
+                Map(r => r.TempoOpp).Name("tempoOpp");
+                Map(r => r.WidthOwn).Name("widthOwn");
+                Map(r => r.WidthMid).Name("widthMid");
+                Map(r => r.WidthOpp).Name("widthOpp");
+                Map(r => r.PressStartOwn).Name("pressStartOwn");
+                Map(r => r.PressStartMid).Name("pressStartMid");
+                Map(r => r.PressStartOpp).Name("pressStartOpp");
+                Map(r => r.Counter).Name("counter");
+                Map(r => r.CounterPress).Name("counterPress");
+                Map(r => r.GkDistribution).Name("gkDistribution");
+                Map(r => r.Mentality).Name("mentality");
             }
         }
     }

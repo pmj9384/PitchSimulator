@@ -100,8 +100,7 @@ namespace Game.Core.League
             string presetId = tier.Presets[rng.Next(tier.Presets.Count)];
             string name = names.Compose(rng.Next(names.Cities.Count), rng.Next(names.Suffixes.Count));
 
-            // 다이얼 변주 = 변형 선택(변형이 곧 다이얼 묶음). 0 기본만 / 1 슬롯 1~2개만 다른 변형 / 2 전 슬롯 무작위
-            int varied = tier.DialVariance == 0 ? 0 : (tier.DialVariance == 1 ? 1 + rng.Next(2) : FormationTemplate.SlotCount);
+            int varied = VariedSlotCount(tier.DialVariance, rng);
             var variedSlots = new HashSet<int>();
             while (variedSlots.Count < varied) { variedSlots.Add(rng.Next(FormationTemplate.SlotCount)); }
 
@@ -123,6 +122,14 @@ namespace Game.Core.League
                 players.Add(tier.Rebuild ? BuildScaler.Rebuild(scaled, slot.RoleId) : scaled);   // 1부: 빌드 재분배(스펙 §10, 10-08)
             }
             return new GeneratedTeam(index, name, formationId, presetId, rows, players);
+        }
+
+        // 다이얼 변주 = 변형 선택(변형이 곧 다이얼 묶음). 0 기본만 / 1 슬롯 1~2개만 다른 변형 / 2 전 슬롯 무작위
+        private static int VariedSlotCount(int dialVariance, Random rng)
+        {
+            if (dialVariance == 0) { return 0; }
+            if (dialVariance == 1) { return 1 + rng.Next(2); }
+            return FormationTemplate.SlotCount;
         }
 
         // 기본 변형 = PlayerTable에서 그 역할의 첫 행(gk_standard·cb_centreback·fb_fullback·dm_anchor·cm_box2box·am_advanced_pm·w_winger·st_poacher)

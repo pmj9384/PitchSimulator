@@ -4,7 +4,7 @@ using Game.Core.Data;
 using UnityEngine;
 
 // PlayerTable 접근층. 템플릿 DataTableManager 관례와 동형(정적·지연 로드·캐시).
-// 파싱·검증은 순수 코어(PlayerTableParser) 몫, 여기는 Resources에서 꺼내 캐시하는 문지기만 한다.
+// 파싱·검증은 순수 코어(PlayerTableParser) 몫, 여기는 Resources에서 꺼내 캐시만 맡는다.
 public static class PlayerTableRepository
 {
     private const string ResourcePath = "Tables/PlayerTable";

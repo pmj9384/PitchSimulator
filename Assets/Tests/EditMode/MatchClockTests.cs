@@ -42,11 +42,11 @@ public class MatchClockTests
         Assert.Less(MatchClock.TotalSecondsOf(ht - 1, added), 2760);
 
         ClockReading before = MatchClock.Describe(ht - 1, added);
-        Assert.IsFalse(before.SecondHalf); Assert.IsTrue(before.InAddedTime); Assert.AreEqual(45, before.Minute); Assert.AreEqual(0, before.AddedMinute);
+        Assert.IsFalse(before.IsSecondHalf); Assert.IsTrue(before.InAddedTime); Assert.AreEqual(45, before.Minute); Assert.AreEqual(0, before.AddedMinute);
         ClockReading start2 = MatchClock.Describe(ht, added);
-        Assert.IsTrue(start2.SecondHalf); Assert.IsFalse(start2.InAddedTime); Assert.AreEqual(45, start2.Minute); Assert.AreEqual(0, start2.Second, "후반은 45:00부터");
+        Assert.IsTrue(start2.IsSecondHalf); Assert.IsFalse(start2.InAddedTime); Assert.AreEqual(45, start2.Minute); Assert.AreEqual(0, start2.Second, "후반은 45:00부터");
         ClockReading end = MatchClock.Describe(9000, added);
-        Assert.IsTrue(end.SecondHalf); Assert.IsTrue(end.InAddedTime); Assert.AreEqual(90, end.Minute); Assert.AreEqual(3, end.AddedMinute); Assert.AreEqual(0, end.AddedSecond);
+        Assert.IsTrue(end.IsSecondHalf); Assert.IsTrue(end.InAddedTime); Assert.AreEqual(90, end.Minute); Assert.AreEqual(3, end.AddedMinute); Assert.AreEqual(0, end.AddedSecond);
 
         ClockReading none = MatchClock.Describe(9000, AddedTime.None);
         Assert.IsFalse(none.InAddedTime); Assert.AreEqual(90, none.Minute);

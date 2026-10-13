@@ -52,7 +52,7 @@ namespace Game.Core.Tactics
             return s;
         }
 
-        // 세이브·입력의 관문. 칸 수, 범위, 그 선수에게 해당 없는 다이얼(골키퍼의 필드 지시 등)
+        // 세이브·입력 검증. 칸 수, 범위, 그 선수에게 해당 없는 다이얼(골키퍼의 필드 지시 등)
         public static void Validate(IReadOnlyList<int> offsets, PlayerStats roleStats)
         {
             if (offsets == null || offsets.Count != DialCount) { throw new InvalidOperationException($"[PlayerInstructions] 개인 지시는 {DialCount}칸이어야 한다"); }

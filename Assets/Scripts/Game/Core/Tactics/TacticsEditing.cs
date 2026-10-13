@@ -12,10 +12,10 @@ namespace Game.Core.Tactics
     public static class TacticsEditing
     {
         public const int SliderMin = -2;
-        public const int SliderMax = 2;   // 5칸. 폭은 문서에 수치가 없어 09-30 확정 스펙 표의 값. 칸 값 정의역(0~2) 전체를 한쪽 끝까지 밀 수 있는 폭
+        public const int SliderMax = 2;   // 5칸. 폭은 문서에 수치가 없어 09-30 확정 스펙 표의 값. 칸 값의 범위(0~2) 전체를 한쪽 끝까지 밀 수 있는 폭
 
         // 슬라이더 하나가 자기 담당 칸만 다시 쓴다: 담당 칸 = 기준 카드 값 + 오프셋, 나머지는 지금 값(current) 그대로.
-        // 카드를 통째로 복사해 다시 계산하면 슬라이더와 상관없는 칸(패스 방식·전환)과 다른 슬라이더의 칸까지 표에서 바꾼 값이 사라진다(09-30 재검증)
+        // 카드를 전부 복사해 다시 계산하면 슬라이더와 상관없는 칸(패스 방식·전환)과 다른 슬라이더의 칸까지 표에서 바꾼 값이 사라진다(09-30 재검증)
         public static TeamTactics ApplySlider(TeamTactics current, TeamTactics card, TacticSlider slider, int offset)
         {
             CheckSlider(offset, nameof(offset));
@@ -64,7 +64,7 @@ namespace Game.Core.Tactics
             return a.Mentality == b.Mentality;
         }
 
-        // 세이브·표 입력의 관문. 파서(TeamTacticsParser)와 같은 정의역(0~2)과 서드 3칸
+        // 세이브·표 입력 검증. 파서(TeamTacticsParser)와 같은 범위(0~2)와 서드 3칸
         public static void Validate(TeamTactics t)
         {
             CheckThirds(t.PassStyle, "passStyle");

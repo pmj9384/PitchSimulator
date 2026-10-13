@@ -12,7 +12,7 @@ using UnityEngine.UI;
 // 슬라이더는 자기 담당 칸만 기준 카드 + 오프셋으로 다시 쓴다(다른 칸에서 세부로 바꾼 값은 지킨다). 세부를 만지면 그 칸만 바뀐다.
 // 카드 설명 아래 체력 부담 막대는 지금 값이 선수를 얼마나 지치게 하는지를 실측 표로 보여 준다(StaminaLoad).
 // 값이 기준 카드와 다르면 "사용자 설정" 버튼이 뜨고, 누르면 카드 값으로 돌아간다. 규칙은 전부 순수 코어(TacticsEditing·SeasonState), 여기는 화면과 입력만.
-// 고른 값의 진실은 시즌 한 곳(SeasonSystem.SetMyPreset·SetMyTactics·SetMyTacticsFromTable → SeasonState)이라 로비와 경기 직전 화면이 같은 값을 본다.
+// 고른 값은 시즌 한 곳(SeasonSystem.SetMyPreset·SetMyTactics·SetMyTacticsFromTable → SeasonState)이라 로비와 경기 직전 화면이 같은 값을 본다.
 // 이 패널은 이번 경기(상대·킥오프)도 필드도 모른다. 값이 바뀌면 Changed만 쏜다
 public class TeamTacticsPanel : MonoBehaviour
 {

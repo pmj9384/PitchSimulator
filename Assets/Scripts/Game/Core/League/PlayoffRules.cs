@@ -77,7 +77,7 @@ namespace Game.Core.League
         public bool HomeWon => HomeScore > AwayScore;
     }
 
-    // 승강전 규칙 순수 함수(스펙 §10: K리그 현행 축소). 상태·엔진 없음. 누가 뛰나·누가 이겼나·승부차기만 답한다
+    // 승강전 규칙 순수 함수(스펙 §10: K리그 현행 축소). 상태·엔진 없음. 누가 뛰나·누가 이겼나·승부차기만 계산한다
     public static class PlayoffRules
     {
         public const int ForeignTeamIdBase = 1000;   // 다른 부 팀 id = 1000 + 그 부 생성 id. 승점표 id(0~11)와 안 겹친다

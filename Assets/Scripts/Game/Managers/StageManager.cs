@@ -11,7 +11,7 @@ public class StageManager : InGameManager
     public string DisplayName { get; private set; }    // "N라운드"(로그용. 상대 이름은 MatchManager.OpponentName)
 
     private MatchSetup current;
-    private bool loaded;
+    private bool isLoaded;
 
     public override void Initialize()
     {
@@ -22,8 +22,8 @@ public class StageManager : InGameManager
     // 시즌 → 선수 스폰. 씬 로드당 한 번. 두 번 돌면 선수가 두 배가 된다
     private void Load()
     {
-        if (loaded) { return; }
-        loaded = true;
+        if (isLoaded) { return; }
+        isLoaded = true;
 
         current = GameDataManager.Instance.Season.CurrentMatch;
         DisplayName = $"{current.Fixture.Round + 1}라운드";
@@ -53,7 +53,7 @@ public class StageManager : InGameManager
     {
         GameManager.RemoveGameStateEnterAction(GameManager.GameState.GameReady, Load);
         GameManager.Match.MatchEnded -= OnMatchEnded;
-        loaded = false;
+        isLoaded = false;
         current = null;
         DisplayName = null;
     }

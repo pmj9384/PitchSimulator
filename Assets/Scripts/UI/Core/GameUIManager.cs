@@ -19,16 +19,8 @@ public class GameUIManager : InGameManager
             element.SetUIManager(GameManager, this);
         }
 
-        GameManager.AddGameStateEnterAction(GameManager.GameState.GameStop, () =>
-        {
-            ShowUIElement(UIElementEnums.PausePanel);
-        });
-
-        GameManager.AddGameStateExitAction(GameManager.GameState.GameStop, () =>
-        {
-            HideUIElement(UIElementEnums.PausePanel);
-            HideUIElement(UIElementEnums.SettingsPanel);
-        });
+        GameManager.AddGameStateEnterAction(GameManager.GameState.GameStop, ShowPausePanel);
+        GameManager.AddGameStateExitAction(GameManager.GameState.GameStop, HidePausePanels);
 
         // 승리(GameClear)도 패배·무승부(GameOver)도 같은 결과 화면. 승리 쪽이 비어 있어 이긴 판에서 다음 경기로 못 갔다(09-28 결과 화면).
         // 코루틴은 이 매니저에 붙어 돌아 씬이 내려가면 같이 멈춘다. 대기 중 재시작·로비 이동이 있어도 사라진 씬에 패널을 띄우지 않는다
@@ -39,6 +31,17 @@ public class GameUIManager : InGameManager
         GameManager.AddGameStateEnterAction(GameManager.GameState.GameReady, ShowTacticsPanel);
         // 킥오프: 설정창을 닫고 HUD를 켠다. HUD는 휘슬 뒤 결과 화면이 뜰 때까지 경기 종료 자막을 보여 주고 그때 꺼진다
         GameManager.AddGameStateEnterAction(GameManager.GameState.GamePlay, ShowMatchHud);
+    }
+
+    private void ShowPausePanel()
+    {
+        ShowUIElement(UIElementEnums.PausePanel);
+    }
+
+    private void HidePausePanels()
+    {
+        HideUIElement(UIElementEnums.PausePanel);
+        HideUIElement(UIElementEnums.SettingsPanel);
     }
 
     private void ShowTacticsPanel()

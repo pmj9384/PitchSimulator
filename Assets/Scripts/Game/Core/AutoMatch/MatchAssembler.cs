@@ -29,7 +29,7 @@ namespace Game.Core.AutoMatch
             sim.SetTactics(0, homeTactics);
             sim.SetTactics(1, awayTactics);
 
-            int nextId = 0;   // 스폰 순서 = PlayerId(PlayerManager와 같은 규칙. 타이브레이크의 근원). 홈 먼저, 그다음 원정
+            int nextId = 0;   // 스폰 순서 = PlayerId(PlayerManager와 같은 규칙. 타이브레이크 기준). 홈 먼저, 그다음 원정
             for (int i = 0; i < home.Count; i++) { sim.AddPlayer(new PlayerState(nextId++, 0, home[i].Stats, home[i].AttackX, home[i].AttackZ, home[i].DefendX, home[i].DefendZ)); }
             for (int i = 0; i < away.Count; i++) { sim.AddPlayer(new PlayerState(nextId++, 1, away[i].Stats, away[i].AttackX, away[i].AttackZ, away[i].DefendX, away[i].DefendZ)); }
 

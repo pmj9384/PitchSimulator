@@ -1,6 +1,6 @@
 namespace Game.Core.Placement
 {
-    // 필드 치수와 진영 축의 단일 정의처(스펙 §3: FIFA 표준 105m × 68m, 중앙 원점).
+    // 필드 치수와 진영 축의 한 곳에서 정의(스펙 §3: FIFA 표준 105m × 68m, 중앙 원점).
     // 진영 축은 X다. 팀0(플레이어)은 x<0에서 시작해 +X 골을 노리고, 팀1(상대)은 그 반대.
     // 축을 바꾸려면 이 파일의 두 상수와 PlacementRules(2차 이식)의 축 판정 한 줄만 바꾼다.
     public static class FieldBounds

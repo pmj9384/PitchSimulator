@@ -11,7 +11,7 @@ namespace Game.Core.Tactics
     // struct가 아니라 class인 이유: CsvHelper가 리플렉션으로 채운다.
     public class TeamTactics
     {
-        public const int Levels = 3;   // 각 값의 정의역 0~2
+        public const int Levels = 3;   // 각 값의 범위 0~2
 
         public string PresetId { get; set; } = string.Empty;   // buildup · balanced · counter · pressing (스타일 카드)
         public string DisplayName { get; set; } = string.Empty;
@@ -33,6 +33,13 @@ namespace Game.Core.Tactics
         public int Mentality { get; set; }      // 전진 정도: 수비적·균형·공격적 → 공격 시 자리 X 오프셋 배율(슬라이더 ①)
 
         // 역습 판정 문턱: 공보다 상대 골 쪽에 있는 상대 필드 플레이어가 이 수 이하면 역습. -1 = 안 함
-        public int CounterThreshold => Counter == 0 ? -1 : (Counter == 1 ? 3 : 4);
+        public int CounterThreshold
+        {
+            get
+            {
+                if (Counter == 0) { return -1; }
+                return Counter == 1 ? 3 : 4;
+            }
+        }
     }
 }

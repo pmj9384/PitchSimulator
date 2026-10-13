@@ -52,9 +52,9 @@ namespace Game.Core.Match
         public static bool IsInOwnPenaltyBox(float x, float z, int attackSign)
         {
             float depthFromGoalLine = FieldBounds.HalfLength + x * attackSign;   // 내 골라인에서 필드 안쪽으로 잰 거리
-            return depthFromGoalLine >= 0f
-                && depthFromGoalLine <= FieldBounds.PenaltyBoxDepth
-                && Math.Abs(z) <= FieldBounds.PenaltyBoxHalfWidth;
+            if (depthFromGoalLine < 0f) { return false; }
+            if (depthFromGoalLine > FieldBounds.PenaltyBoxDepth) { return false; }
+            return Math.Abs(z) <= FieldBounds.PenaltyBoxHalfWidth;
         }
 
         // 태클 성공 확률(09-21): 기본 확률 × 로지스틱((tackle − 50)/50 × 보정 폭). tackle 80 → 0.19, 50 → 0.15, 20 → 0.11

@@ -17,7 +17,7 @@ public class PlayerManager : InGameManager
     private ObjectPool<GameObject> pool;
     private readonly List<PlayerController>[] rosters = { new List<PlayerController>(), new List<PlayerController>() };
     private readonly Dictionary<int, PlayerController> byId = new Dictionary<int, PlayerController>();
-    private int nextPlayerId;     // 스폰 순서로 발급하는 선수 번호. 타이브레이크의 근원(GetInstanceID 금지)
+    private int nextPlayerId;     // 스폰 순서로 발급하는 선수 번호. 타이브레이크 기준(GetInstanceID 금지)
 
     // attackHome = 아군 소유 때 자리(킥오프 위치이기도 하다), defendHome = 상대 소유 때 자리(스펙 §4-3 자리 2쌍)
     // stats는 호출자가 준다(09-27): 시즌 로스터·부 총점으로 축소한 상대 빌드는 PlayerTable에 없는 사본이라 variantId 조회로는 못 세운다

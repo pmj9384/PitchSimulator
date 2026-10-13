@@ -115,7 +115,9 @@ namespace Game.Core.League
                 bool challengerHomeFirst = plan.Role == PlayoffRole.Challenger;   // 도전자 1차전 홈·2차전 원정, 수성은 반대
                 myHome = stage == PlayoffStage.LegOne ? challengerHomeFirst : !challengerHomeFirst;
             }
-            var fixture = new Fixture(tier.Matches + (int)stage - 1, myHome ? me : opponent.TeamId, myHome ? opponent.TeamId : me);
+            int homeId = myHome ? me : opponent.TeamId;
+            int awayId = myHome ? opponent.TeamId : me;
+            var fixture = new Fixture(tier.Matches + (int)stage - 1, homeId, awayId);
             return new MatchSetup(fixture, MatchSeed(state.SeasonSeed, fixture), state.MyLineup(), opponent.ToLineup(asHome: false),
                 state.MyTactics(presets), FindPreset(presets, opponent.PresetId), opponent.Name);
         }

@@ -32,7 +32,7 @@ namespace Game.Core.Match
         }
 
         // 자유 공을 잡는 판정: 가장 가까운 선수(TargetSelector, 동률은 PlayerId 작은 쪽)가 radius 안이면 그 PlayerId, 아니면 NoOwner.
-        // 경계 포함(<=): "반경 안"이니 정확히 반경에 닿아도 잡는다. 후보 목록(정의역)은 호출자가 정한다.
+        // 경계 포함(<=): "반경 안"이니 정확히 반경에 닿아도 잡는다. 후보 목록은 호출자가 정한다.
         public static int TryCapture(in BallState ball, IReadOnlyList<TargetInfo>? candidates, float radius)
         {
             return TryCapture(ball, candidates, radius, allowFlight: false);

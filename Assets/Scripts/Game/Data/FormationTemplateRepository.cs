@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using Game.Core.Data;
 using UnityEngine;
 
-// FormationTemplates 접근층. 팀 생성기가 통째로 받으므로 목록만 준다
+// FormationTemplates 접근층. 팀 생성기가 한꺼번에 받으므로 목록만 준다
 public static class FormationTemplateRepository
 {
     private const string ResourcePath = "Tables/FormationTemplates";

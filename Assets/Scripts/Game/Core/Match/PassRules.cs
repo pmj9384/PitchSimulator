@@ -51,7 +51,7 @@ namespace Game.Core.Match
                 if (risk > worst) { worst = risk; }
             }
 
-            return worst < 0f ? 0f : (worst > 1f ? 1f : worst);
+            return Math.Clamp(worst, 0f, 1f);
         }
 
         // 킥 초속(09-23 Play "공이 너무 쉽게 멈춤"): 거리와 무관하게 서드 템포로 차니 먼 패스는 목표에 못 미쳐 멈추고 리시버는 리드 점으로 뛰어

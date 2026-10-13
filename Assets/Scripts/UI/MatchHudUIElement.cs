@@ -4,7 +4,7 @@ using UnityEngine;
 using UnityEngine.UI;
 
 // 경기 HUD(09-27): 스코어·시계(전반/후반 mm:ss)·소유 팀·일시정지 버튼. 값은 MatchManager에서 매 프레임 읽되 바뀐 프레임에만 문자열을 다시 만든다
-// (Unity e-book Dirty Flag, 모바일 가이드 "매 프레임 문자열 금지"). 이벤트 구독을 두지 않는 이유: 정수 3개라 구독-해제 표면이 더 비싸다
+// (Unity e-book Dirty Flag, 모바일 가이드 "매 프레임 문자열 금지"). 이벤트 구독을 두지 않는 이유: 정수 3개라 구독·해제 코드를 두는 쪽이 더 비싸다
 // 자막(09-28 자막): 경기 종료 > 하프타임 > 골 > 빈칸 순으로 한 칸을 나눠 쓴다. 골도 폴링으로 잡는다(점수 증가 = 골). 이 칸이 장부 「해설」(템플릿 해설)의 첫 층이다
 public class MatchHudUIElement : UIElement
 {
@@ -65,7 +65,7 @@ public class MatchHudUIElement : UIElement
         {
             shownSecond = totalSecond;
             ClockReading c = MatchClock.Describe(match.Ticks, sim.Added);
-            string half = c.SecondHalf ? "후반" : "전반";
+            string half = c.IsSecondHalf ? "후반" : "전반";
             clockText.text = c.InAddedTime
                 ? $"{half} {c.Minute}+{c.AddedMinute}:{c.AddedSecond:00}"      // 중계식 "45+1:30", "90+3:12"
                 : $"{half} {c.Minute:00}:{c.Second:00}";
