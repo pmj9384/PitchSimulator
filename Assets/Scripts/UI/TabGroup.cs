@@ -26,7 +26,7 @@ public class TabGroup : MonoBehaviour
         if (initialized) { return; }
         initialized = true;
 
-        // 버튼·강조 이미지는 한 벌이고 내용 묶음은 없거나 같은 수다. 어긋나면 일부 탭만 조용히 안 먹는다(09-30 리뷰)
+        // 버튼·강조 이미지는 한 벌이고 내용 묶음은 없거나 같은 수다. 어긋나면 일부 탭만 조용히 안 먹는다
         bool contentsMatch = contents.Length == 0 || contents.Length == tabButtons.Length;
         if (tabImages.Length != tabButtons.Length || !contentsMatch)
         {

@@ -265,7 +265,7 @@ public class ScoutPanelUIElement : UIElement
         return Mathf.RoundToInt(ratio * 100f).ToString(CultureInfo.InvariantCulture) + "%";
     }
 
-    // 주사위는 소수 한 자리까지: 정수로 반올림하면 "60% ≥ 60%"처럼 같아 보이는 실패가 생긴다(10-13 재검증)
+    // 주사위는 소수 한 자리까지: 정수로 반올림하면 "60% ≥ 60%"처럼 같아 보이는 실패가 생긴다
     private static string PercentFine(float ratio)
     {
         return (ratio * 100f).ToString("0.0", CultureInfo.InvariantCulture) + "%";

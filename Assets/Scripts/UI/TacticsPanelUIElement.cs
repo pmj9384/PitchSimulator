@@ -3,7 +3,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-// 경기 직전 세팅 화면(09-30). GameReady(선수 세팅 국면)에 뜨고 킥오프 버튼이 GamePlay로 넘긴다.
+// 경기 직전 세팅 화면. GameReady(선수 세팅 국면)에 뜨고 킥오프 버튼이 GamePlay로 넘긴다.
 // 전술 편집 자체는 전술 화면 부품(TacticsBoardView)이 맡는다. 로비 전술 화면과 같은 프리팹이라 로비에서 세팅한 값이 그대로 보이고, 여기서는 상대를 보고 고칠 수 있다.
 // 이 화면의 몫은 이번 경기다: 상대 이름·홈/원정·상대 전술(상성이 있어도 상대를 모르면 고르는 게 찍기가 된다)과 킥오프.
 // 경기는 킥오프 순간에 시즌의 내 전술을 읽는다(MatchManager.StartMatch). 경기 도중엔 못 바꾼다(스펙 축: 레버는 전부 킥오프 전).

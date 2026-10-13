@@ -17,7 +17,7 @@ public class PlayerController : MonoBehaviour
     }
 
     private Vector3 previous;   // 직전 고정 스텝 위치
-    private Vector3 current;    // 마지막 고정 스텝 위치. Update가 둘 사이를 보간한다(09-26)
+    private Vector3 current;    // 마지막 고정 스텝 위치. Update가 둘 사이를 보간한다
 
     // 고정 스텝 뒤 MatchManager가 부른다. 높이(y)는 발 높이 0
     public void SyncView()

@@ -6,7 +6,7 @@ public class GameUIManager : InGameManager
 {
     public List<UIElement> uiElements;
 
-    // 휘슬 뒤 결과 화면까지 기다리는 시간(09-28 결과 화면). 이 사이 HUD 자막이 경기 종료를 알린다. 나머지 경기 계산은 MatchEnded에서 이미 출발해 이 지연과 무관하다
+    // 휘슬 뒤 결과 화면까지 기다리는 시간. 이 사이 HUD 자막이 경기 종료를 알린다. 나머지 경기 계산은 MatchEnded에서 이미 출발해 이 지연과 무관하다
     [SerializeField] private float resultPanelDelaySec = 1.5f;
     private WaitForSeconds resultPanelWait;   // 모바일 가이드 "WaitForSeconds 캐시"(UNT0038). 값이 인스펙터 고정이라 Initialize에서 한 번 만든다
 
@@ -22,12 +22,12 @@ public class GameUIManager : InGameManager
         GameManager.AddGameStateEnterAction(GameManager.GameState.GameStop, ShowPausePanel);
         GameManager.AddGameStateExitAction(GameManager.GameState.GameStop, HidePausePanels);
 
-        // 승리(GameClear)도 패배·무승부(GameOver)도 같은 결과 화면. 승리 쪽이 비어 있어 이긴 판에서 다음 경기로 못 갔다(09-28 결과 화면).
+        // 승리(GameClear)도 패배·무승부(GameOver)도 같은 결과 화면. 승리 쪽이 비어 있어 이긴 판에서 다음 경기로 못 갔다.
         // 코루틴은 이 매니저에 붙어 돌아 씬이 내려가면 같이 멈춘다. 대기 중 재시작·로비 이동이 있어도 사라진 씬에 패널을 띄우지 않는다
         GameManager.AddGameStateEnterAction(GameManager.GameState.GameClear, ShowResultPanelDelayed);
         GameManager.AddGameStateEnterAction(GameManager.GameState.GameOver, ShowResultPanelDelayed);
 
-        // GameReady = 선수 세팅 국면(09-30): 팀 전술 설정창만 보인다. HUD를 같이 켜 두면 반투명 패널 뒤로 글자가 비친다(09-29 결과 화면과 같은 원인)
+        // GameReady = 선수 세팅 국면: 팀 전술 설정창만 보인다. HUD를 같이 켜 두면 반투명 패널 뒤로 글자가 비친다(09-29 결과 화면과 같은 원인)
         GameManager.AddGameStateEnterAction(GameManager.GameState.GameReady, ShowTacticsPanel);
         // 킥오프: 설정창을 닫고 HUD를 켠다. HUD는 휘슬 뒤 결과 화면이 뜰 때까지 경기 종료 자막을 보여 주고 그때 꺼진다
         GameManager.AddGameStateEnterAction(GameManager.GameState.GamePlay, ShowMatchHud);

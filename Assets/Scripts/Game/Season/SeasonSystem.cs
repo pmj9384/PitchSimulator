@@ -5,16 +5,16 @@ using Game.Core.League;
 using Game.Core.Tactics;
 using UnityEngine;
 
-// 시즌의 수명과 영속(09-27 확정 스펙 ①③). PlayerAccountData와 같은 꼴: GameDataManager가 들고 씬을 넘어 살며, SaveLoadSystem이 Save()를 부른다.
+// 시즌의 수명과 영속. PlayerAccountData와 같은 꼴: GameDataManager가 들고 씬을 넘어 살며, SaveLoadSystem이 Save를 부른다.
 // 판정은 전부 순수 코어(SeasonProgress·SeasonRunner) 몫. 여기는 "지금 시즌이 무엇인가", 파생물(상대 팀·일정·이번 경기) 캐시, 저장 타이밍만.
 // 경기 결과 보고는 비동기다(09-28 G1): 나머지 경기는 백그라운드에서 계산하고 반영·저장은 메인 스레드. 보고 중(IsReporting)엔 이번 라운드 전 상태라 다음 경기 재료를 내주지 않는다
-// 상대 팀은 세이브에 없고 (시즌 시드, 부)로 매번 같게 다시 만든다(09-26 확정 스펙 #1)
+// 상대 팀은 세이브에 없고 (시즌 시드, 부)로 매번 같게 다시 만든다
 public class SeasonSystem : ISaveLoad
 {
     public DataSourceType SaveDataSouceType => DataSourceType.Local;
 
-    // 내 팀 이름은 아직 세이브에 없다(09-27 결정 ③-a). 이름 짓기 UI가 생길 때 세이브 필드로.
-    // HUD·결과 화면이 같은 이름을 쓰도록 시즌 한 곳에 둔다(09-28 결과 화면)
+    // 내 팀 이름은 아직 세이브에 없다. 이름 짓기 UI가 생길 때 세이브 필드로.
+    // HUD·결과 화면이 같은 이름을 쓰도록 시즌 한 곳에 둔다
     public const string MyTeamName = "내 팀";
 
     public SeasonState State { get; private set; }
@@ -23,7 +23,7 @@ public class SeasonSystem : ISaveLoad
     public IReadOnlyList<Fixture> Schedule { get; private set; }
 
     private MatchSetup currentMatch;   // 이번 라운드 내 경기. Match·Stage 매니저가 같은 객체를 읽는다. 결과 보고 뒤 비운다
-    private GeneratedTeam foreignTeam;   // 승강전 1·2차전의 다른 부 상대(10-08). 처음 필요할 때 만들고 시즌이 바뀌면 비운다
+    private GeneratedTeam foreignTeam;   // 승강전 1·2차전의 다른 부 상대. 처음 필요할 때 만들고 시즌이 바뀌면 비운다
 
     public SeasonSystem()
     {
@@ -63,21 +63,21 @@ public class SeasonSystem : ISaveLoad
 
     public bool IsOver => SeasonProgress.IsOver(State, Tier);
     public bool IsRegularSeasonOver => SeasonProgress.IsRegularSeasonOver(State, Tier);
-    public PlayoffStage PendingPlayoff => SeasonProgress.PendingStage(State, Tier);   // 승강전(10-08). None = 대상 아님, Done = 끝
-    private PlayoffPlan PlayoffPlan => SeasonProgress.Plan(State, Tier);   // 호출처가 SetupPlayoff뿐(10-13 잔재 정리)
+    public PlayoffStage PendingPlayoff => SeasonProgress.PendingStage(State, Tier);   // 승강전. None = 대상 아님, Done = 끝
+    private PlayoffPlan PlayoffPlan => SeasonProgress.Plan(State, Tier);   // 호출처가 SetupPlayoff뿐
 
     public LeagueTable Table()
     {
         return State.Table(Tier.Teams);
     }
 
-    // 시즌이 끝났을 때 내 팀 판정(승격·잔류·강등·우승, 최종 순위). 끝나기 전엔 던진다(09-28 시즌 종료 표시)
+    // 시즌이 끝났을 때 내 팀 판정(승격·잔류·강등·우승, 최종 순위). 끝나기 전엔 던진다
     public SeasonOutcome Outcome()
     {
         return SeasonProgress.Outcome(State, Tier);
     }
 
-    // 승점표 행(팀 id) → 표시 이름. 상대 id는 1부터라 인덱스로 짐작하지 않고 찾는다(09-28 결과 화면)
+    // 승점표 행(팀 id) → 표시 이름. 상대 id는 1부터라 인덱스로 짐작하지 않고 찾는다
     public string TeamName(int teamId)
     {
         if (teamId == SeasonState.MyTeamId) { return MyTeamName; }
@@ -85,12 +85,12 @@ public class SeasonSystem : ISaveLoad
         return SeasonRunner.Find(Opponents, teamId).Name;   // 없는 id면 Find가 던진다
     }
 
-    // 이번 라운드 내 경기의 재료. 시즌이 끝났으면 먼저 PrepareNextMatch()
+    // 이번 라운드 내 경기의 재료. 시즌이 끝났으면 먼저 PrepareNextMatch
     public MatchSetup CurrentMatch
     {
         get
         {
-            // 보고 중엔 State가 아직 이번 라운드 전이라 끝난 경기를 다시 내준다. 지금은 결과 화면 버튼 잠금이 막지만, 새 진입 경로(뒤로가기 등)가 생겨도 조용히 틀리지 않고 터지게 여기서 막는다(09-28 리뷰)
+            // 보고 중엔 State가 아직 이번 라운드 전이라 끝난 경기를 다시 내준다. 지금은 결과 화면 버튼 잠금이 막지만, 새 진입 경로(뒤로가기 등)가 생겨도 조용히 틀리지 않고 터지게 여기서 막는다
             if (IsReporting) { throw new InvalidOperationException("[Season] 이번 라운드 결과를 아직 처리 중이다. 끝난 뒤(IsReporting false) 다음 경기를 연다"); }
             if (IsOver) { throw new InvalidOperationException($"[Season] {Tier.Tier}부 시즌이 끝났다({State.RoundsPlayed}/{Tier.Matches}). PrepareNextMatch()로 다음 시즌을 연다"); }
             if (currentMatch == null)
@@ -103,9 +103,9 @@ public class SeasonSystem : ISaveLoad
 
     // 내 경기 결과 → 같은 라운드 나머지 경기 헤드리스 → 즉시 저장. 승점표가 뜬 뒤 앱이 죽어도 이 라운드는 남는다(09-27 ③)
     // 나머지 경기(부에 따라 2~5경기, 경기당 9,000틱 ≈ 0.5초)를 FixedUpdate 안에서 돌려 휘슬 뒤 화면이 최대 2.5초 멈췄다. 계산만 백그라운드 스레드로 뺀다(09-28 G1)
-    // 보고 중엔 CurrentMatch·PrepareNextMatch가 옛 라운드를 읽으므로 둘은 오류로 막고, 결과 화면은 끝날 때까지 버튼을 잠근다(09-28 리뷰)
+    // 보고 중엔 CurrentMatch·PrepareNextMatch가 옛 라운드를 읽으므로 둘은 오류로 막고, 결과 화면은 끝날 때까지 버튼을 잠근다
     public bool IsReporting { get; private set; }
-    public bool LastReportFailed { get; private set; }   // 직전 보고가 실패했나. 결과 화면이 성공처럼 보이지 않게 "저장 실패"를 띄운다(09-28 리뷰)
+    public bool LastReportFailed { get; private set; }   // 직전 보고가 실패했나. 결과 화면이 성공처럼 보이지 않게 "저장 실패"를 띄운다
 
     public async Awaitable ReportMyResultAsync(MatchResult myResult)
     {
@@ -119,7 +119,7 @@ public class SeasonSystem : ISaveLoad
 
         if (IsRegularSeasonOver)
         {
-            ReportPlayoffResult(myResult);   // 승강전(10-08): 헤드리스 경기가 없어 동기. 승부차기까지 여기서 정하고 저장한다
+            ReportPlayoffResult(myResult);   // 승강전: 헤드리스 경기가 없어 동기. 승부차기까지 여기서 정하고 저장한다
             IsReporting = false;
             return;
         }
@@ -129,7 +129,7 @@ public class SeasonSystem : ISaveLoad
         try
         {
             // Unity API는 스레드 안전하지 않아 재료는 메인 스레드에서 미리 잡는다(TeamTacticsRepository.All은 처음 부를 때 Resources.Load를 탄다).
-            // try 안에 둬야 여기서 던져도 finally가 IsReporting을 푼다(09-28 리뷰: 밖에 두면 결과 화면 버튼이 영영 잠겼다)
+            // try 안에 둬야 여기서 던져도 finally가 IsReporting을 푼다(밖에 두면 결과 화면 버튼이 영영 잠겼다)
             int round = state.RoundsPlayed;
             int seasonSeed = state.SeasonSeed;
             IReadOnlyList<GeneratedTeam> opponents = Opponents;
@@ -142,7 +142,7 @@ public class SeasonSystem : ISaveLoad
             await Awaitable.MainThreadAsync();
 
             // 에디터에서 계산 중 Play를 끄면 여기로 돌아왔을 때 SaveLoadSystem이 이미 파괴돼 있다. Instance가 초기화 안 된 새 객체를 만들어 세이브를 null로 덮으니
-            // 저장하지 않고 빠진다(09-28 리뷰). 실기기는 앱 종료 때 프로세스가 같이 끝나 여기로 안 온다
+            // 저장하지 않고 빠진다. 실기기는 앱 종료 때 프로세스가 같이 끝나 여기로 안 온다
             if (Application.exitCancellationToken.IsCancellationRequested) { return; }
 
             // 넣기는 메인 스레드에서 한 번에 한다. 헤드리스 경기 중 예외가 나면 여기까지 못 와서 반쪽 라운드가 생기지 않는다(09-27 리뷰 D3)
@@ -167,7 +167,7 @@ public class SeasonSystem : ISaveLoad
         }
     }
 
-    // ── 승강전(10-08). 재료는 SeasonRunner, 흐름 판정은 SeasonProgress. 여기는 다른 부 팀 캐시와 저장만
+    // ── 승강전. 재료는 SeasonRunner, 흐름 판정은 SeasonProgress. 여기는 다른 부 팀 캐시와 저장만
     private MatchSetup SetupPlayoff()
     {
         PlayoffPlan plan = PlayoffPlan;
@@ -218,7 +218,7 @@ public class SeasonSystem : ISaveLoad
         return $"승강전 2차전 · 합산 {mine}:{theirs}{pens}";
     }
 
-    // 단판은 무승부면 홈(2위)이 올라간다. 제목(무승부)과 어긋나 보이지 않게 사유를 붙인다(10-08 리뷰)
+    // 단판은 무승부면 홈(2위)이 올라간다. 제목(무승부)과 어긋나 보이지 않게 사유를 붙인다
     private static string SemifinalLine(PlayoffResult semi)
     {
         bool won = PlayoffRules.SemifinalWinner(semi) == SeasonState.MyTeamId;
@@ -235,7 +235,7 @@ public class SeasonSystem : ISaveLoad
         return $" · 승부차기 {mine}:{theirs}";
     }
 
-    // 팀 전술 설정창(09-30)의 입구 3개: 카드·슬라이더·세부 표. 규칙(없는 id 거부, 기준 카드 유지/교체, 범위 검증)은 SeasonState가 정하고 여기는 앞뒤만 맡는다.
+    // 팀 전술 설정창의 입구 3개: 카드·슬라이더·세부 표. 규칙(없는 id 거부, 기준 카드 유지/교체, 범위 검증)은 SeasonState가 정하고 여기는 앞뒤만 맡는다.
     // 카드: 없는 id면 SeasonState가 던지고 아무것도 안 바뀐다
     public void SetMyPreset(string presetId)
     {
@@ -260,7 +260,7 @@ public class SeasonSystem : ISaveLoad
         CommitMyTactics();
     }
 
-    // 개인 전술(09-30): 전술 화면에서 필드의 선수 칩을 눌러 역할과 개인 지시를 정한다. 규칙(같은 자리의 노출된 역할만, 지시 범위)은 SeasonState가 정한다.
+    // 개인 전술: 전술 화면에서 필드의 선수 칩을 눌러 역할과 개인 지시를 정한다. 규칙(같은 자리의 노출된 역할만, 지시 범위)은 SeasonState가 정한다.
     // 이번 경기 재료에는 내 라인업의 선수 값도 들어 있어서 팀 전술과 같이 비우고 저장한다
     public void SetPlayerRole(int playerId, string variantId)
     {
@@ -297,7 +297,7 @@ public class SeasonSystem : ISaveLoad
     }
 
     // 지목 → 즉시 판정. 시도 1 소모, 성공이면 내 선수(같은 자리)와 교체. 주사위는 (시즌 시드, 팀, 선수, 시도 번호)라 같은 세팅 = 같은 결과.
-    // 자리 검사는 시도를 소모하기 전에 한다(10-12 리뷰): 교체에서 던지면 시도만 줄고 저장은 안 되는 반쪽 상태가 된다
+    // 자리 검사는 시도를 소모하기 전에 한다: 교체에서 던지면 시도만 줄고 저장은 안 되는 반쪽 상태가 된다
     public ScoutVerdict TryScout(int teamId, int playerIndex, int myPlayerId)
     {
         ThrowIfReporting();
@@ -338,7 +338,7 @@ public class SeasonSystem : ISaveLoad
         CommitMyTactics();
     }
 
-    // CurrentMatch·PrepareNextMatch와 같은 방어선: 지금은 설정창이 GameReady(보고가 끝난 뒤)에만 떠서 겹칠 길이 없지만, 새 진입 경로가 생겨도 조용히 틀리지 않게(09-30 리뷰)
+    // CurrentMatch·PrepareNextMatch와 같은 방어선: 지금은 설정창이 GameReady(보고가 끝난 뒤)에만 떠서 겹칠 길이 없지만, 새 진입 경로가 생겨도 조용히 틀리지 않게
     private void ThrowIfReporting()
     {
         if (IsReporting) { throw new InvalidOperationException("[Season] 이번 라운드 결과를 아직 처리 중이다. 끝난 뒤에 전술을 바꾼다"); }
@@ -364,10 +364,10 @@ public class SeasonSystem : ISaveLoad
     {
         int nextTier = SeasonProgress.NextTier(State, Tier);
         Debug.Log($"[Season] {Tier.Tier}부 시즌 종료 → {nextTier}부 새 시즌");
-        TeamTactics custom = State.MyCustomTactics;   // 바꾼 전술도 다음 시즌으로 이어 간다(09-30). 카드만 넘기면 승격하자마자 세팅이 풀린다
-        // 시즌이 끝난 뒤 로비 전술 화면에서 바꾼 값도 끝난 시즌의 State에 들어가 있다가 여기서 읽혀 새 시즌으로 넘어간다(09-30 리뷰: 로비 편집 경로가 생기며 처음 도달 가능해진 순서)
+        TeamTactics custom = State.MyCustomTactics;   // 바꾼 전술도 다음 시즌으로 이어 간다. 카드만 넘기면 승격하자마자 세팅이 풀린다
+        // 시즌이 끝난 뒤 로비 전술 화면에서 바꾼 값도 끝난 시즌의 State에 들어가 있다가 여기서 읽혀 새 시즌으로 넘어간다(로비 편집 경로가 생기며 처음 도달 가능해진 순서)
         IReadOnlyList<RosterPlayer> previousRoster = State.Roster;   // 역할·개인 지시도 이어 간다. 새 시즌 로스터는 기본 편성에서 다시 만들어져 그대로 두면 풀린다
-        IReadOnlyList<LineupEntry> previousLineup = State.Lineup;    // 끌어 둔 배치도(10-13 재검증 R2)
+        IReadOnlyList<LineupEntry> previousLineup = State.Lineup;    // 끌어 둔 배치도
         StartSeason(nextTier, unchecked(State.SeasonSeed + 1), State.MyPresetId);   // 다음 시즌 시드도 결정적(이전 시드 + 1)
         if (custom != null) { State.SetMyTactics(custom, TeamTacticsRepository.All); }
         State.AdoptPlayerTactics(previousRoster, PlayerTableRepository.All);

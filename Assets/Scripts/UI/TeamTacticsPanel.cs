@@ -22,7 +22,7 @@ public class TeamTacticsPanel : MonoBehaviour
     [SerializeField] private TMP_Text cardTitle;
     [SerializeField] private TMP_Text cardDescription;
     [SerializeField] private Button customResetButton;   // "사용자 설정". 값이 기준 카드와 다를 때만 보이고, 누르면 카드 값으로
-    [SerializeField] private StaminaLoadGauge loadGauge;  // 체력 부담 막대. 카드 설명 아래(09-30)
+    [SerializeField] private StaminaLoadGauge loadGauge;  // 체력 부담 막대. 카드 설명 아래
 
     [Header("② 슬라이더 (카드 기준 −2~+2)")]
     [SerializeField] private Slider forwardSlider;
@@ -85,7 +85,7 @@ public class TeamTacticsPanel : MonoBehaviour
         ApplyLevelNames();
     }
 
-    // 3단 버튼 글자는 코드 한 곳(TacticLevelNames)에서. 결과 화면(TacticsReadoutText)과 같은 배열을 쓴다(10-12)
+    // 3단 버튼 글자는 코드 한 곳(TacticLevelNames)에서. 결과 화면(TacticsReadoutText)과 같은 배열을 쓴다
     private void ApplyLevelNames()
     {
         SetRowLabels(passStyle, TacticLevelNames.PassStyle);
@@ -144,7 +144,7 @@ public class TeamTacticsPanel : MonoBehaviour
         ApplySlider(TacticSlider.Press, value);
     }
 
-    // 카드 값이 이미 끝이면 더 밀어도 같은 값이라 손잡이를 실제로 바뀐 칸까지만 둔다(10-13: 유저 "더·덜이 분배가 안 된다"). 돌려놓는 건 표시용이라 이벤트를 안 낸다
+    // 카드 값이 이미 끝이면 더 밀어도 같은 값이라 손잡이를 실제로 바뀐 칸까지만 둔다(유저 "더·덜이 분배가 안 된다"). 돌려놓는 건 표시용이라 이벤트를 안 낸다
     private void ApplySlider(TacticSlider slider, float value)
     {
         TeamTactics card = SeasonRunner.FindPreset(presets, Season.State.MyPresetId);

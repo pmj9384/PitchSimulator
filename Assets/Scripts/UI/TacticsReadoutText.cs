@@ -10,7 +10,7 @@ public static class TacticsReadoutText
 {
     private const string ColLabel = "<pos=0%>";
     private static readonly string[] ColThird = { "<pos=40%>", "<pos=60%>", "<pos=80%>" };   // Third 순서
-    // 3단 이름·서드 이름은 TacticLevelNames 한 곳(10-12). 설정창 버튼 글자도 같은 배열을 쓴다
+    // 3단 이름·서드 이름은 TacticLevelNames 한 곳. 설정창 버튼 글자도 같은 배열을 쓴다
     private static readonly string[] ThirdNames = TacticLevelNames.Thirds;
     private static readonly string[] PassStyleNames = TacticLevelNames.PassStyle;
     private static readonly string[] PressStartNames = TacticLevelNames.PressStart;

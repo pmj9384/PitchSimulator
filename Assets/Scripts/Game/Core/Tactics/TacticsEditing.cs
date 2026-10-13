@@ -6,16 +6,16 @@ namespace Game.Core.Tactics
     // 슬라이더 3개. 각자 맡은 칸이 있다(목업 힌트 그대로): 앞으로 = 전진 정도 + 폭 + 패스 리스크, 빨리 = 속도, 압박 = 압박 시작
     public enum TacticSlider { Forward, Speed, Press }
 
-    // 팀 전술 설정창(09-30)의 순수 판정. 입구 3단 = 카드 → 슬라이더 → 세부 표(스펙 §4-2, 목업 "전술 지도와 설정창" 탭 2).
+    // 팀 전술 설정창의 순수 판정. 입구 3단 = 카드 → 슬라이더 → 세부 표(스펙 §4-2, 목업 "전술 지도와 설정창" 탭 2).
     // 슬라이더는 칸 값을 한 값으로 덮지 않고 카드 값에 오프셋을 더한다(09-30 유저 결정): 카드가 가진 서드별 모양(예: 빌드업의 우리 진영 짧게·상대 진영 직접)을 지킨다.
     // "얼마나 압박"의 "역할별 압박 거리"(목업)는 개인 다이얼이라 개인 전술창 몫
     public static class TacticsEditing
     {
         public const int SliderMin = -1;
-        public const int SliderMax = 1;   // 3칸(10-13). 칸 값이 3단(0~2)이라 ±2면 카드 값 1에서 "더"와 "훨씬 더"가 같아져 유저가 "분배가 안 된다"고 느꼈다. 한 칸이 곧 한 단
+        public const int SliderMax = 1;   // 3칸. 칸 값이 3단(0~2)이라 ±2면 카드 값 1에서 "더"와 "훨씬 더"가 같아져 유저가 "분배가 안 된다"고 느꼈다. 한 칸이 곧 한 단
 
         // 슬라이더 하나가 자기 담당 칸만 다시 쓴다: 담당 칸 = 기준 카드 값 + 오프셋, 나머지는 지금 값(current) 그대로.
-        // 카드를 전부 복사해 다시 계산하면 슬라이더와 상관없는 칸(패스 방식·전환)과 다른 슬라이더의 칸까지 표에서 바꾼 값이 사라진다(09-30 재검증)
+        // 카드를 전부 복사해 다시 계산하면 슬라이더와 상관없는 칸(패스 방식·전환)과 다른 슬라이더의 칸까지 표에서 바꾼 값이 사라진다
         public static TeamTactics ApplySlider(TeamTactics current, TeamTactics card, TacticSlider slider, int offset)
         {
             CheckSlider(offset, nameof(offset));
@@ -40,7 +40,7 @@ namespace Game.Core.Tactics
             return t;
         }
 
-        // 슬라이더를 offset까지 밀었을 때 실제로 값이 바뀌는 마지막 칸. 카드 값이 이미 끝(0 또는 2)이면 더 밀어도 같은 값이라 화면이 그 자리로 되돌린다(10-13 포화 표시)
+        // 슬라이더를 offset까지 밀었을 때 실제로 값이 바뀌는 마지막 칸. 카드 값이 이미 끝(0 또는 2)이면 더 밀어도 같은 값이라 화면이 그 자리로 되돌린다
         public static int EffectiveSliderOffset(TeamTactics card, TacticSlider slider, int offset)
         {
             CheckSlider(offset, nameof(offset));

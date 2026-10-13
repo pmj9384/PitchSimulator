@@ -3,7 +3,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-// 3단 값(0·1·2) 하나를 고르는 버튼 묶음. 팀 전술 설정창 세부 표의 한 칸(09-30). 값의 뜻(짧게·직접·롱볼 등)은 모른다:
+// 3단 값(0·1·2) 하나를 고르는 버튼 묶음. 팀 전술 설정창 세부 표의 한 칸. 값의 뜻(짧게·직접·롱볼 등)은 모른다:
 // 글자는 패널이 TacticLevelNames에서 가져와 SetLabels로 넣는다(10-12, 프리팹 글자와 결과 화면 배열이 갈리던 것을 한 곳으로).
 // 코드가 값을 채울 때(SetLevel)는 Changed를 쏘지 않는다: 카드·슬라이더가 표를 다시 채울 때마다 "사용자가 바꿨다"로 저장되는 순환을 막는다
 public class TacticLevelSelector : MonoBehaviour

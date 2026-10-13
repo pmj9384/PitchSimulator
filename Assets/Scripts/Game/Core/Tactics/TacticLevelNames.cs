@@ -1,6 +1,6 @@
 namespace Game.Core.Tactics
 {
-    // 팀 전술 3단(0·1·2)의 화면 이름 한 곳(10-12). 전엔 TacticsBoard.prefab 버튼 글자와 TacticsReadoutText 배열 두 곳에 있어
+    // 팀 전술 3단(0·1·2)의 화면 이름 한 곳. 전엔 TacticsBoard.prefab 버튼 글자와 TacticsReadoutText 배열 두 곳에 있어
     // 한쪽만 고치면 설정창과 결과 화면이 다른 말을 썼다(10-06 리뷰 잔여). 값의 뜻은 TeamTactics 주석, 판정값은 MatchTuning
     public static class TacticLevelNames
     {

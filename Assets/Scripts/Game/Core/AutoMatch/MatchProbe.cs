@@ -4,7 +4,7 @@ namespace Game.Core.AutoMatch
 {
     // 경기 한 판의 결과 한 줄. 러너 CSV의 행이자 밸런스 판단의 단위(승률·기대 골·점유).
     // 진단 지표(접촉·최소 거리 등)는 여기 없다: 그건 규칙을 고칠 때 보는 값이라 FullMatchTests에 둔다.
-    // 형태 지표 3개(09-26)는 예외: 측면 소유 비율·최다 역할 비율·슛 |z|. 경기가 "정상처럼 보이는 이상"(터치라인 빌드업)은 골·승률로 안 보여서 매 판 같이 찍는다
+    // 형태 지표 3개는 예외: 측면 소유 비율·최다 역할 비율·슛 |z|. 경기가 "정상처럼 보이는 이상"(터치라인 빌드업)은 골·승률로 안 보여서 매 판 같이 찍는다
     public sealed class MatchSummary
     {
         public int Seed { get; set; }
@@ -75,7 +75,7 @@ namespace Game.Core.AutoMatch
                 if (owner == 0)
                 {
                     homeOwned++;
-                    if (sim.Ball.X * sim.AttackSignOf(0) >= MatchTuning.ThirdBoundary) { homeOppThird++; }   // 후반 진영 교체 뒤에도 "상대 서드"가 맞도록 부호를 시뮬에서(09-27)
+                    if (sim.Ball.X * sim.AttackSignOf(0) >= MatchTuning.ThirdBoundary) { homeOppThird++; }   // 후반 진영 교체 뒤에도 "상대 서드"가 맞도록 부호를 시뮬에서
                 }
                 else if (owner == 1)
                 {

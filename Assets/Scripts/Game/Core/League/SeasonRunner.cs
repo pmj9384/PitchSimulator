@@ -21,7 +21,7 @@ namespace Game.Core.League
 
         // 한 라운드의 전 경기 결과(내 결과가 맨 앞)를 계산만 한다. 입력을 읽기만 해서 백그라운드 스레드에서 불러도 된다.
         // 인게임에선 휘슬 뒤 헤드리스 경기가 FixedUpdate를 2.5초 붙잡던 것을 스레드로 뺀다. 넣기(AddRound)는 부르는 쪽이 메인 스레드에서 한 번에 한다(09-28 G1).
-        // 시즌 상태 대신 라운드·시드 값만 받는다: 스레드로 넘어가는 가변 객체가 없어야 "상태를 안 건드린다"가 주석이 아니라 시그니처로 보장된다(09-28 리뷰)
+        // 시즌 상태 대신 라운드·시드 값만 받는다: 스레드로 넘어가는 가변 객체가 없어야 "상태를 안 건드린다"가 주석이 아니라 시그니처로 보장된다
         public static List<MatchResult> ComputeRound(int round, int seasonSeed, IReadOnlyList<GeneratedTeam> opponents, IReadOnlyList<Fixture> schedule,
             IReadOnlyList<TeamTactics> presets, MatchResult myResult)
         {
@@ -64,7 +64,7 @@ namespace Game.Core.League
             int opponentId = mine.HomeTeamId == SeasonState.MyTeamId ? mine.AwayTeamId : mine.HomeTeamId;
             GeneratedTeam opponent = Find(opponents, opponentId);
             return new MatchSetup(mine, MatchSeed(state.SeasonSeed, mine), state.MyLineup(), opponent.ToLineup(asHome: false),
-                state.MyTactics(presets), FindPreset(presets, opponent.PresetId), opponent.Name);   // 내 전술 = 바꾼 값 또는 기준 카드(09-30)
+                state.MyTactics(presets), FindPreset(presets, opponent.PresetId), opponent.Name);   // 내 전술 = 바꾼 값 또는 기준 카드
         }
 
         // ── 승강전(10-08, 스펙 §10 10-08 구현 설계). 내 팀이 걸린 경기만 치른다

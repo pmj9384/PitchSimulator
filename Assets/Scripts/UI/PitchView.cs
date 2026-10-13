@@ -62,7 +62,7 @@ public class PitchView : MonoBehaviour
 
     // 칩을 놓은 자리(필드 로컬 좌표) → 필드 좌표 → 편성 자리 → 판정 → 저장. 안 되면 되돌린다.
     // 편성 자리는 "놓은 자리 − (보이는 자리 − 편성 자리)"인데 측면 쏠림이 편성 z의 부호를 따라서(PositionRules.AttackHome), z = 0 선을 건너 놓으면 한 번에 안 풀린다.
-    // 그래서 몇 번 되풀이해 다시 그린 자리가 놓은 자리와 같아질 때까지 맞추고, 끝내 안 맞으면(필드 밖으로 잘린 경우) 거부한다(10-08 리뷰)
+    // 그래서 몇 번 되풀이해 다시 그린 자리가 놓은 자리와 같아질 때까지 맞추고, 끝내 안 맞으면(필드 밖으로 잘린 경우) 거부한다
     private void OnChipDropped(PitchChip chip, Vector2 local)
     {
         try

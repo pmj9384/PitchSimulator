@@ -3,7 +3,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-// 개인 지시 한 줄(09-30): 이름 · [<] 지금 단계 [>]. 개인 전술 패널(PlayerTacticsPanel)이 10줄을 들고 선수에게 해당하는 줄만 보여 준다.
+// 개인 지시 한 줄: 이름 · [<] 지금 단계 [>]. 개인 전술 패널(PlayerTacticsPanel)이 10줄을 들고 선수에게 해당하는 줄만 보여 준다.
 // 어느 다이얼인지, 단계가 무슨 뜻인지는 모른다. 받은 글자를 보여 주고 누른 방향(−1·+1)만 알린다
 public class PlayerDialRow : MonoBehaviour
 {
