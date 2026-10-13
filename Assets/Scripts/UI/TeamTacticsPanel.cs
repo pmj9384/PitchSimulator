@@ -68,6 +68,9 @@ public class TeamTacticsPanel : MonoBehaviour
         nextCardButton.onClick.AddListener(OnNextCard);
         customResetButton.onClick.AddListener(OnResetToCard);
 
+        SetSliderRange(forwardSlider);   // 범위의 진실은 코어 상수(프리팹 값이 아니라)
+        SetSliderRange(speedSlider);
+        SetSliderRange(pressSlider);
         forwardSlider.onValueChanged.AddListener(OnForwardChanged);
         speedSlider.onValueChanged.AddListener(OnSpeedChanged);
         pressSlider.onValueChanged.AddListener(OnPressChanged);
@@ -141,13 +144,31 @@ public class TeamTacticsPanel : MonoBehaviour
         ApplySlider(TacticSlider.Press, value);
     }
 
+    // 카드 값이 이미 끝이면 더 밀어도 같은 값이라 손잡이를 실제로 바뀐 칸까지만 둔다(10-13: 유저 "더·덜이 분배가 안 된다"). 돌려놓는 건 표시용이라 이벤트를 안 낸다
     private void ApplySlider(TacticSlider slider, float value)
     {
         TeamTactics card = SeasonRunner.FindPreset(presets, Season.State.MyPresetId);
-        TeamTactics tactics = TacticsEditing.ApplySlider(Season.State.MyTactics(presets), card, slider, Mathf.RoundToInt(value));
+        int offset = Mathf.RoundToInt(value);
+        int effective = TacticsEditing.EffectiveSliderOffset(card, slider, offset);
+        if (effective != offset) { SliderOf(slider).SetValueWithoutNotify(effective); }
+        TeamTactics tactics = TacticsEditing.ApplySlider(Season.State.MyTactics(presets), card, slider, effective);
         Season.SetMyTactics(tactics);
         ShowTactics();
         Changed?.Invoke();
+    }
+
+    private Slider SliderOf(TacticSlider slider)
+    {
+        if (slider == TacticSlider.Forward) { return forwardSlider; }
+        if (slider == TacticSlider.Speed) { return speedSlider; }
+        return pressSlider;
+    }
+
+    private static void SetSliderRange(Slider slider)
+    {
+        slider.minValue = TacticsEditing.SliderMin;
+        slider.maxValue = TacticsEditing.SliderMax;
+        slider.wholeNumbers = true;
     }
 
     private void OnTableChanged(TacticLevelSelector _)
