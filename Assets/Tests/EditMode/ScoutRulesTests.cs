@@ -30,6 +30,20 @@ public class ScoutRulesTests
         return tiers.Find(t => t.Tier == tier);
     }
 
+    private static PlayerStats FirstStrikerWithOtherVariant(List<GeneratedTeam> teams, string excludedVariantId)
+    {
+        foreach (GeneratedTeam team in teams)
+        {
+            foreach (PlayerStats p in team.Players)
+            {
+                if (p.RoleId != "ST") { continue; }
+                if (p.VariantId == excludedVariantId) { continue; }
+                return p;
+            }
+        }
+        throw new System.InvalidOperationException("3부 상대에 다른 변형의 ST가 없다");
+    }
+
     private static int MyPlayerIdOf(SeasonState state, string roleId)
     {
         foreach (RosterPlayer p in state.Roster)
@@ -214,11 +228,9 @@ public class ScoutRulesTests
     {
         // 10-13 재검증 F2: 교체 결과만 잠겨 있고 세이브·이월 경로는 비어 있었다. 이월 규칙은 스펙 §4-5 [가정] ④
         SeasonState state = SeasonState.NewSeason(4, 42, myRows, table);
-        GeneratedTeam team = TeamGenerator.Generate(42, Tier(4), table, formations, names)[0];
-        int stIndex = -1;
-        for (int i = 0; i < team.Players.Count; i++) { if (team.Players[i].RoleId == "ST") { stIndex = i; } }
-        PlayerStats target = team.Players[stIndex];
         int myStriker = MyPlayerIdOf(state, "ST");
+        string myVariant = state.FindRosterPlayer(myStriker).Stats.VariantId;
+        PlayerStats target = FirstStrikerWithOtherVariant(TeamGenerator.Generate(42, Tier(3), table, formations, names), myVariant);   // 4부는 전원 기본 변형이라 같은 변형이 나와 단언이 공허해진다(10-13 리뷰). 3부에서 다른 변형을 고른다
         state.ReplacePlayer(myStriker, target);
         PlayerStats scouted = state.FindRosterPlayer(myStriker).Stats;
 

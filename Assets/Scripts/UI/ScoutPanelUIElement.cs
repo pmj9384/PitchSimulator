@@ -56,7 +56,7 @@ public class ScoutPanelUIElement : UIElement
         selectedTeamId = NoSelection;
         selectedPlayerIndex = NoSelection;
         verdictText.text = "영입할 팀을 고른다";
-        noticeText.text = NoticeLine(Season.Tier);
+        noticeText.text = NoticeLine(Season);
         ShowHeader();
         ShowTeams();
         ShowPlayers();
@@ -229,11 +229,13 @@ public class ScoutPanelUIElement : UIElement
     #endregion
 
     #region 글자
-    // 이 부의 상대가 전부 ★1인지는 코어가 답한다(부 번호 4를 UI가 알 필요 없게)
-    private static string NoticeLine(TierRule tier)
+    // 안내 한 줄. 시즌이 끝난 뒤의 영입은 역할만 다음 시즌으로 가고 능력치는 기본으로 돌아간다(스펙 §4-5 [가정] ④, 10-13 재검증).
+    // "이 부는 전부 ★1"인지는 코어가 판정한다(부 번호 4를 UI가 알 필요 없게)
+    private static string NoticeLine(SeasonSystem season)
     {
-        if (!ScoutRules.AllStarsAreOne(tier)) { return string.Empty; }
-        return "이 부의 상대는 모두 기본 역할이라 ★1뿐이다. 역할이 다양한 선수는 윗 부부터 나온다";
+        if (season.IsOver) { return "시즌이 끝났다. 지금 영입하면 역할은 다음 시즌으로 가지만 능력치는 기본으로 돌아간다"; }
+        if (ScoutRules.AllStarsAreOne(season.Tier)) { return "이 부의 상대는 모두 기본 역할이라 ★1뿐이다. 역할이 다양한 선수는 상위 부부터 나온다"; }
+        return string.Empty;
     }
 
     private static string PreviewLine(ScoutVerdict preview)
