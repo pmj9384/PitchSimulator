@@ -3,7 +3,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-// 경기 HUD(09-27): 스코어·시계(전반/후반 mm:ss)·소유 팀·일시정지 버튼. 값은 MatchManager에서 매 프레임 읽되 바뀐 프레임에만 문자열을 다시 만든다
+// 경기 HUD: 스코어·시계(전반/후반 mm:ss)·소유 팀·일시정지 버튼. 값은 MatchManager에서 매 프레임 읽되 바뀐 프레임에만 문자열을 다시 만든다
 // (Unity e-book Dirty Flag, 모바일 가이드 "매 프레임 문자열 금지"). 이벤트 구독을 두지 않는 이유: 정수 3개라 구독·해제 코드를 두는 쪽이 더 비싸다
 // 자막(09-28 자막): 경기 종료 > 하프타임 > 골 > 빈칸 순으로 한 칸을 나눠 쓴다. 골도 폴링으로 잡는다(점수 증가 = 골). 이 칸이 장부 「해설」(템플릿 해설)의 첫 층이다
 public class MatchHudUIElement : UIElement
@@ -125,7 +125,7 @@ public class MatchHudUIElement : UIElement
     }
 
     // 우선순위: 골 세리머니 > 경기 종료 > 하프타임 > 골 > 빈칸. 경기 종료는 결과 화면(GameUIManager.resultPanelDelaySec 뒤)이 덮을 때까지 유지한다.
-    // 세리머니(09-29) 동안은 골 자막을 유지한다: 마지막 틱 골이면 세리머니가 끝난 뒤에 경기 종료가 뜬다
+    // 세리머니 동안은 골 자막을 유지한다: 마지막 틱 골이면 세리머니가 끝난 뒤에 경기 종료가 뜬다
     private string DesiredCaption(MatchManager match)
     {
         if (match.InCelebration) { return goalCaption; }

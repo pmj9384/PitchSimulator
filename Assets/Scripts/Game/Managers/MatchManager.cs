@@ -17,7 +17,7 @@ public class MatchManager : InGameManager
     [SerializeField] private float celebrationSec = 3f;    // 골 세리머니(연출, 09-29 유저 Play "골 넣은 사람 세리머니 시간을 줘야"). 시뮬 틱은 안 돈다. 0이면 없음
     [SerializeField] private float kickoffSetSec = 1f;     // 킥오프 전 제자리 멈춤(연출, 09-29). 경기 시작·골 뒤. 하프타임은 halfTimeHoldSec이 맡는다
 
-    public int Ticks { get; private set; }                       // 킥오프부터 센 고정 스텝 수. float 누적은 종료 틱이 9000/9001로 갈려 러너와 어긋난다(09-27 리뷰)
+    public int Ticks { get; private set; }                       // 킥오프부터 센 고정 스텝 수. float 누적은 종료 틱이 9000/9001로 갈려 러너와 어긋난다
     public float Elapsed => Ticks * MatchTuning.FixedStep;     // 로그용 초
     public MatchSimulation Simulation { get; private set; }
     public string OpponentName { get; private set; }            // HUD용. 이번 경기 정보는 Match 한 곳에서(참조 1개 규칙)
@@ -26,13 +26,13 @@ public class MatchManager : InGameManager
     // 경기가 끝났음을 알린다(승리 팀 0/1, 무승부 -1). 결과 화면(3주차)과 검증 도구가 구독한다
     public event Action<int> MatchEnded;
 
-    private static readonly BehaviorNode SharedTree = PlayerTreeBuilder.Build();   // 22명이 공유하는 트리 하나(무상태). 4국면(09-18)
+    private static readonly BehaviorNode SharedTree = PlayerTreeBuilder.Build();   // 22명이 공유하는 트리 하나(무상태). 4국면
     private System.Random rng;
-    private int kickoffTeam;   // 일정상 홈이 킥오프(MatchSetup). 골 뒤엔 시뮬이 실점 팀에게 준다(09-23)
+    private int kickoffTeam;   // 일정상 홈이 킥오프(MatchSetup). 골 뒤엔 시뮬이 실점 팀에게 준다
     private int holdTicksLeft;   // 멈춤(하프타임·킥오프 준비) 남은 고정 스텝 수
     private bool holdIsHalfTime;
     private int goalScorerId = BallState.NoOwner;   // 이번 틱 골 넣은 선수. ShotResolved에서 받는다
-    private TacticsProbe myProbe;   // 내 팀의 전술 실측. 결과 화면이 설정과 나란히 보여 준다(10-06)
+    private TacticsProbe myProbe;   // 내 팀의 전술 실측. 결과 화면이 설정과 나란히 보여 준다
     private readonly GoalCelebration celebration = new GoalCelebration();   // 세리머니 안무. 언제 시작·끝낼지는 여기서 정한다
     private bool celebrationBeforeHalfTime;   // 이번 세리머니가 하프타임 틱의 골인가. 끝나면 킥오프 준비 대신 하프타임 멈춤
 
@@ -48,7 +48,7 @@ public class MatchManager : InGameManager
     // 틱이 도는지는 플래그가 아니라 상태가 정한다. 일시정지(GameStop)·종료(GameOver/Clear)에서 저절로 멈춘다
     private bool IsRunning => GameManager.CurrentState == GameManager.GameState.GamePlay;
 
-    // 시드·전술·킥오프 팀은 시즌의 이번 경기(MatchSetup)에서(09-27). 같은 시즌·라운드·같은 세팅이면 같은 경기가 재현된다("막히면 재세팅")
+    // 시드·전술·킥오프 팀은 시즌의 이번 경기(MatchSetup)에서. 같은 시즌·라운드·같은 세팅이면 같은 경기가 재현된다("막히면 재세팅")
     private void ResetMatch()
     {
         // 입구가 어디든(로비·에디터에서 InGameScene 직접 Play) 끝난 시즌이면 여기서 다음 시즌을 연다. 안 끝났으면 아무 일도 안 한다(09-29 발견 A).
@@ -66,7 +66,7 @@ public class MatchManager : InGameManager
         OpponentName = setup.OpponentName;
         Simulation = new MatchSimulation(NextRoll, SharedTree)
         {
-            ResetAfterEveryShot = false   // 4국면 트리(09-18): 세이브 뒤 GK가 배급한다. 리트머스 때만 true였다
+            ResetAfterEveryShot = false   // 4국면 트리: 세이브 뒤 GK가 배급한다. 리트머스 때만 true였다
         };
         Simulation.SetAddedTime(AddedTime.FromSeed(setup.Seed));   // 러너(MatchAssembler)와 같은 식
         myProbe = new TacticsProbe(Simulation, 0);   // 내 팀 = 시뮬 팀 0
@@ -86,7 +86,7 @@ public class MatchManager : InGameManager
         Simulation.AddPlayer(player);
     }
 
-    // 전술은 킥오프 순간에 확정한다(09-30): GameReady 동안 팀 전술 설정창이 내 전술을 바꾸므로 ResetMatch에서 읽으면 옛 값이 들어간다.
+    // 전술은 킥오프 순간에 확정한다: GameReady 동안 팀 전술 설정창이 내 전술을 바꾸므로 ResetMatch에서 읽으면 옛 값이 들어간다.
     // 설정창의 입력(SeasonSystem.SetMyPreset·SetMyTactics)이 이번 경기 재료를 비워 두므로 여기서 다시 읽으면 새 전술이 들어가고, 시드·상대·킥오프 팀은 ResetMatch 때와 같다.
     // 킥오프 전에 전술을 읽는 코드는 없다(스폰·자리·HUD 모두 라인업만 본다, 09-30 확인). GamePlay 진입 훅은 경기당 한 번(일시정지 복귀는 훅을 다시 안 쏜다)
     private void StartMatch()
@@ -100,7 +100,7 @@ public class MatchManager : InGameManager
         Hold(kickoffSetSec, halfTime: false);
     }
 
-    // 개인 전술도 킥오프 순간에 확정한다(09-30): 선수는 GameReady에 스폰돼 그때의 역할 값을 들고 있다. 세팅 화면에서 바꾼 역할·개인 지시를 다시 넣는다.
+    // 개인 전술도 킥오프 순간에 확정한다: 선수는 GameReady에 스폰돼 그때의 역할 값을 들고 있다. 세팅 화면에서 바꾼 역할·개인 지시를 다시 넣는다.
     // 내 팀은 시뮬 팀 0이고 스폰 순서가 라인업 순서다(StageManager.Spawn). 수가 안 맞으면 조용히 넘기지 않고 알린다
     private void ApplyMyPlayerTactics(IReadOnlyList<LineupSlot> lineup)
     {
@@ -160,7 +160,7 @@ public class MatchManager : InGameManager
 
         if (halfTimeTick)
         {
-            // 이 틱 안에서 시뮬이 진영 교체 + 후반 킥오프를 끝냈다(09-27). 뷰를 새 자리에 바로 세우고(보간하면 22명이 반대편으로 미끄러진다) 잠시 멈춘다
+            // 이 틱 안에서 시뮬이 진영 교체 + 후반 킥오프를 끝냈다. 뷰를 새 자리에 바로 세우고(보간하면 22명이 반대편으로 미끄러진다) 잠시 멈춘다
             SnapViews();
             Hold(halfTimeHoldSec, halfTime: true);
         }

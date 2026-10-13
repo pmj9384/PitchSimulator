@@ -93,7 +93,7 @@ namespace Game.Core.Match
         {
             if (sim.SidesSwitched != sidesSwitched)
             {
-                // 하프타임 킥오프는 새 소유다. 전반 끝의 우리 소유가 역습이었고 후반 킥오프도 우리면 상대가 공을 잡은 적이 없어 표시가 남는다(10-06 리뷰)
+                // 하프타임 킥오프는 새 소유다. 전반 끝의 우리 소유가 역습이었고 후반 킥오프도 우리면 상대가 공을 잡은 적이 없어 표시가 남는다
                 sidesSwitched = sim.SidesSwitched;
                 possessionCountered = false;
             }

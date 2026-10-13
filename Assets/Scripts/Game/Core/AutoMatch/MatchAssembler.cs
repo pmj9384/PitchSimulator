@@ -8,7 +8,7 @@ using Game.Core.Tactics;
 
 namespace Game.Core.AutoMatch
 {
-    // 데이터 → 경기 조립(09-23). 러너·테스트·시즌(SeasonRunner)·새 시즌 로스터(SeasonState.NewSeason)가 같은 경로로 시뮬·라인업을 만든다.
+    // 데이터 → 경기 조립. 러너·테스트·시즌(SeasonRunner)·새 시즌 로스터(SeasonState.NewSeason)가 같은 경로로 시뮬·라인업을 만든다.
     // 러너·테스트가 공유하고, 엔진이 없으니 EditMode·배치에서 그대로 돈다. 파일 읽기는 호출자 몫(순수 코어는 Resources를 모른다).
     public static class MatchAssembler
     {
@@ -19,7 +19,7 @@ namespace Game.Core.AutoMatch
             return Create(ToLineup(table, rows, 0), ToLineup(table, rows, 1), home, away, seed, tree);
         }
 
-        // 라인업(선수 + 자리 2쌍) → 시뮬. 생성 팀(부 총점으로 축소된 빌드)·내 로스터가 이 입구를 쓴다(09-26). 조립 경로는 이것 하나다
+        // 라인업(선수 + 자리 2쌍) → 시뮬. 생성 팀(부 총점으로 축소된 빌드)·내 로스터가 이 입구를 쓴다. 조립 경로는 이것 하나다
         public static MatchSimulation Create(IReadOnlyList<LineupSlot> home, IReadOnlyList<LineupSlot> away, TeamTactics homeTactics, TeamTactics awayTactics, int seed, BehaviorNode? tree = null)
         {
             if (home.Count == 0 || away.Count == 0) { throw new InvalidOperationException("[MatchAssembler] 라인업이 비었다"); }
@@ -40,7 +40,7 @@ namespace Game.Core.AutoMatch
             return sim;
         }
 
-        // 편성 행 중 한 팀 몫을 라인업으로. count > 1이면 폭(Z) 방향으로 최소 간격씩 벌린다. 행 → 자리 펼치기는 여기 한 곳뿐이다(09-27)
+        // 편성 행 중 한 팀 몫을 라인업으로. count > 1이면 폭(Z) 방향으로 최소 간격씩 벌린다. 행 → 자리 펼치기는 여기 한 곳뿐이다
         public static List<LineupSlot> ToLineup(IReadOnlyList<PlayerStats> table, IReadOnlyList<StageEntry> rows, int team)
         {
             var slots = new List<LineupSlot>();

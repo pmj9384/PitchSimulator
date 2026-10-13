@@ -15,7 +15,7 @@ namespace Game.Core.Match
         }
 
         // 공까지 거리가 개인 압박 거리 × 배율 안이면 압박. 경계 포함. 압박 시작이 "안 감"이면 역압박 중이어도 안 간다.
-        // 역압박 중엔 단계 배율에 역압박 배율을 곱한다(10-08 결정 ⑥). 2로 덮어쓰던 땐 뺏긴 직후 6초가 대부분인 상대 진영 압박에서 표준과 적극이 같은 거리를 봤다(09-30 스윕)
+        // 역압박 중엔 단계 배율에 역압박 배율을 곱한다. 2로 덮어쓰던 땐 뺏긴 직후 6초가 대부분인 상대 진영 압박에서 표준과 적극이 같은 거리를 봤다(09-30 스윕)
         public static bool ShouldPress(float distToBall, float pressRange, int pressStartLevel, bool counterPressing)
         {
             if (pressStartLevel == 0) { return false; }
@@ -25,7 +25,7 @@ namespace Game.Core.Match
             return distToBall <= pressRange * scale;
         }
 
-        // 압박 순위(09-23): 압박 거리 안인 우리 팀 선수(eligible, 나 포함) 중 공에 더 가까운 사람 수. 0이면 내가 첫 압박자.
+        // 압박 순위: 압박 거리 안인 우리 팀 선수(eligible, 나 포함) 중 공에 더 가까운 사람 수. 0이면 내가 첫 압박자.
         // 동률은 PlayerId 작은 쪽이 앞(잡기 타이브레이크와 같은 규칙). 내가 목록에 없으면(압박 거리 밖) int.MaxValue.
         // 트리는 이 값이 MatchTuning.MaxPressers 미만일 때만 ⑧로 간다. 시뮬이 틱마다 팀별로 계산해 스냅샷에 넣는다.
         // 루즈볼 추격자(⑩)도 같은 함수의 0순위다(09-28 F1b).

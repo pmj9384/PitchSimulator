@@ -3,8 +3,8 @@ using Game.Core.League;
 using Game.Core.Match;
 using UnityEngine;
 
-// "이번 판이 어떤 판인가". 시즌의 이번 라운드 경기(MatchSetup)를 필드로 옮기고, 끝나면 결과를 시즌에 돌려준다(09-27 확정 스펙 ②③).
-// 편성 CSV 번호 경로(09-16)는 뺐다: 인게임 경기는 전부 시즌에서 온다. StageComposition은 새 시즌의 내 기본 11명과 러너·테스트 재료로만 남는다.
+// "이번 판이 어떤 판인가". 시즌의 이번 라운드 경기(MatchSetup)를 필드로 옮기고, 끝나면 결과를 시즌에 돌려준다.
+// 편성 CSV 번호 경로는 뺐다: 인게임 경기는 전부 시즌에서 온다. StageComposition은 새 시즌의 내 기본 11명과 러너·테스트 재료로만 남는다.
 // 결과 보고(5줄)를 여기 두는 건 InGameManager 3종 세트 하나를 더 만들 만큼의 책임이 아니라서(09-16 공 매니저와 같은 판단)
 public class StageManager : InGameManager
 {

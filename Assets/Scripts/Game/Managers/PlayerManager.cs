@@ -7,7 +7,7 @@ using UnityEngine.Pool;
 
 // 선수의 수명 관리자. 선수 번호 발급·풀 대여/반환·팀별 명부. 이 세 가지가 전부다.
 // 경기 진행은 MatchManager, 편성은 StageManager 몫. 여기는 "누가 필드에 있는가"의 명부만 안다.
-// 1차 이식(09-16): 프리팹은 한 종류(캡슐). 역할별 겉모습이 생기면 WTS처럼 roleId별 프리팹 캐시로 넓힌다.
+// 1차 이식: 프리팹은 한 종류(캡슐). 역할별 겉모습이 생기면 WTS처럼 roleId별 프리팹 캐시로 넓힌다.
 public class PlayerManager : InGameManager
 {
     [SerializeField] private GameObject playerPrefab;
@@ -20,7 +20,7 @@ public class PlayerManager : InGameManager
     private int nextPlayerId;     // 스폰 순서로 발급하는 선수 번호. 타이브레이크 기준(GetInstanceID 금지)
 
     // attackHome = 아군 소유 때 자리(킥오프 위치이기도 하다), defendHome = 상대 소유 때 자리(스펙 §4-3 자리 2쌍)
-    // stats는 호출자가 준다(09-27): 시즌 로스터·부 총점으로 축소한 상대 빌드는 PlayerTable에 없는 사본이라 variantId 조회로는 못 세운다
+    // stats는 호출자가 준다: 시즌 로스터·부 총점으로 축소한 상대 빌드는 PlayerTable에 없는 사본이라 variantId 조회로는 못 세운다
     public PlayerController Spawn(PlayerStats stats, int team, Vector3 attackHome, Vector3 defendHome)
     {
         if (stats == null)

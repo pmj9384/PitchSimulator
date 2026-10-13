@@ -37,7 +37,7 @@ namespace Game.Core.League
             }
             if (Largest(p) > StatMax)
             {
-                throw new InvalidOperationException($"[BuildScaler] {src.VariantId}를 {totalPoints}로 늘리니 {StatMax}를 넘는 스탯이 생긴다");   // 표 최댓값 90이라 안 나지만 방어(10-12 리뷰)
+                throw new InvalidOperationException($"[BuildScaler] {src.VariantId}를 {totalPoints}로 늘리니 {StatMax}를 넘는 스탯이 생긴다");   // 표 최댓값 90이라 안 나지만 방어
             }
             return p;
         }
@@ -76,7 +76,7 @@ namespace Game.Core.League
             return Math.Max(0, Math.Min(Math.Min(RebuildShift, source), StatMax - destination));
         }
 
-        // 재분배가 실제로 빌드를 옮기는 자리인가(GK·CM은 아니다). 스카우트 별 판정이 쓴다(10-12)
+        // 재분배가 실제로 빌드를 옮기는 자리인가(GK·CM은 아니다). 스카우트 별 판정이 쓴다
         public static bool RebuildApplies(string roleId)
         {
             return IsDefender(roleId) || IsAttacker(roleId);
@@ -100,7 +100,7 @@ namespace Game.Core.League
         // 전 필드 복사(PlayerTable 행은 공유 객체라 빌드를 바꾸기 전에 복사한다)
         public static PlayerStats Copy(PlayerStats src)
         {
-            return src.Clone();   // 필드를 하나씩 나열하던 것을 PlayerStats.Clone으로 모았다(09-30: 다이얼을 더할 때 빠뜨릴 자리가 둘이 되지 않게)
+            return src.Clone();   // 필드를 하나씩 나열하던 것을 PlayerStats.Clone으로 모았다(다이얼을 더할 때 빠뜨릴 자리가 둘이 되지 않게)
         }
 
         private static int Round(float v)

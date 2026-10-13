@@ -71,7 +71,7 @@ namespace Game.Core.Tactics
             return isKeeper == keeperDial;
         }
 
-        // 다이얼 한 칸의 크기(부호 포함). 스카우트 별 판정이 변형 간 거리를 칸으로 재는 데 쓴다(10-12)
+        // 다이얼 한 칸의 크기(부호 포함). 스카우트 별 판정이 변형 간 거리를 칸으로 재는 데 쓴다
         public static float StepOf(PlayerDial dial)
         {
             return Step[(int)dial];

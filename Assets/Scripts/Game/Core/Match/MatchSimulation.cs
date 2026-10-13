@@ -10,7 +10,7 @@ namespace Game.Core.Match
 
     public enum PossessionChange { Capture, PassReceived, Intercepted, Turnover }
 
-    // 소유가 바뀐 틱의 보고. 경합·패스·가로채기가 실제로 나는지 콘솔에서 보려고(09-18)
+    // 소유가 바뀐 틱의 보고. 경합·패스·가로채기가 실제로 나는지 콘솔에서 보려고
     public readonly struct PossessionReport
     {
         public readonly int NewOwnerId;
@@ -84,7 +84,7 @@ namespace Game.Core.Match
         // 팀 전술 2개(스타일 카드). 기본은 "균형"과 같은 빈 값(전부 0)이고 MatchManager가 프리셋을 주입한다
         private readonly TeamTactics[] tactics = { new TeamTactics(), new TeamTactics() };
 
-        // 틱마다 한 번 계산하는 팀 단위 국면(09-18): 공은 하나라 서드·역습도 팀당 하나. 22명이 같은 값을 본다
+        // 틱마다 한 번 계산하는 팀 단위 국면: 공은 하나라 서드·역습도 팀당 하나. 22명이 같은 값을 본다
         private readonly List<TargetInfo>[] rosterSnapshot = { new List<TargetInfo>(), new List<TargetInfo>() };
         private readonly List<TargetInfo>[] pressEligible = { new List<TargetInfo>(), new List<TargetInfo>() };   // 팀별 압박 거리 안 선수(압박 순위 계산용)
         private readonly List<TargetInfo>[] looseCandidates = { new List<TargetInfo>(), new List<TargetInfo>() }; // 팀별 루즈볼 추격 후보(GK·얼음 제외)
@@ -109,14 +109,14 @@ namespace Game.Core.Match
         private float shotProbability;
         private float shotAimZ;               // 조준 Z(골 중심 기준). 골문 밖이면 골라인에서 Missed
 
-        // 비행 중인 패스(09-18). 리시버는 스냅샷으로 "나한테 온다"를 알고 마중 나간다
+        // 비행 중인 패스. 리시버는 스냅샷으로 "나한테 온다"를 알고 마중 나간다
         private bool passInFlight;
         private int passReceiverId = -1;
-        private int passPasserId = -1;        // 되돌림 금지(09-23)용: 받은 선수의 LastPasserId에 기록
+        private int passPasserId = -1;        // 되돌림 금지용: 받은 선수의 LastPasserId에 기록
         private float passTargetX;
         private float passTargetZ;
         private int ballOwnerAtLastTick = BallState.NoOwner;
-        private int immunityTicksLeft;        // 소유 면역(09-21): 소유 뒤 이 틱 동안 태클 불가
+        private int immunityTicksLeft;        // 소유 면역: 소유 뒤 이 틱 동안 태클 불가
         private int holdUpTicksLeft;          // 볼 끌기(개인 holdUp): 소유 뒤 킥까지 대기 틱
         private readonly bool[] keeperAlternate = new bool[2];   // GK 배급 "섞어"의 교대 스위치(팀별). GK 패스가 실행될 때 뒤집고 스냅샷으로 트리에 준다(09-23 R2)
         // 킥 릴리스(09-21 Play 진단): 찬 공은 킥 원점에서 잡기 반경을 벗어난 뒤에야 누구든 잡을 수 있다.
@@ -130,8 +130,8 @@ namespace Game.Core.Match
         // 박스 앞 CB 전진(09-29 수비 D1). 필드 역할 이름을 시뮬이 직접 보는 유일한 예외(GK 제외). 개인 압박 거리 다이얼로 끌 수 없다(09-30 리뷰, 1차 출시는 유지)
         private const string CenterBackRole = "CB";
         private readonly int[] stepOutCenterBack = { -1, -1 };   // 이번 틱 박스 앞에서 나설 팀별 CB. 압박 후보 계산 때 채운다
-        private int kickoffTakerId = BallState.NoOwner;   // 킥오프 공을 쥔 키커(09-29). 첫 킥이나 소유 변경 때 푼다. 스냅샷 IsKickoffTaker로 트리에 준다
-        // 드리블 돌파 의도(09-29): 공을 잡을 때 드리블 성향으로 한 번 굴린다. 트리가 틱마다 굴리면 같은 소유 안에서 돌파·패스가 번갈아 흔들린다
+        private int kickoffTakerId = BallState.NoOwner;   // 킥오프 공을 쥔 키커. 첫 킥이나 소유 변경 때 푼다. 스냅샷 IsKickoffTaker로 트리에 준다
+        // 드리블 돌파 의도: 공을 잡을 때 드리블 성향으로 한 번 굴린다. 트리가 틱마다 굴리면 같은 소유 안에서 돌파·패스가 번갈아 흔들린다
         private int takeOnOwnerId = BallState.NoOwner;
         private int takeOnTicksLeft;
         public int TakeOnCount { get; private set; }       // 돌파 의도가 선 횟수(계측)
@@ -202,7 +202,7 @@ namespace Game.Core.Match
             for (int i = 0; i < players.Count; i++)
             {
                 PlayerState p = players[i];
-                if (p.FrozenTicks > 0) { continue; }   // 태클 실패로 얼어 있는 선수는 순위에서 뺀다(09-26 리뷰): 남겨 두면 1순위를 차지한 채 못 움직여 그 팀 압박이 0.5초 빈다
+                if (p.FrozenTicks > 0) { continue; }   // 태클 실패로 얼어 있는 선수는 순위에서 뺀다: 남겨 두면 1순위를 차지한 채 못 움직여 그 팀 압박이 0.5초 빈다
                 if (p.PlayerId == stepOutCenterBack[p.Team] || InPressDistance(p))
                 {
                     pressEligible[p.Team].Add(new TargetInfo(p.PlayerId, p.X, p.Z));
@@ -241,7 +241,7 @@ namespace Game.Core.Match
             return best;
         }
 
-        // 동률은 PlayerId 작은 쪽(PressRules.PressRank와 같은 규칙). 목록 순서에 기대지 않고 명시 비교한다(09-30 리뷰)
+        // 동률은 PlayerId 작은 쪽(PressRules.PressRank와 같은 규칙). 목록 순서에 기대지 않고 명시 비교한다
         private static bool IsCloserCenterBack(float d2, int playerId, float bestD2, int bestId)
         {
             if (d2 < bestD2) { return true; }
@@ -276,7 +276,7 @@ namespace Game.Core.Match
             }
         }
 
-        // 소유 팀. 비행 중인 패스는 찬 팀의 것이다(09-23): -1로 두면 22명 전부 자유 공으로 봐서 최근접 1명이 날아가는 공을 쫓고
+        // 소유 팀. 비행 중인 패스는 찬 팀의 것이다: -1로 두면 22명 전부 자유 공으로 봐서 최근접 1명이 날아가는 공을 쫓고
         // 나머지는 양 팀 다 공격 자리(⑪)로 갔다가 받으면 돌아오는 왕복이 생겼다(Play: 상대 패스마다 수비 블록이 무너짐).
         // 찬 팀으로 두면 리시버만 마중(⑥), 아군은 자리(⑦), 상대는 압박·수비 자리(⑧·⑨)로 갈리고, 가로채기가 팀 전환으로 잡혀 역압박이 켜진다.
         // 슛·파링 비행은 여전히 -1(누구든 줍는다)
@@ -287,9 +287,9 @@ namespace Game.Core.Match
             return -1;
         }
 
-        // 킥오프를 하는 팀(09-23): 중앙 리셋 뒤 그 팀에서 중앙에 가장 가까운 필드 플레이어가 공을 갖는다. 실제 규칙(시작은 동전, 골 뒤엔
+        // 킥오프를 하는 팀: 중앙 리셋 뒤 그 팀에서 중앙에 가장 가까운 필드 플레이어가 공을 갖는다. 실제 규칙(시작은 동전, 골 뒤엔
         // 실점 팀)과 같다. 자유 공 경합으로 두면 양 팀 ST가 등거리라 PlayerId 타이브레이크가 매 킥오프를 한 팀에 줬고(먼저 스폰된 팀이
-        // 미러 세팅에서 75% 승·상대 0%), 스폰 순서를 뒤집으면 결과가 거울로 뒤집혔다. Kickoff()(자유 공)는 리트머스·테스트용으로 남긴다
+        // 미러 세팅에서 75% 승·상대 0%), 스폰 순서를 뒤집으면 결과가 거울로 뒤집혔다. Kickoff(자유 공)는 리트머스·테스트용으로 남긴다
         public void SetAddedTime(AddedTime added)
         {
             Added = added;
@@ -326,7 +326,7 @@ namespace Game.Core.Match
             }
             if (best == BallState.NoOwner) { return; }   // 그 팀 필드 플레이어가 없으면 자유 공
 
-            // IFAB 8조(09-29): 공은 센터 마크, 키커가 그 위에 서고 상대는 공에서 9.15m(센터서클) 밖. 전엔 공을 키커 자리(ST, 중앙에서 약 10m)로
+            // IFAB 8조: 공은 센터 마크, 키커가 그 위에 서고 상대는 공에서 9.15m(센터서클) 밖. 전엔 공을 키커 자리(ST, 중앙에서 약 10m)로
             // 옮겨 줘서 센터 킥 없이 그 자리에서 바로 공격이 시작됐다. 모든 선수가 자기 진영에 있는 건 편성 posX(전부 −6 이하)가 이미 지킨다
             PlayerState kicker = FindPlayer(best);
             kicker.X = 0f;
@@ -513,7 +513,7 @@ namespace Game.Core.Match
                 PlayerState p = players[i];
                 TargetInfo info = new TargetInfo(p.PlayerId, p.X, p.Z);
                 rosterSnapshot[p.Team].Add(info);
-                // 태클에 실패해 얼어 있는 선수는 제쳐진 상태라 슛을 못 막는다. 압박·루즈볼 후보와 같은 규칙(09-30 리뷰)
+                // 태클에 실패해 얼어 있는 선수는 제쳐진 상태라 슛을 못 막는다. 압박·루즈볼 후보와 같은 규칙
                 if (p.FrozenTicks == 0) { blockCandidates[p.Team].Add(info); }
             }
 
@@ -585,7 +585,7 @@ namespace Game.Core.Match
         // ── 선수 실행
         private void Apply(PlayerState p, float deltaTime)
         {
-            if (p.FrozenTicks > 0) { return; }   // 실패한 태클러는 제쳐져 있다(09-21)
+            if (p.FrozenTicks > 0) { return; }   // 실패한 태클러는 제쳐져 있다
 
             bool owner = Ball.Phase == BallPhase.Owned && Ball.OwnerId == p.PlayerId;
 
@@ -650,7 +650,7 @@ namespace Game.Core.Match
             takeOnOwnerId = BallState.NoOwner;
             shooterAttackSign = shooter.AttackSign;
 
-            // 조준: 골 중심이 아니라 shot 스탯에 따라 퍼진 지점(09-18). 골문 밖이면 골라인에서 빗나감으로 마감
+            // 조준: 골 중심이 아니라 shot 스탯에 따라 퍼진 지점. 골문 밖이면 골라인에서 빗나감으로 마감
             shotAimZ = MatchRules.ShotAimZ(shooter.Stats.Shot, nextRoll());
             if (!MatchRules.IsOnTarget(shotAimZ)) { shotWillScore = false; }
 
@@ -659,7 +659,7 @@ namespace Game.Core.Match
             Ball = BallRules.Kick(Ball, goalX - shooter.X, shotAimZ - shooter.Z, MatchTuning.ShotSpeed);
         }
 
-        // 슈터 발 뻗는 범위 안 상대가 있나(슛 압박). 트리 IsPressed와 같은 반경·같은 틱 시작 스냅샷(09-29 리뷰: 라이브 위치를 쓰면 이번 틱에 먼저 움직인 선수만 반영돼 트리 판단과 갈린다)
+        // 슈터 발 뻗는 범위 안 상대가 있나(슛 압박). 트리 IsPressed와 같은 반경·같은 틱 시작 스냅샷(라이브 위치를 쓰면 이번 틱에 먼저 움직인 선수만 반영돼 트리 판단과 갈린다)
         private bool IsPressed(PlayerState p)
         {
             float r2 = MatchTuning.PressedRadius * MatchTuning.PressedRadius;
@@ -682,7 +682,7 @@ namespace Game.Core.Match
             if (blockerId == -1) { return false; }
             if (!MatchRules.Resolve(MatchTuning.ShotBlockChance, nextRoll())) { return false; }
 
-            // 튕김도 블로커를 고른 스냅샷 좌표로 계산한다. 라이브 위치는 PlayerId가 슈터보다 작으면 이번 틱에 이미 움직인 뒤다(09-30 리뷰: 판정과 실행의 시점 일치)
+            // 튕김도 블로커를 고른 스냅샷 좌표로 계산한다. 라이브 위치는 PlayerId가 슈터보다 작으면 이번 틱에 이미 움직인 뒤다(판정과 실행의 시점 일치)
             TargetInfo blocker = FindSnapshot(candidates, blockerId);
             (float x, float z) dir = MatchRules.BlockReboundDirection(shooter.X, shooter.Z, goalX, shotAimZ, blocker.X, blocker.Z, MatchTuning.BlockReboundTurnDeg);
             // 09-29 리뷰: 슈터 쪽 직선으로 튕기면 슈터가 1~2틱 만에 도로 잡았다. 옆·뒤로 비틀고, 막은 선수 발(잡기 반경) 밖에서 출발시킨다
@@ -694,7 +694,7 @@ namespace Game.Core.Match
             return true;
         }
 
-        // 패스: 트리가 고른 착지점으로 직선 비행(09-30: 전엔 여기서 받는 선수 앞 8m를 다시 계산해, 트리가 안전하다고 본 점과 실제로 찬 점이 달랐다).
+        // 패스: 트리가 고른 착지점으로 직선 비행(전엔 여기서 받는 선수 앞 8m를 다시 계산해, 트리가 안전하다고 본 점과 실제로 찬 점이 달랐다).
         // 초속은 착지점까지 거리로 역산(도착 속도 = 공이 있는 서드의 팀 템포). 리시버는 스냅샷으로 알고 마중 나간다
         private void Pass(PlayerState passer, int receiverId, float landingX, float landingZ)
         {
@@ -734,7 +734,7 @@ namespace Game.Core.Match
 
             PlayerState owner = FindPlayer(ownerNow);
             PossessionChange kind = PossessionChange.Capture;
-            owner.LastPasserId = BallState.NoOwner;   // 줍기·태클로 잡은 공엔 "방금 준 선수"가 없다(09-26 리뷰: 패스 수신 때만 쓰니 옛 값이 남아 되돌림 후보를 잘못 강등)
+            owner.LastPasserId = BallState.NoOwner;   // 줍기·태클로 잡은 공엔 "방금 준 선수"가 없다(패스 수신 때만 쓰니 옛 값이 남아 되돌림 후보를 잘못 강등)
             if (passInFlight)
             {
                 kind = ownerNow == passReceiverId ? PossessionChange.PassReceived : PossessionChange.Intercepted;
@@ -818,7 +818,7 @@ namespace Game.Core.Match
             return false;
         }
 
-        // 빗나간 슛은 골킥: 수비 팀 GK가 자기 자리에서 공을 갖고 배급한다(09-23). 킥오프로 리셋하면 같은 공격이 9.6초 주기로 그대로 재생됐고
+        // 빗나간 슛은 골킥: 수비 팀 GK가 자기 자리에서 공을 갖고 배급한다. 킥오프로 리셋하면 같은 공격이 9.6초 주기로 그대로 재생됐고
         // 상대 팀이 공을 가질 기회가 없었다. GK가 없는 시뮬(리트머스·일부 테스트)과 ResetAfterEveryShot은 예전처럼 킥오프
         private void RestartAfterMiss()
         {
@@ -851,7 +851,7 @@ namespace Game.Core.Match
         // 결과 보고 없이 슛이 사라졌고 골이 될 슛이면 골도 사라졌다(경기의 약 7%가 하프타임 순간 슛 비행 중, 골 소실 약 1%).
         // 휘슬을 슛 뒤로 미루면(방식 A) 시계·HUD·러너·연출 멈춤이 전부 하프타임 틱에 묶여 있어 같이 바뀐다. 결과는 찬 순간 정해져 있으니(shotWillScore) 그 결과로 마감한다.
         // 골이 아닌 슛은 세이브가 될 슛이었을 수도 있지만 GK에 닿기 전이라 빗나감으로 센다.
-        // 종료 휘슬도 같은 부류라 같이 쓴다(10-06): 경기가 MatchTicks에서 멈추면 그때 날아가던 슛은 결과 보고가 없었고 골이 될 슛이면 골도 사라졌다.
+        // 종료 휘슬도 같은 부류라 같이 쓴다: 경기가 MatchTicks에서 멈추면 그때 날아가던 슛은 결과 보고가 없었고 골이 될 슛이면 골도 사라졌다.
         // 종료 때는 킥오프로 리셋하지 않는다. 경기가 끝났다
         private void FinishShotAtWhistle()
         {
@@ -870,7 +870,7 @@ namespace Game.Core.Match
             ShotResolved?.Invoke(new ShotReport(shooterId, shotProbability, outcome));
         }
 
-        // 태클(09-21): 소유자 태클 사거리(TackleRange) 안의 상대가 쿨다운이 끝났으면 시도. 성공하면 태클러 소유(깔끔한 탈취), 실패하면 태클러 정지.
+        // 태클: 소유자 태클 사거리(TackleRange) 안의 상대가 쿨다운이 끝났으면 시도. 성공하면 태클러 소유(깔끔한 탈취), 실패하면 태클러 정지.
         // 루즈볼 방식은 버렸다: 붙어 있으면 공이 소유자 뒤로 떨어지고 되찾기 경주에서 빠른 쪽(대개 원래 소유자)이 늘 이겨 태클이 무의미했다(테스트 트레이스)
         // 주사위 1개 소비 → 시드가 다르면 결과가 갈리는 두 번째 지점(첫째는 슛). 면역 중엔 시도 자체가 없다
         private void ResolveTackles()

@@ -45,13 +45,13 @@ namespace Game.Core.AI
                     new ConditionNode(ctx => ctx.OwnsBall && ctx.IsCountering && CounterTarget(ctx) != -1),
                     new ActionNode(ctx => PassUnchecked(ctx, CounterTarget(ctx)))),
 
-                // ③b 돌파(09-29): 이번 소유에 돌파 의도가 있고 앞 8m 안에 상대가 있으면 패스 대신 제치러 간다. 방향은 상대가 먼저 못 닿는 쪽(HELIOS식).
+                // ③b 돌파: 이번 소유에 돌파 의도가 있고 앞 8m 안에 상대가 있으면 패스 대신 제치러 간다. 방향은 상대가 먼저 못 닿는 쪽(HELIOS식).
                 // 앞에 상대가 없으면(제쳤으면) 아래 평소 판단으로. 의도는 시뮬이 소유 때 드리블 성향으로 굴린다(윙어 0.9·타깃맨 0.2)
                 new SequenceNode(
                     new ConditionNode(ctx => ShouldTakeOn(ctx)),
                     new ActionNode(ctx => TakeOn(ctx))),
 
-                // ④ 안전한 앞선 아군이 있으면 최고점에 패스. 착지점은 받는 선수 앞 후보 중 안전한 가장 긴 것(09-30)
+                // ④ 안전한 앞선 아군이 있으면 최고점에 패스. 착지점은 받는 선수 앞 후보 중 안전한 가장 긴 것
                 new SequenceNode(
                     new ConditionNode(ctx => ctx.OwnsBall && BestSafeReceiver(ctx).Found),
                     new ActionNode(ctx => PassTo(ctx, BestSafeReceiver(ctx)))),
@@ -74,7 +74,7 @@ namespace Game.Core.AI
 
                 // ── 상대 소유 ────────────────────────────────────────────
                 // ⑧ 압박: 팀 안 압박 순위가 상한 안이면 공으로. 누가 후보인지(팀 압박 시작[상대 공 서드] × 개인 압박 거리, 역압박 배율, 박스 앞 CB 전진)는
-                // 시뮬이 한 곳에서 정해 순위(PressRank)로 준다(09-29: 트리가 거리를 다시 재면 시뮬이 넣은 CB를 도로 걸러 판정과 실행이 갈렸다).
+                // 시뮬이 한 곳에서 정해 순위(PressRank)로 준다(트리가 거리를 다시 재면 시뮬이 넣은 CB를 도로 걸러 판정과 실행이 갈렸다).
                 // 나머지는 ⑨ 수비 자리(슬라이드가 블록을 좁힌다)(09-23 뭉침)
                 new SequenceNode(
                     new ConditionNode(ctx => ctx.BallOwnerTeam == 1 - ctx.Team && ctx.PressRank < MatchTuning.MaxPressers),
@@ -164,7 +164,7 @@ namespace Game.Core.AI
 
             PassChoice best = PassChoice.None;
             float bestScore = 0f;
-            PassChoice returnFallback = PassChoice.None;   // 방금 나에게 준 선수에게 곧바로 뒤로 되돌리는 패스는 다른 후보가 없을 때만(09-23: W↔ST 측면 왕복 22회)
+            PassChoice returnFallback = PassChoice.None;   // 방금 나에게 준 선수에게 곧바로 뒤로 되돌리는 패스는 다른 후보가 없을 때만(W↔ST 측면 왕복 22회)
             IReadOnlyList<TargetInfo> mates = ctx.Teammates;
             for (int i = 0; i < mates.Count; i++)
             {
@@ -172,12 +172,12 @@ namespace Game.Core.AI
                 bool backward = (m.X - ctx.X) * ctx.AttackSign <= 0f;
                 if (!pressed && backward) { continue; }
                 bool isReturn = backward && m.PlayerId == ctx.LastPasserId;
-                if (OffsideRules.IsOffsidePosition(m.X, ctx.AttackSign, onsideLine)) { continue; }   // 오프사이드 위치 아군에겐 안 준다(09-23)
+                if (OffsideRules.IsOffsidePosition(m.X, ctx.AttackSign, onsideLine)) { continue; }   // 오프사이드 위치 아군에겐 안 준다
                 float score = PassRules.ScoreReceiver(ctx.X, ctx.Z, m.X, m.Z, ctx.AttackSign, t.PassStyle[third], ctx.Stats.PassLength, t.Width[third]);
                 if (score <= bestScore) { continue; }
 
                 // 안전 판정은 실제 착지점까지(09-21 3분 계측: 리시버 위치까지만 보면 그 앞 8m에 선 수비수가 걸러져 롱패스가 늘 먹혔다).
-                // 착지점은 후보 중 안전한 가장 긴 것(09-30). 고른 점을 그대로 시뮬에 넘겨 판정과 실행이 같은 점을 본다
+                // 착지점은 후보 중 안전한 가장 긴 것. 고른 점을 그대로 시뮬에 넘겨 판정과 실행이 같은 점을 본다
                 PassLanding landing = PassRules.PickLanding(ctx.X, ctx.Z, m.X, m.Z, ctx.AttackSign, arrival, ctx.Opponents, riskAllow);
                 if (!PassRules.IsPassSafe(landing.Risk, riskAllow)) { continue; }
 
@@ -323,7 +323,7 @@ namespace Game.Core.AI
             float x = slid.x;
             if (ctx.BallOwnerTeam == ctx.Team && !ctx.OwnsBall && !ctx.IsGoalkeeper)
             {
-                // 아군 소유 중엔 온사이드 선 뒤에 선다(09-23). 라인 뒤에 서 있으면 받아도 오프사이드라 애초에 안 간다
+                // 아군 소유 중엔 온사이드 선 뒤에 선다. 라인 뒤에 서 있으면 받아도 오프사이드라 애초에 안 간다
                 x = OffsideRules.ClampOnside(x, ctx.AttackSign, OffsideRules.OnsideLine(ctx.Opponents, ctx.AttackSign, ctx.BallX), MatchTuning.OnsideMargin);
             }
             ctx.MoveToward(x, slid.z);

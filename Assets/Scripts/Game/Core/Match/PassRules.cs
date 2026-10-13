@@ -29,7 +29,7 @@ namespace Game.Core.Match
                 // 킥 원점에서 발 뻗는 범위 안에 붙은 상대는 방향과 무관하게 확실히 닿는다(09-21 3분 계측: 붙은 압박 선수를 뒤라고 무시하고
                 // 찼더니 릴리스 지점에서 96%가 끊겼다). Simple Soccer엔 이 경우가 없다(그 게임은 태클로 뺏어서 붙은 채로 차는 상황이 안 남)
                 if (ox * ox + oz * oz <= MatchTuning.InterceptReach * MatchTuning.InterceptReach) { return 1f; }
-                // 착지점에서 발 뻗는 범위 안에 선 상대도 확실히 닿는다(09-30). 착지점보다 먼 상대는 아래에서 "무관"으로 넘기는데,
+                // 착지점에서 발 뻗는 범위 안에 선 상대도 확실히 닿는다. 착지점보다 먼 상대는 아래에서 "무관"으로 넘기는데,
                 // 착지점이 받는 선수 발밑까지 내려오면서(PickLanding) 그 바로 뒤에 붙은 수비수까지 무관이 되는 것을 막는다
                 float ex = opponents[i].X - toX;
                 float ez = opponents[i].Z - toZ;
@@ -100,7 +100,7 @@ namespace Game.Core.Match
 
         // 리드 패스 목표(09-18 Play 진단): 리시버의 지금 위치로 차면 리시버는 이미 움직여 공이 뒤에 떨어진다.
         // 공이 도착하는 시간 동안 리시버가 앞(공격 방향)으로 갈 수 있는 거리만큼 앞선 점을 목표로 한다. 상한은 leadMax(착지점 후보마다 다르다, 09-30).
-        // 리드는 앞선 리시버(패서보다 공격 방향)에게만(09-21): 옆·뒤 아군에게 앞으로 8m 리드하면 착지점이 패서 앞이 되어
+        // 리드는 앞선 리시버(패서보다 공격 방향)에게만: 옆·뒤 아군에게 앞으로 8m 리드하면 착지점이 패서 앞이 되어
         // 판정은 짧은 앞 패스로 늘 안전, 실제 공은 리시버가 없는 곳으로 가서 먹혔다(3분 계측: 드리블 0·완성률 50%).
         // Simple Soccer의 "리시버 도달 원" 판정의 단순형. 결과는 필드 안으로 클램프
         public static (float x, float z) LeadTarget(float passerX, float receiverX, float receiverZ, int attackSign, float passDistance, float ballSpeed, float receiverSpeed, float leadMax)
@@ -116,7 +116,7 @@ namespace Game.Core.Match
             return (x, receiverZ);
         }
 
-        // 착지점 하나(09-30): 받는 선수 앞 leadMax 상한의 리드 점. 받는 선수 속도는 평균(speed 50)으로 본다.
+        // 착지점 하나: 받는 선수 앞 leadMax 상한의 리드 점. 받는 선수 속도는 평균(speed 50)으로 본다.
         // 트리는 동료의 스탯을 모르고(TargetInfo), 고른 점을 시뮬이 그대로 차므로 판정과 실행이 같은 점을 본다.
         // 그전엔 트리가 평균 속도로 안전을 재고 시뮬이 실제 속도로 다시 계산해 찼다(09-28 재검증 "판정과 실행이 다른 전제")
         public static (float x, float z) LandingPoint(float passerX, float passerZ, float receiverX, float receiverZ, int attackSign, float arrivalSpeed, float leadMax)
@@ -166,7 +166,7 @@ namespace Game.Core.Match
         // 역습 리시버: 가장 앞선 아군 1명(자기 자신 제외). 없으면 -1
         // 09-21 리뷰: 자기만 빼면 최전방 선수가 공을 가졌을 때 뒤 선수에게 주고, 그 선수가 다시 앞으로 주는 핑퐁(3분에 158·157)이 됐다.
         // 패서보다 CounterForwardMargin 이상 앞선 아군만 후보. 없으면 -1(트리는 ④·⑤로 떨어진다)
-        // onsideLine(공격 방향 좌표): 그보다 골 쪽인 아군은 오프사이드 위치라 제외(09-23). OffsideRules.NoLine이면 제한 없음(GK 골킥 등)
+        // onsideLine(공격 방향 좌표): 그보다 골 쪽인 아군은 오프사이드 위치라 제외. OffsideRules.NoLine이면 제한 없음(GK 골킥 등)
         public static int CounterReceiver(float passerX, IReadOnlyList<TargetInfo> teammates, int attackSign, int passerId, float onsideLine)
         {
             int best = -1;

@@ -31,7 +31,7 @@ namespace Game.Core.Placement
             return (u * 2f * HalfLength - HalfLength, v * 2f * HalfWidth - HalfWidth);
         }
 
-        // 배치(10-08): 칩이 보이는 자리 = 편성 자리 + 오프셋(전진 정도·개인 다이얼). 놓은 자리에 그대로 서게 하려면 그 오프셋을 뺀 값을 편성 자리로 저장한다
+        // 배치: 칩이 보이는 자리 = 편성 자리 + 오프셋(전진 정도·개인 다이얼). 놓은 자리에 그대로 서게 하려면 그 오프셋을 뺀 값을 편성 자리로 저장한다
         public static (float x, float z) BaseFromShown(float droppedX, float droppedZ, float shownX, float shownZ, float baseX, float baseZ)
         {
             return (droppedX - (shownX - baseX), droppedZ - (shownZ - baseZ));

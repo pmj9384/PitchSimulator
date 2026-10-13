@@ -5,7 +5,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-// 결과 화면(09-28): 승·무·패 한 패널. 이번 경기 스코어 + 이번 라운드까지 반영한 승점표 + 다음 경기/로비 버튼. 옛 GameOverPanel(패배 전용)을 대체한다.
+// 결과 화면: 승·무·패 한 패널. 이번 경기 스코어 + 이번 라운드까지 반영한 승점표 + 다음 경기/로비 버튼. 옛 GameOverPanel(패배 전용)을 대체한다.
 // 승점표는 SeasonSystem이 나머지 경기를 백그라운드로 다 돌리고 저장까지 끝내야(IsReporting false) 확정된다. 그 전에 다음 경기로 가면 새 씬이 아직 넘어가지 않은 라운드(끝난 경기)를 다시 읽으므로 버튼을 잠근다(09-28 리뷰로 이유 수정).
 // 참조가 둘(경기·시즌)인 이유: 스코어는 휘슬 순간 경기에서 바로 쓰고, 표는 보고가 끝난 뒤 시즌에서 쓴다. 시점이 달라 한쪽으로 합치면 스코어도 계산이 끝날 때까지 비게 된다
 // 끝남을 알리는 이벤트를 두지 않고 HUD처럼 매 프레임 IsReporting만 본다(Dirty Flag): bool 하나라 구독·해제 코드를 두는 쪽이 더 비싸고, 스레드에서 돌아온 콜백이 파괴된 패널을 건드릴 일도 없다.
@@ -14,7 +14,7 @@ using UnityEngine.UI;
 // [스카우트](10-12, 스펙 §4-5)는 다른 경기 결과가 들어와 순위가 확정된 뒤에만 연다: 성공 확률이 내 순위와 "상대해 봤는지"를 읽으므로 보고 전엔 숫자가 틀리다
 public class ResultPanelUIElement : UIElement
 {
-    private static readonly string HighlightColor = "#" + ColorUtility.ToHtmlStringRGB(TacticsColors.Highlight);   // 내 행 강조(노랑). 전술 화면과 같은 색을 한 곳에서 읽는다(10-06 리뷰). 표 안 다른 행은 기본 색
+    private static readonly string HighlightColor = "#" + ColorUtility.ToHtmlStringRGB(TacticsColors.Highlight);   // 내 행 강조(노랑). 전술 화면과 같은 색을 한 곳에서 읽는다. 표 안 다른 행은 기본 색
 
     // 승점표 열 위치(TMP <pos> 태그, 텍스트 폭 기준 %). 한 TMP 텍스트에 표 전체를 쓰려고 열을 태그로 맞춘다. 행마다 오브젝트를 두면 팀 수(4~12)만큼 풀이 필요하다
     private const string ColRank = "<pos=0%>";
@@ -35,7 +35,7 @@ public class ResultPanelUIElement : UIElement
     [SerializeField] private TMP_Text nextButtonLabel;
     [SerializeField] private Button viewButton;          // 승점표 ↔ 전술 실측
     [SerializeField] private TMP_Text viewButtonLabel;
-    [SerializeField] private Button scoutButton;         // 스카우트 화면 열기(10-12)
+    [SerializeField] private Button scoutButton;         // 스카우트 화면 열기
     [SerializeField] private TMP_Text scoutButtonLabel;
 
     private readonly StringBuilder tableBuilder = new(512);   // 표는 패널이 뜰 때 한 번 만든다. 재사용해 결과마다 버퍼를 새로 잡지 않는다
@@ -91,18 +91,18 @@ public class ResultPanelUIElement : UIElement
         SeasonSystem season = GameDataManager.Instance.Season;
         if (season.IsReporting) { return; }
 
-        // 버튼부터 연다: 아래 표 만들기가 던져도 화면이 잠긴 채 멈추지 않게(09-28 리뷰)
+        // 버튼부터 연다: 아래 표 만들기가 던져도 화면이 잠긴 채 멈추지 않게
         isTableShown = true;
         nextButton.interactable = true;
         nextButtonLabel.text = season.IsOver ? "로비로" : "다음 경기";
-        scoutButton.interactable = !season.LastReportFailed;   // 저장이 실패한 라운드 위에서 시도를 쓰면 다음 로드 때 어긋난다. 시즌이 끝난 뒤에도 열어 둔다: 역할은 다음 시즌으로 가므로 남은 시도의 용도가 있다(10-13 리뷰). 빌드가 버려지는 건 화면이 안내한다
+        scoutButton.interactable = !season.LastReportFailed;   // 저장이 실패한 라운드 위에서 시도를 쓰면 다음 로드 때 어긋난다. 시즌이 끝난 뒤에도 열어 둔다: 역할은 다음 시즌으로 가므로 남은 시도의 용도가 있다. 빌드가 버려지는 건 화면이 안내한다
         RefreshScoutLabel();
-        statusText.text = season.LastReportFailed ? "결과를 저장하지 못했다" : string.Empty;   // 실패를 성공처럼 보이지 않게(09-28 리뷰)
-        roundText.text = season.RoundLine();   // 정규 라운드 또는 승강전 단계·합산(10-08)
+        statusText.text = season.LastReportFailed ? "결과를 저장하지 못했다" : string.Empty;   // 실패를 성공처럼 보이지 않게
+        roundText.text = season.RoundLine();   // 정규 라운드 또는 승강전 단계·합산
         try
         {
             tableContent = BuildTable(season);
-            if (!season.LastReportFailed && season.IsOver) { statusText.text = OutcomeLine(season.Outcome(), season.Tier.Tier); }   // 시즌 마지막 판: 승강 판정(09-28). 승강전이 남았으면 IsOver가 거짓이라 여기 안 온다(10-08)
+            if (!season.LastReportFailed && season.IsOver) { statusText.text = OutcomeLine(season.Outcome(), season.Tier.Tier); }   // 시즌 마지막 판: 승강 판정. 승강전이 남았으면 IsOver가 거짓이라 여기 안 온다
             else if (!season.LastReportFailed && season.IsRegularSeasonOver) { statusText.text = PlayoffNextLine(season.PendingPlayoff); }
         }
         catch (System.Exception e)
@@ -154,7 +154,7 @@ public class ResultPanelUIElement : UIElement
         gameManager.RestartGame(skipReady: false);
     }
 
-    // 승강전이 남았을 때 다음 경기 안내(10-08)
+    // 승강전이 남았을 때 다음 경기 안내
     private static string PlayoffNextLine(PlayoffStage pending)
     {
         if (pending == PlayoffStage.Semifinal) { return "다음: 승강 플레이오프 단판"; }
@@ -163,7 +163,7 @@ public class ResultPanelUIElement : UIElement
         return string.Empty;
     }
 
-    // 시즌 끝 문구. 승강전 결과까지 Outcome에 들어 있다(10-08)
+    // 시즌 끝 문구. 승강전 결과까지 Outcome에 들어 있다
     private static string OutcomeLine(SeasonOutcome outcome, int tier)
     {
         if (outcome.Kind == SeasonOutcomeKind.Champion) { return $"시즌 종료 · {tier}부 우승!"; }

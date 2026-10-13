@@ -42,7 +42,7 @@ public class PitchChip : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDra
         rect.anchoredPosition = Vector2.zero;
 
         restingColor = selected ? TacticsColors.Highlight : NormalColor;
-        if (rejectUntil <= 0f) { background.color = restingColor; }   // 거부 플래시 중이면 빨강을 남긴다. 놓은 직후 PlaceChips가 같은 프레임에 Show를 불러 플래시가 안 보였다(10-13 재검증 R1)
+        if (rejectUntil <= 0f) { background.color = restingColor; }   // 거부 플래시 중이면 빨강을 남긴다. 놓은 직후 PlaceChips가 같은 프레임에 Show를 불러 플래시가 안 보였다
         Color textColor = selected ? SelectedTextColor : NormalTextColor;
         roleText.color = textColor;
         nameText.color = textColor;

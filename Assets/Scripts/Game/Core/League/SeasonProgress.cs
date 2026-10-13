@@ -6,7 +6,7 @@ namespace Game.Core.League
 {
     public enum SeasonOutcomeKind { Promoted, Stayed, Relegated, Champion }
 
-    // 시즌 끝 내 팀의 판정(09-28 시즌 종료 표시): 무엇이 됐나 · 최종 순위(1부터) · 다음 시즌 부. 결과 화면 문구와 다음 시즌 부가 같은 값을 본다
+    // 시즌 끝 내 팀의 판정: 무엇이 됐나 · 최종 순위(1부터) · 다음 시즌 부. 결과 화면 문구와 다음 시즌 부가 같은 값을 본다
     public readonly struct SeasonOutcome
     {
         public readonly SeasonOutcomeKind Kind;
@@ -21,8 +21,8 @@ namespace Game.Core.League
         }
     }
 
-    // 시즌 흐름 판정 순수 함수(09-27 확정 스펙 ③): 끝났나, 다음 부는 어디인가, 세이브로 이어 갈 수 있나.
-    // 승강전(10-08): 정규 시즌이 끝난 뒤 내가 걸린 PO·승강전이 남아 있으면 시즌은 아직 안 끝난 것이다
+    // 시즌 흐름 판정 순수 함수: 끝났나, 다음 부는 어디인가, 세이브로 이어 갈 수 있나.
+    // 승강전: 정규 시즌이 끝난 뒤 내가 걸린 PO·승강전이 남아 있으면 시즌은 아직 안 끝난 것이다
     public static class SeasonProgress
     {
         public static bool IsRegularSeasonOver(SeasonState state, TierRule tier)
@@ -74,7 +74,7 @@ namespace Game.Core.League
             return new SeasonOutcome(SeasonOutcomeKind.Stayed, rank, tier.Tier);
         }
 
-        // 승강전을 내가 이겼나. 진행(NextStage)과 승자 해석이 PlayoffRules 한 곳에 있다(10-08 리뷰)
+        // 승강전을 내가 이겼나. 진행(NextStage)과 승자 해석이 PlayoffRules 한 곳에 있다
         private static bool WonPlayoff(PlayoffPlan plan, IReadOnlyList<PlayoffResult> results)
         {
             return PlayoffRules.IsWinner(plan, results, SeasonState.MyTeamId);

@@ -4,7 +4,7 @@ using Game.Core.Tactics;
 
 namespace Game.Core.League
 {
-    // 내 경기 한 판의 재료 전부: 일정·시드·라인업 2개·전술 2개. 매니저(StageManager 스폰·MatchManager 시드/전술/킥오프)가 이 값 객체만 읽어 서로를 모른다(09-27 확정 스펙 ②).
+    // 내 경기 한 판의 재료 전부: 일정·시드·라인업 2개·전술 2개. 매니저(StageManager 스폰·MatchManager 시드/전술/킥오프)가 이 값 객체만 읽어 서로를 모른다.
     // 인게임 관례: 팀 0 = 나(승리 → GameClear, 색·카메라). 일정상 홈·원정은 킥오프 팀과 결과 변환(ResultFor)에서만 드러난다
     public sealed class MatchSetup
     {

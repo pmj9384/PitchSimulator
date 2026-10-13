@@ -13,7 +13,7 @@ namespace Game.Core.League
     {
         public int PlayerId { get; }
         public PlayerStats Stats { get; }   // 능력치(빌드) + 역할 값(다이얼). 개인 지시는 여기 안 들어 있다
-        public IReadOnlyList<int> Instructions => instructions;   // 개인 지시(09-30): 역할 값 기준 오프셋, PlayerDial 순서. 전부 0이면 역할 값 그대로
+        public IReadOnlyList<int> Instructions => instructions;   // 개인 지시: 역할 값 기준 오프셋, PlayerDial 순서. 전부 0이면 역할 값 그대로
 
         private readonly int[] instructions;
 
@@ -49,7 +49,7 @@ namespace Game.Core.League
         }
     }
 
-    // 스카우트 시도 기록(10-12): 어느 팀의 몇 번째 선수를 노렸나. 같은 선수 재시도 보정의 재료
+    // 스카우트 시도 기록: 어느 팀의 몇 번째 선수를 노렸나. 같은 선수 재시도 보정의 재료
     public readonly struct ScoutTarget
     {
         public readonly int TeamId;
@@ -93,12 +93,12 @@ namespace Game.Core.League
         public int GeneratorVersion { get; }
         public int RoundsPlayed { get; private set; }
         public int ScoutAttempts { get; private set; }       // 이번 시즌에 쓴 시도(실패 포함)
-        public int ScoutExtraAttempts { get; private set; }  // 코인으로 산 추가 시도(10-12)
+        public int ScoutExtraAttempts { get; private set; }  // 코인으로 산 추가 시도
         public int RemainingScoutAttempts => ScoutRules.AttemptsPerSeason + ScoutExtraAttempts - ScoutAttempts;
         public string MyPresetId { get; private set; }   // 내 팀 기준 카드(TacticPresets presetId). 바꾸는 곳은 SetMyPreset 하나(팀 전술 설정창, 09-30)
-        public TeamTactics? MyCustomTactics { get; private set; }   // 슬라이더·세부 표로 바꾼 값 전체. null = 기준 카드 값 그대로(09-30)
+        public TeamTactics? MyCustomTactics { get; private set; }   // 슬라이더·세부 표로 바꾼 값 전체. null = 기준 카드 값 그대로
         public IReadOnlyList<MatchResult> Results => results;
-        public IReadOnlyList<PlayoffResult> PlayoffResults => playoff;   // 승강전 결과(10-08). 정규 시즌 뒤에만 쌓인다. 옛 세이브는 비어 있음
+        public IReadOnlyList<PlayoffResult> PlayoffResults => playoff;   // 승강전 결과. 정규 시즌 뒤에만 쌓인다. 옛 세이브는 비어 있음
         public IReadOnlyList<RosterPlayer> Roster => roster;
         public IReadOnlyList<LineupEntry> Lineup => lineup;
 
@@ -166,7 +166,7 @@ namespace Game.Core.League
         }
 
         // 세부 표로 바꾼 값(3단). 어떤 카드와 값이 같아지면 그 카드를 고른 것으로 친다:
-        // 화면이 강조하는 카드와 슬라이더가 기준으로 삼는 카드가 어긋나지 않게(09-30 리뷰)
+        // 화면이 강조하는 카드와 슬라이더가 기준으로 삼는 카드가 어긋나지 않게
         public void SetMyTacticsFromTable(TeamTactics tactics, IReadOnlyList<TeamTactics> presets)
         {
             TacticsEditing.Validate(tactics);
@@ -226,7 +226,7 @@ namespace Game.Core.League
         }
 
         // 새 시즌의 로스터는 기본 편성에서 다시 만들어진다(SeasonFactory). 이전 시즌의 역할과 개인 지시를 같은 선수 id로 옮겨 온다.
-        // 이전 역할이 표에서 사라졌거나 자리가 다르면 그 선수는 기본 역할로 둔다. 잠긴 역할은 옮긴다(10-08: 업데이트로 잠겨도 쓰던 것은 남는다, PlayerTableLookup.IsSamePosition 주석)
+        // 이전 역할이 표에서 사라졌거나 자리가 다르면 그 선수는 기본 역할로 둔다. 잠긴 역할은 옮긴다(업데이트로 잠겨도 쓰던 것은 남는다, PlayerTableLookup.IsSamePosition 주석)
         public void AdoptPlayerTactics(IReadOnlyList<RosterPlayer> previousRoster, IReadOnlyList<PlayerStats> table)
         {
             for (int i = 0; i < previousRoster.Count; i++)
@@ -243,7 +243,7 @@ namespace Game.Core.League
             }
         }
 
-        // 이전 시즌에 끌어 둔 배치(자리 2쌍)도 같은 선수 id로 옮겨 온다(10-13 재검증 R2: 전술·역할·지시는 이월되는데 유일한 레버인 배치만 기본으로 돌아갔다).
+        // 이전 시즌에 끌어 둔 배치(자리 2쌍)도 같은 선수 id로 옮겨 온다(전술·역할·지시는 이월되는데 유일한 레버인 배치만 기본으로 돌아갔다).
         // 필드 규칙(PlacementRules)은 부가 바뀌어도 같으므로 이전 시즌에 놓였던 자리는 그대로 유효하다. 없는 선수 id는 건너뛴다
         public void AdoptLineup(IReadOnlyList<LineupEntry> previousLineup)
         {
@@ -301,7 +301,7 @@ namespace Game.Core.League
             RoundsPlayed++;
         }
 
-        // 승강전 한 경기(10-08). 단계 순서는 PlayoffRules.NextStage가 정하고 여기선 쌓기만 한다
+        // 승강전 한 경기. 단계 순서는 PlayoffRules.NextStage가 정하고 여기선 쌓기만 한다
         public void AddPlayoffResult(PlayoffResult result)
         {
             playoff.Add(result);
@@ -331,7 +331,7 @@ namespace Game.Core.League
             ScoutExtraAttempts++;
         }
 
-        // 영입 대상이 이 자리에 들어갈 수 있나(같은 자리만). 화면이 내 선수 목록을 걸러 보이고, TryScout은 시도를 소모하기 전에 묻는다(10-12 리뷰: 소모 뒤에 던지면 시도만 샌다)
+        // 영입 대상이 이 자리에 들어갈 수 있나(같은 자리만). 화면이 내 선수 목록을 걸러 보이고, TryScout은 시도를 소모하기 전에 묻는다(소모 뒤에 던지면 시도만 샌다)
         public bool CanReplacePlayer(int myPlayerId, PlayerStats scouted)
         {
             PlayerStats current = roster[RosterIndex(myPlayerId)].Stats;
@@ -398,7 +398,7 @@ namespace Game.Core.League
             for (int i = 0; i < lineup.Count; i++)
             {
                 LineupEntry e = lineup[i];
-                slots.Add(new LineupSlot(FindRosterPlayer(e.PlayerId).EffectiveStats(), e.AttackX, e.AttackZ, e.DefendX, e.DefendZ));   // 역할 값 + 개인 지시(09-30)
+                slots.Add(new LineupSlot(FindRosterPlayer(e.PlayerId).EffectiveStats(), e.AttackX, e.AttackZ, e.DefendX, e.DefendZ));   // 역할 값 + 개인 지시
             }
             return slots;
         }
@@ -519,14 +519,14 @@ namespace Game.Core.League
         public int generatorVersion;
         public int roundsPlayed;
         public int scoutAttempts;
-        public string? myPresetId;   // 09-27 추가. 옛 세이브(09-26)엔 없어 null → DefaultPresetId
+        public string? myPresetId;   // 옛 세이브엔 없어 null → DefaultPresetId
         public TacticsValues? myTactics;   // 09-30 추가(팀 전술 설정창). 카드 값 그대로면 null. 옛 세이브엔 없어 null → 기준 카드 값
         public List<Result> results = new List<Result>();
         public List<Player> roster = new List<Player>();
         public List<Slot> lineup = new List<Slot>();
-        public List<PlayoffEntry>? playoff;   // 10-08 추가. 승강전 결과. 옛 세이브엔 없어 null → 승강전 전
-        public int scoutExtra;                // 10-12 추가. 코인으로 산 스카우트 시도. 옛 세이브엔 없어 0
-        public List<ScoutEntry>? scoutTargets;   // 10-12 추가. 이번 시즌 시도한 (팀, 선수 번호). 옛 세이브엔 없어 null(playoff와 같은 꼴. 초기화자를 두면 Json.NET이 빈 목록을 남겨 주석과 어긋난다)
+        public List<PlayoffEntry>? playoff;   // 승강전 결과. 옛 세이브엔 없어 null → 승강전 전
+        public int scoutExtra;                // 코인으로 산 스카우트 시도. 옛 세이브엔 없어 0
+        public List<ScoutEntry>? scoutTargets;   // 이번 시즌 시도한 (팀, 선수 번호). 옛 세이브엔 없어 null(playoff와 같은 꼴. 초기화자를 두면 Json.NET이 빈 목록을 남겨 주석과 어긋난다)
 
         [Serializable] public sealed class ScoutEntry
         {
@@ -556,9 +556,9 @@ namespace Game.Core.League
         public sealed class Player
         {
             public int playerId;
-            public string variantId = string.Empty;   // 역할. 전술 화면에서 같은 자리 안에서 바꾼다(09-30)
+            public string variantId = string.Empty;   // 역할. 전술 화면에서 같은 자리 안에서 바꾼다
             public int[] build = Array.Empty<int>();
-            public int[]? instructions;               // 09-30 추가. 개인 지시 오프셋(PlayerDial 순서). 지시가 없으면 null, 옛 세이브에도 없어 null → 역할 값 그대로
+            public int[]? instructions;               // 개인 지시 오프셋(PlayerDial 순서). 지시가 없으면 null, 옛 세이브에도 없어 null → 역할 값 그대로
         }
         [Serializable] public sealed class Slot
         {

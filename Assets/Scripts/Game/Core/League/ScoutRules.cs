@@ -44,9 +44,9 @@ namespace Game.Core.League
         // [가정] 별 등급별 기본 확률(★1~★5). 출처 없음(프로스피A 공개 확률은 최저 등급 4%부터지만 그 게임은 구매 누적으로 오르는 구조)
         private static readonly float[] BaseChance = { 0.8f, 0.6f, 0.4f, 0.25f, 0.15f };
 
-        // 별 = 조합의 특이성 + 부 차이(스펙 §4-5). 생성기가 노출 변형만 뽑아(10-08) 변형 희귀도로는 안 갈린다:
+        // 별 = 조합의 특이성 + 부 차이(스펙 §4-5). 생성기가 노출 변형만 뽑아 변형 희귀도로는 안 갈린다:
         // 기본 변형이 아닌가(★2, 다이얼 거리가 크면 ★3) / 자리 2쌍이 실제로 다른가(★3) / 빌드 재분배가 적용됐나(★4) → 최댓값, 둘 이상 겹치면 +1, 상위 부면 +1, 상한 5
-        // 상위 부 +1은 지금 앱에선 안 일어난다: 스카우트 풀이 내 부의 상대 팀뿐이라 SeasonSystem이 늘 같은 부를 넘긴다(10-12 리뷰). 다른 부 풀을 열 때를 위해 규칙만 둔다
+        // 상위 부 +1은 지금 앱에선 안 일어난다: 스카우트 풀이 내 부의 상대 팀뿐이라 SeasonSystem이 늘 같은 부를 넘긴다. 다른 부 풀을 열 때를 위해 규칙만 둔다
         public static int Stars(PlayerStats target, StageEntry targetRow, TierRule targetTier, int myTier, IReadOnlyList<PlayerStats> table)
         {
             int stars = MinStars;
@@ -73,7 +73,7 @@ namespace Game.Core.League
             return ClampStars(stars);
         }
 
-        // 이 부의 상대가 전부 ★1인가: 변형 변주·자리 2쌍·재분배가 다 꺼진 부(지금은 4부)는 Stars의 세 항목이 전부 안 걸린다. 화면 안내가 부 번호 대신 이걸 묻는다(10-12 리뷰)
+        // 이 부의 상대가 전부 ★1인가: 변형 변주·자리 2쌍·재분배가 다 꺼진 부(지금은 4부)는 Stars의 세 항목이 전부 안 걸린다. 화면 안내가 부 번호 대신 이걸 묻는다
         public static bool AllStarsAreOne(TierRule tier)
         {
             if (tier.DialVariance > 0) { return false; }
@@ -159,7 +159,7 @@ namespace Game.Core.League
             return LossCoins;
         }
 
-        // 홈·원정 어느 쪽이 나인지 골라 CoinsFor에 넘긴다(10-12 리뷰: 이 분기가 매니저에 있으면 테스트가 못 잠근다)
+        // 홈·원정 어느 쪽이 나인지 골라 CoinsFor에 넘긴다(이 분기가 매니저에 있으면 테스트가 못 잠근다)
         public static int CoinsFor(MatchResult result, int myTeamId)
         {
             if (result.HomeTeamId == myTeamId) { return CoinsFor(result.HomeGoals, result.AwayGoals); }

@@ -8,12 +8,12 @@ namespace Game.Core.Match
     // 선수 1명의 경기 중 상태(순수). 트리가 읽고 시키는 IPlayerContext의 실제 구현.
     // 위치·의도가 전부 여기 있어서 MatchSimulation이 엔진 없이 22명을 굴린다. PlayerController는 이 값을 화면에 비출 뿐이다.
     // 트리는 의도(MoveTarget·WantsShoot·WantsPass)만 남기고 실행은 시뮬이 한다. 그래야 실행 순서가 PlayerId 순으로 고정된다.
-    // 스냅샷(공·서드·역습·동료·상대·상대 GK·패스 대상)은 시뮬이 트리 틱 직전에 채운다(09-18).
+    // 스냅샷(공·서드·역습·동료·상대·상대 GK·패스 대상)은 시뮬이 트리 틱 직전에 채운다.
     public sealed class PlayerState : IPlayerContext
     {
         public int PlayerId { get; }
         public int Team { get; }
-        public int AttackSign { get; private set; }   // +1 = +X 골을 공격. 킥오프 때 팀 0이 +1, 후반 진영 교체 때 뒤집힌다(09-27)
+        public int AttackSign { get; private set; }   // +1 = +X 골을 공격. 킥오프 때 팀 0이 +1, 후반 진영 교체 때 뒤집힌다
         public float X { get; set; }
         public float Z { get; set; }
         public PlayerStats Stats { get; private set; }
@@ -39,13 +39,13 @@ namespace Game.Core.Match
         public Third BallThird { get; set; }
         public bool IsCountering { get; set; }
         public bool IsCounterPressing { get; set; }
-        public int PressRank { get; set; } = int.MaxValue;   // 압박 거리 안인 우리 팀 중 공에 더 가까운 수. 상한(MaxPressers) 안만 압박(09-23)
+        public int PressRank { get; set; } = int.MaxValue;   // 압박 거리 안인 우리 팀 중 공에 더 가까운 수. 상한(MaxPressers) 안만 압박
 
         public IReadOnlyList<TargetInfo> Teammates { get; set; } = System.Array.Empty<TargetInfo>();
         public IReadOnlyList<TargetInfo> Opponents { get; set; } = System.Array.Empty<TargetInfo>();
         public bool IsLooseBallChaser { get; set; }   // 소유 팀 없는 공을 우리 팀에서 내가 맡았나(시뮬이 히스테리시스로 정함, 09-28 F1b)
-        public bool IsKickoffTaker { get; set; }      // 킥오프 키커이고 첫 패스 전(09-29)
-        public bool WantsTakeOn { get; set; }         // 돌파 의도(09-29)
+        public bool IsKickoffTaker { get; set; }      // 킥오프 키커이고 첫 패스 전
+        public bool WantsTakeOn { get; set; }         // 돌파 의도
         public bool IsKeeperAlternate { get; set; }
         public int LastPasserId { get; set; } = -1;   // 방금 나에게 패스한 아군. 곧바로 뒤로 되돌리지 않는다(09-23 측면 왕복 22회)
         public PlayerStats? OpponentKeeper { get; set; }
@@ -64,7 +64,7 @@ namespace Game.Core.Match
         public float PassLandingX { get; private set; }   // 내가 차는 패스의 착지점(트리가 고른 점). WantsPass일 때만 뜻이 있다. 위의 PassTargetX·Z는 나에게 오는 패스의 도착점이라 방향이 반대다
         public float PassLandingZ { get; private set; }
 
-        // 수비 시 자리를 따로 안 주면 공격 시 자리와 같다. 편성 스폰은 자리 2쌍 생성자를 쓰고(09-21), 이 오버로드는 테스트·리트머스용
+        // 수비 시 자리를 따로 안 주면 공격 시 자리와 같다. 편성 스폰은 자리 2쌍 생성자를 쓰고, 이 오버로드는 테스트·리트머스용
         public PlayerState(int playerId, int team, PlayerStats stats, float x, float z)
             : this(playerId, team, stats, x, z, x, z)
         {
@@ -85,7 +85,7 @@ namespace Game.Core.Match
             IsGoalkeeper = stats.IsKeeper;
         }
 
-        // 킥오프 전 개인 전술(09-30): 선수는 세팅 국면에 스폰되므로, 그 화면에서 바꾼 역할·개인 지시 값을 킥오프 때 다시 받는다.
+        // 킥오프 전 개인 전술: 선수는 세팅 국면에 스폰되므로, 그 화면에서 바꾼 역할·개인 지시 값을 킥오프 때 다시 받는다.
         // 같은 자리 안의 값만 받는다. 골키퍼 여부가 바뀌면 시뮬의 명부(keeperIds)와 어긋나니 던진다
         public void ReplaceStats(PlayerStats stats)
         {
@@ -114,11 +114,11 @@ namespace Game.Core.Match
             PassLandingZ = landingZ;
         }
 
-        // 태클(09-21). 시뮬이 틱마다 줄인다. 정지 중엔 이동 안 함(제쳐짐), 쿨다운 중엔 재시도 안 함
+        // 태클. 시뮬이 틱마다 줄인다. 정지 중엔 이동 안 함(제쳐짐), 쿨다운 중엔 재시도 안 함
         public int FrozenTicks { get; set; }
         public int TackleCooldownTicks { get; set; }
 
-        // 체력(09-29). 단기 체력은 전력 행동에 줄고 상한까지 회복한다. 상한은 전력 행동이 쌓일수록 내려간다. 시뮬만 읽고 쓴다(트리는 명목 속도로 판단)
+        // 체력. 단기 체력은 전력 행동에 줄고 상한까지 회복한다. 상한은 전력 행동이 쌓일수록 내려간다. 시뮬만 읽고 쓴다(트리는 명목 속도로 판단)
         public float Stamina { get; set; } = 1f;
         public float StaminaCap { get; set; } = 1f;
 

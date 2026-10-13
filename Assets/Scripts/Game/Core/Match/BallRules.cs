@@ -65,7 +65,7 @@ namespace Game.Core.Match
         }
 
         // 소유 중 공은 소유자 발에 붙어 간다. 시뮬이 소유자 위치를 넣어 준다(09-16 결정).
-        // 속도도 기록한다(09-23): 소유 중 공 속도 = 소유자 이동 속도. 압박·자유 공 추격이 공의 앞을 향해 달리는 데 쓴다(비행·굴림·소유 모두 같은 필드)
+        // 속도도 기록한다: 소유 중 공 속도 = 소유자 이동 속도. 압박·자유 공 추격이 공의 앞을 향해 달리는 데 쓴다(비행·굴림·소유 모두 같은 필드)
         public static BallState Carry(BallState ball, float ownerX, float ownerZ)
         {
             ball.VelX = (ownerX - ball.X) / MatchTuning.FixedStep;

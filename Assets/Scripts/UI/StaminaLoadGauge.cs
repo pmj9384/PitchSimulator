@@ -3,7 +3,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-// 체력 부담 막대(09-30). 팀 전술 패널의 카드 설명 아래에 놓인다. FM26 전술 화면의 Intensity 막대처럼 8칸 중 몇 칸이 찼는지와 단계 글자를 보여 준다.
+// 체력 부담 막대. 팀 전술 패널의 카드 설명 아래에 놓인다. FM26 전술 화면의 Intensity 막대처럼 8칸 중 몇 칸이 찼는지와 단계 글자를 보여 준다.
 // 몇 칸인지·어느 단계인지는 순수 코어(StaminaLoad)가 정하고 여기는 받은 값을 칠하기만 한다
 public class StaminaLoadGauge : MonoBehaviour
 {
