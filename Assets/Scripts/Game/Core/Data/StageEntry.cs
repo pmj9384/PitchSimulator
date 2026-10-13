@@ -14,7 +14,7 @@ namespace Game.Core.Data
         public int Stage { get; set; }
         public string Side { get; set; } = string.Empty;   // player / enemy. 팀 번호(0/1)가 아니라 말로 쓴다: 기획이 읽는 파일이다
         public string Kind { get; set; } = string.Empty;   // player
-        public string Id { get; set; } = string.Empty;     // roleId(GK·CB·FB·DM·CM·AM·W·ST)
+        public string Id { get; set; } = string.Empty;     // PlayerTable의 variantId(gk_standard·st_poacher …). 자리(roleId)는 그 변형에서 읽는다. 비교는 PlayerTableLookup.FindVariant가 대소문자 무시
         public int Count { get; set; }                     // 같은 자리 기준으로 몇 명. 1보다 크면 폭(Z) 방향으로 최소 간격씩 벌려 세운다
         public float PosX { get; set; }
         public float PosZ { get; set; }

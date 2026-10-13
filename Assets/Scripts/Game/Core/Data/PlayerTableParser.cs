@@ -37,6 +37,7 @@ namespace Game.Core.Data
                     {
                         throw new FormatException($"PlayerTable {line}행: roleId가 비어 있다");
                     }
+                    row.RoleId = row.RoleId.Trim().ToUpperInvariant();   // 자리 비교가 코드마다 제각각(무시·그대로)이라 입구에서 한 번 맞춘다(09-30 리뷰 🟣). 'cb' 같은 표기가 조용히 빠지지 않게
                     if (string.IsNullOrWhiteSpace(row.VariantId))
                     {
                         throw new FormatException($"PlayerTable {line}행: variantId가 비어 있다");
