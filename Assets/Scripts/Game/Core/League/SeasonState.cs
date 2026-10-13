@@ -94,7 +94,6 @@ namespace Game.Core.League
         public int RoundsPlayed { get; private set; }
         public int ScoutAttempts { get; private set; }       // 이번 시즌에 쓴 시도(실패 포함)
         public int ScoutExtraAttempts { get; private set; }  // 코인으로 산 추가 시도(10-12)
-        public IReadOnlyList<ScoutTarget> ScoutTargets => scoutTargets;   // 이번 시즌 시도한 (팀, 선수 번호). 재시도 보정용
         public int RemainingScoutAttempts => ScoutRules.AttemptsPerSeason + ScoutExtraAttempts - ScoutAttempts;
         public string MyPresetId { get; private set; }   // 내 팀 기준 카드(TacticPresets presetId). 바꾸는 곳은 SetMyPreset 하나(팀 전술 설정창, 09-30)
         public TeamTactics? MyCustomTactics { get; private set; }   // 슬라이더·세부 표로 바꾼 값 전체. null = 기준 카드 값 그대로(09-30)
@@ -242,6 +241,28 @@ namespace Game.Core.League
                 ApplyRole(index, variant);
                 roster[index] = new RosterPlayer(previous.PlayerId, roster[index].Stats, previous.CopyInstructions());
             }
+        }
+
+        // 이전 시즌에 끌어 둔 배치(자리 2쌍)도 같은 선수 id로 옮겨 온다(10-13 재검증 R2: 전술·역할·지시는 이월되는데 유일한 레버인 배치만 기본으로 돌아갔다).
+        // 필드 규칙(PlacementRules)은 부가 바뀌어도 같으므로 이전 시즌에 놓였던 자리는 그대로 유효하다. 없는 선수 id는 건너뛴다
+        public void AdoptLineup(IReadOnlyList<LineupEntry> previousLineup)
+        {
+            for (int i = 0; i < previousLineup.Count; i++)
+            {
+                LineupEntry previous = previousLineup[i];
+                int index = IndexOfLineup(previous.PlayerId);
+                if (index < 0) { continue; }
+                lineup[index] = previous;
+            }
+        }
+
+        private int IndexOfLineup(int playerId)
+        {
+            for (int i = 0; i < lineup.Count; i++)
+            {
+                if (lineup[i].PlayerId == playerId) { return i; }
+            }
+            return -1;
         }
 
         private static void CopyBuild(PlayerStats from, PlayerStats to)

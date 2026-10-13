@@ -210,6 +210,36 @@ public class ScoutRulesTests
     }
 
     [Test]
+    public void 영입한_선수는_세이브로_왕복하고_다음_시즌엔_역할만_남고_빌드는_기본으로_돌아간다()
+    {
+        // 10-13 재검증 F2: 교체 결과만 잠겨 있고 세이브·이월 경로는 비어 있었다. 이월 규칙은 스펙 §4-5 [가정] ④
+        SeasonState state = SeasonState.NewSeason(4, 42, myRows, table);
+        GeneratedTeam team = TeamGenerator.Generate(42, Tier(4), table, formations, names)[0];
+        int stIndex = -1;
+        for (int i = 0; i < team.Players.Count; i++) { if (team.Players[i].RoleId == "ST") { stIndex = i; } }
+        PlayerStats target = team.Players[stIndex];
+        int myStriker = MyPlayerIdOf(state, "ST");
+        state.ReplacePlayer(myStriker, target);
+        PlayerStats scouted = state.FindRosterPlayer(myStriker).Stats;
+
+        SeasonState back = SeasonState.FromSave(state.ToSave(), table);
+        PlayerStats loaded = back.FindRosterPlayer(myStriker).Stats;
+        Assert.AreEqual(scouted.VariantId, loaded.VariantId);
+        Assert.AreEqual(300, loaded.BuildTotal, "FromSave의 총점 검사를 통과한다");
+        Assert.AreEqual(scouted.Speed, loaded.Speed);
+        Assert.AreEqual(scouted.Shot, loaded.Shot);
+
+        SeasonState next = SeasonState.NewSeason(3, 43, myRows, table);
+        PlayerStats defaultBuild = next.FindRosterPlayer(myStriker).Stats.Clone();
+        next.AdoptPlayerTactics(back.Roster, table);
+        PlayerStats carried = next.FindRosterPlayer(myStriker).Stats;
+        Assert.AreEqual(scouted.VariantId, carried.VariantId, "역할(변형)은 이어 간다");
+        Assert.AreEqual(defaultBuild.Speed, carried.Speed, "빌드는 기본 로스터 값");
+        Assert.AreEqual(defaultBuild.Shot, carried.Shot);
+        Assert.IsFalse(next.FindRosterPlayer(myStriker).HasInstructions);
+    }
+
+    [Test]
     public void 스카우트_상태는_세이브로_왕복하고_옛_세이브는_시도_0이다()
     {
         SeasonState state = SeasonState.NewSeason(4, 42, myRows, table);

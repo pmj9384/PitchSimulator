@@ -152,7 +152,7 @@ public class ScoutPanelUIElement : UIElement
             }
             GeneratedTeam team = opponents[i];
             bool met = ScoutRules.MetBefore(Season.State.Results, SeasonState.MyTeamId, team.TeamId);
-            string text = met ? team.Name : team.Name + "  (아직 안 붙어 봄, 확률 절반)";
+            string text = met ? team.Name : $"{team.Name}  (아직 안 붙어 봄, 확률 ×{ScoutRules.UnmetFactor:0.##})";
             teamButtons[i].Show(text, team.TeamId == selectedTeamId, interactable: true);
         }
     }
@@ -249,7 +249,7 @@ public class ScoutPanelUIElement : UIElement
         {
             return $"영입 성공: {target.RoleId} {target.DisplayName}. 능력치는 내 팀 총점에 맞춰 조정했고 개인 지시는 초기화했다{tail}";
         }
-        return $"실패 (주사위 {Percent(verdict.Roll)} ≥ 확률 {Percent(verdict.Chance)}). 같은 선수에게 다시 도전하면 확률 +{Percent(ScoutRules.RetryBonus)}{tail}";
+        return $"실패 (주사위 {PercentFine(verdict.Roll)} ≥ 확률 {Percent(verdict.Chance)}). 같은 선수에게 다시 도전하면 확률 +{Percent(ScoutRules.RetryBonus)}{tail}";
     }
 
     private static string Stars(int stars)
@@ -261,6 +261,12 @@ public class ScoutPanelUIElement : UIElement
     private static string Percent(float ratio)
     {
         return Mathf.RoundToInt(ratio * 100f).ToString(CultureInfo.InvariantCulture) + "%";
+    }
+
+    // 주사위는 소수 한 자리까지: 정수로 반올림하면 "60% ≥ 60%"처럼 같아 보이는 실패가 생긴다(10-13 재검증)
+    private static string PercentFine(float ratio)
+    {
+        return (ratio * 100f).ToString("0.0", CultureInfo.InvariantCulture) + "%";
     }
     #endregion
 }

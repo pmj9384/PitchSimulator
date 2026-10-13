@@ -5,21 +5,19 @@ using Game.Core.Tactics;
 
 namespace Game.Core.League
 {
-    // 스카우트 한 번의 결과. 미리보기(Roll 전)는 Success가 false이고 Rolled가 false
+    // 스카우트 한 번의 결과. 미리보기(Roll 전)는 Roll 0·Success false
     public readonly struct ScoutVerdict
     {
         public readonly int Stars;
         public readonly float Chance;
         public readonly float Roll;
-        public readonly bool Rolled;
         public readonly bool Success;
 
-        public ScoutVerdict(int stars, float chance, float roll, bool rolled, bool success)
+        public ScoutVerdict(int stars, float chance, float roll, bool success)
         {
             Stars = stars;
             Chance = chance;
             Roll = roll;
-            Rolled = rolled;
             Success = success;
         }
     }
