@@ -258,14 +258,14 @@ public class SeasonFlowTests
         List<Fixture> schedule = SeasonSchedule.RoundRobin(tier.Teams);
 
         TeamTactics balanced = SeasonRunner.FindPreset(presets, "balanced");
-        TeamTactics edited = TacticsEditing.ApplySlider(balanced, balanced, TacticSlider.Speed, 2);
+        TeamTactics edited = TacticsEditing.ApplySlider(balanced, balanced, TacticSlider.Speed, 1);
         state.SetMyTactics(edited, presets);
         MatchSetup setup = SeasonRunner.SetupMyMatch(state, opponents, schedule, presets, 0);
-        CollectionAssert.AreEqual(new[] { 2, 2, 2 }, setup.Tactics0.Tempo, "표로 바꾼 속도가 경기에");
+        CollectionAssert.AreEqual(new[] { 1, 2, 2 }, setup.Tactics0.Tempo, "표로 바꾼 속도가 경기에");
         Assert.AreEqual("balanced", state.MyPresetId, "기준 카드는 그대로");
 
         SeasonState loaded = SeasonState.FromSave(state.ToSave(), table);
-        CollectionAssert.AreEqual(new[] { 2, 2, 2 }, loaded.MyTactics(presets).Tempo, "세이브 왕복 뒤에도");
+        CollectionAssert.AreEqual(new[] { 1, 2, 2 }, loaded.MyTactics(presets).Tempo, "세이브 왕복 뒤에도");
     }
 
     [Test]

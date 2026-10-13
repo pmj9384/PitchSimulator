@@ -37,8 +37,23 @@ public class TacticsEditingTests
     public void 슬라이더_빨리와_압박은_서드_3칸을_같이_옮기고_2에서_자른다()
     {
         TeamTactics card = Card("balanced");
-        CollectionAssert.AreEqual(new[] { 2, 2, 2 }, TacticsEditing.ApplySlider(card, card, TacticSlider.Speed, 2).Tempo, "속도 0/1/2 + 2, 2 위는 2");
+        CollectionAssert.AreEqual(new[] { 1, 2, 2 }, TacticsEditing.ApplySlider(card, card, TacticSlider.Speed, 1).Tempo, "속도 0/1/2 + 1, 2 위는 2");
         CollectionAssert.AreEqual(new[] { 2, 2, 1 }, TacticsEditing.ApplySlider(card, card, TacticSlider.Press, 1).PressStart, "압박 시작 2/1/0 + 1");
+    }
+
+    [Test]
+    public void 슬라이더는_한_칸이_한_단이고_카드_값이_끝이면_실제로_바뀌는_칸까지만_센다()
+    {
+        // 10-13: ±2였을 때 카드 값 1에서 "더"와 "훨씬 더"가 같은 값이라 유저가 "분배가 안 된다"고 느꼈다. ±1로 줄이고 포화는 EffectiveSliderOffset이 알린다
+        Assert.AreEqual(1, TacticsEditing.SliderMax);
+        TeamTactics balanced = Card("balanced");   // 속도 0/1/2
+        Assert.AreEqual(1, TacticsEditing.EffectiveSliderOffset(balanced, TacticSlider.Speed, 1), "0/1/2 → 1/2/2로 바뀐다");
+        Assert.AreEqual(-1, TacticsEditing.EffectiveSliderOffset(balanced, TacticSlider.Speed, -1));
+        var all = TacticsEditing.Copy(balanced);
+        all.Tempo = new[] { 2, 2, 2 };
+        Assert.AreEqual(0, TacticsEditing.EffectiveSliderOffset(all, TacticSlider.Speed, 1), "전부 2면 +1은 아무것도 안 바꾼다 → 0");
+        Assert.AreEqual(-1, TacticsEditing.EffectiveSliderOffset(all, TacticSlider.Speed, -1));
+        Assert.AreEqual(0, TacticsEditing.EffectiveSliderOffset(balanced, TacticSlider.Speed, 0));
     }
 
     [Test]
@@ -64,10 +79,10 @@ public class TacticsEditingTests
     {
         TeamTactics card = Card("balanced");
         TeamTactics current = TacticsEditing.Copy(card);
-        TacticsEditing.ApplySlider(current, card, TacticSlider.Speed, 2);
+        TacticsEditing.ApplySlider(current, card, TacticSlider.Speed, 1);
         CollectionAssert.AreEqual(new[] { 0, 1, 2 }, card.Tempo, "카드는 그대로");
         CollectionAssert.AreEqual(new[] { 0, 1, 2 }, current.Tempo, "지금 값 원본도 그대로");
-        Assert.Throws<ArgumentOutOfRangeException>(() => TacticsEditing.ApplySlider(current, card, TacticSlider.Forward, 3));
+        Assert.Throws<ArgumentOutOfRangeException>(() => TacticsEditing.ApplySlider(current, card, TacticSlider.Forward, 2));
     }
 
     [Test]

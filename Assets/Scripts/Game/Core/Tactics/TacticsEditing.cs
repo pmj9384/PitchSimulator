@@ -11,8 +11,8 @@ namespace Game.Core.Tactics
     // "얼마나 압박"의 "역할별 압박 거리"(목업)는 개인 다이얼이라 개인 전술창 몫
     public static class TacticsEditing
     {
-        public const int SliderMin = -2;
-        public const int SliderMax = 2;   // 5칸. 폭은 문서에 수치가 없어 09-30 확정 스펙 표의 값. 칸 값의 범위(0~2) 전체를 한쪽 끝까지 밀 수 있는 폭
+        public const int SliderMin = -1;
+        public const int SliderMax = 1;   // 3칸(10-13). 칸 값이 3단(0~2)이라 ±2면 카드 값 1에서 "더"와 "훨씬 더"가 같아져 유저가 "분배가 안 된다"고 느꼈다. 한 칸이 곧 한 단
 
         // 슬라이더 하나가 자기 담당 칸만 다시 쓴다: 담당 칸 = 기준 카드 값 + 오프셋, 나머지는 지금 값(current) 그대로.
         // 카드를 전부 복사해 다시 계산하면 슬라이더와 상관없는 칸(패스 방식·전환)과 다른 슬라이더의 칸까지 표에서 바꾼 값이 사라진다(09-30 재검증)
@@ -38,6 +38,22 @@ namespace Game.Core.Tactics
                     throw new ArgumentOutOfRangeException(nameof(slider), slider, "없는 슬라이더");
             }
             return t;
+        }
+
+        // 슬라이더를 offset까지 밀었을 때 실제로 값이 바뀌는 마지막 칸. 카드 값이 이미 끝(0 또는 2)이면 더 밀어도 같은 값이라 화면이 그 자리로 되돌린다(10-13 포화 표시)
+        public static int EffectiveSliderOffset(TeamTactics card, TacticSlider slider, int offset)
+        {
+            CheckSlider(offset, nameof(offset));
+            int sign = Math.Sign(offset);
+            int effective = 0;
+            for (int k = sign; k != offset + sign; k += sign)
+            {
+                TeamTactics further = ApplySlider(card, card, slider, k);
+                TeamTactics sofar = ApplySlider(card, card, slider, effective);
+                if (SameValues(further, sofar)) { break; }
+                effective = k;
+            }
+            return effective;
         }
 
         // 카드 값과 한 칸도 다르지 않으면 그 카드. 아니면 null = "사용자 설정"(목업 규칙)
