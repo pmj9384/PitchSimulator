@@ -8,7 +8,8 @@ using UnityEngine;
 // 시즌의 수명과 영속. PlayerAccountData와 같은 꼴: GameDataManager가 들고 씬을 넘어 살며, SaveLoadSystem이 Save를 부른다.
 // 판정은 전부 순수 코어(SeasonProgress·SeasonRunner) 몫. 여기는 "지금 시즌이 무엇인가", 파생물(상대 팀·일정·이번 경기) 캐시, 저장 타이밍만.
 // 경기 결과 보고는 비동기다(09-28 G1): 나머지 경기는 백그라운드에서 계산하고 반영·저장은 메인 스레드. 보고 중(IsReporting)엔 이번 라운드 전 상태라 다음 경기 재료를 내주지 않는다
-// 상대 팀은 세이브에 없고 (시즌 시드, 부)로 매번 같게 다시 만든다
+// 상대 팀은 세이브에 없고 (시즌 시드, 부)로 매번 같게 다시 만든다.
+// 다음 경기·시즌 끝 한 줄 문구(NextMatchLine 등)도 여기서 낸다: 허브와 결과 화면이 같은 글자를 써야 해서 한 곳에 둔다
 public class SeasonSystem : ISaveLoad
 {
     public DataSourceType SaveDataSouceType => DataSourceType.Local;
@@ -85,7 +86,7 @@ public class SeasonSystem : ISaveLoad
         return SeasonRunner.Find(Opponents, teamId).Name;   // 없는 id면 Find가 던진다
     }
 
-    // 이번 라운드 내 경기의 재료. 시즌이 끝났으면 먼저 PrepareNextMatch
+    // 이번 라운드 내 경기의 재료. 시즌이 끝났으면 먼저 StartNextSeason(허브) 또는 PrepareNextMatch(인게임 안전장치)
     public MatchSetup CurrentMatch
     {
         get
@@ -199,6 +200,34 @@ public class SeasonSystem : ISaveLoad
             LastReportFailed = true;
             Debug.LogError($"[Season] 승강전 결과 처리 실패: {e}");
         }
+    }
+
+    // 매치데이 허브의 다음 경기 문구. 시즌이 끝났으면 승강 판정, 승강전이 남았으면 그 단계, 아니면 다음 라운드 번호(RoundLine은 끝난 라운드 기준이라 따로 둔다)
+    public string NextMatchLine()
+    {
+        if (IsOver) { return OutcomeLine(); }
+        if (IsRegularSeasonOver) { return PlayoffNextLine(); }
+        return $"{Tier.Tier}부 {State.RoundsPlayed + 1}/{Tier.Matches} 라운드";
+    }
+
+    // 승강전이 남았을 때 다음 경기 안내. 결과 화면과 허브가 같은 글자를 쓴다
+    public string PlayoffNextLine()
+    {
+        PlayoffStage pending = PendingPlayoff;
+        if (pending == PlayoffStage.Semifinal) { return "다음: 승강 플레이오프 단판"; }
+        if (pending == PlayoffStage.LegOne) { return "다음: 승강전 1차전"; }
+        if (pending == PlayoffStage.LegTwo) { return "다음: 승강전 2차전"; }
+        return string.Empty;
+    }
+
+    // 시즌 끝 문구. 승강전 결과까지 Outcome에 들어 있다
+    public string OutcomeLine()
+    {
+        SeasonOutcome outcome = Outcome();
+        if (outcome.Kind == SeasonOutcomeKind.Champion) { return $"시즌 종료 · {Tier.Tier}부 우승!"; }
+        if (outcome.Kind == SeasonOutcomeKind.Promoted) { return $"시즌 종료 · 최종 {outcome.FinalRank}위 · {outcome.NextTier}부 승격!"; }
+        if (outcome.Kind == SeasonOutcomeKind.Relegated) { return $"시즌 종료 · 최종 {outcome.FinalRank}위 · {outcome.NextTier}부 강등"; }
+        return $"시즌 종료 · 최종 {outcome.FinalRank}위 · 잔류";
     }
 
     // 결과 화면의 라운드 자리 문구. 정규 시즌이면 "n부 r/m 라운드", 승강전이면 단계와 합산
@@ -338,7 +367,7 @@ public class SeasonSystem : ISaveLoad
         CommitMyTactics();
     }
 
-    // CurrentMatch·PrepareNextMatch와 같은 방어선: 지금은 설정창이 GameReady(보고가 끝난 뒤)에만 떠서 겹칠 길이 없지만, 새 진입 경로가 생겨도 조용히 틀리지 않게
+    // CurrentMatch·PrepareNextMatch와 같은 방어선: 전술 편집은 로비(보고가 끝난 뒤)에서만 열려 겹칠 길이 없지만, 새 진입 경로가 생겨도 조용히 틀리지 않게
     private void ThrowIfReporting()
     {
         if (IsReporting) { throw new InvalidOperationException("[Season] 이번 라운드 결과를 아직 처리 중이다. 끝난 뒤에 전술을 바꾼다"); }
@@ -352,7 +381,8 @@ public class SeasonSystem : ISaveLoad
         SaveLoadSystem.Instance.Save();
     }
 
-    // 경기가 차려질 때(MatchManager.ResetMatch) 부른다. 시즌이 끝났으면 다음 부에서 새 시즌(승격 연출은 09-28 결과 화면)
+    // 경기가 차려질 때(MatchManager.ResetMatch) 부른다. 시즌이 끝났으면 다음 부에서 새 시즌.
+    // 보통은 허브의 [다음 시즌 시작](StartNextSeason)이 먼저 열어 여기선 아무 일도 없다. 끝난 시즌으로 인게임에 바로 들어온 경우(에디터 직접 Play)의 안전장치로 남긴다(스펙 §2-1)
     public void PrepareNextMatch()
     {
         if (IsReporting) { throw new InvalidOperationException("[Season] 이번 라운드 결과를 아직 처리 중이다. IsOver가 옛 값이라 다음 시즌 여부를 판단할 수 없다(09-28 리뷰)"); }

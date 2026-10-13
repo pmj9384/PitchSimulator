@@ -86,8 +86,8 @@ public class MatchManager : InGameManager
         Simulation.AddPlayer(player);
     }
 
-    // 전술은 킥오프 순간에 확정한다: GameReady 동안 팀 전술 설정창이 내 전술을 바꾸므로 ResetMatch에서 읽으면 옛 값이 들어간다.
-    // 설정창의 입력(SeasonSystem.SetMyPreset·SetMyTactics)이 이번 경기 재료를 비워 두므로 여기서 다시 읽으면 새 전술이 들어가고, 시드·상대·킥오프 팀은 ResetMatch 때와 같다.
+    // 전술은 킥오프 순간에 확정한다. 10-13부터 편집 화면은 로비에만 있어 ResetMatch 뒤에 값이 바뀔 길은 없지만, "전술이 시뮬에 들어가는 곳은 킥오프 한 곳"을 지키려고 여기서 읽는다.
+    // 편집 입력(SeasonSystem.SetMyPreset·SetMyTactics)이 이번 경기 재료를 비워 두므로 여기서 읽으면 최신 전술이 들어가고, 시드·상대·킥오프 팀은 ResetMatch 때와 같다.
     // 킥오프 전에 전술을 읽는 코드는 없다(스폰·자리·HUD 모두 라인업만 본다, 09-30 확인). GamePlay 진입 훅은 경기당 한 번(일시정지 복귀는 훅을 다시 안 쏜다)
     private void StartMatch()
     {
@@ -100,7 +100,7 @@ public class MatchManager : InGameManager
         Hold(kickoffSetSec, halfTime: false);
     }
 
-    // 개인 전술도 킥오프 순간에 확정한다: 선수는 GameReady에 스폰돼 그때의 역할 값을 들고 있다. 세팅 화면에서 바꾼 역할·개인 지시를 다시 넣는다.
+    // 개인 전술도 킥오프 순간에 확정한다: 선수는 GameReady에 스폰돼 그때의 역할 값을 들고 있다. 로비에서 바꾼 역할·개인 지시를 여기서 넣는다.
     // 내 팀은 시뮬 팀 0이고 스폰 순서가 라인업 순서다(StageManager.Spawn). 수가 안 맞으면 조용히 넘기지 않고 알린다
     private void ApplyMyPlayerTactics(IReadOnlyList<LineupSlot> lineup)
     {
