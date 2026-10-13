@@ -124,7 +124,6 @@ namespace Game.Core.League
             return new GeneratedTeam(index, name, formationId, presetId, rows, players);
         }
 
-        // 기본 변형 = PlayerTable에서 그 역할의 첫 행(gk_standard·cb_centreback·fb_fullback·dm_anchor·cm_box2box·am_advanced_pm·w_winger·st_poacher)
         // 다이얼 변주 = 변형 선택(변형이 곧 다이얼 묶음). 0 기본만 / 1 슬롯 1~2개만 다른 변형 / 2 전 슬롯 무작위
         private static int VariedSlotCount(int dialVariance, Random rng)
         {
@@ -133,6 +132,7 @@ namespace Game.Core.League
             return FormationTemplate.SlotCount;
         }
 
+        // 기본 변형 = PlayerTable에서 그 역할의 첫 행(gk_standard·cb_centreback·fb_fullback·dm_anchor·cm_box2box·am_advanced_pm·w_winger·st_poacher)
         public static PlayerStats DefaultVariant(IReadOnlyList<PlayerStats> table, string roleId)
         {
             for (int i = 0; i < table.Count; i++)

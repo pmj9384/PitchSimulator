@@ -29,7 +29,6 @@ namespace Game.Core.Match
             return bestId;
         }
 
-        // 대소 비교만 하므로 √ 생략. 22명이 매 틱 도는 계산
         // 더 가까우면 교체, 똑같이 가까우면 스폰 순번 작은 쪽으로 교체
         private static bool IsBetterCandidate(float distSq, float bestDistSq, int playerId, int bestId)
         {
@@ -37,6 +36,7 @@ namespace Game.Core.Match
             return distSq == bestDistSq && playerId < bestId;
         }
 
+        // 대소 비교만 하므로 √ 생략. 22명이 매 틱 도는 계산
         private static float DistSq(TargetInfo c, float pointX, float pointZ)
         {
             float dx = c.X - pointX;

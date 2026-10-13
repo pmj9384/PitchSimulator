@@ -64,7 +64,7 @@ namespace Game.Core.Tactics
             return a.Mentality == b.Mentality;
         }
 
-        // 세이브·표 입력 검증. 파서(TeamTacticsParser)와 같은 범위(0~2)과 서드 3칸
+        // 세이브·표 입력 검증. 파서(TeamTacticsParser)와 같은 범위(0~2)와 서드 3칸
         public static void Validate(TeamTactics t)
         {
             CheckThirds(t.PassStyle, "passStyle");
