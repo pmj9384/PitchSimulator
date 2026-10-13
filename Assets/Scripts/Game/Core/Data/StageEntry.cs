@@ -3,7 +3,7 @@ namespace Game.Core.Data
     // StageComposition.csv 한 행(스펙 §10: stage,side,kind,id,count,posX,posZ,posX2,posZ2).
     // 상대 팀 포메이션도, 플레이어가 놓은 세팅의 저장도 전부 이 한 줄 형식이다. 재도전·상대 데이터·멀티가 같은 것을 읽는다.
     // 자리 2쌍(스펙 §4-3): posX·posZ = 공격 시(아군 소유), posX2·posZ2 = 수비 시(상대 소유). 09-21 추가.
-    // 비가역 경보: 빌드·다이얼 열이 더 붙는다(§11). 열을 늘릴 땐 여기와 ClassMap부터.
+    // 주의(되돌리기 어렵다): 빌드·다이얼 열이 더 붙는다(§11). 열을 늘릴 땐 여기와 ClassMap부터.
     // struct가 아니라 class인 이유: CsvHelper가 리플렉션으로 채운다.
     public class StageEntry
     {

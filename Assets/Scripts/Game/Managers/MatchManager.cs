@@ -5,7 +5,7 @@ using Game.Core.League;
 using Game.Core.Match;
 using UnityEngine;
 
-// 경기 실행자이자 심판. 고정 스텝마다 순수 MatchSimulation을 한 틱 돌리고 그 결과를 화면(선수·공 뷰)에 비춘다.
+// 경기 진행을 맡는 매니저. 고정 스텝마다 순수 MatchSimulation을 한 틱 돌리고 그 결과를 화면(선수·공 뷰)에 비춘다.
 // 판단·계산은 전부 순수 코어(MatchSimulation·MatchRules·BallRules) 몫. 여기는 "언제 부르나"와 국면 전환만.
 // 09-16 결정: 공 매니저를 따로 두지 않는다(연산이 복사 한 번이고 매니저 3종 세트가 더 비싸다).
 public class MatchManager : InGameManager

@@ -259,7 +259,7 @@ public class ScoutPanelUIElement : UIElement
         return new string('★', stars);
     }
 
-    // 단말 문화권에 따라 "60 %"처럼 띄어지는 걸 막는다(한 곳에서 같은 모양으로)
+    // 기기 로캘에 따라 "60 %"처럼 띄어지는 걸 막는다(한 곳에서 같은 모양으로)
     private static string Percent(float ratio)
     {
         return Mathf.RoundToInt(ratio * 100f).ToString(CultureInfo.InvariantCulture) + "%";

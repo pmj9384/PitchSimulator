@@ -109,8 +109,7 @@ namespace Game.Core.AI
                     new ConditionNode(ctx => ctx.OwnsBall),
                     new ActionNode(ctx => ctx.MoveToward(FieldBounds.HalfLength * ctx.AttackSign, 0f))),
                 new SequenceNode(
-                    new ConditionNode(ctx => ctx.BallPhase == BallPhase.Free
-                        && (!ctx.IsGoalkeeper || MatchRules.IsInOwnPenaltyBox(ctx.BallX, ctx.BallZ, ctx.AttackSign))),
+                    new ConditionNode(ctx => ChasesFreeBall(ctx)),
                     new ActionNode(ctx => ctx.MoveToward(ctx.BallX, ctx.BallZ))),
                 new ActionNode(ctx => { }));
         }
@@ -232,10 +231,10 @@ namespace Game.Core.AI
 
         private static int KeeperTarget(IPlayerContext ctx)
         {
-            // 팀 설정(짧게·섞어·길게). "섞어"의 교대 스위치는 상태라 시뮬이 들고 스냅샷(KeeperAlternate)으로 준다(09-23 R2. 그전엔 섞어가 짧게로 고정).
+            // 팀 설정(짧게·섞어·길게). "섞어"의 교대 스위치는 상태라 시뮬이 들고 스냅샷(IsKeeperAlternate)으로 준다(09-23 R2. 그전엔 섞어가 짧게로 고정).
             // 발 뻗는 범위 안에 상대가 붙어 있으면 짧은 배급은 릴리스 지점에서 끊긴다(GK 배급엔 안전 판정이 없다) → 길게 찬다(09-23 탐지 E)
             int level = HasOpponentWithin(ctx, MatchTuning.InterceptReach) ? 2 : ctx.Tactics.GkDistribution;
-            return PassRules.KeeperDistributionTarget(ctx.X, ctx.Z, ctx.Teammates, ctx.AttackSign, level, ctx.PlayerId, ctx.KeeperAlternate);
+            return PassRules.KeeperDistributionTarget(ctx.X, ctx.Z, ctx.Teammates, ctx.AttackSign, level, ctx.PlayerId, ctx.IsKeeperAlternate);
         }
 
         private static void PassTo(IPlayerContext ctx, PassChoice choice)
@@ -356,10 +355,18 @@ namespace Game.Core.AI
         private static bool KeeperMayRush(IPlayerContext ctx)
         {
             if (!ctx.IsGoalkeeper) { return true; }
+            if (!MatchRules.IsInOwnPenaltyBox(ctx.BallX, ctx.BallZ, ctx.AttackSign)) { return false; }
             float dx = ctx.BallX - ctx.X;
             float dz = ctx.BallZ - ctx.Z;
-            return dx * dx + dz * dz <= ctx.Stats.GkRushRadius * ctx.Stats.GkRushRadius
-                && MatchRules.IsInOwnPenaltyBox(ctx.BallX, ctx.BallZ, ctx.AttackSign);
+            return dx * dx + dz * dz <= ctx.Stats.GkRushRadius * ctx.Stats.GkRushRadius;
+        }
+
+        // 리트머스 트리의 자유 공 조건: 필드 플레이어는 늘, GK는 내 박스 안 공만
+        private static bool ChasesFreeBall(IPlayerContext ctx)
+        {
+            if (ctx.BallPhase != BallPhase.Free) { return false; }
+            if (!ctx.IsGoalkeeper) { return true; }
+            return MatchRules.IsInOwnPenaltyBox(ctx.BallX, ctx.BallZ, ctx.AttackSign);
         }
 
         private static TargetInfo Find(IReadOnlyList<TargetInfo> list, int playerId)

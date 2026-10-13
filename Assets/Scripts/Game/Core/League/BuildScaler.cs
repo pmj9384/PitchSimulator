@@ -19,9 +19,15 @@ namespace Game.Core.League
 
             float ratio = (float)totalPoints / currentTotal;
             PlayerStats p = Copy(src);
-            p.Speed = Round(src.Speed * ratio); p.Stamina = Round(src.Stamina * ratio); p.Pass = Round(src.Pass * ratio);
-            p.Shot = Round(src.Shot * ratio); p.Tackle = Round(src.Tackle * ratio); p.Positioning = Round(src.Positioning * ratio);
-            p.Reflexes = Round(src.Reflexes * ratio); p.Handling = Round(src.Handling * ratio); p.Diving = Round(src.Diving * ratio);
+            p.Speed = Round(src.Speed * ratio);
+            p.Stamina = Round(src.Stamina * ratio);
+            p.Pass = Round(src.Pass * ratio);
+            p.Shot = Round(src.Shot * ratio);
+            p.Tackle = Round(src.Tackle * ratio);
+            p.Positioning = Round(src.Positioning * ratio);
+            p.Reflexes = Round(src.Reflexes * ratio);
+            p.Handling = Round(src.Handling * ratio);
+            p.Diving = Round(src.Diving * ratio);
 
             int diff = totalPoints - p.BuildTotal;
             if (diff != 0) { AddToLargest(p, diff); }
@@ -116,7 +122,8 @@ namespace Game.Core.League
         // 가장 큰 스탯에 오차를 더한다(음수도). 큰 스탯이라 몇 점 차이가 비율로 가장 작다
         private static void AddToLargest(PlayerStats p, int diff)
         {
-            int best = p.Speed; int which = 0;
+            int best = p.Speed;
+            int which = 0;
             int[] values = { p.Speed, p.Stamina, p.Pass, p.Shot, p.Tackle, p.Positioning, p.Reflexes, p.Handling, p.Diving };
             for (int i = 1; i < values.Length; i++)
             {

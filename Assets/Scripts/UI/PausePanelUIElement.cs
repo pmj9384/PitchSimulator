@@ -13,9 +13,24 @@ public class PausePanelUIElement : UIElement
     {
         gameObject.SetActive(false);
         uiManager = gameUIManager;
-        resumeButton.onClick.AddListener(() => gameManager.ResumeFromPause());
-        settingsButton.onClick.AddListener(() => uiManager.ShowUIElement(UIElementEnums.SettingsPanel));
-        homeButton.onClick.AddListener(() => gameManager.GoToTitle());
+        resumeButton.onClick.AddListener(OnResumeClicked);
+        settingsButton.onClick.AddListener(OnSettingsClicked);
+        homeButton.onClick.AddListener(OnHomeClicked);
+    }
+
+    private void OnResumeClicked()
+    {
+        gameManager.ResumeFromPause();
+    }
+
+    private void OnSettingsClicked()
+    {
+        uiManager.ShowUIElement(UIElementEnums.SettingsPanel);
+    }
+
+    private void OnHomeClicked()
+    {
+        gameManager.GoToTitle();
     }
 
     public override void Show() => gameObject.SetActive(true);

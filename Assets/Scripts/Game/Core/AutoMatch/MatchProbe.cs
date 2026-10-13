@@ -29,7 +29,14 @@ namespace Game.Core.AutoMatch
         public float MeanShotAbsZ { get; set; }        // 슛 위치 |z| 평균(m). 코너에서만 쏘면 커진다. 슛 0이면 0
 
         // 0 = 홈 승, 1 = 원정 승, -1 = 무승부
-        public int Winner => HomeGoals == AwayGoals ? -1 : (HomeGoals > AwayGoals ? 0 : 1);
+        public int Winner
+        {
+            get
+            {
+                if (HomeGoals == AwayGoals) { return -1; }
+                return HomeGoals > AwayGoals ? 0 : 1;
+            }
+        }
     }
 
     // 시뮬을 틱마다 돌리며 팀별 소유·서드 틱을 세고, 끝나면 MatchSummary를 낸다. 슛은 이벤트로 팀을 가른다
@@ -65,8 +72,16 @@ namespace Game.Core.AutoMatch
             {
                 sim.Tick(deltaTime);
                 int owner = sim.OwnerTeam();
-                if (owner == 0) { homeOwned++; if (sim.Ball.X * sim.AttackSignOf(0) >= MatchTuning.ThirdBoundary) { homeOppThird++; } }   // 후반 진영 교체 뒤에도 "상대 서드"가 맞도록 부호를 시뮬에서(09-27)
-                else if (owner == 1) { awayOwned++; if (sim.Ball.X * sim.AttackSignOf(1) >= MatchTuning.ThirdBoundary) { awayOppThird++; } }
+                if (owner == 0)
+                {
+                    homeOwned++;
+                    if (sim.Ball.X * sim.AttackSignOf(0) >= MatchTuning.ThirdBoundary) { homeOppThird++; }   // 후반 진영 교체 뒤에도 "상대 서드"가 맞도록 부호를 시뮬에서(09-27)
+                }
+                else if (owner == 1)
+                {
+                    awayOwned++;
+                    if (sim.Ball.X * sim.AttackSignOf(1) >= MatchTuning.ThirdBoundary) { awayOppThird++; }
+                }
                 if (owner != -1)
                 {
                     if (System.Math.Abs(sim.Ball.Z) >= MatchTuning.WideZoneZ) { wideOwned++; }
@@ -81,7 +96,9 @@ namespace Game.Core.AutoMatch
 
         public MatchSummary Summarize(int seed, string homePreset, string awayPreset)
         {
-            string topRole = string.Empty; int topCount = 0; int ownedTotal = 0;
+            string topRole = string.Empty;
+            int topCount = 0;
+            int ownedTotal = 0;
             foreach (System.Collections.Generic.KeyValuePair<string, int> kv in ownedByRole)
             {
                 ownedTotal += kv.Value;

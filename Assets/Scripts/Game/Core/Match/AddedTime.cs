@@ -27,7 +27,7 @@ namespace Game.Core.Match
     // 시계 한 순간의 읽기. HUD가 문자열로 만든다(코어는 언어를 모른다)
     public readonly struct ClockReading
     {
-        public readonly bool SecondHalf;
+        public readonly bool IsSecondHalf;
         public readonly int Minute;        // 추가시간이 아니면 0~90
         public readonly int Second;
         public readonly bool InAddedTime;  // true면 "45+" 또는 "90+" 뒤에 AddedMinute:AddedSecond
@@ -36,7 +36,7 @@ namespace Game.Core.Match
 
         public ClockReading(bool secondHalf, int minute, int second, bool inAddedTime, int addedMinute, int addedSecond)
         {
-            SecondHalf = secondHalf;
+            IsSecondHalf = secondHalf;
             Minute = minute;
             Second = second;
             InAddedTime = inAddedTime;

@@ -2,11 +2,11 @@ using System.Collections.Generic;
 
 namespace Game.Core.Placement
 {
-    // 배치 판정 순수 함수(WarTableSimulator 8절에서 이식, 10-08). 상태 없음, 엔진 없음. 조작(칩 드래그)은 자리와 목록만 넘기고 답만 받는다.
+    // 배치 판정 순수 함수(WarTableSimulator 8절에서 이식, 10-08). 상태 없음, 엔진 없음. 조작(칩 드래그)은 자리와 목록만 넘기고 결과만 받는다.
     // 스펙 §8: 격자 없음, 필요한 건 "내 진영 절반 판정"과 "최소 간격 검사" 둘뿐
     public static class PlacementRules
     {
-        // 한 번에 답한다. 순서는 영역 → 간격: 영역 밖이면 간격을 볼 이유가 없다. UI는 첫 번째 이유만 보여 주면 된다
+        // 한 번에 돌려준다. 순서는 영역 → 간격: 영역 밖이면 간격을 볼 이유가 없다. UI는 첫 번째 이유만 보여 주면 된다
         public static PlacementVerdict Evaluate(float x, float z, int team, IReadOnlyList<(float X, float Z)> occupied, float minSpacing)
         {
             if (!IsInsideOwnHalf(x, z, team)) { return PlacementVerdict.OutsideOwnHalf; }

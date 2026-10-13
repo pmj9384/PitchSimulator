@@ -348,7 +348,7 @@ namespace Game.Core.League
             roster[index] = new RosterPlayer(myPlayerId, incoming);
         }
 
-        // 배치(스펙 §8, 10-08): 라인업 한 선수의 편성 자리(공격 시 또는 수비 시)를 옮긴다. 내 진영 절반 안·다른 선수와 최소 간격은 PlacementRules가 답하고,
+        // 배치(스펙 §8, 10-08): 라인업 한 선수의 편성 자리(공격 시 또는 수비 시)를 옮긴다. 내 진영 절반 안·다른 선수와 최소 간격은 PlacementRules가 판정하고,
         // 안 되면 던지고 아무것도 안 바뀐다(UI는 먼저 Evaluate로 물어 보고 되돌린다). 값은 편성 좌표(전진 정도·개인 다이얼을 얹기 전)다
         public void MoveLineupSlot(int playerId, bool defending, float x, float z)
         {
@@ -466,8 +466,15 @@ namespace Game.Core.League
                 if (variant == null) { throw new InvalidOperationException($"[SeasonState] 세이브의 variantId가 PlayerTable에 없다: {p.variantId}"); }
                 if (p.build == null || p.build.Length != 9) { throw new InvalidOperationException($"[SeasonState] 선수 {p.playerId} 빌드가 9개가 아니다"); }
                 PlayerStats copy = BuildScaler.Copy(variant);   // 다이얼·문자열은 PlayerTable에서, 빌드는 세이브에서
-                copy.Speed = p.build[0]; copy.Stamina = p.build[1]; copy.Pass = p.build[2]; copy.Shot = p.build[3]; copy.Tackle = p.build[4];
-                copy.Positioning = p.build[5]; copy.Reflexes = p.build[6]; copy.Handling = p.build[7]; copy.Diving = p.build[8];
+                copy.Speed = p.build[0];
+                copy.Stamina = p.build[1];
+                copy.Pass = p.build[2];
+                copy.Shot = p.build[3];
+                copy.Tackle = p.build[4];
+                copy.Positioning = p.build[5];
+                copy.Reflexes = p.build[6];
+                copy.Handling = p.build[7];
+                copy.Diving = p.build[8];
                 if (copy.BuildTotal != PlayerStats.TotalPoints) { throw new InvalidOperationException($"[SeasonState] 선수 {p.playerId} 빌드 합계가 {PlayerStats.TotalPoints}가 아니다({copy.BuildTotal}). 내 선수는 총점 고정(스펙 축: 강화 없음)"); }
                 roster.Add(new RosterPlayer(p.playerId, copy, p.instructions));   // 지시 칸 수·범위는 생성자가 검증한다
             }

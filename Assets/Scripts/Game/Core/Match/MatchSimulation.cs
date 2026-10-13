@@ -46,7 +46,7 @@ namespace Game.Core.Match
         }
     }
 
-    // 경기 루프의 순수 심장. 공·선수·점수·주사위를 들고 고정 스텝 한 틱을 돌린다. 엔진 없음(EditMode에서 그대로 굴린다).
+    // 경기 루프의 핵심. 공·선수·점수·주사위를 들고 고정 스텝 한 틱을 돌린다. 엔진 없음(EditMode에서 그대로 굴린다).
     // MatchManager는 "언제 Tick을 부르나"와 화면 반영만 맡는다(09-16 결정: 공 매니저를 따로 두지 않는다).
     // 주사위는 nextRoll로 주입받는다. 경기는 System.Random(seed)을, 테스트는 고정 수열을 준다. 그래서 같은 시드 = 같은 경기.
     public sealed class MatchSimulation
@@ -101,7 +101,7 @@ namespace Game.Core.Match
         private int ticksSinceTurnover = int.MaxValue;
         private int turnoverLoserTeam = -1;   // 방금 공을 잃은 팀(역압박 판정 대상)
 
-        // 비행 중인 슛의 결정된 운명. 골이면 GK 접촉을 무시하고 골라인을 넘긴다
+        // 비행 중인 슛의 결정된 결과. 골이면 GK 접촉을 무시하고 골라인을 넘긴다
         private bool shotInFlight;
         private bool shotWillScore;
         private int shooterId;
@@ -554,7 +554,7 @@ namespace Game.Core.Match
                 p.WantsTakeOn = takeOnOwnerId == p.PlayerId && takeOnTicksLeft > 0;
                 p.Teammates = TeammatesExcluding(p);
                 p.Opponents = rosterSnapshot[other];
-                p.KeeperAlternate = keeperAlternate[p.Team];
+                p.IsKeeperAlternate = keeperAlternate[p.Team];
                 p.OpponentKeeper = keeperIds[other] == -1 ? null : FindPlayer(keeperIds[other]).Stats;
                 p.IsPassTarget = passInFlight && passReceiverId == p.PlayerId;
                 p.PassTargetX = passTargetX;
@@ -635,7 +635,7 @@ namespace Game.Core.Match
             }
         }
 
-        // 슛: 확률은 MatchRules, 운명은 주사위 하나로 여기서 정한다. 공은 골 중심으로 날아가고 결과는 도착할 때 확정 표시된다
+        // 슛: 확률은 MatchRules, 결과는 주사위 하나로 여기서 정한다. 공은 골 중심으로 날아가고 결과는 도착할 때 확정 표시된다
         private void Shoot(PlayerState shooter)
         {
             PlayerState? keeper = FindGoalkeeper(1 - shooter.Team);
@@ -885,7 +885,7 @@ namespace Game.Core.Match
             if (Ball.Phase != BallPhase.Owned || immunityTicksLeft > 0) { return; }
 
             PlayerState owner = FindPlayer(Ball.OwnerId);
-            if (owner.IsGoalkeeper) { return; }   // 공을 잡은 GK는 경합 대상이 아니다(규칙 12조). 09-23 탐지: 골문 앞 GK-ST 태클 핑퐁 7/30경기의 뿌리
+            if (owner.IsGoalkeeper) { return; }   // 공을 잡은 GK는 경합 대상이 아니다(규칙 12조). 09-23 탐지: 골문 앞 GK-ST 태클 핑퐁 7/30경기의 원인
             float reach2 = MatchTuning.TackleRange * MatchTuning.TackleRange;
             for (int i = 0; i < players.Count; i++)
             {

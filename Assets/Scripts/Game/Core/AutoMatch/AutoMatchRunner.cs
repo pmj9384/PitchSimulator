@@ -5,7 +5,7 @@ using Game.Core.Tactics;
 
 namespace Game.Core.AutoMatch
 {
-    // 자동 대전 러너(플랜 09-23): 같은 세팅을 시드만 바꿔 N판 돌린다. "세팅을 바꾸면 결과가 바뀐다"를 숫자로 실증하는 도구.
+    // 자동 대전 러너(플랜 09-23): 같은 세팅을 시드만 바꿔 N판 돌린다. "세팅을 바꾸면 결과가 바뀐다"를 숫자로 확인하는 도구.
     // 한 판 = MatchAssembler.Create → MatchProbe.Run(9,000틱). 엔진 없음, 결정적(시드 = 판 번호)
     public static class AutoMatchRunner
     {
@@ -29,15 +29,27 @@ namespace Game.Core.AutoMatch
             var s = new AutoMatchStats { Matches = results.Count };
             if (results.Count == 0) { return s; }
 
-            int homeWins = 0, awayWins = 0, draws = 0;
-            float homeGoals = 0f, awayGoals = 0f, homeShots = 0f, awayShots = 0f, turnovers = 0f, homeOwned = 0f;
-            float wideShare = 0f, topRoleShare = 0f, shotAbsZ = 0f; int shotMatches = 0;
+            int homeWins = 0;
+            int awayWins = 0;
+            int draws = 0;
+            float homeGoals = 0f;
+            float awayGoals = 0f;
+            float homeShots = 0f;
+            float awayShots = 0f;
+            float turnovers = 0f;
+            float homeOwned = 0f;
+            float wideShare = 0f;
+            float topRoleShare = 0f;
+            float shotAbsZ = 0f;
+            int shotMatches = 0;
             for (int i = 0; i < results.Count; i++)
             {
                 MatchSummary r = results[i];
                 if (r.Winner == 0) { homeWins++; } else if (r.Winner == 1) { awayWins++; } else { draws++; }
-                homeGoals += r.HomeGoals; awayGoals += r.AwayGoals;
-                homeShots += r.HomeShots; awayShots += r.AwayShots;
+                homeGoals += r.HomeGoals;
+                awayGoals += r.AwayGoals;
+                homeShots += r.HomeShots;
+                awayShots += r.AwayShots;
                 turnovers += r.Turnovers;
                 int owned = r.HomeOwnedTicks + r.AwayOwnedTicks;
                 homeOwned += owned == 0 ? 0.5f : (float)r.HomeOwnedTicks / owned;
@@ -50,11 +62,17 @@ namespace Game.Core.AutoMatch
                 }
             }
             float n = results.Count;
-            s.HomeWinRate = homeWins / n; s.AwayWinRate = awayWins / n; s.DrawRate = draws / n;
-            s.MeanHomeGoals = homeGoals / n; s.MeanAwayGoals = awayGoals / n;
-            s.MeanHomeShots = homeShots / n; s.MeanAwayShots = awayShots / n;
-            s.MeanTurnovers = turnovers / n; s.MeanHomePossession = homeOwned / n;
-            s.MeanWideShare = wideShare / n; s.MeanTopRoleShare = topRoleShare / n;
+            s.HomeWinRate = homeWins / n;
+            s.AwayWinRate = awayWins / n;
+            s.DrawRate = draws / n;
+            s.MeanHomeGoals = homeGoals / n;
+            s.MeanAwayGoals = awayGoals / n;
+            s.MeanHomeShots = homeShots / n;
+            s.MeanAwayShots = awayShots / n;
+            s.MeanTurnovers = turnovers / n;
+            s.MeanHomePossession = homeOwned / n;
+            s.MeanWideShare = wideShare / n;
+            s.MeanTopRoleShare = topRoleShare / n;
             s.MeanShotAbsZ = shotMatches == 0 ? 0f : shotAbsZ / shotMatches;
             return s;
         }

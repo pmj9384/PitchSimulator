@@ -35,7 +35,7 @@ public class PlayerTreeTests
         public bool IsLooseBallChaser { get; set; }
         public bool IsKickoffTaker { get; set; }
         public bool WantsTakeOn { get; set; }
-        public bool KeeperAlternate { get; set; }
+        public bool IsKeeperAlternate { get; set; }
         public int LastPasserId { get; set; } = -1;
         public PlayerStats OpponentKeeper { get; set; } = null;
         public float AttackHomeX { get; set; }
