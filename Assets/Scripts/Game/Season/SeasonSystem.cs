@@ -64,7 +64,7 @@ public class SeasonSystem : ISaveLoad
     public bool IsOver => SeasonProgress.IsOver(State, Tier);
     public bool IsRegularSeasonOver => SeasonProgress.IsRegularSeasonOver(State, Tier);
     public PlayoffStage PendingPlayoff => SeasonProgress.PendingStage(State, Tier);   // 승강전(10-08). None = 대상 아님, Done = 끝
-    public PlayoffPlan PlayoffPlan => SeasonProgress.Plan(State, Tier);
+    private PlayoffPlan PlayoffPlan => SeasonProgress.Plan(State, Tier);   // 호출처가 SetupPlayoff뿐(10-13 잔재 정리)
 
     public LeagueTable Table()
     {
@@ -293,7 +293,7 @@ public class SeasonSystem : ISaveLoad
         bool metBefore = ScoutRules.MetBefore(State.Results, SeasonState.MyTeamId, teamId);
         int retries = State.ScoutRetriesOn(teamId, playerIndex);
         float chance = ScoutRules.SuccessChance(stars, myRank, Tier.Teams, metBefore, retries);
-        return new ScoutVerdict(stars, chance, 0f, rolled: false, success: false);
+        return new ScoutVerdict(stars, chance, 0f, success: false);
     }
 
     // 지목 → 즉시 판정. 시도 1 소모, 성공이면 내 선수(같은 자리)와 교체. 주사위는 (시즌 시드, 팀, 선수, 시도 번호)라 같은 세팅 = 같은 결과.
@@ -311,7 +311,7 @@ public class SeasonSystem : ISaveLoad
         bool success = ScoutRules.Succeeds(preview.Chance, roll);
         if (success) { State.ReplacePlayer(myPlayerId, target); }
         CommitMyTactics();
-        return new ScoutVerdict(preview.Stars, preview.Chance, roll, rolled: true, success: success);
+        return new ScoutVerdict(preview.Stars, preview.Chance, roll, success: success);
     }
 
     // 코인으로 시도 +1. 코인이 모자라면 false(PlayerAccountData.SpendCoin이 판정)
@@ -367,9 +367,11 @@ public class SeasonSystem : ISaveLoad
         TeamTactics custom = State.MyCustomTactics;   // 바꾼 전술도 다음 시즌으로 이어 간다(09-30). 카드만 넘기면 승격하자마자 세팅이 풀린다
         // 시즌이 끝난 뒤 로비 전술 화면에서 바꾼 값도 끝난 시즌의 State에 들어가 있다가 여기서 읽혀 새 시즌으로 넘어간다(09-30 리뷰: 로비 편집 경로가 생기며 처음 도달 가능해진 순서)
         IReadOnlyList<RosterPlayer> previousRoster = State.Roster;   // 역할·개인 지시도 이어 간다. 새 시즌 로스터는 기본 편성에서 다시 만들어져 그대로 두면 풀린다
+        IReadOnlyList<LineupEntry> previousLineup = State.Lineup;    // 끌어 둔 배치도(10-13 재검증 R2)
         StartSeason(nextTier, unchecked(State.SeasonSeed + 1), State.MyPresetId);   // 다음 시즌 시드도 결정적(이전 시드 + 1)
         if (custom != null) { State.SetMyTactics(custom, TeamTacticsRepository.All); }
         State.AdoptPlayerTactics(previousRoster, PlayerTableRepository.All);
+        State.AdoptLineup(previousLineup);
         SaveLoadSystem.Instance.Save();
     }
 

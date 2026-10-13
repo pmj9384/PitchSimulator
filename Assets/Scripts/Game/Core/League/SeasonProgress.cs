@@ -75,7 +75,7 @@ namespace Game.Core.League
         }
 
         // 승강전을 내가 이겼나. 진행(NextStage)과 승자 해석이 PlayoffRules 한 곳에 있다(10-08 리뷰)
-        public static bool WonPlayoff(PlayoffPlan plan, IReadOnlyList<PlayoffResult> results)
+        private static bool WonPlayoff(PlayoffPlan plan, IReadOnlyList<PlayoffResult> results)
         {
             return PlayoffRules.IsWinner(plan, results, SeasonState.MyTeamId);
         }

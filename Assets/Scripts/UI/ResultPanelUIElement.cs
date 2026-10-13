@@ -95,7 +95,7 @@ public class ResultPanelUIElement : UIElement
         tableShown = true;
         nextButton.interactable = true;
         nextButtonLabel.text = season.IsOver ? "로비로" : "다음 경기";
-        scoutButton.interactable = !season.LastReportFailed;   // 저장이 실패한 라운드 위에서 시도를 쓰면 다음 로드 때 어긋난다
+        scoutButton.interactable = !season.LastReportFailed;   // 저장이 실패한 라운드 위에서 시도를 쓰면 다음 로드 때 어긋난다. 시즌이 끝난 뒤에도 열어 둔다: 역할은 다음 시즌으로 가므로 남은 시도의 용도가 있다(10-13 리뷰). 빌드가 버려지는 건 화면이 안내한다
         RefreshScoutLabel();
         statusText.text = season.LastReportFailed ? "결과를 저장하지 못했다" : string.Empty;   // 실패를 성공처럼 보이지 않게(09-28 리뷰)
         roundText.text = season.RoundLine();   // 정규 라운드 또는 승강전 단계·합산(10-08)
