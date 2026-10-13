@@ -75,6 +75,14 @@ namespace Game.Core.League
             return ClampStars(stars);
         }
 
+        // 이 부의 상대가 전부 ★1인가: 변형 변주·자리 2쌍·재분배가 다 꺼진 부(지금은 4부)는 Stars의 세 항목이 전부 안 걸린다. 화면 안내가 부 번호 대신 이걸 묻는다(10-12 리뷰)
+        public static bool AllStarsAreOne(TierRule tier)
+        {
+            if (tier.DialVariance > 0) { return false; }
+            if (tier.DualPositions) { return false; }
+            return !tier.Rebuild;
+        }
+
         // 기본 변형과의 다이얼 거리를 개인 지시 칸 단위로 합산한다(단위가 다른 다이얼을 같은 자로 재기 위해 PlayerInstructions.Step으로 나눈다)
         public static float DialDistanceCells(PlayerStats a, PlayerStats b)
         {
