@@ -48,6 +48,16 @@ public class PlayerTableParserTests
     }
 
     [Test]
+    public void roleId는_소문자나_공백이_있어도_대문자로_맞춘다()
+    {
+        // 소비자(TeamGenerator·MatchSimulation 등)가 그대로 비교하므로 입구에서 한 번 맞춘다(09-30 리뷰 🟣, 10-13)
+        string lower = ValidHeader + "\n" + StRow.Replace("ST,", " st ,") + "\n" + GkRow + "\n";
+        List<PlayerStats> roles = PlayerTableParser.Parse(lower);
+        Assert.AreEqual("ST", roles[0].RoleId);
+        Assert.AreEqual("st_poacher", roles[0].VariantId, "변형 id는 손대지 않는다(비교가 대소문자 무시)");
+    }
+
+    [Test]
     public void 같은_자리의_노출된_역할만_표_순서대로_고른다()
     {
         // 전술 화면의 역할 목록(09-30). 잠긴 역할과 다른 자리는 빠진다. SeasonState.SetPlayerRole이 받는 역할과 같은 집합이어야 한다
