@@ -11,7 +11,7 @@ using UnityEngine.UI;
 // 끝남을 알리는 이벤트를 두지 않고 HUD처럼 매 프레임 IsReporting만 본다(Dirty Flag): bool 하나라 구독·해제 코드를 두는 쪽이 더 비싸고, 스레드에서 돌아온 콜백이 파괴된 패널을 건드릴 일도 없다.
 // 표는 한 번만 만든다. 만든 뒤엔 Update가 곧바로 빠진다.
 // 전술 실측(10-06, 스펙 §6 "설정 대 실측")은 승점표와 같은 자리에 번갈아 보여 준다. 실측은 휘슬 순간 다 있어서 Show에서 만들고, 보기 버튼이 둘을 바꾼다.
-// [스카우트](10-12, 스펙 §4-5)는 다른 경기 결과가 들어와 순위가 확정된 뒤에만 연다: 성공 확률이 내 순위와 "상대해 봤는지"를 읽으므로 보고 전엔 숫자가 틀리다
+// [다음 경기]는 로비 매치데이 허브로 간다(스펙 §2-1, 10-13). 스카우트도 허브에 있어 여기엔 버튼이 없다
 public class ResultPanelUIElement : UIElement
 {
     private static readonly string HighlightColor = "#" + ColorUtility.ToHtmlStringRGB(TacticsColors.Highlight);   // 내 행 강조(노랑). 전술 화면과 같은 색을 한 곳에서 읽는다. 표 안 다른 행은 기본 색
@@ -35,13 +35,10 @@ public class ResultPanelUIElement : UIElement
     [SerializeField] private TMP_Text nextButtonLabel;
     [SerializeField] private Button viewButton;          // 승점표 ↔ 전술 실측
     [SerializeField] private TMP_Text viewButtonLabel;
-    [SerializeField] private Button scoutButton;         // 스카우트 화면 열기
-    [SerializeField] private TMP_Text scoutButtonLabel;
 
     private readonly StringBuilder tableBuilder = new(512);   // 표는 패널이 뜰 때 한 번 만든다. 재사용해 결과마다 버퍼를 새로 잡지 않는다
     private readonly StringBuilder readoutBuilder = new(512);
     private bool isTableShown;
-    private int shownScoutAttempts = -1;   // 스카우트 글자에 적은 남은 시도. 스카우트 화면에서 쓰고 닫으면 달라지니 바뀐 때만 다시 쓴다(매 프레임 문자열 금지)
     private string tableContent = string.Empty;     // 승점표 글자. 시즌 보고가 끝나면 채운다
     private string readoutContent = string.Empty;   // 전술 실측 글자
     private bool isShowingReadout;
@@ -51,7 +48,6 @@ public class ResultPanelUIElement : UIElement
         gameObject.SetActive(false);
         nextButton.onClick.AddListener(OnNext);
         viewButton.onClick.AddListener(OnViewToggled);
-        scoutButton.onClick.AddListener(OnScout);
     }
 
     // 스코어는 경기에서 바로 쓴다. 승점표는 시즌 보고가 끝나야 확정이라 비워 두고 버튼도 잠근다(Update가 풀어 준다)
@@ -67,9 +63,6 @@ public class ResultPanelUIElement : UIElement
         statusText.text = "다른 경기 결과 계산 중…";
         roundText.text = string.Empty;
         nextButton.interactable = false;
-        scoutButton.interactable = false;
-        scoutButtonLabel.text = "스카우트";
-        shownScoutAttempts = -1;
         isTableShown = false;
 
         tableContent = string.Empty;
@@ -82,11 +75,7 @@ public class ResultPanelUIElement : UIElement
 
     private void Update()
     {
-        if (isTableShown)
-        {
-            RefreshScoutLabel();
-            return;
-        }
+        if (isTableShown) { return; }
 
         SeasonSystem season = GameDataManager.Instance.Season;
         if (season.IsReporting) { return; }
@@ -94,16 +83,14 @@ public class ResultPanelUIElement : UIElement
         // 버튼부터 연다: 아래 표 만들기가 던져도 화면이 잠긴 채 멈추지 않게
         isTableShown = true;
         nextButton.interactable = true;
-        nextButtonLabel.text = season.IsOver ? "로비로" : "다음 경기";
-        scoutButton.interactable = !season.LastReportFailed;   // 저장이 실패한 라운드 위에서 시도를 쓰면 다음 로드 때 어긋난다. 시즌이 끝난 뒤에도 열어 둔다: 역할은 다음 시즌으로 가므로 남은 시도의 용도가 있다. 빌드가 버려지는 건 화면이 안내한다
-        RefreshScoutLabel();
+        nextButtonLabel.text = season.IsOver ? "시즌 결과" : "다음 경기";   // 둘 다 로비 허브로 간다. 시즌이 끝났으면 허브가 승강 결과와 [다음 시즌 시작]을 보여 준다
         statusText.text = season.LastReportFailed ? "결과를 저장하지 못했다" : string.Empty;   // 실패를 성공처럼 보이지 않게
         roundText.text = season.RoundLine();   // 정규 라운드 또는 승강전 단계·합산
         try
         {
             tableContent = BuildTable(season);
-            if (!season.LastReportFailed && season.IsOver) { statusText.text = OutcomeLine(season.Outcome(), season.Tier.Tier); }   // 시즌 마지막 판: 승강 판정. 승강전이 남았으면 IsOver가 거짓이라 여기 안 온다
-            else if (!season.LastReportFailed && season.IsRegularSeasonOver) { statusText.text = PlayoffNextLine(season.PendingPlayoff); }
+            if (!season.LastReportFailed && season.IsOver) { statusText.text = season.OutcomeLine(); }   // 시즌 마지막 판: 승강 판정. 승강전이 남았으면 IsOver가 거짓이라 여기 안 온다
+            else if (!season.LastReportFailed && season.IsRegularSeasonOver) { statusText.text = season.PlayoffNextLine(); }
         }
         catch (System.Exception e)
         {
@@ -119,20 +106,6 @@ public class ResultPanelUIElement : UIElement
         ShowView();
     }
 
-    // 스카우트 화면은 이 패널 위에 뜬다. 닫으면 이 패널이 그대로 보이고, 남은 시도 글자는 Update의 RefreshScoutLabel이 따라간다
-    private void OnScout()
-    {
-        gameUIManager.ShowUIElement(UIElementEnums.ScoutPanel);
-    }
-
-    private void RefreshScoutLabel()
-    {
-        int remaining = GameDataManager.Instance.Season.State.RemainingScoutAttempts;
-        if (remaining == shownScoutAttempts) { return; }
-        shownScoutAttempts = remaining;
-        scoutButtonLabel.text = $"스카우트 (시도 {remaining})";
-    }
-
     // 표 자리에는 승점표와 전술 실측 중 하나가 보인다. 버튼 글자는 누르면 나올 쪽이다
     private void ShowView()
     {
@@ -140,36 +113,15 @@ public class ResultPanelUIElement : UIElement
         viewButtonLabel.text = isShowingReadout ? "승점표 보기" : "전술 결과 보기";
     }
 
-    // 다음 경기 = 같은 씬 재로드(결과 보고가 먼저 라운드를 올린다). 시즌이 끝났으면 다음 시즌 입구는 로비(PrepareNextMatch) 하나라 로비로 보낸다(09-27 리뷰 R1)
+    // 다음 경기 = 로비 매치데이 허브(스펙 §2-1). 경기 사이에 세팅을 다시 짜는 것이 이 게임의 축이라 같은 씬 재로드로 바로 다음 경기에 들어가던 길(09-27)은 없앴다.
+    // 결과 보고가 먼저 라운드를 올려 두므로 허브는 다음 상대를 읽는다. 시즌이 끝났으면 허브가 [다음 시즌 시작]을 보여 준다
     private void OnNext()
     {
         SeasonSystem season = GameDataManager.Instance.Season;
-        if (season.IsReporting) { return; }   // 버튼이 잠겨 있어 안 오지만, 저장 전 재로드는 라운드를 잃으니 한 번 더 막는다
+        if (season.IsReporting) { return; }   // 버튼이 잠겨 있어 안 오지만, 저장 전 씬 전환은 라운드를 잃으니 한 번 더 막는다
 
-        if (season.IsOver)
-        {
-            gameManager.GoToTitle();
-            return;
-        }
-        gameManager.RestartGame(skipReady: false);
-    }
-
-    // 승강전이 남았을 때 다음 경기 안내
-    private static string PlayoffNextLine(PlayoffStage pending)
-    {
-        if (pending == PlayoffStage.Semifinal) { return "다음: 승강 플레이오프 단판"; }
-        if (pending == PlayoffStage.LegOne) { return "다음: 승강전 1차전"; }
-        if (pending == PlayoffStage.LegTwo) { return "다음: 승강전 2차전"; }
-        return string.Empty;
-    }
-
-    // 시즌 끝 문구. 승강전 결과까지 Outcome에 들어 있다
-    private static string OutcomeLine(SeasonOutcome outcome, int tier)
-    {
-        if (outcome.Kind == SeasonOutcomeKind.Champion) { return $"시즌 종료 · {tier}부 우승!"; }
-        if (outcome.Kind == SeasonOutcomeKind.Promoted) { return $"시즌 종료 · 최종 {outcome.FinalRank}위 · {outcome.NextTier}부 승격!"; }
-        if (outcome.Kind == SeasonOutcomeKind.Relegated) { return $"시즌 종료 · 최종 {outcome.FinalRank}위 · {outcome.NextTier}부 강등"; }
-        return $"시즌 종료 · 최종 {outcome.FinalRank}위 · 잔류";
+        MatchdayScreen.OpenOnLobbyLoad = true;
+        gameManager.GoToTitle();
     }
 
     // MatchManager.WinnerByGoals와 같은 기준(골 수). 무승부도 GameOver 국면이라 국면으로는 무/패를 못 가른다

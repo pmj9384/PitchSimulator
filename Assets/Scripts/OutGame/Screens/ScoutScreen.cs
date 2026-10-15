@@ -7,14 +7,16 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-// 스카우트 화면(10-12, 스펙 §4-5 「10-12 구현 설계」). 결과 화면의 [스카우트]로 열린다.
+// 스카우트 화면(10-12, 스펙 §4-5 「10-12 구현 설계」). 로비 매치데이 허브의 [스카우트]로 열린다(10-13, §2-1. 그 전엔 인게임 결과 화면 위에 떴다).
+// 로비에선 결과 보고가 늘 끝나 있어 "보고가 끝날 때까지 잠금"이 없다. 저장이 실패한 라운드 위에서 시도를 쓰면 다음 로드 때 어긋나므로 그때만 허브가 버튼을 잠근다
 // 세 열을 왼쪽부터 고른다: ①리그 상대 팀 → ②그 팀 11명(자리·역할·★·성공 %) → ③같은 자리의 내 선수. 내 선수를 누르는 순간 판정이다(미리보기와 같은 확률로 주사위 하나).
 // 레퍼런스 프로야구 스피리츠 A처럼 확률을 숨기지 않는다: 안 만난 팀은 절반, 같은 선수 재시도는 +10%가 목록 숫자에 그대로 보인다.
 // 규칙(별·확률·주사위·교체)은 전부 코어(ScoutRules·SeasonState), 시도 소모·저장은 SeasonSystem. 여기는 목록을 그리고 누른 것을 넘긴다.
 // 목록은 버튼 배열을 미리 깔아 두고 쓰는 만큼만 켠다(PlayerTacticsPanel의 역할 버튼과 같은 꼴): 팀은 최대 11(1부 12팀), 선수 11,
 // 같은 자리의 내 선수는 한 포메이션에 최대 3명(3백의 CB, 5-3-2의 CM. FormationTemplates.csv 실측)이라 5면 넉넉하다.
 // 안내 글자(verdictText)는 누른 쪽 핸들러만 쓴다. 채우기 함수가 같이 쓰면 마지막 시도의 판정이 "시도가 없다"에 덮인다(10-12 리뷰 🔴)
-public class ScoutPanelUIElement : UIElement
+// 버튼 배선은 처음 열릴 때 한 번(TacticsBoardView와 같은 꼴). UIManager가 시작 때 Close만 부르므로 Awake에 두면 열리기 전엔 안 돈다
+public class ScoutScreen : UIScreen
 {
     private const int NoSelection = -1;   // 아직 안 골랐다(팀 id·선수 번호 둘 다 0 이상이라 겹치지 않는다)
 
@@ -34,25 +36,25 @@ public class ScoutPanelUIElement : UIElement
     private readonly List<int> myCandidates = new List<int>();   // ③열 버튼 번호 → 내 선수 id
     private int selectedTeamId = NoSelection;
     private int selectedPlayerIndex = NoSelection;
+    private bool initialized;
 
     private static SeasonSystem Season => GameDataManager.Instance.Season;
     private static int Coins => GameDataManager.Instance.PlayerAccountData.Coins;
 
-    public override void Initialize()
+    // 열 때마다 처음부터: 팀만 보이고 나머지는 비어 있다
+    public override void Open()
     {
-        gameObject.SetActive(false);
-        buyButton.onClick.AddListener(OnBuy);
-        closeButton.onClick.AddListener(OnClose);
-        buyButtonLabel.text = $"시도 +1 ({ScoutRules.ExtraAttemptCoinPrice}코인)";
-        InitializeList(teamButtons, OnTeamClicked);
-        InitializeList(playerButtons, OnPlayerClicked);
-        InitializeList(myButtons, OnMyPlayerClicked);
-    }
-
-    // 결과 화면이 보고를 끝낸 뒤에만 열린다(버튼이 그때 풀린다). 열 때마다 처음부터: 팀만 보이고 나머지는 비어 있다
-    public override void Show()
-    {
-        gameObject.SetActive(true);
+        base.Open();
+        if (!initialized)
+        {
+            initialized = true;
+            buyButton.onClick.AddListener(OnBuy);
+            closeButton.onClick.AddListener(OnClose);
+            buyButtonLabel.text = $"시도 +1 ({ScoutRules.ExtraAttemptCoinPrice}코인)";
+            InitializeList(teamButtons, OnTeamClicked);
+            InitializeList(playerButtons, OnPlayerClicked);
+            InitializeList(myButtons, OnMyPlayerClicked);
+        }
         selectedTeamId = NoSelection;
         selectedPlayerIndex = NoSelection;
         verdictText.text = "영입할 팀을 고른다";
@@ -61,11 +63,6 @@ public class ScoutPanelUIElement : UIElement
         ShowTeams();
         ShowPlayers();
         ShowMyPlayers();
-    }
-
-    public override void Hide()
-    {
-        gameObject.SetActive(false);
     }
 
     private static void InitializeList(ScoutEntryButton[] buttons, Action<ScoutEntryButton> onClicked)
@@ -122,9 +119,10 @@ public class ScoutPanelUIElement : UIElement
         ShowMyPlayers();   // 시도가 0이라 잠겨 있던 ③열이 풀린다
     }
 
+    // 닫기 = 허브로 돌아간다(여기로 들어오는 길이 허브 하나다)
     private void OnClose()
     {
-        gameUIManager.HideUIElement(UIElementEnums.ScoutPanel);
+        uiManager.OpenScreen<MatchdayScreen>();
     }
     #endregion
 
@@ -141,7 +139,7 @@ public class ScoutPanelUIElement : UIElement
         IReadOnlyList<GeneratedTeam> opponents = Season.Opponents;
         if (opponents.Count > teamButtons.Length)
         {
-            Debug.LogError($"[ScoutPanel] 상대 팀 {opponents.Count}개 > 버튼 {teamButtons.Length}개. 뒤쪽 팀이 안 보인다");
+            Debug.LogError($"[ScoutScreen] 상대 팀 {opponents.Count}개 > 버튼 {teamButtons.Length}개. 뒤쪽 팀이 안 보인다");
         }
         for (int i = 0; i < teamButtons.Length; i++)
         {
@@ -198,7 +196,7 @@ public class ScoutPanelUIElement : UIElement
         }
         if (myCandidates.Count > myButtons.Length)
         {
-            Debug.LogError($"[ScoutPanel] {target.RoleId} 자리의 내 선수 {myCandidates.Count}명 > 버튼 {myButtons.Length}개");
+            Debug.LogError($"[ScoutScreen] {target.RoleId} 자리의 내 선수 {myCandidates.Count}명 > 버튼 {myButtons.Length}개");
         }
 
         bool canTry = Season.State.RemainingScoutAttempts > 0;

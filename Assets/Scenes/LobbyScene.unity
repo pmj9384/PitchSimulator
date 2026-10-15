@@ -2516,25 +2516,9 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 1391221744}
     m_Modifications:
-    - target: {fileID: 1344535180424222593, guid: b3591f7564f9146358a7356d9887f615, type: 3}
-      propertyPath: m_AnchorMax.y
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 1692244141473373104, guid: b3591f7564f9146358a7356d9887f615, type: 3}
-      propertyPath: m_IsActive
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 2954457981095663393, guid: b3591f7564f9146358a7356d9887f615, type: 3}
-      propertyPath: m_AdditionalShaderChannelsFlag
-      value: 25
-      objectReference: {fileID: 0}
     - target: {fileID: 3030968609997544054, guid: b3591f7564f9146358a7356d9887f615, type: 3}
       propertyPath: m_Name
       value: SafeAreaPanel
-      objectReference: {fileID: 0}
-    - target: {fileID: 3410434900834183940, guid: b3591f7564f9146358a7356d9887f615, type: 3}
-      propertyPath: m_AnchorMax.y
-      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 3483592501058833631, guid: b3591f7564f9146358a7356d9887f615, type: 3}
       propertyPath: m_Pivot.x
@@ -2615,50 +2599,6 @@ PrefabInstance:
     - target: {fileID: 3483592501058833631, guid: b3591f7564f9146358a7356d9887f615, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 3956997064464416757, guid: b3591f7564f9146358a7356d9887f615, type: 3}
-      propertyPath: drawOneButton
-      value: 
-      objectReference: {fileID: 0}
-    - target: {fileID: 3956997064464416757, guid: b3591f7564f9146358a7356d9887f615, type: 3}
-      propertyPath: drawTenButton
-      value: 
-      objectReference: {fileID: 0}
-    - target: {fileID: 3956997064464416757, guid: b3591f7564f9146358a7356d9887f615, type: 3}
-      propertyPath: gachaResultPopup
-      value: 
-      objectReference: {fileID: 0}
-    - target: {fileID: 3956997064464416757, guid: b3591f7564f9146358a7356d9887f615, type: 3}
-      propertyPath: gachaTenResultPopup
-      value: 
-      objectReference: {fileID: 0}
-    - target: {fileID: 3956997064464416757, guid: b3591f7564f9146358a7356d9887f615, type: 3}
-      propertyPath: gachaSingleResultPopup
-      value: 
-      objectReference: {fileID: 0}
-    - target: {fileID: 6290478171679072795, guid: b3591f7564f9146358a7356d9887f615, type: 3}
-      propertyPath: m_SizeDelta.y
-      value: 40
-      objectReference: {fileID: 0}
-    - target: {fileID: 6371444177598602160, guid: b3591f7564f9146358a7356d9887f615, type: 3}
-      propertyPath: m_IsActive
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 6454130273331236941, guid: b3591f7564f9146358a7356d9887f615, type: 3}
-      propertyPath: m_IsActive
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 6544245139576817525, guid: b3591f7564f9146358a7356d9887f615, type: 3}
-      propertyPath: m_AnchorMax.y
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 7118500908594387241, guid: b3591f7564f9146358a7356d9887f615, type: 3}
-      propertyPath: m_IsActive
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 8133858353756615423, guid: b3591f7564f9146358a7356d9887f615, type: 3}
-      propertyPath: m_AnchorMax.y
-      value: 1
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
