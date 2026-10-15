@@ -7,8 +7,8 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-// 스카우트 화면(10-12, 스펙 §4-5 「10-12 구현 설계」). 로비 매치데이 허브의 [스카우트]로 열린다(10-13, §2-1. 그 전엔 인게임 결과 화면 위에 떴다).
-// 로비에선 결과 보고가 늘 끝나 있어 "보고가 끝날 때까지 잠금"이 없다. 저장이 실패한 라운드 위에서 시도를 쓰면 다음 로드 때 어긋나므로 그때만 허브가 버튼을 잠근다
+// 스카우트 화면(10-12, 스펙 §4-5 「10-12 구현 설계」). 로비 하단 탭 [스카우트]로 열린다(10-15, §2-1. 10-13까지는 매치데이 허브 버튼, 그 전엔 인게임 결과 화면 위).
+// 로비에선 결과 보고가 늘 끝나 있어 "보고가 끝날 때까지 잠금"이 없다. 저장이 실패한 라운드 위에서 시도를 쓰면 다음 로드 때 어긋나므로 그때만 이 화면이 판정·구매를 잠근다(탭 입구라 밖에서 막아 줄 버튼이 없다)
 // 세 열을 왼쪽부터 고른다: ①리그 상대 팀 → ②그 팀 11명(자리·역할·★·성공 %) → ③같은 자리의 내 선수. 내 선수를 누르는 순간 판정이다(미리보기와 같은 확률로 주사위 하나).
 // 레퍼런스 프로야구 스피리츠 A처럼 확률을 숨기지 않는다: 안 만난 팀은 절반, 같은 선수 재시도는 +10%가 목록 숫자에 그대로 보인다.
 // 규칙(별·확률·주사위·교체)은 전부 코어(ScoutRules·SeasonState), 시도 소모·저장은 SeasonSystem. 여기는 목록을 그리고 누른 것을 넘긴다.
@@ -119,18 +119,25 @@ public class ScoutScreen : UIScreen
         ShowMyPlayers();   // 시도가 0이라 잠겨 있던 ③열이 풀린다
     }
 
-    // 닫기 = 허브로 돌아간다(여기로 들어오는 길이 허브 하나다)
+    // 닫기 = 홈. 탭으로 들어왔으니 홈으로 돌아가야 하단 바 상태와 맞는다
     private void OnClose()
     {
-        uiManager.OpenScreen<MatchdayScreen>();
+        uiManager.OpenScreen<LobbyScreen>();
     }
     #endregion
 
     #region 화면 채우기
+    // 저장 실패 상태면 구매도 잠근다: 산 시도가 저장 안 된 라운드 위에 얹힌다
     private void ShowHeader()
     {
         infoText.text = $"남은 시도 {Season.State.RemainingScoutAttempts}  ·  코인 {Coins:N0}";
-        buyButton.interactable = Coins >= ScoutRules.ExtraAttemptCoinPrice;
+        buyButton.interactable = CanSpend() && Coins >= ScoutRules.ExtraAttemptCoinPrice;
+    }
+
+    // 지난 결과 저장이 실패한 라운드 위에서는 시도를 쓰지 않는다. 다음 로드 때 시즌과 시도 기록이 어긋난다
+    private static bool CanSpend()
+    {
+        return !Season.LastReportFailed;
     }
 
     // ①열: 리그 상대 팀. 순위표 순서가 아니라 팀 id 순서(Opponents 순서)로 둔다: 버튼 번호 = Opponents 번호라 따로 매핑이 없다
@@ -199,7 +206,7 @@ public class ScoutScreen : UIScreen
             Debug.LogError($"[ScoutScreen] {target.RoleId} 자리의 내 선수 {myCandidates.Count}명 > 버튼 {myButtons.Length}개");
         }
 
-        bool canTry = Season.State.RemainingScoutAttempts > 0;
+        bool canTry = CanSpend() && Season.State.RemainingScoutAttempts > 0;
         for (int i = 0; i < myButtons.Length; i++)
         {
             if (i >= myCandidates.Count)
@@ -231,6 +238,7 @@ public class ScoutScreen : UIScreen
     // "이 부는 전부 ★1"인지는 코어가 판정한다(부 번호 4를 UI가 알 필요 없게)
     private static string NoticeLine(SeasonSystem season)
     {
+        if (season.LastReportFailed) { return "지난 경기 결과를 저장하지 못했다. 다음 경기를 치른 뒤 영입할 수 있다"; }
         if (season.IsOver) { return "시즌이 끝났다. 지금 영입하면 역할은 다음 시즌으로 가지만 능력치는 기본으로 돌아간다"; }
         if (ScoutRules.AllStarsAreOne(season.Tier)) { return "이 부의 상대는 모두 기본 역할이라 ★1뿐이다. 역할이 다양한 선수는 상위 부부터 나온다"; }
         return string.Empty;
