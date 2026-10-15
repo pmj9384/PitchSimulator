@@ -97,6 +97,7 @@ namespace Game.Core.League
         public int RemainingScoutAttempts => ScoutRules.AttemptsPerSeason + ScoutExtraAttempts - ScoutAttempts;
         public string MyPresetId { get; private set; }   // 내 팀 기준 카드(TacticPresets presetId). 바꾸는 곳은 SetMyPreset 하나(팀 전술 설정창, 09-30)
         public TeamTactics? MyCustomTactics { get; private set; }   // 슬라이더·세부 표로 바꾼 값 전체. null = 기준 카드 값 그대로
+        public TacticsReadoutSummary? LastReadout { get; private set; }   // 지난 내 경기의 실측 요약(로비 홈 한 줄, 스펙 §2-1). 아직 안 치렀거나 옛 세이브면 null
         public IReadOnlyList<MatchResult> Results => results;
         public IReadOnlyList<PlayoffResult> PlayoffResults => playoff;   // 승강전 결과. 정규 시즌 뒤에만 쌓인다. 옛 세이브는 비어 있음
         public IReadOnlyList<RosterPlayer> Roster => roster;
@@ -301,6 +302,12 @@ namespace Game.Core.League
             RoundsPlayed++;
         }
 
+        // 내 경기가 끝날 때 결과와 같이 적는다. 라운드마다 덮어쓴다: 홈이 보여 주는 건 "지난 경기" 하나다. 요약을 못 만든 경기는 null(홈 줄이 빈다)
+        public void SetLastReadout(TacticsReadoutSummary? summary)
+        {
+            LastReadout = summary;
+        }
+
         // 승강전 한 경기. 단계 순서는 PlayoffRules.NextStage가 정하고 여기선 쌓기만 한다
         public void AddPlayoffResult(PlayoffResult result)
         {
@@ -422,6 +429,7 @@ namespace Game.Core.League
             var save = new SeasonSave { tier = Tier, seasonSeed = SeasonSeed, generatorVersion = GeneratorVersion, roundsPlayed = RoundsPlayed, scoutAttempts = ScoutAttempts, myPresetId = MyPresetId, playoff = new List<SeasonSave.PlayoffEntry>() };
             if (MyCustomTactics != null) { save.myTactics = SeasonSave.TacticsValues.From(MyCustomTactics); }
             save.scoutExtra = ScoutExtraAttempts;
+            if (LastReadout != null) { save.lastReadout = SeasonSave.ReadoutEntry.From(LastReadout); }
             var targets = new List<SeasonSave.ScoutEntry>(scoutTargets.Count);
             for (int i = 0; i < scoutTargets.Count; i++) { targets.Add(new SeasonSave.ScoutEntry { team = scoutTargets[i].TeamId, player = scoutTargets[i].PlayerIndex }); }
             save.scoutTargets = targets;
@@ -493,6 +501,7 @@ namespace Game.Core.League
             TeamTactics? custom = save.myTactics == null ? null : save.myTactics.ToTactics(save.myPresetId ?? DefaultPresetId);   // 범위는 생성자가 검증한다
             var state = new SeasonState(save.tier, save.seasonSeed, save.generatorVersion, roster, lineup, results, save.roundsPlayed, save.scoutAttempts, save.myPresetId, custom);
             state.ScoutExtraAttempts = save.scoutExtra;
+            if (save.lastReadout != null) { state.LastReadout = save.lastReadout.ToSummaryOrNull(); }   // 옛 세이브(10-15 전)엔 없어 null = 아직 치른 경기 없음
             if (save.scoutTargets != null)   // 옛 세이브(10-12 전)엔 없어 null
             {
                 for (int i = 0; i < save.scoutTargets.Count; i++) { state.scoutTargets.Add(new ScoutTarget(save.scoutTargets[i].team, save.scoutTargets[i].player)); }
@@ -527,6 +536,48 @@ namespace Game.Core.League
         public List<PlayoffEntry>? playoff;   // 승강전 결과. 옛 세이브엔 없어 null → 승강전 전
         public int scoutExtra;                // 코인으로 산 스카우트 시도. 옛 세이브엔 없어 0
         public List<ScoutEntry>? scoutTargets;   // 이번 시즌 시도한 (팀, 선수 번호). 옛 세이브엔 없어 null(playoff와 같은 꼴. 초기화자를 두면 Json.NET이 빈 목록을 남겨 주석과 어긋난다)
+        public ReadoutEntry? lastReadout;   // 지난 내 경기 실측 요약(10-15). 옛 세이브엔 없어 null
+
+        // 실측 요약. 서드 배열 3칸·설정 3칸·횟수 3개. 길이·범위는 TacticsReadoutSummary 생성자가 본다
+        [Serializable] public sealed class ReadoutEntry
+        {
+            public int[] passCounts = Array.Empty<int>();
+            public float[] passLengths = Array.Empty<float>();
+            public int[] regains = Array.Empty<int>();
+            public int counters;
+            public int counterShots;
+            public int shots;
+            public int passStyle;
+            public int pressStart;
+            public int counter;
+
+            public static ReadoutEntry From(TacticsReadoutSummary summary)
+            {
+                return new ReadoutEntry
+                {
+                    passCounts = summary.CopyPassCounts(), passLengths = summary.CopyMeanPassLengths(), regains = summary.CopyRegainCounts(),
+                    counters = summary.Counters, counterShots = summary.CounterShots, shots = summary.Shots,
+                    passStyle = summary.SettingPassStyle, pressStart = summary.SettingPressStart, counter = summary.SettingCounter,
+                };
+            }
+
+            // 깨진 값이면 null. 보조 표시값 하나 때문에 시즌 로드 전체가 실패해 새 시즌으로 초기화되면 안 된다(10-15 리뷰). 배열이 null이어도 같은 길로 간다
+            public TacticsReadoutSummary? ToSummaryOrNull()
+            {
+                try
+                {
+                    return new TacticsReadoutSummary(passCounts, passLengths, regains, counters, counterShots, shots, passStyle, pressStart, counter);
+                }
+                catch (ArgumentException)
+                {
+                    return null;
+                }
+                catch (NullReferenceException)
+                {
+                    return null;
+                }
+            }
+        }
 
         [Serializable] public sealed class ScoutEntry
         {

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Game.Core.League;
 using Game.Core.Match;
@@ -45,8 +46,24 @@ public class StageManager : InGameManager
     // 기다리지 않고 넘긴다: 나머지 경기는 백그라운드에서 돌고 오류·완료 로그는 SeasonSystem이 맡는다. 끝났는지는 결과 패널이 IsReporting으로 본다(09-28 G1)
     private void OnMatchEnded(int winnerTeam)
     {
-        MatchSimulation sim = GameManager.Match.Simulation;
-        _ = GameDataManager.Instance.Season.ReportMyResultAsync(current.ResultFor(sim.HomeGoals, sim.AwayGoals));
+        MatchManager match = GameManager.Match;
+        MatchSimulation sim = match.Simulation;
+        _ = GameDataManager.Instance.Season.ReportMyResultAsync(current.ResultFor(sim.HomeGoals, sim.AwayGoals), SummarizeReadout(match, sim));
+    }
+
+    // 로비 홈의 지난 경기 한 줄 재료(팀 0 = 나). 결과와 같은 저장에 묶는다.
+    // 요약이 던져도 결과 보고는 가야 하므로 여기서 받아 null로 넘긴다: 표시값 하나 때문에 라운드가 빠지면 안 된다(10-15 리뷰)
+    private static TacticsReadoutSummary SummarizeReadout(MatchManager match, MatchSimulation sim)
+    {
+        try
+        {
+            return TacticsReadoutSummary.From(match.MyReadout, sim.TacticsOf(0));
+        }
+        catch (Exception e)
+        {
+            Debug.LogError($"[Stage] 전술 실측 요약 실패, 홈의 지난 경기 줄은 비운다: {e.Message}");
+            return null;
+        }
     }
 
     public override void Clear()

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Game.Core.Data;
 using Game.Core.League;
+using Game.Core.Match;
 using Game.Core.Tactics;
 using UnityEngine;
 
@@ -9,7 +10,7 @@ using UnityEngine;
 // 판정은 전부 순수 코어(SeasonProgress·SeasonRunner) 몫. 여기는 "지금 시즌이 무엇인가", 파생물(상대 팀·일정·이번 경기) 캐시, 저장 타이밍만.
 // 경기 결과 보고는 비동기다(09-28 G1): 나머지 경기는 백그라운드에서 계산하고 반영·저장은 메인 스레드. 보고 중(IsReporting)엔 이번 라운드 전 상태라 다음 경기 재료를 내주지 않는다
 // 상대 팀은 세이브에 없고 (시즌 시드, 부)로 매번 같게 다시 만든다.
-// 다음 경기·시즌 끝 한 줄 문구(NextMatchLine 등)도 여기서 낸다: 허브와 결과 화면이 같은 글자를 써야 해서 한 곳에 둔다
+// 다음 경기·시즌 끝 한 줄 문구(NextMatchLine 등)도 여기서 낸다: 홈·매치데이·결과 화면이 같은 글자를 써야 해서 한 곳에 둔다
 public class SeasonSystem : ISaveLoad
 {
     public DataSourceType SaveDataSouceType => DataSourceType.Local;
@@ -86,7 +87,7 @@ public class SeasonSystem : ISaveLoad
         return SeasonRunner.Find(Opponents, teamId).Name;   // 없는 id면 Find가 던진다
     }
 
-    // 이번 라운드 내 경기의 재료. 시즌이 끝났으면 먼저 StartNextSeason(허브) 또는 PrepareNextMatch(인게임 안전장치)
+    // 이번 라운드 내 경기의 재료. 시즌이 끝났으면 먼저 StartNextSeason(홈 [다음 시즌]) 또는 PrepareNextMatch(인게임 안전장치)
     public MatchSetup CurrentMatch
     {
         get
@@ -108,7 +109,8 @@ public class SeasonSystem : ISaveLoad
     public bool IsReporting { get; private set; }
     public bool LastReportFailed { get; private set; }   // 직전 보고가 실패했나. 결과 화면이 성공처럼 보이지 않게 "저장 실패"를 띄운다
 
-    public async Awaitable ReportMyResultAsync(MatchResult myResult)
+    // readout = 내 팀의 이번 경기 실측 요약(로비 홈 한 줄). 결과와 같은 저장에 묶어 두 값이 서로 다른 경기를 가리키지 않게 한다
+    public async Awaitable ReportMyResultAsync(MatchResult myResult, TacticsReadoutSummary readout)
     {
         if (IsReporting)
         {
@@ -120,7 +122,7 @@ public class SeasonSystem : ISaveLoad
 
         if (IsRegularSeasonOver)
         {
-            ReportPlayoffResult(myResult);   // 승강전: 헤드리스 경기가 없어 동기. 승부차기까지 여기서 정하고 저장한다
+            ReportPlayoffResult(myResult, readout);   // 승강전: 헤드리스 경기가 없어 동기. 승부차기까지 여기서 정하고 저장한다
             IsReporting = false;
             return;
         }
@@ -148,6 +150,7 @@ public class SeasonSystem : ISaveLoad
 
             // 넣기는 메인 스레드에서 한 번에 한다. 헤드리스 경기 중 예외가 나면 여기까지 못 와서 반쪽 라운드가 생기지 않는다(09-27 리뷰 D3)
             state.AddRound(results);
+            state.SetLastReadout(readout);
             recorded = true;
             currentMatch = null;
             AwardMatchCoins(myResult);
@@ -181,7 +184,7 @@ public class SeasonSystem : ISaveLoad
         return SeasonRunner.SetupPlayoffMatch(State, Tier, plan, stage, Opponents, foreignTeam, TeamTacticsRepository.All);
     }
 
-    private void ReportPlayoffResult(MatchResult myResult)
+    private void ReportPlayoffResult(MatchResult myResult, TacticsReadoutSummary readout)
     {
         try
         {
@@ -190,6 +193,7 @@ public class SeasonSystem : ISaveLoad
             MatchSetup setup = currentMatch ?? SetupPlayoff();
             PlayoffResult? legOne = stage == PlayoffStage.LegTwo ? State.PlayoffResults[State.PlayoffResults.Count - 1] : (PlayoffResult?)null;
             State.AddPlayoffResult(SeasonRunner.ResolvePlayoff(setup, stage, myResult, legOne));
+            State.SetLastReadout(readout);
             currentMatch = null;
             AwardMatchCoins(myResult);
             SaveLoadSystem.Instance.Save();
@@ -202,7 +206,7 @@ public class SeasonSystem : ISaveLoad
         }
     }
 
-    // 매치데이 허브의 다음 경기 문구. 시즌이 끝났으면 승강 판정, 승강전이 남았으면 그 단계, 아니면 다음 라운드 번호(RoundLine은 끝난 라운드 기준이라 따로 둔다)
+    // 홈·매치데이의 다음 경기 문구. 시즌이 끝났으면 승강 판정, 승강전이 남았으면 그 단계, 아니면 다음 라운드 번호(RoundLine은 끝난 라운드 기준이라 따로 둔다)
     public string NextMatchLine()
     {
         if (IsOver) { return OutcomeLine(); }
@@ -210,7 +214,7 @@ public class SeasonSystem : ISaveLoad
         return $"{Tier.Tier}부 {State.RoundsPlayed + 1}/{Tier.Matches} 라운드";
     }
 
-    // 승강전이 남았을 때 다음 경기 안내. 결과 화면과 허브가 같은 글자를 쓴다
+    // 승강전이 남았을 때 다음 경기 안내. 결과 화면과 홈·매치데이가 같은 글자를 쓴다
     public string PlayoffNextLine()
     {
         PlayoffStage pending = PendingPlayoff;
@@ -382,7 +386,7 @@ public class SeasonSystem : ISaveLoad
     }
 
     // 경기가 차려질 때(MatchManager.ResetMatch) 부른다. 시즌이 끝났으면 다음 부에서 새 시즌.
-    // 보통은 허브의 [다음 시즌 시작](StartNextSeason)이 먼저 열어 여기선 아무 일도 없다. 끝난 시즌으로 인게임에 바로 들어온 경우(에디터 직접 Play)의 안전장치로 남긴다(스펙 §2-1)
+    // 보통은 홈의 [다음 시즌](StartNextSeason)이 먼저 열어 여기선 아무 일도 없다. 끝난 시즌으로 인게임에 바로 들어온 경우(에디터 직접 Play)의 안전장치로 남긴다(스펙 §2-1)
     public void PrepareNextMatch()
     {
         if (IsReporting) { throw new InvalidOperationException("[Season] 이번 라운드 결과를 아직 처리 중이다. IsOver가 옛 값이라 다음 시즌 여부를 판단할 수 없다(09-28 리뷰)"); }
