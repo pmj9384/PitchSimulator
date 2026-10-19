@@ -49,16 +49,18 @@ namespace Game.Core.League
         }
     }
 
-    // 스카우트 시도 기록: 어느 팀의 몇 번째 선수를 노렸나. 같은 선수 재시도 보정의 재료
+    // 스카우트 시도 기록: 어느 팀의 몇 번째 선수를 노렸고 됐나. 재시도 보정(같은 선수 횟수)과 후보 교체(성공한 자리만, ScoutPool)의 재료
     public readonly struct ScoutTarget
     {
         public readonly int TeamId;
         public readonly int PlayerIndex;
+        public readonly bool Success;
 
-        public ScoutTarget(int teamId, int playerIndex)
+        public ScoutTarget(int teamId, int playerIndex, bool success)
         {
             TeamId = teamId;
             PlayerIndex = playerIndex;
+            Success = success;
         }
     }
 
@@ -95,6 +97,7 @@ namespace Game.Core.League
         public int ScoutAttempts { get; private set; }       // 이번 시즌에 쓴 시도(실패 포함)
         public int ScoutExtraAttempts { get; private set; }  // 코인으로 산 추가 시도
         public int RemainingScoutAttempts => ScoutRules.AttemptsPerSeason + ScoutExtraAttempts - ScoutAttempts;
+        public IReadOnlyList<ScoutTarget> ScoutTargets => scoutTargets;   // 이번 시즌 시도 기록(실패 포함). 후보 선정이 읽는다
         public string MyPresetId { get; private set; }   // 내 팀 기준 카드(TacticPresets presetId). 바꾸는 곳은 SetMyPreset 하나(팀 전술 설정창, 09-30)
         public TeamTactics? MyCustomTactics { get; private set; }   // 슬라이더·세부 표로 바꾼 값 전체. null = 기준 카드 값 그대로
         public TacticsReadoutSummary? LastReadout { get; private set; }   // 지난 내 경기의 실측 요약(로비 홈 한 줄, 스펙 §2-1). 아직 안 치렀거나 옛 세이브면 null
@@ -332,12 +335,12 @@ namespace Game.Core.League
             return n;
         }
 
-        // 시도 1회 소모. 남은 시도가 없으면 던진다(화면이 먼저 막는다)
-        public void SpendScoutAttempt(int teamId, int playerIndex)
+        // 시도 1회 소모. 판정 결과(success)를 함께 적는다: 성공한 후보의 자리만 다음 후보로 넘어가서다(ScoutPool). 남은 시도가 없으면 던진다(화면이 먼저 막는다)
+        public void SpendScoutAttempt(int teamId, int playerIndex, bool success)
         {
             if (RemainingScoutAttempts <= 0) { throw new InvalidOperationException("[SeasonState] 남은 스카우트 시도가 없다"); }
             ScoutAttempts++;
-            scoutTargets.Add(new ScoutTarget(teamId, playerIndex));
+            scoutTargets.Add(new ScoutTarget(teamId, playerIndex, success));
         }
 
         public void AddExtraScoutAttempt()
@@ -438,7 +441,7 @@ namespace Game.Core.League
             save.scoutExtra = ScoutExtraAttempts;
             if (LastReadout != null) { save.lastReadout = SeasonSave.ReadoutEntry.From(LastReadout); }
             var targets = new List<SeasonSave.ScoutEntry>(scoutTargets.Count);
-            for (int i = 0; i < scoutTargets.Count; i++) { targets.Add(new SeasonSave.ScoutEntry { team = scoutTargets[i].TeamId, player = scoutTargets[i].PlayerIndex }); }
+            for (int i = 0; i < scoutTargets.Count; i++) { targets.Add(new SeasonSave.ScoutEntry { team = scoutTargets[i].TeamId, player = scoutTargets[i].PlayerIndex, success = scoutTargets[i].Success }); }
             save.scoutTargets = targets;
             for (int i = 0; i < playoff.Count; i++)
             {
@@ -511,7 +514,7 @@ namespace Game.Core.League
             if (save.lastReadout != null) { state.LastReadout = save.lastReadout.ToSummaryOrNull(); }   // 옛 세이브(10-15 전)엔 없어 null = 아직 치른 경기 없음
             if (save.scoutTargets != null)   // 옛 세이브(10-12 전)엔 없어 null
             {
-                for (int i = 0; i < save.scoutTargets.Count; i++) { state.scoutTargets.Add(new ScoutTarget(save.scoutTargets[i].team, save.scoutTargets[i].player)); }
+                for (int i = 0; i < save.scoutTargets.Count; i++) { state.scoutTargets.Add(new ScoutTarget(save.scoutTargets[i].team, save.scoutTargets[i].player, save.scoutTargets[i].success)); }
             }
             if (save.playoff != null)   // 옛 세이브(10-08 전)엔 없어 null = 승강전 전
             {
@@ -590,6 +593,7 @@ namespace Game.Core.League
         {
             public int team;
             public int player;
+            public bool success;   // 10-19 추가. 옛 세이브(10-19 전)엔 없어 false = 그 기록으로는 후보가 안 바뀐다
         }
 
         [Serializable] public sealed class PlayoffEntry

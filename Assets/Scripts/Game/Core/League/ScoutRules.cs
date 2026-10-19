@@ -136,6 +136,14 @@ namespace Game.Core.League
             return (h >> 8) / 16777216f;   // 2^24 → float 가수에 딱 맞는 균등 눈금
         }
 
+        // 후보 선정(ScoutPool)도 같은 해시를 쓴다: (시즌 시드, 자리, 부분 풀 크기). Roll과 입력 수가 달라 값이 겹치지 않는다
+        public static uint Hash(uint a, uint b, uint c)
+        {
+            uint h = Mix(a);
+            h = Mix(h ^ b);
+            return Mix(h ^ c);
+        }
+
         private static uint Mix(uint h)
         {
             h ^= h >> 16;

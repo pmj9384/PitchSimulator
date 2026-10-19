@@ -22,6 +22,7 @@ public class SeasonSystem : ISaveLoad
     public SeasonState State { get; private set; }
     public TierRule Tier { get; private set; }
     public IReadOnlyList<GeneratedTeam> Opponents { get; private set; }
+    public GeneratedTeam ScoutUpperTeam { get; private set; }   // 스카우트 후보 풀의 바로 위 부 팀(스펙 §4-5 10-19). 1부는 null. 상대 팀과 같이 시드로 다시 만든다
     public IReadOnlyList<Fixture> Schedule { get; private set; }
 
     private MatchSetup currentMatch;   // 이번 라운드 내 경기. Match·Stage 매니저가 같은 객체를 읽는다. 결과 보고 뒤 비운다
@@ -317,13 +318,35 @@ public class SeasonSystem : ISaveLoad
     }
 
     // ── 스카우트(스펙 §4-5, 10-12). 판정은 ScoutRules, 소모·교체는 SeasonState, 코인은 PlayerAccountData. 여기는 재료를 모아 넘긴다. 저장은 TryScout·BuyScoutAttempt만
-    // 미리보기: 별·확률만(주사위 안 굴림). 목록 화면이 선수마다 부른다
+    // 이번 시즌 후보 4명(스펙 §4-5 10-19 일괄 제시). 세이브에 없고 시드·로스터·시도 기록에서 매번 같게 나온다
+    public IReadOnlyList<ScoutCandidate> ScoutCandidates()
+    {
+        return ScoutPool.Pick(State.SeasonSeed, State.Roster, Opponents, ScoutUpperTeam, State.ScoutTargets);
+    }
+
+    // 후보가 속한 팀. 위 부 팀은 Opponents에 없고 id가 ForeignTeamIdBase 이상이다
+    public GeneratedTeam ScoutTeam(int teamId)
+    {
+        if (!IsUpperTierTeam(teamId)) { return SeasonRunner.Find(Opponents, teamId); }
+        if (ScoutUpperTeam == null || ScoutUpperTeam.TeamId != teamId) { throw new InvalidOperationException($"[Season] 스카우트 위 부 팀이 아니다: {teamId}"); }
+        return ScoutUpperTeam;
+    }
+
+    private static bool IsUpperTierTeam(int teamId)
+    {
+        return teamId >= PlayoffRules.ForeignTeamIdBase;
+    }
+
+    // 미리보기: 별·확률만(주사위 안 굴림). 목록 화면이 후보마다 부른다.
+    // 위 부 후보는 "안 만난 팀 ×0.5"를 안 받는다: 상위 부 +1과 겹치면 이중 벌점(스펙 §4-5 10-19)
     public ScoutVerdict PreviewScout(int teamId, int playerIndex)
     {
-        GeneratedTeam team = SeasonRunner.Find(Opponents, teamId);
-        int stars = ScoutRules.Stars(team.Players[playerIndex], team.Rows[playerIndex], Tier, Tier.Tier, PlayerTableRepository.All);
+        GeneratedTeam team = ScoutTeam(teamId);
+        bool upper = IsUpperTierTeam(teamId);
+        TierRule targetTier = upper ? TierRuleRepository.Get(Tier.Tier - 1) : Tier;
+        int stars = ScoutRules.Stars(team.Players[playerIndex], team.Rows[playerIndex], targetTier, Tier.Tier, PlayerTableRepository.All);
         int myRank = Table().RankOf(SeasonState.MyTeamId);
-        bool metBefore = ScoutRules.MetBefore(State.Results, SeasonState.MyTeamId, teamId);
+        bool metBefore = upper || ScoutRules.MetBefore(State.Results, SeasonState.MyTeamId, teamId);
         int retries = State.ScoutRetriesOn(teamId, playerIndex);
         float chance = ScoutRules.SuccessChance(stars, myRank, Tier.Teams, metBefore, retries);
         return new ScoutVerdict(stars, chance, 0f, success: false);
@@ -334,14 +357,14 @@ public class SeasonSystem : ISaveLoad
     public ScoutVerdict TryScout(int teamId, int playerIndex, int myPlayerId)
     {
         ThrowIfReporting();
-        GeneratedTeam team = SeasonRunner.Find(Opponents, teamId);
+        GeneratedTeam team = ScoutTeam(teamId);
         PlayerStats target = team.Players[playerIndex];
         if (!State.CanReplacePlayer(myPlayerId, target)) { throw new InvalidOperationException($"[Season] 선수 {myPlayerId} 자리에 {target.RoleId}({teamId}팀 {playerIndex}번)는 못 들어간다"); }
 
         ScoutVerdict preview = PreviewScout(teamId, playerIndex);
         float roll = ScoutRules.Roll(State.SeasonSeed, teamId, playerIndex, State.ScoutAttempts);
-        State.SpendScoutAttempt(teamId, playerIndex);
         bool success = ScoutRules.Succeeds(preview.Chance, roll);
+        State.SpendScoutAttempt(teamId, playerIndex, success);
         if (success) { State.ReplacePlayer(myPlayerId, target); }
         CommitMyTactics();
         return new ScoutVerdict(preview.Stars, preview.Chance, roll, success: success);
@@ -409,6 +432,14 @@ public class SeasonSystem : ISaveLoad
         SaveLoadSystem.Instance.Save();
     }
 
+    // 스카우트 후보 풀의 바로 위 부 팀. 1부는 위가 없어 null
+    private GeneratedTeam BuildScoutUpperTeam(int seasonSeed)
+    {
+        if (Tier.Tier <= 1) { return null; }
+        TierRule upper = TierRuleRepository.Get(Tier.Tier - 1);
+        return SeasonRunner.ScoutUpperTeam(seasonSeed, upper, PlayerTableRepository.All, FormationTemplateRepository.All, TeamNameRepository.Table);
+    }
+
     private void StartSeason(int tier, int seasonSeed, string presetId)
     {
         Adopt(SeasonFactory.NewSeason(tier, seasonSeed, presetId));
@@ -419,6 +450,7 @@ public class SeasonSystem : ISaveLoad
         State = state;
         Tier = TierRuleRepository.Get(state.Tier);
         Opponents = TeamGenerator.Generate(state.SeasonSeed, Tier, PlayerTableRepository.All, FormationTemplateRepository.All, TeamNameRepository.Table);
+        ScoutUpperTeam = BuildScoutUpperTeam(state.SeasonSeed);
         Schedule = SeasonSchedule.RoundRobin(Tier.Teams);
         currentMatch = null;
         foreignTeam = null;

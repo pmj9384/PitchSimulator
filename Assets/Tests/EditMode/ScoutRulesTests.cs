@@ -6,7 +6,7 @@ using Game.Core.Tactics;
 using NUnit.Framework;
 
 // 스카우트(스펙 §4-5, 10-12 구현 설계). ①별: 4부 전원 ★1 / 기본 아닌 변형 ★2~3 / 자리 2쌍 ★3 / 재분배 ★4 / 겹침 +1 / 상위 부 +1, 상한 5
-// ②확률 경계·보정 ③주사위 결정성 ④상대해 봤는지·코인 수입 ⑤시도 소모·추가 ⑥영입 교체(총점 300·같은 자리·지시 초기화) ⑦세이브 왕복·옛 세이브 ⑧★2/★3 다이얼 거리 경계
+// ②확률 경계·보정 ③주사위 결정성 ④상대해 봤는지·코인 수입 ⑤시도 소모·추가(성공 비트는 10-19 추가, 후보 선정은 ScoutPoolTests) ⑥영입 교체(총점 300·같은 자리·지시 초기화) ⑦세이브 왕복·옛 세이브 ⑧★2/★3 다이얼 거리 경계
 public class ScoutRulesTests
 {
     private static List<PlayerStats> table;
@@ -184,12 +184,12 @@ public class ScoutRulesTests
     {
         SeasonState state = SeasonState.NewSeason(4, 42, myRows, table);
         Assert.AreEqual(ScoutRules.AttemptsPerSeason, state.RemainingScoutAttempts);
-        state.SpendScoutAttempt(1, 3);
-        state.SpendScoutAttempt(1, 3);
+        state.SpendScoutAttempt(1, 3, false);
+        state.SpendScoutAttempt(1, 3, false);
         Assert.AreEqual(0, state.RemainingScoutAttempts);
         Assert.AreEqual(2, state.ScoutRetriesOn(1, 3), "같은 선수 2번");
         Assert.AreEqual(0, state.ScoutRetriesOn(2, 3));
-        Assert.Throws<System.InvalidOperationException>(() => state.SpendScoutAttempt(1, 3));
+        Assert.Throws<System.InvalidOperationException>(() => state.SpendScoutAttempt(1, 3, false));
         state.AddExtraScoutAttempt();
         Assert.AreEqual(1, state.RemainingScoutAttempts);
     }
@@ -255,7 +255,7 @@ public class ScoutRulesTests
     public void 스카우트_상태는_세이브로_왕복하고_옛_세이브는_시도_0이다()
     {
         SeasonState state = SeasonState.NewSeason(4, 42, myRows, table);
-        state.SpendScoutAttempt(2, 5);
+        state.SpendScoutAttempt(2, 5, false);
         state.AddExtraScoutAttempt();
         SeasonState back = SeasonState.FromSave(state.ToSave(), table);
         Assert.AreEqual(1, back.ScoutAttempts);
