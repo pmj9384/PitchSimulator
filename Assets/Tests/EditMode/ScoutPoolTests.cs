@@ -122,6 +122,7 @@ public class ScoutPoolTests
         for (int i = 0; i < 4; i++) { Assert.IsTrue(afterFail[i].Is(before[i].TeamId, before[i].PlayerIndex), $"실패 뒤 자리 {i}"); }
 
         state.SpendScoutAttempt(before[2].TeamId, before[2].PlayerIndex, success: true);
+        Recruit(state, upper.Players[before[2].PlayerIndex]);   // 실제 영입까지: 로스터가 바뀌어도 풀(자리 집합)은 그대로여야 한다
         List<ScoutCandidate> afterSuccess = ScoutPool.Pick(42, state.Roster, own, upper, state.ScoutTargets);
         Assert.IsFalse(afterSuccess[2].Is(before[2].TeamId, before[2].PlayerIndex), "성공한 자리는 다음 후보");
         Assert.IsTrue(afterSuccess[2].UpperTier, "같은 풀(위 부)에서 뽑는다");
@@ -147,6 +148,19 @@ public class ScoutPoolTests
         state.SpendScoutAttempt(strangerTeam, strangerIndex, success: true);
         List<ScoutCandidate> after = ScoutPool.Pick(42, state.Roster, own, upper, state.ScoutTargets);
         for (int i = 0; i < 4; i++) { Assert.IsTrue(after[i].Is(before[i].TeamId, before[i].PlayerIndex), $"자리 {i}"); }
+    }
+
+    // 같은 자리의 내 선수 아무나와 교체한다(SeasonSystem.TryScout이 하는 일)
+    private static void Recruit(SeasonState state, PlayerStats scouted)
+    {
+        for (int i = 0; i < state.Roster.Count; i++)
+        {
+            int playerId = state.Roster[i].PlayerId;
+            if (!state.CanReplacePlayer(playerId, scouted)) { continue; }
+            state.ReplacePlayer(playerId, scouted);
+            return;
+        }
+        Assert.Fail($"{scouted.RoleId} 자리가 내 로스터에 없다");
     }
 
     private static bool IsCandidate(List<ScoutCandidate> picked, int teamId, int playerIndex)

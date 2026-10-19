@@ -11,7 +11,7 @@ using UnityEngine.UI;
 // 로비에선 결과 보고가 늘 끝나 있어 "보고가 끝날 때까지 잠금"이 없다. 저장이 실패한 라운드 위에서 시도를 쓰면 다음 로드 때 어긋나므로 그때만 이 화면이 판정·구매를 잠근다(탭 입구라 밖에서 막아 줄 버튼이 없다)
 // 두 열: ①후보 4명(소속 부·팀·자리·역할·★·성공 %. 뒤 두 자리는 위 부) → ②같은 자리의 내 선수. 내 선수를 누르는 순간 판정이다(미리보기와 같은 확률로 주사위 하나).
 // 10-12 설계의 "팀 → 11명" 3열은 4부에서 전원 ★1이라 변별이 없어 접었다. 후보는 코어(ScoutPool)가 시드로 정하고 성공한 자리만 바뀐다. 실패한 후보는 남아 재시도 +10%가 숫자에 보인다
-// 레퍼런스 프로야구 스피리츠 A처럼 확률을 숨기지 않는다: 안 만난 팀은 절반, 재시도는 +10%가 목록 숫자에 그대로 보인다.
+// 레퍼런스 프로야구 스피리츠 A처럼 확률을 숨기지 않는다: 안 만난 팀은 절반(내 부 후보만), 재시도는 +10%가 목록 숫자에 그대로 보인다. 보정값은 ScoutVerdict가 실어 준다.
 // 규칙(후보·별·확률·주사위·교체)은 전부 코어(ScoutPool·ScoutRules·SeasonState), 시도 소모·저장은 SeasonSystem. 여기는 목록을 그리고 누른 것을 넘긴다.
 // 목록은 버튼 배열을 미리 깔아 두고 쓰는 만큼만 켠다(PlayerTacticsPanel의 역할 버튼과 같은 꼴): 후보 4,
 // 같은 자리의 내 선수는 한 포메이션에 최대 3명(3백의 CB, 5-3-2의 CM. FormationTemplates.csv 실측)이라 5면 넉넉하다.
@@ -155,9 +155,8 @@ public class ScoutScreen : UIScreen
         PlayerStats player = team.Players[picked.PlayerIndex];
         ScoutVerdict preview = Season.PreviewScout(picked.TeamId, picked.PlayerIndex);
         string text = $"{team.Name} · {player.RoleId} {player.DisplayName}   {Stars(preview.Stars)}  {Percent(preview.Chance)}";
-        int retries = Season.State.ScoutRetriesOn(picked.TeamId, picked.PlayerIndex);
-        if (retries > 0) { text += $"  (재시도 +{Percent(ScoutRules.RetryBonus * retries)})"; }
-        if (!picked.UpperTier && !ScoutRules.MetBefore(Season.State.Results, SeasonState.MyTeamId, picked.TeamId)) { text += $"  (아직 안 붙어 봄 ×{ScoutRules.UnmetFactor:0.##})"; }
+        if (preview.Retries > 0) { text += $"  (재시도 +{Percent(ScoutRules.RetryBonus * preview.Retries)})"; }
+        if (preview.Unmet) { text += $"  (아직 안 붙어 봄 ×{ScoutRules.UnmetFactor:0.##})"; }
         return text;
     }
 

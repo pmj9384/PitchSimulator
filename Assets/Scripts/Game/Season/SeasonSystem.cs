@@ -349,7 +349,7 @@ public class SeasonSystem : ISaveLoad
         bool metBefore = upper || ScoutRules.MetBefore(State.Results, SeasonState.MyTeamId, teamId);
         int retries = State.ScoutRetriesOn(teamId, playerIndex);
         float chance = ScoutRules.SuccessChance(stars, myRank, Tier.Teams, metBefore, retries);
-        return new ScoutVerdict(stars, chance, 0f, success: false);
+        return new ScoutVerdict(stars, chance, 0f, success: false, retries, unmet: !metBefore);
     }
 
     // 지목 → 즉시 판정. 시도 1 소모, 성공이면 내 선수(같은 자리)와 교체. 주사위는 (시즌 시드, 팀, 선수, 시도 번호)라 같은 세팅 = 같은 결과.
@@ -367,7 +367,7 @@ public class SeasonSystem : ISaveLoad
         State.SpendScoutAttempt(teamId, playerIndex, success);
         if (success) { State.ReplacePlayer(myPlayerId, target); }
         CommitMyTactics();
-        return new ScoutVerdict(preview.Stars, preview.Chance, roll, success: success);
+        return new ScoutVerdict(preview.Stars, preview.Chance, roll, success: success, preview.Retries, preview.Unmet);
     }
 
     // 코인으로 시도 +1. 코인이 모자라면 false(PlayerAccountData.SpendCoin이 판정)

@@ -5,20 +5,25 @@ using Game.Core.Tactics;
 
 namespace Game.Core.League
 {
-    // 스카우트 한 번의 결과. 미리보기(Roll 전)는 Roll 0·Success false
+    // 스카우트 한 번의 결과. 미리보기(Roll 전)는 Roll 0·Success false.
+    // 확률에 들어간 보정(재시도 횟수·안 만난 팀)도 같이 실어 화면이 규칙을 다시 계산하지 않게 한다(10-19 리뷰 🟡)
     public readonly struct ScoutVerdict
     {
         public readonly int Stars;
         public readonly float Chance;
         public readonly float Roll;
         public readonly bool Success;
+        public readonly int Retries;   // 같은 선수 재시도 횟수(확률에 RetryBonus × 이만큼)
+        public readonly bool Unmet;    // 안 만난 팀 ×UnmetFactor가 적용됐나(위 부 후보는 늘 false)
 
-        public ScoutVerdict(int stars, float chance, float roll, bool success)
+        public ScoutVerdict(int stars, float chance, float roll, bool success, int retries, bool unmet)
         {
             Stars = stars;
             Chance = chance;
             Roll = roll;
             Success = success;
+            Retries = retries;
+            Unmet = unmet;
         }
     }
 
