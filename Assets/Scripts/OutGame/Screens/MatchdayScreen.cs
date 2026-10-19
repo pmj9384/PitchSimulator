@@ -14,6 +14,8 @@ public class MatchdayScreen : UIScreen
     [SerializeField] private TMP_Text roundText;       // "4부 3/6 라운드" 또는 승강전 단계, 시즌 끝이면 승강 판정
     [SerializeField] private TMP_Text matchupText;     // 상대 이름·홈/원정·상대 전술
     [SerializeField] private TMP_Text myTacticsText;   // 내 카드 이름 + 조정 여부
+    [SerializeField] private TMP_Text fixturesText;    // 왼쪽 열: 라운드 표(10-19 일정표, 레퍼런스 FM Fixtures)
+    [SerializeField] private TMP_Text tableText;       // 오른쪽 아래: 작은 순위표
     [SerializeField] private Button tacticsButton;
     [SerializeField] private Button backButton;        // 홈으로
     [SerializeField] private Button startButton;   // 글자는 프리팹의 "경기 시작" 고정. 시즌 끝 분기는 홈이 맡아 여기서 바꿀 일이 없다
@@ -32,7 +34,16 @@ public class MatchdayScreen : UIScreen
             backButton.onClick.AddListener(OnBack);
             startButton.onClick.AddListener(OnStart);
         }
+        Season.Reported -= Refresh;   // 열려 있는 동안 보고가 끝나면 다시 그린다(치트 자동 진행 등 결과 화면을 안 거치는 경로). 빼고 더해 두 번 안 걸리게
+        Season.Reported += Refresh;
         Refresh();
+    }
+
+    // UIManager가 시작 때 Close를 먼저 부른다. 그때는 시즌이 아직 없을 수 있다
+    public override void Close()
+    {
+        if (GameDataManager.Instance != null) { Season.Reported -= Refresh; }
+        base.Close();
     }
 
     // 보고 중(IsReporting)엔 CurrentMatch가 던진다. 홈이 보고 중엔 [일정 진행]을 잠가 여기 올 길이 없지만, 새 진입 경로가 생겨도 조용히 틀리지 않게 잠근다
@@ -47,11 +58,15 @@ public class MatchdayScreen : UIScreen
             roundText.text = "다른 경기 결과 계산 중…";
             matchupText.text = string.Empty;
             myTacticsText.text = string.Empty;
+            fixturesText.text = string.Empty;
+            tableText.text = string.Empty;
             return;
         }
         roundText.text = season.NextMatchLine();
         matchupText.text = season.IsOver ? MatchdayLines.SeasonOverNotice : MatchdayLines.Matchup(season.CurrentMatch);
         myTacticsText.text = MatchdayLines.MyTactics(season.State, TeamTacticsRepository.All);
+        fixturesText.text = MatchdayLines.FixturesBlock(season);
+        tableText.text = MatchdayLines.TableLines(season);
     }
 
     private void OnTactics()
