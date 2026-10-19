@@ -80,7 +80,7 @@ namespace Game.Core.League
             return false;
         }
 
-        // 내 로스터의 어느 자리에든 들어갈 수 있는 선수만(교체는 같은 자리라서, SeasonState.CanReplacePlayer와 같은 기준). 팀 순서·선수 번호 순서라 결정적
+        // 내 라인업의 어느 자리에든 설 수 있는 선수만(선발 교체가 같은 자리라서, SeasonState.FitsLineupRole과 같은 기준. 벤치 자리는 라인업 자리의 부분집합이라 로스터로 봐도 같다). 팀 순서·선수 번호 순서라 결정적
         public static List<ScoutCandidate> Eligible(IReadOnlyList<GeneratedTeam> teams, IReadOnlyList<RosterPlayer> myRoster, bool upperTier)
         {
             var pool = new List<ScoutCandidate>();

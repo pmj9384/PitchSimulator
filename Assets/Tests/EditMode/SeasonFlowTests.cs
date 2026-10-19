@@ -442,7 +442,7 @@ public class SeasonFlowTests
         previous.SetPlayerInstruction(striker, PlayerDial.HoldUp, -1);
 
         SeasonState next = SeasonState.NewSeason(3, 43, myRows, table);
-        next.AdoptPlayerTactics(previous.Roster, table);
+        next.AdoptStarters(previous.Roster, previous.Lineup, table);
 
         RosterPlayer carried = next.FindRosterPlayer(striker);
         Assert.AreEqual("st_advanced", carried.Stats.VariantId);
@@ -466,7 +466,7 @@ public class SeasonFlowTests
         previous.SetPlayerInstruction(striker, PlayerDial.HoldUp, 2);
 
         SeasonState next = SeasonState.NewSeason(3, 43, myRows, table);
-        next.AdoptPlayerTactics(previous.Roster, table);
+        next.AdoptStarters(previous.Roster, previous.Lineup, table);
 
         RosterPlayer carried = next.FindRosterPlayer(striker);
         Assert.AreEqual("st_targetman", carried.Stats.VariantId, "잠겨도 쓰던 역할은 남는다");
@@ -484,7 +484,7 @@ public class SeasonFlowTests
         previous.MoveLineupSlot(striker, defending: true, -45f, -10f);
 
         SeasonState next = SeasonState.NewSeason(3, 43, myRows, table);
-        next.AdoptLineup(previous.Lineup);
+        next.AdoptStarters(previous.Roster, previous.Lineup, table);
 
         LineupEntry carried = default;
         foreach (LineupEntry e in next.Lineup)

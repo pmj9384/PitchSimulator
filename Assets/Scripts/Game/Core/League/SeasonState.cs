@@ -8,19 +8,22 @@ using Game.Core.Tactics;
 
 namespace Game.Core.League
 {
-    // 내 선수 개체(스펙 §11): 라인업은 빌드·다이얼을 인라인하지 않고 이 개체를 id로 가리킨다. 스카우트 교체가 로스터에 개체를 더하는 일이 되게
+    // 내 선수 개체(스펙 §11): 라인업은 빌드·다이얼을 인라인하지 않고 이 개체를 id로 가리킨다. 스카우트 영입이 로스터에 개체를 더하는 일이 되게
     public sealed class RosterPlayer
     {
         public int PlayerId { get; }
         public PlayerStats Stats { get; }   // 능력치(빌드) + 역할 값(다이얼). 개인 지시는 여기 안 들어 있다
         public IReadOnlyList<int> Instructions => instructions;   // 개인 지시: 역할 값 기준 오프셋, PlayerDial 순서. 전부 0이면 역할 값 그대로
+        public int Stars { get; }   // 조합 특이성(ScoutRules.Stars). 기본 로스터는 1, 영입 선수는 판정 때 값. 방출 코인의 재료(스펙 §4-5 10-19)
 
         private readonly int[] instructions;
 
-        public RosterPlayer(int playerId, PlayerStats stats, int[]? instructions = null)
+        public RosterPlayer(int playerId, PlayerStats stats, int[]? instructions = null, int stars = SquadRules.DefaultStars)
         {
+            if (stars < ScoutRules.MinStars || stars > ScoutRules.MaxStars) { throw new ArgumentOutOfRangeException(nameof(stars), $"[RosterPlayer] ★ {stars}"); }
             PlayerId = playerId;
             Stats = stats;
+            Stars = stars;
             this.instructions = instructions == null ? new int[PlayerInstructions.DialCount] : (int[])instructions.Clone();
             PlayerInstructions.Validate(this.instructions, stats);
         }
@@ -46,6 +49,17 @@ namespace Game.Core.League
         public int[] CopyInstructions()
         {
             return (int[])instructions.Clone();
+        }
+
+        // 불변 객체라 "하나만 바꾼 복사본"으로 고친다. 필드가 늘어도 호출부가 빠뜨릴 자리가 없게(10-19 리뷰: 생성자를 손으로 다시 부르다 ★을 빠뜨렸다)
+        public RosterPlayer WithStats(PlayerStats stats)
+        {
+            return new RosterPlayer(PlayerId, stats, instructions, Stars);
+        }
+
+        public RosterPlayer WithInstructions(int[]? next)
+        {
+            return new RosterPlayer(PlayerId, Stats, next, Stars);
         }
     }
 
@@ -218,7 +232,7 @@ namespace Game.Core.League
         {
             PlayerStats next = variant.Clone();
             CopyBuild(roster[index].Stats, next);
-            roster[index] = new RosterPlayer(roster[index].PlayerId, next);
+            roster[index] = roster[index].WithStats(next).WithInstructions(null);   // 지시는 역할 기준 오프셋이라 역할이 바뀌면 지운다
         }
 
         // 개인 지시 한 칸. 범위 밖·해당 없는 다이얼이면 던지고 아무것도 안 바뀐다(RosterPlayer 생성자가 검증)
@@ -227,44 +241,45 @@ namespace Game.Core.League
             int index = RosterIndex(playerId);
             int[] next = roster[index].CopyInstructions();
             next[(int)dial] = offset;
-            roster[index] = new RosterPlayer(playerId, roster[index].Stats, next);
+            roster[index] = roster[index].WithInstructions(next);
         }
 
         public void ClearPlayerInstructions(int playerId)
         {
             int index = RosterIndex(playerId);
-            roster[index] = new RosterPlayer(playerId, roster[index].Stats);
+            roster[index] = roster[index].WithInstructions(null);
         }
 
-        // 새 시즌의 로스터는 기본 편성에서 다시 만들어진다(SeasonFactory). 이전 시즌의 역할과 개인 지시를 같은 선수 id로 옮겨 온다.
-        // 이전 역할이 표에서 사라졌거나 자리가 다르면 그 선수는 기본 역할로 둔다. 잠긴 역할은 옮긴다(업데이트로 잠겨도 쓰던 것은 남는다, PlayerTableLookup.IsSamePosition 주석)
-        public void AdoptPlayerTactics(IReadOnlyList<RosterPlayer> previousRoster, IReadOnlyList<PlayerStats> table)
+        // 새 시즌의 로스터는 기본 편성에서 다시 만들어진다(SeasonFactory). 이전 시즌 선발을 **슬롯 번호**로 옮겨 온다: 새 선발 i ← 이전 라인업 슬롯 i에 서 있던 선수의 역할·개인 지시·★·자리 2쌍.
+        // 선수 id가 아니라 슬롯인 이유(10-19 스쿼드): 선발에 영입 선수(id ≥ 11)가 설 수 있어 id = 슬롯이 더는 성립하지 않는다. 내 포메이션은 StageComposition 고정이라 슬롯 순서·자리는 시즌마다 같다.
+        // 이전 역할이 표에서 사라졌거나 자리가 다르면 그 슬롯은 기본 역할로 둔다. 잠긴 역할은 옮긴다(업데이트로 잠겨도 쓰던 것은 남는다, PlayerTableLookup.IsSamePosition 주석).
+        // 배치(자리 2쌍)는 필드 규칙이 부와 무관해 그대로 유효하다. 벤치는 AdoptBench
+        public void AdoptStarters(IReadOnlyList<RosterPlayer> previousRoster, IReadOnlyList<LineupEntry> previousLineup, IReadOnlyList<PlayerStats> table)
         {
-            for (int i = 0; i < previousRoster.Count; i++)
+            int slots = Math.Min(lineup.Count, previousLineup.Count);
+            for (int slot = 0; slot < slots; slot++)
             {
-                RosterPlayer previous = previousRoster[i];
-                int index = IndexOfRosterPlayer(previous.PlayerId);
-                if (index < 0) { continue; }
+                LineupEntry previousEntry = previousLineup[slot];
+                RosterPlayer? previous = FindOrNull(previousRoster, previousEntry.PlayerId);
+                if (previous == null) { continue; }
+                int index = RosterIndex(lineup[slot].PlayerId);
+                lineup[slot] = new LineupEntry(lineup[slot].PlayerId, previousEntry.AttackX, previousEntry.AttackZ, previousEntry.DefendX, previousEntry.DefendZ);
+
                 PlayerStats? variant = PlayerTableLookup.FindVariant(table, previous.Stats.VariantId);
                 if (variant == null) { continue; }
                 if (!PlayerTableLookup.IsSamePosition(variant, roster[index].Stats.RoleId)) { continue; }
-
                 ApplyRole(index, variant);
-                roster[index] = new RosterPlayer(previous.PlayerId, roster[index].Stats, previous.CopyInstructions());
+                roster[index] = new RosterPlayer(roster[index].PlayerId, roster[index].Stats, previous.CopyInstructions(), previous.Stars);
             }
         }
 
-        // 이전 시즌에 끌어 둔 배치(자리 2쌍)도 같은 선수 id로 옮겨 온다(전술·역할·지시는 이월되는데 유일한 레버인 배치만 기본으로 돌아갔다).
-        // 필드 규칙(PlacementRules)은 부가 바뀌어도 같으므로 이전 시즌에 놓였던 자리는 그대로 유효하다. 없는 선수 id는 건너뛴다
-        public void AdoptLineup(IReadOnlyList<LineupEntry> previousLineup)
+        private static RosterPlayer? FindOrNull(IReadOnlyList<RosterPlayer> players, int playerId)
         {
-            for (int i = 0; i < previousLineup.Count; i++)
+            for (int i = 0; i < players.Count; i++)
             {
-                LineupEntry previous = previousLineup[i];
-                int index = IndexOfLineup(previous.PlayerId);
-                if (index < 0) { continue; }
-                lineup[index] = previous;
+                if (players[i].PlayerId == playerId) { return players[i]; }
             }
+            return null;
         }
 
         private int IndexOfLineup(int playerId)
@@ -324,7 +339,7 @@ namespace Game.Core.League
             playoff.Add(result);
         }
 
-        // ── 스카우트(스펙 §4-5, 10-12). 판정은 ScoutRules, 여기는 시도 소모·기록·영입 교체만
+        // ── 스카우트(스펙 §4-5, 10-12). 판정은 ScoutRules, 여기는 시도 소모·기록·영입(벤치 추가)만
         public int ScoutRetriesOn(int teamId, int playerIndex)
         {
             int n = 0;
@@ -348,21 +363,91 @@ namespace Game.Core.League
             ScoutExtraAttempts++;
         }
 
-        // 영입 대상이 이 자리에 들어갈 수 있나(같은 자리만). 화면이 내 선수 목록을 걸러 보이고, TryScout은 시도를 소모하기 전에 묻는다(소모 뒤에 던지면 시도만 샌다)
-        public bool CanReplacePlayer(int myPlayerId, PlayerStats scouted)
+        // ── 스쿼드(스펙 §4-5 10-19): 선발 11 + 벤치 ≤ SquadRules.MaxBench. 벤치 = 라인업에 없는 로스터 선수(별도 목록 없음)
+        public bool IsStarter(int playerId)
         {
-            PlayerStats current = roster[RosterIndex(myPlayerId)].Stats;
-            return PlayerTableLookup.IsSamePosition(scouted, current.RoleId);
+            return IndexOfLineup(playerId) >= 0;
         }
 
-        // 영입 = 내 선수 1명과 교체. 대상의 역할(변형)·다이얼을 가져오고 빌드는 내 총점(300)으로 재분배한다(강화 아님). 같은 자리만. 개인 지시는 역할이 바뀌므로 지운다
-        public void ReplacePlayer(int myPlayerId, PlayerStats scouted)
+        public List<RosterPlayer> Bench()
         {
-            int index = RosterIndex(myPlayerId);
-            if (!CanReplacePlayer(myPlayerId, scouted)) { throw new InvalidOperationException($"[SeasonState] 선수 {myPlayerId}({roster[index].Stats.RoleId}) 자리에 {scouted.RoleId} 선수를 넣을 수 없다"); }
+            var bench = new List<RosterPlayer>();
+            for (int i = 0; i < roster.Count; i++)
+            {
+                if (IsStarter(roster[i].PlayerId)) { continue; }
+                bench.Add(roster[i]);
+            }
+            return bench;
+        }
+
+        public int BenchCount => roster.Count - lineup.Count;
+
+        // 내 라인업의 어느 자리에든 설 수 있는 선수인가(선발 교체가 같은 자리라서. 후보 선정·영입 가능 판정이 같은 기준을 쓴다)
+        public bool FitsLineupRole(PlayerStats scouted)
+        {
+            for (int i = 0; i < lineup.Count; i++)
+            {
+                if (PlayerTableLookup.IsSamePosition(scouted, FindRosterPlayer(lineup[i].PlayerId).Stats.RoleId)) { return true; }
+            }
+            return false;
+        }
+
+        // 영입 = 벤치에 추가. 대상의 역할(변형)·다이얼을 가져오고 빌드는 내 총점(300)으로 재분배한다(강화 아님). 벤치가 차 있으면 던진다(화면이 먼저 막는다)
+        public RosterPlayer AddToBench(PlayerStats scouted, int stars)
+        {
+            if (!SquadRules.BenchHasRoom(BenchCount)) { throw new InvalidOperationException($"[SeasonState] 벤치가 찼다({BenchCount}/{SquadRules.MaxBench}). 먼저 방출한다"); }
+            if (!FitsLineupRole(scouted)) { throw new InvalidOperationException($"[SeasonState] {scouted.RoleId} 자리가 내 라인업에 없다"); }
             PlayerStats incoming = BuildScaler.Copy(scouted);
             incoming = BuildScaler.Scale(incoming, PlayerStats.TotalPoints);
-            roster[index] = new RosterPlayer(myPlayerId, incoming);
+            var player = new RosterPlayer(NextPlayerId(), incoming, null, stars);
+            roster.Add(player);
+            return player;
+        }
+
+        // 방출 = 벤치 선수만 로스터에서 뺀다. 선발은 먼저 벤치로 내린다(SwapStarter). 코인은 호출자가 SquadRules.ReleaseCoins(Stars)로 준다
+        public RosterPlayer Release(int playerId)
+        {
+            int index = RosterIndex(playerId);
+            if (IsStarter(playerId)) { throw new InvalidOperationException($"[SeasonState] 선발 선수 {playerId}는 방출할 수 없다. 먼저 벤치로 내린다"); }
+            RosterPlayer released = roster[index];
+            roster.RemoveAt(index);
+            return released;
+        }
+
+        // 선발 교체: 같은 자리(roleId)의 벤치 선수와 자리를 바꾼다. 자리 2쌍·편성 좌표는 슬롯에 남고 선수만 바뀐다. 개인 지시는 선수를 따라간다
+        public void SwapStarter(int starterId, int benchId)
+        {
+            int slot = IndexOfLineup(starterId);
+            if (slot < 0) { throw new InvalidOperationException($"[SeasonState] {starterId}는 선발이 아니다"); }
+            if (IsStarter(benchId)) { throw new InvalidOperationException($"[SeasonState] {benchId}는 이미 선발이다"); }
+            PlayerStats starter = FindRosterPlayer(starterId).Stats;
+            PlayerStats bench = FindRosterPlayer(benchId).Stats;
+            if (!PlayerTableLookup.IsSamePosition(bench, starter.RoleId)) { throw new InvalidOperationException($"[SeasonState] {starter.RoleId} 자리에 {bench.RoleId} 선수를 세울 수 없다"); }
+            LineupEntry e = lineup[slot];
+            lineup[slot] = new LineupEntry(benchId, e.AttackX, e.AttackZ, e.DefendX, e.DefendZ);
+        }
+
+        // 다음 시즌: 벤치 선수를 역할·★만 들고 넘어온다. 빌드는 그 역할의 기본값(선발 이월 규칙과 같다, 스펙 §4-5 [가정] ④). 역할이 표에서 사라졌으면 그 선수는 두고 온다
+        public void AdoptBench(IReadOnlyList<RosterPlayer> previousBench, IReadOnlyList<PlayerStats> table)
+        {
+            for (int i = 0; i < previousBench.Count; i++)
+            {
+                PlayerStats? variant = PlayerTableLookup.FindVariant(table, previousBench[i].Stats.VariantId);
+                if (variant == null) { continue; }
+                if (!SquadRules.BenchHasRoom(BenchCount)) { return; }
+                if (!FitsLineupRole(variant)) { continue; }
+                roster.Add(new RosterPlayer(NextPlayerId(), BuildScaler.Copy(variant), null, previousBench[i].Stars));
+            }
+        }
+
+        private int NextPlayerId()
+        {
+            int next = 0;
+            for (int i = 0; i < roster.Count; i++)
+            {
+                if (roster[i].PlayerId >= next) { next = roster[i].PlayerId + 1; }
+            }
+            return next;
         }
 
         // 배치(스펙 §8, 10-08): 라인업 한 선수의 편성 자리(공격 시 또는 수비 시)를 옮긴다. 내 진영 절반 안·다른 선수와 최소 간격은 PlacementRules가 판정하고,
@@ -461,6 +546,7 @@ namespace Game.Core.League
                     playerId = roster[i].PlayerId, variantId = s.VariantId,
                     build = new[] { s.Speed, s.Stamina, s.Pass, s.Shot, s.Tackle, s.Positioning, s.Reflexes, s.Handling, s.Diving },
                     instructions = roster[i].HasInstructions ? roster[i].CopyInstructions() : null,
+                    stars = roster[i].Stars,
                 });
             }
             for (int i = 0; i < lineup.Count; i++)
@@ -494,7 +580,8 @@ namespace Game.Core.League
                 copy.Handling = p.build[7];
                 copy.Diving = p.build[8];
                 if (copy.BuildTotal != PlayerStats.TotalPoints) { throw new InvalidOperationException($"[SeasonState] 선수 {p.playerId} 빌드 합계가 {PlayerStats.TotalPoints}가 아니다({copy.BuildTotal}). 내 선수는 총점 고정(스펙 축: 강화 없음)"); }
-                roster.Add(new RosterPlayer(p.playerId, copy, p.instructions));   // 지시 칸 수·범위는 생성자가 검증한다
+                int stars = p.stars == 0 ? SquadRules.DefaultStars : p.stars;   // 옛 세이브(10-19 전)엔 없어 0 = 기본 로스터
+                roster.Add(new RosterPlayer(p.playerId, copy, p.instructions, stars));   // 지시 칸 수·범위·★ 범위는 생성자가 검증한다
             }
             var lineup = new List<LineupEntry>(save.lineup.Count);
             for (int i = 0; i < save.lineup.Count; i++)
@@ -621,6 +708,7 @@ namespace Game.Core.League
             public string variantId = string.Empty;   // 역할. 전술 화면에서 같은 자리 안에서 바꾼다
             public int[] build = Array.Empty<int>();
             public int[]? instructions;               // 개인 지시 오프셋(PlayerDial 순서). 지시가 없으면 null, 옛 세이브에도 없어 null → 역할 값 그대로
+            public int stars;                         // 10-19 추가. 옛 세이브엔 없어 0 → 기본 1
         }
         [Serializable] public sealed class Slot
         {
