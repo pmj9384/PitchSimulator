@@ -14,6 +14,7 @@ public class ScoutEntryButton : MonoBehaviour
     [SerializeField] private Button button;
     [SerializeField] private Image background;
     [SerializeField] private TMP_Text label;
+    [SerializeField] private Image icon;   // 선수 초상 자리(10-15). 아직 에셋이 없어 비워 둔다. 팀·내 선수 행은 칸 자체가 없어 null
 
     public event Action<ScoutEntryButton> Clicked;
 
@@ -29,6 +30,14 @@ public class ScoutEntryButton : MonoBehaviour
         label.color = NormalTextColor;
         background.color = selected ? SelectedColor : NormalColor;
         button.interactable = interactable;
+        ShowIcon();
+    }
+
+    // 초상이 없으면 칸을 끈다(흰 네모가 보이지 않게). 에셋이 들어오면 여기서 스프라이트를 받는다
+    private void ShowIcon()
+    {
+        if (icon == null) { return; }
+        icon.enabled = icon.sprite != null;
     }
 
     public void Hide()

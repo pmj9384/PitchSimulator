@@ -11,7 +11,7 @@ using UnityEngine.UI;
 // 끝남을 알리는 이벤트를 두지 않고 HUD처럼 매 프레임 IsReporting만 본다(Dirty Flag): bool 하나라 구독·해제 코드를 두는 쪽이 더 비싸고, 스레드에서 돌아온 콜백이 파괴된 패널을 건드릴 일도 없다.
 // 표는 한 번만 만든다. 만든 뒤엔 Update가 곧바로 빠진다.
 // 전술 실측(10-06, 스펙 §6 "설정 대 실측")은 승점표와 같은 자리에 번갈아 보여 준다. 실측은 휘슬 순간 다 있어서 Show에서 만들고, 보기 버튼이 둘을 바꾼다.
-// [다음 경기]는 로비 매치데이 허브로 간다(스펙 §2-1, 10-13). 스카우트도 허브에 있어 여기엔 버튼이 없다
+// [다음 경기]는 로비 홈으로 간다(스펙 §2-1, 10-15). 홈의 [일정 진행]이 일정의 중심이라 매치데이를 바로 열지 않는다. 스카우트는 하단 탭이라 여기엔 버튼이 없다
 public class ResultPanelUIElement : UIElement
 {
     private static readonly string HighlightColor = "#" + ColorUtility.ToHtmlStringRGB(TacticsColors.Highlight);   // 내 행 강조(노랑). 전술 화면과 같은 색을 한 곳에서 읽는다. 표 안 다른 행은 기본 색
@@ -83,7 +83,7 @@ public class ResultPanelUIElement : UIElement
         // 버튼부터 연다: 아래 표 만들기가 던져도 화면이 잠긴 채 멈추지 않게
         isTableShown = true;
         nextButton.interactable = true;
-        nextButtonLabel.text = season.IsOver ? "시즌 결과" : "다음 경기";   // 둘 다 로비 허브로 간다. 시즌이 끝났으면 허브가 승강 결과와 [다음 시즌 시작]을 보여 준다
+        nextButtonLabel.text = season.IsOver ? "시즌 결과" : "다음 경기";   // 둘 다 로비 홈으로 간다. 시즌이 끝났으면 홈이 승강 결과와 [다음 시즌]을 보여 준다
         statusText.text = season.LastReportFailed ? "결과를 저장하지 못했다" : string.Empty;   // 실패를 성공처럼 보이지 않게
         roundText.text = season.RoundLine();   // 정규 라운드 또는 승강전 단계·합산
         try
@@ -113,14 +113,13 @@ public class ResultPanelUIElement : UIElement
         viewButtonLabel.text = isShowingReadout ? "승점표 보기" : "전술 결과 보기";
     }
 
-    // 다음 경기 = 로비 매치데이 허브(스펙 §2-1). 경기 사이에 세팅을 다시 짜는 것이 이 게임의 축이라 같은 씬 재로드로 바로 다음 경기에 들어가던 길(09-27)은 없앴다.
-    // 결과 보고가 먼저 라운드를 올려 두므로 허브는 다음 상대를 읽는다. 시즌이 끝났으면 허브가 [다음 시즌 시작]을 보여 준다
+    // 다음 경기 = 로비 홈(스펙 §2-1). 경기 사이에 세팅을 다시 짜는 것이 이 게임의 축이라 같은 씬 재로드로 바로 다음 경기에 들어가던 길(09-27)은 없앴다.
+    // 결과 보고가 먼저 라운드를 올려 두므로 홈은 다음 상대와 지난 경기 실측을 읽는다
     private void OnNext()
     {
         SeasonSystem season = GameDataManager.Instance.Season;
         if (season.IsReporting) { return; }   // 버튼이 잠겨 있어 안 오지만, 저장 전 씬 전환은 라운드를 잃으니 한 번 더 막는다
 
-        MatchdayScreen.OpenOnLobbyLoad = true;
         gameManager.GoToTitle();
     }
 

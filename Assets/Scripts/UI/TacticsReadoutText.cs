@@ -5,7 +5,7 @@ using UnityEngine;
 
 // 결과 화면의 "설정 대 실측" 표 글자(10-06, 스펙 §6). 내 설정 한 줄 아래에 이번 경기 실측 한 줄을 놓아 설정이 경기에 어떻게 나왔는지 읽게 한다.
 // 열은 팀 전술 세부 표와 같은 서드 3열(우리 진영·중앙·상대 진영). 승점표처럼 TMP <pos> 태그로 열을 맞춰 한 텍스트에 쓴다.
-// 무엇을 셌는지는 순수 코어(TacticsProbe)가 정하고 여기는 글자로 옮기기만 한다
+// 무엇을 셌는지는 순수 코어(TacticsProbe)가 정하고 여기는 글자로 옮기기만 한다. 로비 홈의 한 줄(HomeLine)도 같은 이름 배열을 읽는다
 public static class TacticsReadoutText
 {
     private const string ColLabel = "<pos=0%>";
@@ -82,5 +82,18 @@ public static class TacticsReadoutText
             return;
         }
         sb.Append(Mathf.RoundToInt(measured.MeanPassLength(third))).Append("m · ").Append(count).Append("회");
+    }
+
+    // 로비 홈의 한 줄(스펙 §2-1, 10-15): "패스 짧게 → 중원 평균 17m · 압박 적극 → 상대 진영에서 5회 · 역습 3회 · 슛 12".
+    // 설정은 요약이 들고 있는 그 경기 값을 쓴다(지금 설정이 아니다). 패스는 중원, 압박은 상대 진영 한 칸씩만: 표 전체는 결과 화면 몫이다
+    public static string HomeLine(TacticsReadoutSummary measured, StringBuilder sb)
+    {
+        sb.Clear();
+        sb.Append("패스 ").Append(PassStyleNames[measured.SettingPassStyle]).Append(" → 중원 평균 ");
+        if (measured.PassCount(Third.Middle) == 0) { sb.Append('-'); }
+        else { sb.Append(Mathf.RoundToInt(measured.MeanPassLength(Third.Middle))).Append('m'); }
+        sb.Append(" · 압박 ").Append(PressStartNames[measured.SettingPressStart]).Append(" → 상대 진영에서 ").Append(measured.RegainCount(Third.Opponent)).Append("회");
+        sb.Append(" · 역습 ").Append(measured.Counters).Append("회 · 슛 ").Append(measured.Shots);
+        return sb.ToString();
     }
 }

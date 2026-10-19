@@ -35,6 +35,7 @@
   `PlacementRules`·`FieldBounds`·`PlacementManager`·`PlacementInput`·`PlacementPanel`, `StageComposition` 파서·리포지토리·`StageManager`,
   `UnitManager`(명부·풀)·`BattleManager` 틱 구조·`HudManager` 골격, CSV 관례·테스트 틀. 옮길 때 이름을 이 게임 말로 바꾼다(Unit→Player, Battle→Match)
 - **게임 코드** — 공·소유·패스·슛(`MatchRules`), 선수 트리, 스코어·시간 UI, 선수 세팅 화면. 템플릿에 안 올라간다
+  `Scripts/OutGame/Screens/`의 `LobbyScreen`·`MatchdayScreen`·`MatchdayLines`·`ScoutScreen`도 게임 코드다(10-15). 폴더가 템플릿 출신이라도 로비 내용은 이 게임 것이라 역이식하지 않는다
 
 **제거한 모듈**: 스태미나·가챠·스킨·상점 (2026-09-15 세팅 때 뗌). **코인은 남겼다** — 용처는 3주차에 결정, 없으면 그때 제거.
 
