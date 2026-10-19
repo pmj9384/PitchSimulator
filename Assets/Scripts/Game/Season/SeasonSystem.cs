@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Game.Core.AutoMatch;
 using Game.Core.Data;
 using Game.Core.League;
 using Game.Core.Match;
@@ -84,7 +85,7 @@ public class SeasonSystem : ISaveLoad
     public string TeamName(int teamId)
     {
         if (teamId == SeasonState.MyTeamId) { return MyTeamName; }
-        if (foreignTeam != null && teamId == foreignTeam.TeamId) { return foreignTeam.Name; }   // 승강전 상대(다른 부)
+        if (teamId >= PlayoffRules.ForeignTeamIdBase && IsRegularSeasonOver) { return EnsureForeignTeam().Name; }   // 승강전 상대(다른 부). 재시작 뒤 캐시가 비어 있어도 시드로 같은 팀을 다시 만든다(10-19 리뷰 🟡)
         return SeasonRunner.Find(Opponents, teamId).Name;   // 없는 id면 Find가 던진다
     }
 
@@ -109,6 +110,7 @@ public class SeasonSystem : ISaveLoad
     // 보고 중엔 CurrentMatch·PrepareNextMatch가 옛 라운드를 읽으므로 둘은 오류로 막고, 결과 화면은 끝날 때까지 버튼을 잠근다
     public bool IsReporting { get; private set; }
     public bool LastReportFailed { get; private set; }   // 직전 보고가 실패했나. 결과 화면이 성공처럼 보이지 않게 "저장 실패"를 띄운다
+    public event Action Reported;   // 보고가 끝났다(성공·실패 모두). 열려 있는 홈·매치데이가 다시 그린다(10-19: 치트로 돌리는 동안 연 홈이 "계산 중"에 멈춰 있었다)
 
     // readout = 내 팀의 이번 경기 실측 요약(로비 홈 한 줄). 결과와 같은 저장에 묶어 두 값이 서로 다른 경기를 가리키지 않게 한다
     public async Awaitable ReportMyResultAsync(MatchResult myResult, TacticsReadoutSummary readout)
@@ -125,6 +127,7 @@ public class SeasonSystem : ISaveLoad
         {
             ReportPlayoffResult(myResult, readout);   // 승강전: 헤드리스 경기가 없어 동기. 승부차기까지 여기서 정하고 저장한다
             IsReporting = false;
+            Reported?.Invoke();
             return;
         }
 
@@ -169,20 +172,44 @@ public class SeasonSystem : ISaveLoad
         finally
         {
             IsReporting = false;
+            Reported?.Invoke();
         }
     }
 
     // ── 승강전. 재료는 SeasonRunner, 흐름 판정은 SeasonProgress. 여기는 다른 부 팀 캐시와 저장만
     private MatchSetup SetupPlayoff()
     {
-        PlayoffPlan plan = PlayoffPlan;
         PlayoffStage stage = PendingPlayoff;
-        if (stage != PlayoffStage.Semifinal && foreignTeam == null)
-        {
-            TierRule other = TierRuleRepository.Get(plan.OtherTier);
-            foreignTeam = SeasonRunner.ForeignTeam(State.SeasonSeed, other, plan.Role, PlayerTableRepository.All, FormationTemplateRepository.All, TeamNameRepository.Table, TeamTacticsRepository.All);
-        }
-        return SeasonRunner.SetupPlayoffMatch(State, Tier, plan, stage, Opponents, foreignTeam, TeamTacticsRepository.All);
+        GeneratedTeam foreign = stage == PlayoffStage.Semifinal ? null : EnsureForeignTeam();
+        return SeasonRunner.SetupPlayoffMatch(State, Tier, PlayoffPlan, stage, Opponents, foreign, TeamTacticsRepository.All);
+    }
+
+    // 승강전 1·2차전의 다른 부 상대. 세이브에 없고 시드로 만든다. 처음 필요할 때 한 번(경기 차릴 때 또는 일정표가 이름을 읽을 때)
+    private GeneratedTeam EnsureForeignTeam()
+    {
+        if (foreignTeam != null) { return foreignTeam; }
+        PlayoffPlan plan = PlayoffPlan;
+        TierRule other = TierRuleRepository.Get(plan.OtherTier);
+        foreignTeam = SeasonRunner.ForeignTeam(State.SeasonSeed, other, plan.Role, PlayerTableRepository.All, FormationTemplateRepository.All, TeamNameRepository.Table, TeamTacticsRepository.All);
+        return foreignTeam;
+    }
+
+    // 개발용(에디터 치트 창): 이번 경기를 헤드리스로 끝까지 돌려 정식 보고 경로로 넣는다. 나머지 경기·저장·승강전은 보고가 알아서 한다.
+    // 실측 요약은 없어 홈의 실측 줄은 "아직 치른 경기가 없다"로 남는다
+    public async Awaitable AutoPlayCurrentMatchAsync()
+    {
+        MatchSetup setup = CurrentMatch;
+        MatchSimulation sim = MatchAssembler.Create(setup.Team0, setup.Team1, setup.Tactics0, setup.Tactics1, setup.Seed);
+        var probe = new MatchProbe(sim);
+        probe.Run(MatchTuning.MatchTicks, MatchTuning.FixedStep);
+        await ReportMyResultAsync(setup.ResultFor(sim.HomeGoals, sim.AwayGoals), null);
+    }
+
+    // 개발용: 시뮬 없이 이번 경기를 정한 점수로 보고한다. 순위를 2·3위나 최하위 바로 위로 맞춰 승강전 경로를 본다(1위는 바로 승격이라 승강전이 없다)
+    public async Awaitable ReportFixedResultAsync(int myGoals, int theirGoals)
+    {
+        MatchSetup setup = CurrentMatch;
+        await ReportMyResultAsync(setup.ResultFor(myGoals, theirGoals), null);
     }
 
     private void ReportPlayoffResult(MatchResult myResult, TacticsReadoutSummary readout)

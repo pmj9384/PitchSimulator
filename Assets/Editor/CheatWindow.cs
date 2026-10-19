@@ -19,6 +19,11 @@ public partial class CheatWindow : EditorWindow
             EditorGUILayout.HelpBox("Play 중에만 동작합니다.", MessageType.Info);
             return;
         }
+        if (GameDataManager.Instance == null)
+        {
+            EditorGUILayout.HelpBox("매니저가 없습니다. Play 중 스크립트가 다시 컴파일됐으면 Play를 끄고 다시 켭니다.", MessageType.Warning);   // 10-19: 도메인 리로드 뒤 창이 NRE로 멈췄다. 템플릿에도 역이식
+            return;
+        }
 
         DrawCoinCheats();       // 공통 (템플릿)
         DrawProjectCheats();    // 프로젝트 고유 (partial — 없으면 no-op)
