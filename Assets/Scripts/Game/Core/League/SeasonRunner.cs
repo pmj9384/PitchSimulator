@@ -96,6 +96,17 @@ namespace Game.Core.League
                 new List<StageEntry>(picked.Rows), new List<PlayerStats>(picked.Players));
         }
 
+        // 스카우트 후보 풀의 위 부 팀(스펙 §4-5 10-19). 그 부 생성 목록의 첫 팀: 승강전 ForeignTeam이 쓰는 마지막·1·2번과 안 겹친다. id·이름 규칙은 ForeignTeam과 같다
+        public static GeneratedTeam ScoutUpperTeam(int seasonSeed, TierRule upperTier, IReadOnlyList<PlayerStats> table,
+            IReadOnlyList<FormationTemplate> formations, TeamNameTable names)
+        {
+            List<GeneratedTeam> teams = TeamGenerator.Generate(seasonSeed, upperTier, table, formations, names);
+            if (teams.Count == 0) { throw new InvalidOperationException($"[SeasonRunner] {upperTier.Tier}부 생성 팀이 없다"); }
+            GeneratedTeam picked = teams[0];
+            return new GeneratedTeam(PlayoffRules.ForeignTeamIdBase + picked.TeamId, $"{picked.Name} ({upperTier.Tier}부)", picked.FormationId, picked.PresetId,
+                new List<StageEntry>(picked.Rows), new List<PlayerStats>(picked.Players));
+        }
+
         // 이번 승강전 경기의 재료. 단판은 같은 부 상대, 1·2차전은 다른 부 팀(foreign). 라운드 번호는 정규 뒤에 이어 붙여 시드가 안 겹친다
         public static MatchSetup SetupPlayoffMatch(SeasonState state, TierRule tier, PlayoffPlan plan, PlayoffStage stage,
             IReadOnlyList<GeneratedTeam> opponents, GeneratedTeam? foreign, IReadOnlyList<TeamTactics> presets)

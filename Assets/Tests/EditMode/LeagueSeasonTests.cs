@@ -287,8 +287,8 @@ public class LeagueSeasonTests
     {
         SeasonState state = SeasonState.NewSeason(4, 42, myRows, table);
         state.AddRound(new List<MatchResult> { new MatchResult(0, 3, 2, 1), new MatchResult(1, 2, 0, 0) });
-        state.SpendScoutAttempt(1, 0);   // 시도 2회(10-12: 카운터는 SpendScoutAttempt로만 오른다)
-        state.SpendScoutAttempt(1, 0);
+        state.SpendScoutAttempt(1, 0, false);   // 시도 2회(10-12: 카운터는 SpendScoutAttempt로만 오른다)
+        state.SpendScoutAttempt(1, 0, false);
 
         SeasonSave save = state.ToSave();
         SeasonState back = SeasonState.FromSave(save, table);
