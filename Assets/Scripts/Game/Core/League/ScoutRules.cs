@@ -28,7 +28,7 @@ namespace Game.Core.League
     }
 
     // 스카우트 판정 순수 함수(스펙 §4-5, 10-12 구현 설계. 레퍼런스 프로야구 스피리츠 A의 "확률 공개·누적 보정").
-    // 상태·엔진·난수 없음: 별(난이도)·성공 확률·주사위 값만 계산한다. 영입(교체)은 SeasonState, 화면은 UI 몫
+    // 상태·엔진·난수 없음: 별(난이도)·성공 확률·주사위 값만 계산한다. 영입(벤치 추가)은 SeasonState, 화면은 UI 몫
     public static class ScoutRules
     {
         public const int MinStars = 1;

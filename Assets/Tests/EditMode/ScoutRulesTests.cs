@@ -195,8 +195,9 @@ public class ScoutRulesTests
     }
 
     [Test]
-    public void 영입은_같은_자리의_내_선수와_교체하고_총점은_300으로_재분배하며_지시를_지운다()
+    public void 영입은_벤치에_추가하고_총점은_300으로_재분배하며_별을_적고_선발은_그대로다()
     {
+        // 10-19 스쿼드: 교체가 아니라 추가(스펙 §4-5 「10-19 스쿼드」)
         SeasonState state = SeasonState.NewSeason(4, 42, myRows, table);
         List<GeneratedTeam> opponents = TeamGenerator.Generate(42, Tier(4), table, formations, names);
         GeneratedTeam team = opponents[0];
@@ -204,51 +205,50 @@ public class ScoutRulesTests
         for (int i = 0; i < team.Players.Count; i++) { if (team.Players[i].RoleId == "ST") { stIndex = i; } }
         PlayerStats target = team.Players[stIndex];
         Assert.AreEqual(260, target.BuildTotal, "4부 상대는 260점");
+        int rosterBefore = state.Roster.Count;
 
-        int myStriker = MyPlayerIdOf(state, "ST");
-        Assert.IsTrue(state.CanReplacePlayer(myStriker, target));
-        state.SetPlayerInstruction(myStriker, PlayerDial.PushUp, 1);
-        LineupEntry before = state.Lineup[state.Lineup.Count - 1];
-
-        state.ReplacePlayer(myStriker, target);
-        RosterPlayer after = state.FindRosterPlayer(myStriker);
-        Assert.AreEqual(target.VariantId, after.Stats.VariantId, "역할(변형)을 가져온다");
-        Assert.AreEqual(300, after.Stats.BuildTotal, "빌드는 내 총점으로");
-        Assert.IsFalse(after.HasInstructions, "개인 지시는 지운다");
+        RosterPlayer added = state.AddToBench(target, 3);
+        Assert.AreEqual(rosterBefore + 1, state.Roster.Count, "로스터가 1 는다");
+        Assert.AreEqual(1, state.BenchCount);
+        Assert.IsFalse(state.IsStarter(added.PlayerId), "벤치로 들어간다");
+        Assert.AreEqual(target.VariantId, added.Stats.VariantId, "역할(변형)을 가져온다");
+        Assert.AreEqual(300, added.Stats.BuildTotal, "빌드는 내 총점으로");
+        Assert.AreEqual(3, added.Stars, "판정 때의 ★을 적는다");
+        Assert.IsFalse(added.HasInstructions);
         Assert.AreEqual(260, target.BuildTotal, "상대 선수 객체는 안 바뀐다");
-        Assert.AreEqual(before.AttackX, state.Lineup[state.Lineup.Count - 1].AttackX, "라인업 자리는 그대로");
+        Assert.AreEqual(11, state.Lineup.Count, "선발 11은 그대로");
 
-        int myKeeper = MyPlayerIdOf(state, "GK");
-        Assert.IsFalse(state.CanReplacePlayer(myKeeper, target), "다른 자리는 미리 거른다");
-        Assert.Throws<System.InvalidOperationException>(() => state.ReplacePlayer(myKeeper, target), "다른 자리엔 못 넣는다");
+        PlayerStats am = table.Find(p => p.RoleId == "AM");
+        Assert.Throws<System.InvalidOperationException>(() => state.AddToBench(am, 1), "내 라인업에 없는 자리는 못 넣는다");
     }
 
     [Test]
-    public void 영입한_선수는_세이브로_왕복하고_다음_시즌엔_역할만_남고_빌드는_기본으로_돌아간다()
+    public void 영입한_선수는_세이브로_왕복하고_다음_시즌엔_역할과_별만_남고_빌드는_기본으로_돌아간다()
     {
-        // 10-13 재검증 F2: 교체 결과만 잠겨 있고 세이브·이월 경로는 비어 있었다. 이월 규칙은 스펙 §4-5 [가정] ④
+        // 10-13 재검증 F2: 교체 결과만 잠겨 있고 세이브·이월 경로는 비어 있었다. 이월 규칙은 스펙 §4-5 [가정] ④. 10-19부터 벤치 선수가 대상
         SeasonState state = SeasonState.NewSeason(4, 42, myRows, table);
-        int myStriker = MyPlayerIdOf(state, "ST");
-        string myVariant = state.FindRosterPlayer(myStriker).Stats.VariantId;
+        string myVariant = state.FindRosterPlayer(MyPlayerIdOf(state, "ST")).Stats.VariantId;
         PlayerStats target = FirstStrikerWithOtherVariant(TeamGenerator.Generate(42, Tier(3), table, formations, names), myVariant);   // 4부는 전원 기본 변형이라 같은 변형이 나와 단언이 공허해진다(10-13 리뷰). 3부에서 다른 변형을 고른다
-        state.ReplacePlayer(myStriker, target);
-        PlayerStats scouted = state.FindRosterPlayer(myStriker).Stats;
+        RosterPlayer added = state.AddToBench(target, 2);
 
         SeasonState back = SeasonState.FromSave(state.ToSave(), table);
-        PlayerStats loaded = back.FindRosterPlayer(myStriker).Stats;
-        Assert.AreEqual(scouted.VariantId, loaded.VariantId);
-        Assert.AreEqual(300, loaded.BuildTotal, "FromSave의 총점 검사를 통과한다");
-        Assert.AreEqual(scouted.Speed, loaded.Speed);
-        Assert.AreEqual(scouted.Shot, loaded.Shot);
+        RosterPlayer loaded = back.FindRosterPlayer(added.PlayerId);
+        Assert.AreEqual(added.Stats.VariantId, loaded.Stats.VariantId);
+        Assert.AreEqual(300, loaded.Stats.BuildTotal, "FromSave의 총점 검사를 통과한다");
+        Assert.AreEqual(added.Stats.Speed, loaded.Stats.Speed);
+        Assert.AreEqual(2, loaded.Stars, "★도 왕복한다");
+        Assert.AreEqual(1, back.BenchCount);
 
         SeasonState next = SeasonState.NewSeason(3, 43, myRows, table);
-        PlayerStats defaultBuild = next.FindRosterPlayer(myStriker).Stats.Clone();
-        next.AdoptPlayerTactics(back.Roster, table);
-        PlayerStats carried = next.FindRosterPlayer(myStriker).Stats;
-        Assert.AreEqual(scouted.VariantId, carried.VariantId, "역할(변형)은 이어 간다");
-        Assert.AreEqual(defaultBuild.Speed, carried.Speed, "빌드는 기본 로스터 값");
-        Assert.AreEqual(defaultBuild.Shot, carried.Shot);
-        Assert.IsFalse(next.FindRosterPlayer(myStriker).HasInstructions);
+        next.AdoptStarters(back.Roster, back.Lineup, table);
+        next.AdoptBench(back.Bench(), table);
+        Assert.AreEqual(1, next.BenchCount, "벤치도 넘어온다");
+        RosterPlayer carried = next.Bench()[0];
+        PlayerStats defaultVariant = PlayerTableLookup.FindVariant(table, added.Stats.VariantId);
+        Assert.AreEqual(added.Stats.VariantId, carried.Stats.VariantId, "역할(변형)은 이어 간다");
+        Assert.AreEqual(2, carried.Stars, "★도 이어 간다");
+        Assert.AreEqual(defaultVariant.Speed, carried.Stats.Speed, "빌드는 그 역할의 기본값");
+        Assert.IsFalse(carried.HasInstructions);
     }
 
     [Test]

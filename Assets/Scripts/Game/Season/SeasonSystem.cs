@@ -317,7 +317,7 @@ public class SeasonSystem : ISaveLoad
         CommitMyTactics();
     }
 
-    // ── 스카우트(스펙 §4-5, 10-12). 판정은 ScoutRules, 소모·교체는 SeasonState, 코인은 PlayerAccountData. 여기는 재료를 모아 넘긴다. 저장은 TryScout·BuyScoutAttempt만
+    // ── 스카우트(스펙 §4-5, 10-12). 판정은 ScoutRules, 소모·영입은 SeasonState, 코인은 PlayerAccountData. 여기는 재료를 모아 넘긴다. 저장은 TryScout·BuyScoutAttempt만
     // 이번 시즌 후보 4명(스펙 §4-5 10-19 일괄 제시). 세이브에 없고 시드·로스터·시도 기록에서 매번 같게 나온다
     public IReadOnlyList<ScoutCandidate> ScoutCandidates()
     {
@@ -352,22 +352,45 @@ public class SeasonSystem : ISaveLoad
         return new ScoutVerdict(stars, chance, 0f, success: false, retries, unmet: !metBefore);
     }
 
-    // 지목 → 즉시 판정. 시도 1 소모, 성공이면 내 선수(같은 자리)와 교체. 주사위는 (시즌 시드, 팀, 선수, 시도 번호)라 같은 세팅 = 같은 결과.
-    // 자리 검사는 시도를 소모하기 전에 한다: 교체에서 던지면 시도만 줄고 저장은 안 되는 반쪽 상태가 된다
-    public ScoutVerdict TryScout(int teamId, int playerIndex, int myPlayerId)
+    // 벤치에 자리가 있어야 시도할 수 있다(스펙 §4-5 10-19: 영입 = 벤치 추가). 화면이 먼저 잠근다
+    public bool CanRecruit => SquadRules.BenchHasRoom(State.BenchCount);
+
+    // 지목 → 즉시 판정. 시도 1 소모, 성공이면 벤치에 추가(빌드는 내 총점 재분배, ★은 판정 값). 주사위는 (시즌 시드, 팀, 선수, 시도 번호)라 같은 세팅 = 같은 결과.
+    // 벤치·자리 검사는 시도를 소모하기 전에 한다: 추가에서 던지면 시도만 줄고 저장은 안 되는 반쪽 상태가 된다
+    public ScoutVerdict TryScout(int teamId, int playerIndex)
     {
         ThrowIfReporting();
         GeneratedTeam team = ScoutTeam(teamId);
         PlayerStats target = team.Players[playerIndex];
-        if (!State.CanReplacePlayer(myPlayerId, target)) { throw new InvalidOperationException($"[Season] 선수 {myPlayerId} 자리에 {target.RoleId}({teamId}팀 {playerIndex}번)는 못 들어간다"); }
+        if (!CanRecruit) { throw new InvalidOperationException($"[Season] 벤치가 찼다({State.BenchCount}/{SquadRules.MaxBench})"); }
+        if (!State.FitsLineupRole(target)) { throw new InvalidOperationException($"[Season] {target.RoleId}({teamId}팀 {playerIndex}번) 자리가 내 라인업에 없다"); }
 
         ScoutVerdict preview = PreviewScout(teamId, playerIndex);
         float roll = ScoutRules.Roll(State.SeasonSeed, teamId, playerIndex, State.ScoutAttempts);
         bool success = ScoutRules.Succeeds(preview.Chance, roll);
         State.SpendScoutAttempt(teamId, playerIndex, success);
-        if (success) { State.ReplacePlayer(myPlayerId, target); }
+        if (success) { State.AddToBench(target, preview.Stars); }
         CommitMyTactics();
         return new ScoutVerdict(preview.Stars, preview.Chance, roll, success: success, preview.Retries, preview.Unmet);
+    }
+
+    // 방출(벤치 선수만) → ★ × 코인. 규칙은 SeasonState·SquadRules, 코인은 PlayerAccountData
+    public int ReleasePlayer(int playerId)
+    {
+        ThrowIfReporting();
+        RosterPlayer released = State.Release(playerId);
+        int coins = SquadRules.ReleaseCoins(released.Stars);
+        GameDataManager.Instance.PlayerAccountData.AddCoins(coins);
+        CommitMyTactics();
+        return coins;
+    }
+
+    // 선발 교체(같은 자리). 이번 경기 재료가 옛 라인업이라 비우고 저장한다
+    public void SwapStarter(int starterId, int benchId)
+    {
+        ThrowIfReporting();
+        State.SwapStarter(starterId, benchId);
+        CommitMyTactics();
     }
 
     // 코인으로 시도 +1. 코인이 모자라면 false(PlayerAccountData.SpendCoin이 판정)
@@ -425,10 +448,11 @@ public class SeasonSystem : ISaveLoad
         // 시즌이 끝난 뒤 로비 전술 화면에서 바꾼 값도 끝난 시즌의 State에 들어가 있다가 여기서 읽혀 새 시즌으로 넘어간다(로비 편집 경로가 생기며 처음 도달 가능해진 순서)
         IReadOnlyList<RosterPlayer> previousRoster = State.Roster;   // 역할·개인 지시도 이어 간다. 새 시즌 로스터는 기본 편성에서 다시 만들어져 그대로 두면 풀린다
         IReadOnlyList<LineupEntry> previousLineup = State.Lineup;    // 끌어 둔 배치도
+        List<RosterPlayer> previousBench = State.Bench();            // 벤치는 역할·★만 넘어간다(스펙 §4-5 10-19)
         StartSeason(nextTier, unchecked(State.SeasonSeed + 1), State.MyPresetId);   // 다음 시즌 시드도 결정적(이전 시드 + 1)
         if (custom != null) { State.SetMyTactics(custom, TeamTacticsRepository.All); }
-        State.AdoptPlayerTactics(previousRoster, PlayerTableRepository.All);
-        State.AdoptLineup(previousLineup);
+        State.AdoptStarters(previousRoster, previousLineup, PlayerTableRepository.All);   // 슬롯 기준(스펙 §11 10-19)
+        State.AdoptBench(previousBench, PlayerTableRepository.All);
         SaveLoadSystem.Instance.Save();
     }
 
