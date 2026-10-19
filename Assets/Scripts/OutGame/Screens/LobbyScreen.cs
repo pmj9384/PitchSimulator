@@ -17,6 +17,7 @@ public class LobbyScreen : UIScreen
     [SerializeField] private TMP_Text matchupText;     // 상대 이름·홈/원정·상대 전술
     [SerializeField] private TMP_Text myTacticsText;   // 내 카드 이름 + 조정 여부
     [SerializeField] private TMP_Text readoutText;     // 지난 경기 설정 대 실측 한 줄
+    [SerializeField] private TMP_Text stripText;       // 시즌 띠 "R1 승 · R2 패 · R3 ▶ · R4 · R5"(10-19 일정표. 전체 표는 매치데이)
 
     private readonly StringBuilder readoutBuilder = new(128);
     private bool initialized;
@@ -32,7 +33,16 @@ public class LobbyScreen : UIScreen
             playButton.onClick.AddListener(OnPlay);
             optionsButton.onClick.AddListener(OnOptions);
         }
+        Season.Reported -= Refresh;   // 열려 있는 동안 보고가 끝나면 다시 그린다(치트 자동 진행 등 결과 화면을 안 거치는 경로). 빼고 더해 두 번 안 걸리게
+        Season.Reported += Refresh;
         Refresh();
+    }
+
+    // UIManager가 시작 때 Close를 먼저 부른다. 그때는 시즌이 아직 없을 수 있다
+    public override void Close()
+    {
+        if (GameDataManager.Instance != null) { Season.Reported -= Refresh; }
+        base.Close();
     }
 
     // 보고 중(IsReporting)엔 CurrentMatch가 던진다. 로비에선 결과 화면이 보고를 끝내고 와서 안 걸리지만, 새 진입 경로가 생겨도 조용히 틀리지 않게 잠근다
@@ -47,12 +57,14 @@ public class LobbyScreen : UIScreen
             matchupText.text = string.Empty;
             myTacticsText.text = string.Empty;
             readoutText.text = string.Empty;
+            stripText.text = string.Empty;
             return;
         }
         roundText.text = season.NextMatchLine();
         matchupText.text = season.IsOver ? MatchdayLines.SeasonOverNotice : MatchdayLines.Matchup(season.CurrentMatch);
         myTacticsText.text = MatchdayLines.MyTactics(season.State, TeamTacticsRepository.All);
         readoutText.text = ReadoutLine(season.State);
+        stripText.text = MatchdayLines.StripLine(season);
         playButtonLabel.text = season.IsOver ? "다음 시즌" : "일정 진행";
     }
 
