@@ -269,6 +269,23 @@ public class SeasonFlowTests
     }
 
     [Test]
+    public void 내_전술_이름은_바꾼_값이_있어도_기준_카드_이름이고_세이브를_왕복해도_비지_않는다()
+    {
+        // 10-15 Play: 조정한 전술은 세이브 DTO에 DisplayName이 없어 왕복 뒤 홈·매치데이의 "내 전술:" 이 비었다
+        SeasonState state = SeasonState.NewSeason(4, 42, myRows, table, "counter");
+        string counterName = SeasonRunner.FindPreset(presets, "counter").DisplayName;
+        Assert.AreEqual(counterName, state.MyCardName(presets), "바꾼 값이 없을 때");
+
+        TeamTactics counter = SeasonRunner.FindPreset(presets, "counter");
+        state.SetMyTactics(TacticsEditing.ApplySlider(counter, counter, TacticSlider.Forward, 1), presets);
+        Assert.AreEqual(counterName, state.MyCardName(presets), "슬라이더로 바꾼 뒤에도 기준 카드 이름");
+
+        SeasonState loaded = SeasonState.FromSave(state.ToSave(), table);
+        Assert.IsNotNull(loaded.MyCustomTactics, "바꾼 값은 왕복한다");
+        Assert.AreEqual(counterName, loaded.MyCardName(presets), "세이브 왕복 뒤에도 비지 않는다");
+    }
+
+    [Test]
     public void 옛_세이브엔_바꾼_값이_없어_카드_값을_쓰고_카드를_고르면_바꾼_값이_지워진다()
     {
         SeasonState state = SeasonState.NewSeason(4, 42, myRows, table, "counter");

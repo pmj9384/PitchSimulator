@@ -51,7 +51,7 @@ public class MatchdayScreen : UIScreen
         }
         roundText.text = season.NextMatchLine();
         matchupText.text = season.IsOver ? MatchdayLines.SeasonOverNotice : MatchdayLines.Matchup(season.CurrentMatch);
-        myTacticsText.text = MatchdayLines.MyTactics(season.State);
+        myTacticsText.text = MatchdayLines.MyTactics(season.State, TeamTacticsRepository.All);
     }
 
     private void OnTactics()

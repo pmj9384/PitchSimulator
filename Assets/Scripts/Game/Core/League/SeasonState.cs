@@ -187,6 +187,13 @@ namespace Game.Core.League
             return SeasonRunner.FindPreset(presets, MyPresetId);
         }
 
+        // 화면에 적는 내 전술 이름. 바꾼 값이 있어도 기준 카드 이름이다.
+        // 바꾼 값(MyCustomTactics)은 세이브 왕복 뒤 DisplayName이 비어 있다(10-15 Play 홈의 "내 전술:" 빈 칸)
+        public string MyCardName(IReadOnlyList<TeamTactics> presets)
+        {
+            return SeasonRunner.FindPreset(presets, MyPresetId).DisplayName;
+        }
+
         // ── 개인 전술(09-30, 전술 화면에서 필드의 선수 칩을 눌러 정한다)
         // 역할 변경: 같은 자리의 노출된 변형만. 지시 값(다이얼)은 새 역할 것으로, 능력치(빌드)는 그대로 둔다(스펙 축: 강화 없음, 목업 "스탯은 전술 창에 없다").
         // 개인 지시는 역할 기준 오프셋이라 역할을 바꾸면 지운다(팀 전술에서 카드를 고르면 바꾼 값이 지워지는 것과 같은 규칙)

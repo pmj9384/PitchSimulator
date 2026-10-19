@@ -51,7 +51,7 @@ public class LobbyScreen : UIScreen
         }
         roundText.text = season.NextMatchLine();
         matchupText.text = season.IsOver ? MatchdayLines.SeasonOverNotice : MatchdayLines.Matchup(season.CurrentMatch);
-        myTacticsText.text = MatchdayLines.MyTactics(season.State);
+        myTacticsText.text = MatchdayLines.MyTactics(season.State, TeamTacticsRepository.All);
         readoutText.text = ReadoutLine(season.State);
         playButtonLabel.text = season.IsOver ? "다음 시즌" : "일정 진행";
     }
