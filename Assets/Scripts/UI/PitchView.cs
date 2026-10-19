@@ -147,6 +147,14 @@ public class PitchView : MonoBehaviour
         SelectedPlayerId = lineup.Count > 0 ? lineup[0].PlayerId : NoPlayer;
     }
 
+    // 코드가 고를 때(스쿼드 패널에서 교체로 들어온 선수). 알림은 안 쏜다: 부른 쪽이 이미 안다
+    public void Select(int playerId)
+    {
+        SelectedPlayerId = playerId;
+        KeepSelectionInLineup();   // 라인업 밖 id면 첫 선수로(Refresh와 같은 규칙)
+        PlaceChips();
+    }
+
     private void OnChipClicked(PitchChip chip)
     {
         int index = Array.IndexOf(chips, chip);
