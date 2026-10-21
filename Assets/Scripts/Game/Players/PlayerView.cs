@@ -2,7 +2,7 @@ using System;
 using UnityEngine;
 
 // 선수의 겉모습 담당. 컨트롤러는 경기만 알고, 유니폼·피부·머리는 여기서 입힌다.
-// 모델 = Quaternius Ultimate Modular Males(10-22): 몸·다리·발은 전원 같고 머리 메시만 번호(PortraitRules.HeadOf)로 하나 켠다.
+// 모델 = Quaternius Ultimate Modular Males(10-21): 몸·다리·발은 전원 같고 머리 메시만 번호(PortraitRules.HeadOf)로 하나 켠다.
 // 렌더러마다 머티리얼 슬롯의 역할(피부·머리·유니폼·신발·그대로)을 프리팹에 적어 두고, 그 역할대로 머티리얼을 끼운다
 public class PlayerView : MonoBehaviour
 {

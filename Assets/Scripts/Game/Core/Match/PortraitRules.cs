@@ -1,11 +1,11 @@
 namespace Game.Core.Match
 {
     // 선수 겉모습 번호(1~VariantCount) = (머리 모양, 피부색, 머리색) 조합. 파워프로식: 생성 선수의 얼굴은 파츠 조합 데이터이고
-    // 경기 모델(Quaternius Ultimate Modular Males, CC0)도 초상(그 머리를 찍은 portrait_NNN)도 같은 번호에서 풀린다(10-22 유저 결정).
+    // 경기 모델(Quaternius Ultimate Modular Males, CC0)도 초상(그 머리를 찍은 portrait_NNN)도 같은 번호에서 풀린다(10-21 유저 결정).
     // 번호는 선수 개체(RosterPlayer)가 들고 다닌다: 후보 때 (팀, 번호)로 정한 얼굴을 영입 뒤에도 같게 보이려고
     public static class PortraitRules
     {
-        public const int None = 0;          // 옛 세이브(10-22 전)의 값. 로드 때 Of(playerId)로 바꾼다
+        public const int None = 0;          // 옛 세이브(10-21 전)의 값. 로드 때 Of(playerId)로 바꾼다
         public const int HeadCount = 6;     // 머리 메시 수(젊은 얼굴만 선별, PlayerView.headRenderers 순서). 에셋을 바꾸면 같이 고친다
         public const int SkinCount = 4;     // PlayerPalette.Skins
         public const int HairCount = 5;     // PlayerPalette.Hairs

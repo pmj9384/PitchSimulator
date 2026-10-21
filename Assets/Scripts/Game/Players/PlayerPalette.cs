@@ -3,7 +3,7 @@ using Game.Core.Match;
 using UnityEngine;
 
 // 선수 겉모습 색. 번호는 코어(KitRules·PortraitRules)가 정하고 색만 여기 둔다.
-// 유니폼: 0 = 내 팀, 1~7 = 상대(10-22 유저 "색만 좀" → 원색 대신 실제 유니폼 톤으로 채도를 낮춤 [가정])
+// 유니폼: 0 = 내 팀, 1~7 = 상대(10-21 유저 "색만 좀" → 원색 대신 실제 유니폼 톤으로 채도를 낮춤 [가정])
 public static class PlayerPalette
 {
     private static readonly Color[] Kits =

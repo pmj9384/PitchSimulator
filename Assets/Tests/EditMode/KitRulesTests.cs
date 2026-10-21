@@ -6,7 +6,7 @@ using Game.Core.Match;
 using Game.Core.Tactics;
 using NUnit.Framework;
 
-// 유니폼 번호·경기 얼굴(10-22 선수 모델 교체): ①내 팀은 0, 상대는 1~KitCount-1 ②같은 (시드, 부)의 상대 7팀까지 서로 다르다 ③같은 입력 = 같은 번호
+// 유니폼 번호·경기 얼굴(10-21 선수 모델 교체): ①내 팀은 0, 상대는 1~KitCount-1 ②같은 (시드, 부)의 상대 7팀까지 서로 다르다 ③같은 입력 = 같은 번호
 // ④이번 경기 세팅의 Portrait는 내 선수 = 로스터 개체 값, 상대 = 스카우트와 같은 (팀, 번호) 규칙, Kit1 = KitRules
 public class KitRulesTests
 {

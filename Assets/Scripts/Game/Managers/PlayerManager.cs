@@ -7,7 +7,7 @@ using UnityEngine.Pool;
 
 // 선수의 수명 관리자. 선수 번호 발급·풀 대여/반환·팀별 명부. 이 세 가지가 전부다.
 // 경기 진행은 MatchManager, 편성은 StageManager 몫. 여기는 "누가 필드에 있는가"의 명부만 안다.
-// 프리팹은 한 종류(Quaternius 모듈러 몸, 10-22). 겉모습 차이 = 머리 메시 하나 + 머티리얼(유니폼 KitRules, 피부·머리색 PortraitRules). 색은 PlayerPalette
+// 프리팹은 한 종류(Quaternius 모듈러 몸, 10-21). 겉모습 차이 = 머리 메시 하나 + 머티리얼(유니폼 KitRules, 피부·머리색 PortraitRules). 색은 PlayerPalette
 public class PlayerManager : InGameManager
 {
     [SerializeField] private GameObject playerPrefab;

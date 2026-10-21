@@ -15,7 +15,7 @@ namespace Game.Core.League
         public PlayerStats Stats { get; }   // 능력치(빌드) + 역할 값(다이얼). 개인 지시는 여기 안 들어 있다
         public IReadOnlyList<int> Instructions => instructions;   // 개인 지시: 역할 값 기준 오프셋, PlayerDial 순서. 전부 0이면 역할 값 그대로
         public int Stars { get; }   // 조합 특이성(ScoutRules.Stars). 기본 로스터는 1, 영입 선수는 판정 때 값. 방출 코인의 재료(스펙 §4-5 10-19)
-        public int Portrait { get; } // 초상 번호(PortraitRules, 1~VariantCount). 영입 선수는 후보 때 본 얼굴, 기본 로스터·옛 세이브는 playerId로(10-22)
+        public int Portrait { get; } // 초상 번호(PortraitRules, 1~VariantCount). 영입 선수는 후보 때 본 얼굴, 기본 로스터·옛 세이브는 playerId로(10-21)
 
         private readonly int[] instructions;
 
@@ -588,7 +588,7 @@ namespace Game.Core.League
                 copy.Diving = p.build[8];
                 if (copy.BuildTotal != PlayerStats.TotalPoints) { throw new InvalidOperationException($"[SeasonState] 선수 {p.playerId} 빌드 합계가 {PlayerStats.TotalPoints}가 아니다({copy.BuildTotal}). 내 선수는 총점 고정(스펙 축: 강화 없음)"); }
                 int stars = p.stars == 0 ? SquadRules.DefaultStars : p.stars;   // 옛 세이브(10-19 전)엔 없어 0 = 기본 로스터
-                roster.Add(new RosterPlayer(p.playerId, copy, p.instructions, stars, p.portrait));   // 지시 칸 수·범위·★·초상 범위는 생성자가 검증한다. 초상 0(10-22 전)은 playerId로
+                roster.Add(new RosterPlayer(p.playerId, copy, p.instructions, stars, p.portrait));   // 지시 칸 수·범위·★·초상 범위는 생성자가 검증한다. 초상 0(10-21 전)은 playerId로
             }
             var lineup = new List<LineupEntry>(save.lineup.Count);
             for (int i = 0; i < save.lineup.Count; i++)
@@ -716,7 +716,7 @@ namespace Game.Core.League
             public int[] build = Array.Empty<int>();
             public int[]? instructions;               // 개인 지시 오프셋(PlayerDial 순서). 지시가 없으면 null, 옛 세이브에도 없어 null → 역할 값 그대로
             public int stars;                         // 10-19 추가. 옛 세이브엔 없어 0 → 기본 1
-            public int portrait;                      // 10-22 추가. 초상 번호(PortraitRules). 옛 세이브엔 없어 0 → playerId로
+            public int portrait;                      // 10-21 추가. 초상 번호(PortraitRules). 옛 세이브엔 없어 0 → playerId로
         }
         [Serializable] public sealed class Slot
         {

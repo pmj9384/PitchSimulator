@@ -16,7 +16,7 @@ using UnityEngine.UI;
 // 규칙(후보·별·확률·주사위·영입)은 전부 코어(ScoutPool·ScoutRules·SeasonState), 시도 소모·저장은 SeasonSystem. 여기는 목록을 그리고 누른 것을 넘긴다.
 // 목록은 버튼 배열을 미리 깔아 두고 쓰는 만큼만 켠다(PlayerTacticsPanel의 역할 버튼과 같은 꼴): 후보 4. ②열은 버튼 하나만 쓴다(나머지는 숨김. 10-19 전엔 같은 자리의 내 선수 목록이었다)
 // 안내 글자(verdictText)는 누른 쪽 핸들러만 쓴다. 채우기 함수가 같이 쓰면 마지막 시도의 판정이 "시도가 없다"에 덮인다(10-12 리뷰 🔴)
-// 판정 연출은 ScoutRevealPopup(카드 뒤집기, 10-22)이 맡고 verdictText는 그 아래 글자 기록이자 팝업이 없는 씬의 예비다
+// 판정 연출은 ScoutRevealPopup(카드 뒤집기, 10-21)이 맡고 verdictText는 그 아래 글자 기록이자 팝업이 없는 씬의 예비다
 // 버튼 배선은 처음 열릴 때 한 번(TacticsBoardView와 같은 꼴). UIManager가 시작 때 Close만 부르므로 Awake에 두면 열리기 전엔 안 돈다
 public class ScoutScreen : UIScreen
 {
@@ -84,7 +84,7 @@ public class ScoutScreen : UIScreen
 
     // 여기서 판정한다. 성공이면 벤치에 들어가고 저장까지 끝난 뒤 돌아온다(SeasonSystem.TryScout).
     // 성공하면 그 자리의 후보가 다음 선수로 바뀌므로 선택을 푼다. 실패하면 같은 후보가 남아 재시도 +10%가 보이게 선택을 둔다.
-    // 목록은 팝업 뒤에서 먼저 갱신하고, 팝업(카드 뒤집기)이 닫히면 바뀐 목록이 보인다(10-22 연출)
+    // 목록은 팝업 뒤에서 먼저 갱신하고, 팝업(카드 뒤집기)이 닫히면 바뀐 목록이 보인다(10-21 연출)
     private void OnRecruitClicked(ScoutEntryButton button)
     {
         ScoutCandidate picked = candidates[selectedSlot];

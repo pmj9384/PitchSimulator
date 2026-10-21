@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using Game.Core.League;
 using NUnit.Framework;
 
-// 홈 한 줄 소식(10-22): ①시즌 시작 전엔 스카우트 소식뿐, 후보 ★이 없으면 없음 ②같은 입력 = 같은 소식 ③다른 경기 소식에 내 팀은 안 나온다
+// 홈 한 줄 소식(10-21): ①시즌 시작 전엔 스카우트 소식뿐, 후보 ★이 없으면 없음 ②같은 입력 = 같은 소식 ③다른 경기 소식에 내 팀은 안 나온다
 // ④순위 소식은 LeagueTable과 같다 ⑤시드·라운드가 바뀌면 종류가 섞인다(한 종류로 굳지 않는다)
 public class HomeNewsTests
 {

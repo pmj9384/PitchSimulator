@@ -70,7 +70,7 @@ public class PlayerController : MonoBehaviour
         FaceMovement();
     }
 
-    // 모델이 가는 방향을 본다(캡슐 시절엔 앞뒤가 없었다, 10-22). 서 있으면 마지막 방향 그대로
+    // 모델이 가는 방향을 본다(캡슐 시절엔 앞뒤가 없었다, 10-21). 서 있으면 마지막 방향 그대로
     private void FaceMovement()
     {
         Vector3 step = current - previous;

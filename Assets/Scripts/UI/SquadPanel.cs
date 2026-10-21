@@ -17,7 +17,7 @@ public class SquadPanel : MonoBehaviour
     [SerializeField] private TMP_Text headerText;          // "선발: ST 포처 · 벤치 3/7"
     [Header("벤치 행 (SquadRules.MaxBench개, 쓰는 만큼만 켠다)")]
     [SerializeField] private GameObject[] rowRoots;
-    [SerializeField] private Image[] rowIcons;             // 선수 초상(10-22)
+    [SerializeField] private Image[] rowIcons;             // 선수 초상(10-21)
     [SerializeField] private TMP_Text[] rowLabels;         // "ST 타깃맨 ★3"
     [SerializeField] private Button[] swapButtons;
     [SerializeField] private Button[] releaseButtons;

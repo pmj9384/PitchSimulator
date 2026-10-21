@@ -7,7 +7,7 @@ using Game.Core.Tactics;
 using NUnit.Framework;
 using UnityEngine;
 
-// 선수 초상(10-22): 얼굴 번호는 선수 개체가 들고 다닌다.
+// 선수 초상(10-21): 얼굴 번호는 선수 개체가 들고 다닌다.
 // ①번호 규칙은 결정적이고 1~VariantCount 안 ②영입은 스카우트에서 본 얼굴을 그대로 가져온다 ③역할 변경·지시·이월을 거쳐도 남는다
 // ④세이브가 왕복하고, 옛 세이브(번호 0)는 playerId로 정한다 ⑤Resources 스프라이트 수 = VariantCount(에셋과 상수가 어긋나면 여기서 깨진다)
 public class PortraitTests
@@ -105,7 +105,7 @@ public class PortraitTests
         Assert.AreEqual(4, back.Bench()[0].Portrait);
 
         SeasonSave old = state.ToSave();
-        for (int i = 0; i < old.roster.Count; i++) { old.roster[i].portrait = PortraitRules.None; }   // 10-22 전 세이브엔 이 필드가 없다
+        for (int i = 0; i < old.roster.Count; i++) { old.roster[i].portrait = PortraitRules.None; }   // 10-21 전 세이브엔 이 필드가 없다
         SeasonState fromOld = SeasonState.FromSave(old, table);
         for (int i = 0; i < fromOld.Roster.Count; i++)
         {

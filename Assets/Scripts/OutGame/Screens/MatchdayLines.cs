@@ -118,7 +118,7 @@ public static class MatchdayLines
         return sb.ToString();
     }
 
-    // 홈 띠 아래 한 줄 소식(10-22). 종류·재료는 코어 HomeNews가 시드로 정하고 여기는 문장만 만든다. 없으면 빈 줄
+    // 홈 띠 아래 한 줄 소식(10-21). 종류·재료는 코어 HomeNews가 시드로 정하고 여기는 문장만 만든다. 없으면 빈 줄
     public static string NewsLine(SeasonSystem season)
     {
         SeasonState state = season.State;

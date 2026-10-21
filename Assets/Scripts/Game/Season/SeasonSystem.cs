@@ -351,7 +351,7 @@ public class SeasonSystem : ISaveLoad
         return ScoutPool.Pick(State.SeasonSeed, State.Roster, Opponents, ScoutUpperTeam, State.ScoutTargets);
     }
 
-    // 후보 4명 중 가장 높은 ★(홈 한 줄 소식의 재료, 10-22). 후보가 없으면 0. 규칙 집계라 문장을 만드는 MatchdayLines가 아니라 여기 둔다
+    // 후보 4명 중 가장 높은 ★(홈 한 줄 소식의 재료, 10-21). 후보가 없으면 0. 규칙 집계라 문장을 만드는 MatchdayLines가 아니라 여기 둔다
     public int BestScoutStars()
     {
         IReadOnlyList<ScoutCandidate> candidates = ScoutCandidates();

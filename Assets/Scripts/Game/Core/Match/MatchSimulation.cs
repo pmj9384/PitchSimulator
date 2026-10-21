@@ -63,7 +63,7 @@ namespace Game.Core.Match
 
         public event Action<ShotReport>? ShotResolved;
         public event Action<PossessionReport>? PossessionChanged;
-        public event Action<int>? BallKicked;   // 선수가 공을 찼다(슛·패스, 인자 = 선수 번호). 화면 킥 애니용(10-22). 규칙·결정성과 무관
+        public event Action<int>? BallKicked;   // 선수가 공을 찼다(슛·패스, 인자 = 선수 번호). 화면 킥 애니용(10-21). 규칙·결정성과 무관
 
         public int TickCount => tickCount;                                   // 첫 Tick부터 센 수. 하프타임·HUD 시계의 기준(MatchManager.Ticks와 같은 값)
         public bool IsSecondHalf => tickCount >= MatchClock.HalfTimeTick(Added);

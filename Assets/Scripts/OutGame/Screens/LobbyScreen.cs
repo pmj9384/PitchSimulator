@@ -18,7 +18,7 @@ public class LobbyScreen : UIScreen
     [SerializeField] private TMP_Text myTacticsText;   // 내 카드 이름 + 조정 여부
     [SerializeField] private TMP_Text readoutText;     // 지난 경기 설정 대 실측 한 줄
     [SerializeField] private TMP_Text stripText;       // 시즌 띠 "R1 승 · R2 패 · R3 ▶ · R4 · R5"(10-19 일정표. 전체 표는 매치데이)
-    [SerializeField] private TMP_Text newsText;        // 띠 아래 한 줄 소식(10-22). 시드로 정해져 재시작해도 같다
+    [SerializeField] private TMP_Text newsText;        // 띠 아래 한 줄 소식(10-21). 시드로 정해져 재시작해도 같다
 
     private readonly StringBuilder readoutBuilder = new(128);
     private bool initialized;
