@@ -34,18 +34,18 @@ public class HomeNewsTests
     [Test]
     public void 시즌_시작_전엔_스카우트_소식만_있고_후보_별이_없으면_없음()
     {
-        NewsItem item = HomeNews.Pick(42, 0, Schedule, new List<MatchResult>(), Me, Teams, bestCandidateStars: 3);
+        NewsItem item = HomeNews.Pick(42, 0, new List<MatchResult>(), Me, Teams, bestCandidateStars: 3);
         Assert.AreEqual(NewsKind.ScoutCandidate, item.Kind);
         Assert.AreEqual(3, item.Stars);
-        Assert.AreEqual(NewsKind.None, HomeNews.Pick(42, 0, Schedule, new List<MatchResult>(), Me, Teams, bestCandidateStars: 0).Kind);
+        Assert.AreEqual(NewsKind.None, HomeNews.Pick(42, 0, new List<MatchResult>(), Me, Teams, bestCandidateStars: 0).Kind);
     }
 
     [Test]
     public void 같은_입력이면_같은_소식이다()
     {
         List<MatchResult> results = ResultsUpTo(3);
-        NewsItem a = HomeNews.Pick(42, 3, Schedule, results, Me, Teams, 1);
-        NewsItem b = HomeNews.Pick(42, 3, Schedule, results, Me, Teams, 1);
+        NewsItem a = HomeNews.Pick(42, 3, results, Me, Teams, 1);
+        NewsItem b = HomeNews.Pick(42, 3, results, Me, Teams, 1);
         Assert.AreEqual(a.Kind, b.Kind);
         Assert.AreEqual(a.HomeTeamId, b.HomeTeamId);
         Assert.AreEqual(a.Rank, b.Rank);
@@ -61,7 +61,7 @@ public class HomeNewsTests
             for (int round = 1; round <= 5; round++)
             {
                 List<MatchResult> results = ResultsUpTo(round);
-                NewsItem item = HomeNews.Pick(seed, round, Schedule, results, Me, Teams, 1);
+                NewsItem item = HomeNews.Pick(seed, round, results, Me, Teams, 1);
                 if (item.Kind != NewsKind.OtherResult) { continue; }
                 seen++;
                 Assert.AreNotEqual(Me, item.HomeTeamId);
@@ -84,7 +84,7 @@ public class HomeNewsTests
             for (int round = 1; round <= 5; round++)
             {
                 List<MatchResult> results = ResultsUpTo(round);
-                NewsItem item = HomeNews.Pick(seed, round, Schedule, results, Me, Teams, 1);
+                NewsItem item = HomeNews.Pick(seed, round, results, Me, Teams, 1);
                 if (item.Kind != NewsKind.RankChange) { continue; }
                 seen++;
                 Assert.AreEqual(LeagueTable.Standings(ids, results).RankOf(Me), item.Rank);
@@ -102,7 +102,7 @@ public class HomeNewsTests
         {
             for (int round = 1; round <= 5; round++)
             {
-                kinds.Add(HomeNews.Pick(seed, round, Schedule, ResultsUpTo(round), Me, Teams, 2).Kind);
+                kinds.Add(HomeNews.Pick(seed, round, ResultsUpTo(round), Me, Teams, 2).Kind);
             }
         }
         Assert.AreEqual(3, kinds.Count, "세 종류가 다 나와야 한다");
@@ -113,7 +113,7 @@ public class HomeNewsTests
     {
         for (int seed = 0; seed < 40; seed++)
         {
-            NewsItem item = HomeNews.Pick(seed, 2, Schedule, ResultsUpTo(2), Me, Teams, bestCandidateStars: 0);
+            NewsItem item = HomeNews.Pick(seed, 2, ResultsUpTo(2), Me, Teams, bestCandidateStars: 0);
             Assert.AreNotEqual(NewsKind.ScoutCandidate, item.Kind);
             Assert.AreNotEqual(NewsKind.None, item.Kind);
         }

@@ -36,17 +36,17 @@ namespace Game.Core.League
             Stars = stars;
         }
 
-        public static NewsItem OfResult(MatchResult r)
+        public static NewsItem OfOtherResult(MatchResult r)
         {
             return new NewsItem(NewsKind.OtherResult, r.HomeTeamId, r.AwayTeamId, r.HomeGoals, r.AwayGoals, 0, 0, 0);
         }
 
-        public static NewsItem OfRank(int rank, int previousRank)
+        public static NewsItem OfRankChange(int rank, int previousRank)
         {
             return new NewsItem(NewsKind.RankChange, 0, 0, 0, 0, rank, previousRank, 0);
         }
 
-        public static NewsItem OfScout(int stars)
+        public static NewsItem OfScoutCandidate(int stars)
         {
             return new NewsItem(NewsKind.ScoutCandidate, 0, 0, 0, 0, 0, 0, stars);
         }
@@ -57,29 +57,30 @@ namespace Game.Core.League
     // 순수 함수·시드 결정적: (시즌 시드, 치른 라운드)로 종류를 고르고, 그 종류의 재료가 없으면 다음 종류로 넘어간다. 세이브에 안 둔다
     public static class HomeNews
     {
-        private const int KindCount = 3;
+        // 뽑기 순서. 해시가 고른 자리부터 한 바퀴 돌며 재료가 있는 첫 종류를 쓴다
+        private static readonly NewsKind[] Order = { NewsKind.OtherResult, NewsKind.RankChange, NewsKind.ScoutCandidate };
         private const uint KindSalt = 11u;     // ScoutRules.Hash와 입력 수가 같아 소금으로 값을 떼어 놓는다
         private const uint PickSalt = 23u;
 
-        public static NewsItem Pick(int seasonSeed, int roundsPlayed, IReadOnlyList<Fixture> schedule, IReadOnlyList<MatchResult> results,
-            int myTeamId, int teamCount, int bestCandidateStars)
+        // 결과는 라운드마다 teamCount/2개가 순서대로 쌓인다(SeasonState.AddRound, FixtureList와 같은 전제). bestCandidateStars = 후보 4명 중 최고 ★(SeasonSystem.BestScoutStars), 0이면 스카우트 소식 없음
+        public static NewsItem Pick(int seasonSeed, int roundsPlayed, IReadOnlyList<MatchResult> results, int myTeamId, int teamCount, int bestCandidateStars)
         {
-            if (roundsPlayed <= 0) { return Scout(bestCandidateStars); }
+            if (roundsPlayed <= 0) { return ScoutCandidate(bestCandidateStars); }
 
-            int first = (int)(ScoutRules.Hash((uint)seasonSeed, (uint)roundsPlayed, KindSalt) % KindCount);
-            for (int i = 0; i < KindCount; i++)
+            int first = (int)(ScoutRules.Hash((uint)seasonSeed, (uint)roundsPlayed, KindSalt) % (uint)Order.Length);
+            for (int i = 0; i < Order.Length; i++)
             {
-                NewsItem item = Build((first + i) % KindCount, seasonSeed, roundsPlayed, results, myTeamId, teamCount, bestCandidateStars);
+                NewsItem item = Build(Order[(first + i) % Order.Length], seasonSeed, roundsPlayed, results, myTeamId, teamCount, bestCandidateStars);
                 if (item.Kind != NewsKind.None) { return item; }
             }
             return NewsItem.None;
         }
 
-        private static NewsItem Build(int kind, int seasonSeed, int roundsPlayed, IReadOnlyList<MatchResult> results, int myTeamId, int teamCount, int bestCandidateStars)
+        private static NewsItem Build(NewsKind kind, int seasonSeed, int roundsPlayed, IReadOnlyList<MatchResult> results, int myTeamId, int teamCount, int bestCandidateStars)
         {
-            if (kind == 0) { return OtherResult(seasonSeed, roundsPlayed, results, myTeamId, teamCount); }
-            if (kind == 1) { return RankChange(results, myTeamId, teamCount); }
-            return Scout(bestCandidateStars);
+            if (kind == NewsKind.OtherResult) { return OtherResult(seasonSeed, roundsPlayed, results, myTeamId, teamCount); }
+            if (kind == NewsKind.RankChange) { return RankChange(results, myTeamId, teamCount); }
+            return ScoutCandidate(bestCandidateStars);
         }
 
         // 지난 라운드 결과 중 내 경기를 뺀 것에서 하나. 결과는 라운드마다 teamCount/2개가 순서대로 쌓인다(FixtureList와 같은 전제)
@@ -99,7 +100,7 @@ namespace Game.Core.League
             if (others.Count == 0) { return NewsItem.None; }
 
             int pick = (int)(ScoutRules.Hash((uint)seasonSeed, (uint)roundsPlayed, PickSalt) % (uint)others.Count);
-            return NewsItem.OfResult(others[pick]);
+            return NewsItem.OfOtherResult(others[pick]);
         }
 
         // 지금 순위와 지난 라운드 전 순위. 한 라운드도 안 쌓였으면 없음
@@ -115,13 +116,13 @@ namespace Game.Core.League
 
             int rank = LeagueTable.Standings(ids, results).RankOf(myTeamId);
             int previous = LeagueTable.Standings(ids, before).RankOf(myTeamId);
-            return NewsItem.OfRank(rank, previous);
+            return NewsItem.OfRankChange(rank, previous);
         }
 
-        private static NewsItem Scout(int bestCandidateStars)
+        private static NewsItem ScoutCandidate(int bestCandidateStars)
         {
             if (bestCandidateStars <= 0) { return NewsItem.None; }
-            return NewsItem.OfScout(bestCandidateStars);
+            return NewsItem.OfScoutCandidate(bestCandidateStars);
         }
     }
 }
