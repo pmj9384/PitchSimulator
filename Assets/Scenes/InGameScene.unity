@@ -846,19 +846,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerManager
   playerPrefab: {fileID: 7105019092733779963, guid: 05d15ddedc4904d8c9f0fc4f4ec60214, type: 3}
-  kitTemplate: {fileID: 2100000, guid: 26fbc925138a5470cae40ffbd7ecdc13, type: 2}
-  faceMaterials:
-  - {fileID: 2100000, guid: 2ee171f11d6be43acbd45a9c1ad9bab8, type: 2}
-  - {fileID: 2100000, guid: 866a8ef6bd8474c70bd1efc9be61103d, type: 2}
-  - {fileID: 2100000, guid: 215c4d2e40cd244feb6765e65c13af3f, type: 2}
-  - {fileID: 2100000, guid: 128081989d2f946a09e584a6c5452ece, type: 2}
-  - {fileID: 2100000, guid: d2f2caa6f0a084cf09d5fe812f867cce, type: 2}
-  - {fileID: 2100000, guid: a3c84dbc2e7da411fad53baccbfff306, type: 2}
-  - {fileID: 2100000, guid: 106847aea1d9a4ee98abf89c8fe96692, type: 2}
-  - {fileID: 2100000, guid: 949c44f825ceb411e9cbf72e34a9ce7c, type: 2}
-  - {fileID: 2100000, guid: 79bc679ccb0f24ae88475880ea854d51, type: 2}
-  - {fileID: 2100000, guid: 80edcad81f7d6488caf3043c15dd788f, type: 2}
-  - {fileID: 2100000, guid: 2f2a24294029145ef9bca0c4eea36780, type: 2}
+  lookTemplate: {fileID: 2100000, guid: 26fbc925138a5470cae40ffbd7ecdc13, type: 2}
 --- !u!1001 &616587539
 PrefabInstance:
   m_ObjectHideFlags: 0

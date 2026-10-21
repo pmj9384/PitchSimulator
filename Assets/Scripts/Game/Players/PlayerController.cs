@@ -5,6 +5,10 @@ using UnityEngine;
 // 09-16 결정: 경기 루프를 엔진 없이 EditMode에서 굴리기 위해 상태를 전부 순수 쪽에 두었다. 매니저는 모른다.
 public class PlayerController : MonoBehaviour
 {
+    private static readonly int SpeedParam = Animator.StringToHash("Speed");   // PlayerAnimator.controller의 float. 서기/걷기/달리기를 고른다
+
+    [SerializeField] private Animator animator;
+
     public PlayerState State { get; private set; }
     public int PlayerId => State.PlayerId;
     public int Team => State.Team;
@@ -24,6 +28,7 @@ public class PlayerController : MonoBehaviour
     {
         previous = current;
         current = new Vector3(State.X, 0f, State.Z);
+        if (animator != null) { animator.SetFloat(SpeedParam, (current - previous).magnitude / MatchTuning.FixedStep); }   // m/s. 시뮬 속도 그대로
     }
 
     // 배치·킥오프처럼 순간이동이 맞는 때: 보간 없이 바로 세운다
@@ -32,6 +37,7 @@ public class PlayerController : MonoBehaviour
         current = new Vector3(State.X, 0f, State.Z);
         previous = current;
         transform.position = current;
+        if (animator != null) { animator.SetFloat(SpeedParam, 0f); }
     }
 
     public Vector3 ViewPosition => current;

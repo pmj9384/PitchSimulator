@@ -2,7 +2,7 @@ using Game.Core.Match;
 using UnityEngine;
 
 // 초상 스프라이트 접근층. 다른 리포지토리와 같은 꼴(정적·지연 로드·캐시). 번호 규칙은 순수 코어(PortraitRules), 여기는 Resources에서 꺼내기만 한다.
-// 그림 = Kenney Sports Pack(CC0) 머리 10종, Resources/Sprites/Portrait/portrait_01~10. 장수가 PortraitRules.VariantCount와 같은지는 PortraitTests가 본다
+// 그림 = 경기 선수 머리(Quaternius 모듈러)를 조합마다 찍은 portrait_001~NNN(머리 × 피부 × 머리색). 장수가 PortraitRules.VariantCount와 같은지는 PortraitTests가 본다
 public static class PortraitRepository
 {
     private const string ResourceFolder = "Sprites/Portrait";
@@ -26,7 +26,7 @@ public static class PortraitRepository
         cache = new Sprite[PortraitRules.VariantCount];
         for (int portrait = 1; portrait <= PortraitRules.VariantCount; portrait++)
         {
-            Sprite sprite = Resources.Load<Sprite>($"{ResourceFolder}/portrait_{portrait:00}");
+            Sprite sprite = Resources.Load<Sprite>($"{ResourceFolder}/portrait_{portrait:000}");
             if (sprite == null) { Debug.LogError($"[PortraitRepository] {ResourceFolder}/portrait_{portrait:00} 없음"); }
             cache[portrait - 1] = sprite;
         }

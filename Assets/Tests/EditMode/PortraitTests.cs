@@ -120,7 +120,7 @@ public class PortraitTests
         Assert.AreEqual(PortraitRules.VariantCount, sprites.Length);
         for (int portrait = 1; portrait <= PortraitRules.VariantCount; portrait++)
         {
-            Assert.IsNotNull(Resources.Load<Sprite>($"Sprites/Portrait/portrait_{portrait:00}"), $"portrait_{portrait:00} 없음");
+            Assert.IsNotNull(Resources.Load<Sprite>($"Sprites/Portrait/portrait_{portrait:000}"), $"portrait_{portrait:000} 없음");
         }
     }
 }
