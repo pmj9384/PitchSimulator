@@ -3,13 +3,13 @@ using UnityEngine;
 using UnityEngine.UI;
 
 // 버튼 몇 개 중 하나를 고르면 그 버튼을 강조하고, 짝이 있는 내용 묶음만 보여 준다.
-// 전술 화면에서 두 군데가 쓴다: 팀 전술 세부 3묶음(공격할 때·수비할 때·공수가 바뀔 때), 필드의 공격할 때/수비할 때.
-// 내용 묶음이 없는 그룹(contents를 비움)은 선택 표시와 Selected 알림만 한다.
+// 전술 화면에서 두 군데가 쓴다: 위 탭 [팀 전술][개인 전술][스쿼드](패널 3개를 바꿔 보임), 필드의 공격할 때/수비할 때(내용 없음).
+// 내용 묶음이 없는 그룹(contents를 비움)은 선택 표시와 Selected 알림만 한다. 팀 전술 세부 3탭은 10-21 표 재배치 때 없앴다.
 // 코드가 고를 때(Select)는 알림을 쏘지 않는다. 사용자가 눌렀을 때만 쏜다
 public class TabGroup : MonoBehaviour
 {
     private static readonly Color SelectedColor = TacticsColors.Highlight;
-    private static readonly Color NormalColor = new Color(0.82f, 0.84f, 0.88f);   // 안 고른 탭. 글자가 짙은 색이라 밝은 회색
+    private static readonly Color NormalColor = TacticsColors.Unselected;
 
     [SerializeField] private Button[] tabButtons;
     [SerializeField] private Image[] tabImages;
