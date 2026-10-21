@@ -15,5 +15,8 @@ namespace Game.Core.Tactics
 
         // 서드 3열. 스펙 §3 "우리 진영 ≤ −17.5 < 중원 < 17.5 ≤ 상대 진영"과 같은 말(10-12 표기 통일: 결과 화면이 "중앙"이라 적던 것)
         public static readonly string[] Thirds = { "우리 진영", "중원", "상대 진영" };
+
+        // 팀 전술 표의 공격 조직 행 이름(10-21 목업 4번 보드). 행 = 공이 있는 서드, 열 = 항목 4개
+        public static readonly string[] AttackRows = { "우리 진영 빌드업", "중원 진행", "상대 진영 마무리" };
     }
 }
