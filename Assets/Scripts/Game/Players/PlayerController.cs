@@ -6,6 +6,7 @@ using UnityEngine;
 public class PlayerController : MonoBehaviour
 {
     private static readonly int SpeedParam = Animator.StringToHash("Speed");   // PlayerAnimator.controller의 float. 서기/걷기/달리기를 고른다
+    private static readonly int KickParam = Animator.StringToHash("Kick");     // 트리거. 슛·패스 순간(MatchSimulation.BallKicked)
 
     [SerializeField] private Animator animator;
 
@@ -41,6 +42,11 @@ public class PlayerController : MonoBehaviour
     }
 
     public Vector3 ViewPosition => current;
+
+    public void PlayKick()
+    {
+        if (animator != null) { animator.SetTrigger(KickParam); }
+    }
 
     // 시뮬 밖 연출(골 세리머니, 09-29): 상태는 그대로 두고 화면만 옮긴다. 보간은 SyncView와 같은 방식
     public void MoveViewToward(Vector3 target, float maxStep)

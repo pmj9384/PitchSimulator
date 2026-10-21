@@ -720,4 +720,19 @@ public class MatchSimulationTests
         Assert.AreEqual(14f, striker.Stats.PressRange);
         Assert.Throws<System.InvalidOperationException>(() => striker.ReplaceStats(Keeper()), "필드 선수를 골키퍼 값으로 바꿀 수 없다");
     }
+
+    [Test]
+    public void 슛마다_찼다_이벤트가_슈터_번호로_온다()
+    {
+        // 화면 킥 애니용 BallKicked(10-22). 리트머스는 패스가 없어 슛 수 = 킥 수이고, 막힌 슛도 찬 것으로 센다
+        float[] sequence = { 0.10f,0.5f, 0.50f,0.5f,0.50f, 0.90f,0.5f,0.20f, 0.35f,0.5f,0.70f, 0.05f,0.5f, 0.60f,0.5f,0.99f, 0.40f,0.5f,0.30f, 0.80f,0.5f,0.15f, 0.55f,0.5f,0.25f, 0.65f,0.5f,0.45f, 0.75f,0.5f,0.33f, 0.66f,0.5f,0.11f };
+        MatchSimulation sim = LitmusMatch(new RollQueue(sequence));
+        var kickers = new List<int>();
+        sim.BallKicked += id => kickers.Add(id);
+
+        RunShots(sim, 10);
+
+        Assert.AreEqual(10, kickers.Count);
+        for (int i = 0; i < kickers.Count; i++) { Assert.AreEqual(0, kickers[i], "리트머스에서 차는 건 스트라이커(0)뿐"); }
+    }
 }

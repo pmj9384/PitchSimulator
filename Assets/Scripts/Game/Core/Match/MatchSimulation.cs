@@ -63,6 +63,7 @@ namespace Game.Core.Match
 
         public event Action<ShotReport>? ShotResolved;
         public event Action<PossessionReport>? PossessionChanged;
+        public event Action<int>? BallKicked;   // 선수가 공을 찼다(슛·패스, 인자 = 선수 번호). 화면 킥 애니용(10-22). 규칙·결정성과 무관
 
         public int TickCount => tickCount;                                   // 첫 Tick부터 센 수. 하프타임·HUD 시계의 기준(MatchManager.Ticks와 같은 값)
         public bool IsSecondHalf => tickCount >= MatchClock.HalfTimeTick(Added);
@@ -655,6 +656,7 @@ namespace Game.Core.Match
             if (!MatchRules.IsOnTarget(shotAimZ)) { shotWillScore = false; }
 
             float goalX = FieldBounds.HalfLength * shooter.AttackSign;
+            BallKicked?.Invoke(shooter.PlayerId);   // 막혀도 찬 건 찬 것
             if (TryBlockShot(shooter, goalX)) { return; }
             Ball = BallRules.Kick(Ball, goalX - shooter.X, shotAimZ - shooter.Z, MatchTuning.ShotSpeed);
         }
@@ -719,6 +721,7 @@ namespace Game.Core.Match
             takeOnOwnerId = BallState.NoOwner;    // 공을 내줬으면 돌파도 끝
 
             Ball = BallRules.Kick(Ball, dx, dz, speed);
+            BallKicked?.Invoke(passer.PlayerId);
         }
 
         // 소유자가 바뀐 틱: 패스 비행 마감(받았거나 가로챘거나), 볼 끌기 대기 시작
