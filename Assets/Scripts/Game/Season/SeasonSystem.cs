@@ -396,7 +396,7 @@ public class SeasonSystem : ISaveLoad
         float roll = ScoutRules.Roll(State.SeasonSeed, teamId, playerIndex, State.ScoutAttempts);
         bool success = ScoutRules.Succeeds(preview.Chance, roll);
         State.SpendScoutAttempt(teamId, playerIndex, success);
-        if (success) { State.AddToBench(target, preview.Stars); }
+        if (success) { State.AddToBench(target, preview.Stars, PortraitRules.Of(teamId, playerIndex)); }   // 후보 행에서 보여 준 얼굴 그대로
         CommitMyTactics();
         return new ScoutVerdict(preview.Stars, preview.Chance, roll, success: success, preview.Retries, preview.Unmet);
     }

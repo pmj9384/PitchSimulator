@@ -52,10 +52,10 @@ public class SquadRulesTests
     {
         SeasonState state = SeasonState.NewSeason(4, 42, myRows, table);
         PlayerStats st = OpponentPlayer("ST");
-        for (int i = 0; i < SquadRules.MaxBench; i++) { state.AddToBench(st, 1); }
+        for (int i = 0; i < SquadRules.MaxBench; i++) { state.AddToBench(st, 1, portrait: 1); }
         Assert.AreEqual(SquadRules.MaxBench, state.BenchCount);
         Assert.IsFalse(SquadRules.BenchHasRoom(state.BenchCount));
-        Assert.Throws<System.InvalidOperationException>(() => state.AddToBench(st, 1));
+        Assert.Throws<System.InvalidOperationException>(() => state.AddToBench(st, 1, portrait: 1));
         Assert.AreEqual(11 + SquadRules.MaxBench, state.Roster.Count);
     }
 
@@ -63,7 +63,7 @@ public class SquadRulesTests
     public void 방출은_벤치만_되고_선발은_던지며_코인은_별_곱_30이다()
     {
         SeasonState state = SeasonState.NewSeason(4, 42, myRows, table);
-        RosterPlayer added = state.AddToBench(OpponentPlayer("CB"), 4);
+        RosterPlayer added = state.AddToBench(OpponentPlayer("CB"), 4, portrait: 1);
         int starter = MyStarterOf(state, "CB");
 
         Assert.Throws<System.InvalidOperationException>(() => state.Release(starter), "선발은 먼저 벤치로 내린다");
@@ -79,7 +79,7 @@ public class SquadRulesTests
     public void 선발_교체는_같은_자리만_되고_자리_2쌍은_슬롯에_남고_개인_지시는_선수를_따라간다()
     {
         SeasonState state = SeasonState.NewSeason(4, 42, myRows, table);
-        RosterPlayer benchSt = state.AddToBench(OpponentPlayer("ST"), 1);
+        RosterPlayer benchSt = state.AddToBench(OpponentPlayer("ST"), 1, portrait: 1);
         int starterSt = MyStarterOf(state, "ST");
         int starterGk = MyStarterOf(state, "GK");
         state.SetPlayerInstruction(starterSt, PlayerDial.PushUp, 1);
@@ -113,8 +113,8 @@ public class SquadRulesTests
         Assert.AreEqual(0, fromOld.BenchCount);
         for (int i = 0; i < fromOld.Roster.Count; i++) { Assert.AreEqual(SquadRules.DefaultStars, fromOld.Roster[i].Stars); }
 
-        state.AddToBench(OpponentPlayer("ST"), 3);
-        state.AddToBench(OpponentPlayer("CB"), 2);
+        state.AddToBench(OpponentPlayer("ST"), 3, portrait: 1);
+        state.AddToBench(OpponentPlayer("CB"), 2, portrait: 1);
         SeasonState back = SeasonState.FromSave(state.ToSave(), table);
         Assert.AreEqual(2, back.BenchCount);
         Assert.AreEqual(13, back.Roster.Count);
@@ -128,7 +128,7 @@ public class SquadRulesTests
     {
         // 10-19 리뷰 🔴: RosterPlayer를 손으로 다시 만들던 4곳이 ★을 빠뜨려 1로 떨어졌다
         SeasonState state = SeasonState.NewSeason(4, 42, myRows, table);
-        RosterPlayer added = state.AddToBench(OpponentPlayer("ST"), 3);
+        RosterPlayer added = state.AddToBench(OpponentPlayer("ST"), 3, portrait: 1);
         state.SetPlayerInstruction(added.PlayerId, PlayerDial.PushUp, 1);
         Assert.AreEqual(3, state.FindRosterPlayer(added.PlayerId).Stars, "지시 설정 뒤");
         state.ClearPlayerInstructions(added.PlayerId);
@@ -152,7 +152,7 @@ public class SquadRulesTests
             }
         }
         Assert.IsNotNull(otherSt, "3부에 다른 변형의 ST가 있어야 한다");
-        RosterPlayer recruit = previous.AddToBench(otherSt, 4);
+        RosterPlayer recruit = previous.AddToBench(otherSt, 4, portrait: 1);
         int starterSt = MyStarterOf(previous, "ST");
         int slot = -1;
         for (int i = 0; i < previous.Lineup.Count; i++) { if (previous.Lineup[i].PlayerId == starterSt) { slot = i; } }
@@ -179,10 +179,10 @@ public class SquadRulesTests
     {
         SeasonState state = SeasonState.NewSeason(4, 42, myRows, table);
         PlayerStats st = OpponentPlayer("ST");
-        for (int i = 0; i < SquadRules.MaxBench; i++) { state.AddToBench(st, 1); }
+        for (int i = 0; i < SquadRules.MaxBench; i++) { state.AddToBench(st, 1, portrait: 1); }
 
         SeasonState next = SeasonState.NewSeason(3, 43, myRows, table);
-        next.AddToBench(st, 1);   // 새 시즌에 이미 한 명 있다고 치면
+        next.AddToBench(st, 1, portrait: 1);   // 새 시즌에 이미 한 명 있다고 치면
         next.AdoptBench(state.Bench(), table);
         Assert.AreEqual(SquadRules.MaxBench, next.BenchCount, "상한에서 멈춘다");
     }

@@ -17,6 +17,7 @@ public class SquadPanel : MonoBehaviour
     [SerializeField] private TMP_Text headerText;          // "선발: ST 포처 · 벤치 3/7"
     [Header("벤치 행 (SquadRules.MaxBench개, 쓰는 만큼만 켠다)")]
     [SerializeField] private GameObject[] rowRoots;
+    [SerializeField] private Image[] rowIcons;             // 선수 초상(10-22)
     [SerializeField] private TMP_Text[] rowLabels;         // "ST 타깃맨 ★3"
     [SerializeField] private Button[] swapButtons;
     [SerializeField] private Button[] releaseButtons;
@@ -104,6 +105,9 @@ public class SquadPanel : MonoBehaviour
             rowRoots[i].SetActive(hasPlayer);
             if (!hasPlayer) { continue; }
             RosterPlayer player = bench[i];
+            Sprite portrait = PortraitRepository.Get(player.Portrait);
+            rowIcons[i].sprite = portrait;
+            rowIcons[i].enabled = portrait != null;   // 에셋이 빠졌으면 흰 네모 대신 빈 칸(ScoutEntryButton과 같은 규칙)
             rowLabels[i].text = $"{player.Stats.RoleId} {player.Stats.DisplayName}  {new string('★', player.Stars)}";
             swapButtons[i].interactable = PlayerTableLookup.IsSamePosition(player.Stats, starterRole);
             int coins = SquadRules.ReleaseCoins(player.Stars);

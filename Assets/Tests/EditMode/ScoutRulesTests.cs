@@ -207,7 +207,7 @@ public class ScoutRulesTests
         Assert.AreEqual(260, target.BuildTotal, "4부 상대는 260점");
         int rosterBefore = state.Roster.Count;
 
-        RosterPlayer added = state.AddToBench(target, 3);
+        RosterPlayer added = state.AddToBench(target, 3, portrait: 1);
         Assert.AreEqual(rosterBefore + 1, state.Roster.Count, "로스터가 1 는다");
         Assert.AreEqual(1, state.BenchCount);
         Assert.IsFalse(state.IsStarter(added.PlayerId), "벤치로 들어간다");
@@ -219,7 +219,7 @@ public class ScoutRulesTests
         Assert.AreEqual(11, state.Lineup.Count, "선발 11은 그대로");
 
         PlayerStats am = table.Find(p => p.RoleId == "AM");
-        Assert.Throws<System.InvalidOperationException>(() => state.AddToBench(am, 1), "내 라인업에 없는 자리는 못 넣는다");
+        Assert.Throws<System.InvalidOperationException>(() => state.AddToBench(am, 1, portrait: 1), "내 라인업에 없는 자리는 못 넣는다");
     }
 
     [Test]
@@ -229,7 +229,7 @@ public class ScoutRulesTests
         SeasonState state = SeasonState.NewSeason(4, 42, myRows, table);
         string myVariant = state.FindRosterPlayer(MyPlayerIdOf(state, "ST")).Stats.VariantId;
         PlayerStats target = FirstStrikerWithOtherVariant(TeamGenerator.Generate(42, Tier(3), table, formations, names), myVariant);   // 4부는 전원 기본 변형이라 같은 변형이 나와 단언이 공허해진다(10-13 리뷰). 3부에서 다른 변형을 고른다
-        RosterPlayer added = state.AddToBench(target, 2);
+        RosterPlayer added = state.AddToBench(target, 2, portrait: 1);
 
         SeasonState back = SeasonState.FromSave(state.ToSave(), table);
         RosterPlayer loaded = back.FindRosterPlayer(added.PlayerId);

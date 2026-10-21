@@ -14,7 +14,7 @@ public class ScoutEntryButton : MonoBehaviour
     [SerializeField] private Button button;
     [SerializeField] private Image background;
     [SerializeField] private TMP_Text label;
-    [SerializeField] private Image icon;   // 선수 초상 자리(10-15). 아직 에셋이 없어 비워 둔다. 팀·내 선수 행은 칸 자체가 없어 null
+    [SerializeField] private Image icon;   // 선수 초상 자리(10-15). 후보 행만 칸이 있고 팀·내 선수 행은 null
 
     public event Action<ScoutEntryButton> Clicked;
 
@@ -25,19 +25,26 @@ public class ScoutEntryButton : MonoBehaviour
 
     public void Show(string text, bool selected, bool interactable)
     {
+        Show(text, null, selected, interactable);
+    }
+
+    // portrait = 선수 초상(PortraitRepository). 글자만 있는 행은 null
+    public void Show(string text, Sprite portrait, bool selected, bool interactable)
+    {
         gameObject.SetActive(true);
         label.text = text;
         label.color = NormalTextColor;
         background.color = selected ? SelectedColor : NormalColor;
         button.interactable = interactable;
-        ShowIcon();
+        ShowIcon(portrait);
     }
 
-    // 초상이 없으면 칸을 끈다(흰 네모가 보이지 않게). 에셋이 들어오면 여기서 스프라이트를 받는다
-    private void ShowIcon()
+    // 초상이 없으면 칸을 끈다(흰 네모가 보이지 않게)
+    private void ShowIcon(Sprite portrait)
     {
         if (icon == null) { return; }
-        icon.enabled = icon.sprite != null;
+        icon.sprite = portrait;
+        icon.enabled = portrait != null;
     }
 
     public void Hide()

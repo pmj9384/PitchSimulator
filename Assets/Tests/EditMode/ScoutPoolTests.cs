@@ -117,7 +117,7 @@ public class ScoutPoolTests
         for (int i = 0; i < 4; i++) { Assert.IsTrue(afterFail[i].Is(before[i].TeamId, before[i].PlayerIndex), $"실패 뒤 자리 {i}"); }
 
         state.SpendScoutAttempt(before[2].TeamId, before[2].PlayerIndex, success: true);
-        state.AddToBench(upper.Players[before[2].PlayerIndex], 3);   // 실제 영입(벤치 추가)까지: 로스터가 늘어도 풀(라인업 자리 집합)은 그대로여야 한다
+        state.AddToBench(upper.Players[before[2].PlayerIndex], 3, portrait: 1);   // 실제 영입(벤치 추가)까지: 로스터가 늘어도 풀(라인업 자리 집합)은 그대로여야 한다
         List<ScoutCandidate> afterSuccess = ScoutPool.Pick(42, state.Roster, own, upper, state.ScoutTargets);
         Assert.IsFalse(afterSuccess[2].Is(before[2].TeamId, before[2].PlayerIndex), "성공한 자리는 다음 후보");
         Assert.IsTrue(afterSuccess[2].UpperTier, "같은 풀(위 부)에서 뽑는다");

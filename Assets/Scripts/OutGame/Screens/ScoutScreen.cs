@@ -142,7 +142,8 @@ public class ScoutScreen : UIScreen
                 candidateButtons[i].Hide();
                 continue;
             }
-            candidateButtons[i].Show(CandidateLine(candidates[i]), i == selectedSlot, interactable: true);
+            Sprite portrait = PortraitRepository.Get(PortraitRules.Of(candidates[i].TeamId, candidates[i].PlayerIndex));   // 영입되면 이 번호가 선수를 따라간다(SeasonSystem.TryScout)
+            candidateButtons[i].Show(CandidateLine(candidates[i]), portrait, i == selectedSlot, interactable: true);
         }
     }
 
