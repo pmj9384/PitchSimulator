@@ -11,10 +11,12 @@ namespace Game.Core.Match
         public readonly float AttackZ;
         public readonly float DefendX;
         public readonly float DefendZ;
+        public readonly int Portrait;   // 머리 번호(PortraitRules). 내 선수는 개체가 든 값, 상대는 (팀, 번호)로. 경기 화면·초상이 같은 얼굴을 보이게(10-22)
 
-        public LineupSlot(PlayerStats stats, float attackX, float attackZ, float defendX, float defendZ)
+        public LineupSlot(PlayerStats stats, float attackX, float attackZ, float defendX, float defendZ, int portrait)
         {
             Stats = stats;
+            Portrait = portrait;
             AttackX = attackX;
             AttackZ = attackZ;
             DefendX = defendX;

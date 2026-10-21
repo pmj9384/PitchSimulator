@@ -49,8 +49,21 @@ public class PlayerController : MonoBehaviour
         previous = current;
     }
 
+    private const float TurnDegreesPerSecond = 720f;   // [가정] 출처 없음. 한 스텝(0.02초) 사이 반대 방향 전환을 0.25초 안에 끝내는 값
+    private const float MinMoveSqr = 0.0001f;            // 이보다 덜 움직이면 서 있는 것(향한 방향 유지)
+
     private void Update()
     {
         transform.position = Vector3.Lerp(previous, current, ViewInterpolation.Alpha());
+        FaceMovement();
+    }
+
+    // 모델이 가는 방향을 본다(캡슐 시절엔 앞뒤가 없었다, 10-22). 서 있으면 마지막 방향 그대로
+    private void FaceMovement()
+    {
+        Vector3 step = current - previous;
+        if (step.sqrMagnitude < MinMoveSqr) { return; }
+        Quaternion target = Quaternion.LookRotation(step, Vector3.up);
+        transform.rotation = Quaternion.RotateTowards(transform.rotation, target, TurnDegreesPerSecond * Time.deltaTime);
     }
 }

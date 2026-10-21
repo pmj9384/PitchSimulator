@@ -7,21 +7,23 @@ using UnityEngine.Pool;
 
 // 선수의 수명 관리자. 선수 번호 발급·풀 대여/반환·팀별 명부. 이 세 가지가 전부다.
 // 경기 진행은 MatchManager, 편성은 StageManager 몫. 여기는 "누가 필드에 있는가"의 명부만 안다.
-// 1차 이식: 프리팹은 한 종류(캡슐). 역할별 겉모습이 생기면 WTS처럼 roleId별 프리팹 캐시로 넓힌다.
+// 프리팹은 한 종류(Kenney Blocky 몸, 10-22). 겉모습 차이는 머티리얼뿐: 유니폼(팀 번호 KitRules → KitPalette 색)과 얼굴(머리 번호 PortraitRules → faceMaterials)
 public class PlayerManager : InGameManager
 {
     [SerializeField] private GameObject playerPrefab;
-    [SerializeField] private Material homeMaterial;   // 팀 0 = 플레이어
-    [SerializeField] private Material awayMaterial;   // 팀 1 = 상대
+    [SerializeField] private Material kitTemplate;     // 유니폼 머티리얼 원본(URP Lit). 번호마다 색만 바꾼 복사본을 캐시
+    [SerializeField] private Material[] faceMaterials; // [portrait - 1]. Materials/Faces/face_NN, PortraitRules.VariantCount개
 
     private ObjectPool<GameObject> pool;
     private readonly List<PlayerController>[] rosters = { new List<PlayerController>(), new List<PlayerController>() };
     private readonly Dictionary<int, PlayerController> byId = new Dictionary<int, PlayerController>();
     private int nextPlayerId;     // 스폰 순서로 발급하는 선수 번호. 타이브레이크 기준(GetInstanceID 금지)
+    private readonly Dictionary<int, Material> kits = new Dictionary<int, Material>();   // 유니폼 번호 → 머티리얼. 한 판에 2개
 
     // attackHome = 아군 소유 때 자리(킥오프 위치이기도 하다), defendHome = 상대 소유 때 자리(스펙 §4-3 자리 2쌍)
     // stats는 호출자가 준다: 시즌 로스터·부 총점으로 축소한 상대 빌드는 PlayerTable에 없는 사본이라 variantId 조회로는 못 세운다
-    public PlayerController Spawn(PlayerStats stats, int team, Vector3 attackHome, Vector3 defendHome)
+    // portrait = 머리 번호(LineupSlot.Portrait), kit = 유니폼 번호(MatchSetup.Kit0/Kit1)
+    public PlayerController Spawn(PlayerStats stats, int team, Vector3 attackHome, Vector3 defendHome, int portrait, int kit)
     {
         if (stats == null)
         {
@@ -37,7 +39,7 @@ public class PlayerManager : InGameManager
 
         PlayerController player = body.GetComponent<PlayerController>();
         player.Setup(state);
-        ApplyTeamColor(body, team);
+        ApplyLook(body, portrait, kit);
 
         rosters[team].Add(player);
         byId[player.PlayerId] = player;
@@ -77,11 +79,33 @@ public class PlayerManager : InGameManager
         return Instantiate(playerPrefab);
     }
 
-    private void ApplyTeamColor(GameObject body, int team)
+    private void ApplyLook(GameObject body, int portrait, int kit)
     {
         PlayerView view = body.GetComponent<PlayerView>();
         if (view == null) { return; }
-        view.ApplyTeam(team == 0 ? homeMaterial : awayMaterial);
+        view.ApplyLook(KitMaterial(kit), FaceMaterial(portrait));
+    }
+
+    private Material KitMaterial(int kit)
+    {
+        Material material;
+        if (kits.TryGetValue(kit, out material)) { return material; }
+
+        material = new Material(kitTemplate);
+        material.name = $"Kit_{kit}";
+        material.color = KitPalette.Of(kit);
+        kits[kit] = material;
+        return material;
+    }
+
+    private Material FaceMaterial(int portrait)
+    {
+        if (!PortraitRules.IsValid(portrait) || faceMaterials == null || portrait > faceMaterials.Length)
+        {
+            Debug.LogError($"[PlayerManager] 얼굴 머티리얼 없음: 번호 {portrait}, 배열 {faceMaterials?.Length ?? 0}");
+            return kitTemplate;
+        }
+        return faceMaterials[portrait - 1];
     }
 
     private void OnGetFromPool(GameObject body)

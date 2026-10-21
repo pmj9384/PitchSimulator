@@ -56,7 +56,7 @@ namespace Game.Core.AutoMatch
                 float defendStartZ = row.DefendZ - (row.Count - 1) * spread * 0.5f;
                 for (int k = 0; k < row.Count; k++)
                 {
-                    slots.Add(new LineupSlot(stats, row.PosX, attackStartZ + k * spread, row.DefendX, defendStartZ + k * spread));
+                    slots.Add(new LineupSlot(stats, row.PosX, attackStartZ + k * spread, row.DefendX, defendStartZ + k * spread, PortraitRules.Of(team, slots.Count)));   // 편성 행 경기(러너·기본 로스터)의 얼굴은 자리 순
                 }
             }
             return slots;

@@ -505,7 +505,8 @@ namespace Game.Core.League
             for (int i = 0; i < lineup.Count; i++)
             {
                 LineupEntry e = lineup[i];
-                slots.Add(new LineupSlot(FindRosterPlayer(e.PlayerId).EffectiveStats(), e.AttackX, e.AttackZ, e.DefendX, e.DefendZ));   // 역할 값 + 개인 지시
+                RosterPlayer player = FindRosterPlayer(e.PlayerId);
+                slots.Add(new LineupSlot(player.EffectiveStats(), e.AttackX, e.AttackZ, e.DefendX, e.DefendZ, player.Portrait));   // 역할 값 + 개인 지시
             }
             return slots;
         }

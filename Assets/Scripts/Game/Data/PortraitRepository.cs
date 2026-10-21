@@ -1,4 +1,4 @@
-using Game.Core.League;
+using Game.Core.Match;
 using UnityEngine;
 
 // 초상 스프라이트 접근층. 다른 리포지토리와 같은 꼴(정적·지연 로드·캐시). 번호 규칙은 순수 코어(PortraitRules), 여기는 Resources에서 꺼내기만 한다.
