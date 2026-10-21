@@ -62,6 +62,16 @@ public class UIManager : MonoBehaviour, IUIManager
         }
     }
 
+    // Show/Hide만으론 인자를 못 넘긴다. 씬에 없으면 null이고 호출 쪽이 가드한다
+    public T GetPopup<T>() where T : UIPopup
+    {
+        if (popups.TryGetValue(typeof(T), out var popup))
+        {
+            return (T)popup;
+        }
+        return null;
+    }
+
     public void OpenScreen(UIScreen screen)
     {
         foreach (var entry in screens)

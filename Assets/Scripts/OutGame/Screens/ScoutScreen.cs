@@ -81,17 +81,29 @@ public class ScoutScreen : UIScreen
     }
 
     // 여기서 판정한다. 성공이면 벤치에 들어가고 저장까지 끝난 뒤 돌아온다(SeasonSystem.TryScout).
-    // 성공하면 그 자리의 후보가 다음 선수로 바뀌므로 선택을 푼다. 실패하면 같은 후보가 남아 재시도 +10%가 보이게 선택을 둔다
+    // 성공하면 그 자리의 후보가 다음 선수로 바뀌므로 선택을 푼다. 실패하면 같은 후보가 남아 재시도 +10%가 보이게 선택을 둔다.
+    // 목록은 팝업 뒤에서 먼저 갱신하고, 팝업(카드 뒤집기)이 닫히면 바뀐 목록이 보인다(10-22 연출)
     private void OnRecruitClicked(ScoutEntryButton button)
     {
         ScoutCandidate picked = candidates[selectedSlot];
         PlayerStats target = TargetPlayer(picked);
+        Sprite portrait = PortraitRepository.Get(PortraitRules.Of(picked.TeamId, picked.PlayerIndex));
         ScoutVerdict verdict = Season.TryScout(picked.TeamId, picked.PlayerIndex);
-        verdictText.text = VerdictLine(verdict, target);
+        string line = VerdictLine(verdict, target);
+        verdictText.text = line;
         if (verdict.Success) { selectedSlot = NoSelection; }
         ShowHeader();
         ShowCandidates();      // 성공한 자리는 다음 후보로, 실패한 자리는 확률이 +10%
         ShowRecruitButton();   // 성공했으면 숨고, 시도가 0이거나 벤치가 차면 잠긴다
+        ShowReveal(target, portrait, verdict, line);
+    }
+
+    // 팝업이 씬에 없으면(옛 씬) 글자 판정만 남는다
+    private void ShowReveal(PlayerStats target, Sprite portrait, ScoutVerdict verdict, string line)
+    {
+        ScoutRevealPopup popup = uiManager.GetPopup<ScoutRevealPopup>();
+        if (popup == null) { return; }
+        popup.Show(target, portrait, verdict, line);
     }
 
     private void OnBuy()
