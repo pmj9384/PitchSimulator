@@ -192,10 +192,10 @@ public class MatchSimulationTests
         Assert.AreEqual(goals, sim.HomeGoals, "득점 합 = Goal 결과 수");
         Assert.AreEqual(0, sim.AwayGoals);
         Assert.AreEqual(sequence.Length - cursor, rolls.Remaining, "주사위는 슛 판정에만 쓴다");
-        Assert.That(expectedGoals, Is.InRange(2.5f, 6.5f), "ST(shot 90) 대 GK(80/40) 10회 기대 골(확정 보정 +0.6 로짓 포함). 보정 전엔 1.5~4.5");
+        Assert.That(expectedGoals, Is.InRange(2.5f, 6.5f), "ST(shot 90) 대 GK(80/40) 10회 기대 골(확정 보정 ShotResolveLogitBonus 포함). 보정 전엔 1.5~4.5");
         // 트리는 상대 GK를 모르므로 중립 GK(50)로 "확률 ≥ shotBias 0.3"을 판단하고, 보고된 p는 실제 GK(80·40 → 60)로 낮아진다.
-        // 로짓 -0.2만큼이라 0.3 문턱이 약 0.25로 내려오고, 확정 보정 +0.6이 붙어 보고 값은 0.35 근처. 그보다 훨씬 가까이 가서 쏘지도(0.7 이상) 않는다
-        Assert.That(reports[0].Probability, Is.InRange(0.3f, 0.7f), "shotBias 0.3(중립 GK 기준) 넘자마자 쏜다. 보고된 p는 확정 보정(+0.6 로짓)이 붙은 값");
+        // 로짓 -0.2만큼이라 0.3 문턱이 약 0.25로 내려오고, 확정 보정(ShotResolveLogitBonus)이 붙어 보고 값은 0.4 근처. 그보다 훨씬 가까이 가서 쏘지도(0.7 이상) 않는다
+        Assert.That(reports[0].Probability, Is.InRange(0.3f, 0.7f), "shotBias 0.3(중립 GK 기준) 넘자마자 쏜다. 보고된 p는 확정 보정이 붙은 값");
     }
 
     // ── GK 슛 대응(10-23 유저 "안 들어가면 골대 안으로 가면 안 된다")
@@ -203,7 +203,7 @@ public class MatchSimulationTests
     [Test]
     public void 노골_유효_슛을_GK가_못_닿으면_포스트_밖으로_밀려_빗나간다()
     {
-        // 골 roll 0.99(노골), 조준 roll 0 → 왼쪽 끝(shot 90 반폭 2.85, 골문 안). GK 자리 z +3이라 가로 5.85m를 0.3초 안에 못 간다
+        // 골 roll 0.99(노골), 조준 roll 0 → 왼쪽 끝(shot 90 반폭 3.4, 골문 안). GK 자리 z +3이라 가로 6.4m를 다이빙 8m/s로도 비행 0.3초 안에 못 간다
         var sim = new MatchSimulation(new RollQueue(new[] { 0.99f, 0f, 0.5f, 0.5f, 0.5f }).Next, PlayerTreeBuilder.BuildLitmus()) { ResetAfterEveryShot = true };
         sim.AddPlayer(new PlayerState(0, 0, Striker(), -10f, 0f));
         PlayerState keeper = sim.AddPlayer(new PlayerState(1, 1, Keeper(), 50f, 3f));
@@ -218,7 +218,7 @@ public class MatchSimulationTests
     [Test]
     public void 노골_유효_슛을_GK가_닿을_수_있으면_접촉이_없어도_골라인에서_세이브로_끝난다()
     {
-        // 조준 roll 0.3 → z -1.14(골문 안). GK z 0, speed 30(4.2m/s): 가로 1.14m 중 발 반경 0.8을 빼면 0.34m라 반응 지연 뒤에도 닿는다 → 유효 슛 유지.
+        // 조준 roll 0.3 → z -1.36(골문 안). GK z 0: 가로 1.36m 중 발 반경 0.8을 빼면 0.56m라 다이빙 8m/s로 반응 지연 뒤에도 닿는다 → 유효 슛 유지.
         // 리트머스 트리엔 GK 이동 노드가 없어 접촉(0.8m)은 안 생기고 골라인에서 세이브
         var sim = new MatchSimulation(new RollQueue(new[] { 0.99f, 0.3f, 0.5f, 0.5f, 0.5f }).Next, PlayerTreeBuilder.BuildLitmus()) { ResetAfterEveryShot = true };
         sim.AddPlayer(new PlayerState(0, 0, Striker(), -10f, 0f));
@@ -230,6 +230,7 @@ public class MatchSimulationTests
         Assert.AreNotEqual(ShotOutcome.Missed, reports[0].Outcome, "골문 안 노골은 Missed가 아니다");
         Assert.AreNotEqual(ShotOutcome.Goal, reports[0].Outcome);
         Assert.IsTrue(reports[0].Outcome == ShotOutcome.Caught || reports[0].Outcome == ShotOutcome.Parried);
+        // GK·공의 당겨진 자리는 ResetAfterEveryShot의 킥오프가 바로 되돌려 여기선 못 본다. 라인 안쪽(발 반경)으로 들이는 효과는 러너 probe로 확인(10-24: 라인 밖에 두면 배급이 "나간 공"이 돼 골 1.37 → 2.00)
     }
 
     [Test]
@@ -274,8 +275,11 @@ public class MatchSimulationTests
         sim.AddPlayer(new PlayerState(0, 0, Striker(), 30f, 0f));
         PlayerState keeper = sim.AddPlayer(new PlayerState(1, 1, Keeper(), 50f, 0f));
         sim.Kickoff();
-        for (int i = 0; i < 20000 && !keeper.IncomingShot; i++) { sim.Tick(Dt); }
-        Assert.IsTrue(keeper.IncomingShot, "반응 차례가 와야 한다");
+        for (int i = 0; i < 20000 && sim.Ball.Phase != BallPhase.Flight; i++) { sim.Tick(Dt); }
+        Assert.AreEqual(BallPhase.Flight, sim.Ball.Phase, "슛이 떠야 한다");
+        for (int i = 1; i < MatchTuning.KeeperReactionTicks * 2; i++) { sim.Tick(Dt); Assert.IsFalse(keeper.IncomingShot, $"{i}틱: 골로 정해진 슛은 반응이 두 배 늦다"); }
+        sim.Tick(Dt);
+        Assert.IsTrue(keeper.IncomingShot, "반응 ×2가 지나면 차례");
         Assert.AreEqual(MatchTuning.GoalAimMinGapFromKeeper, keeper.IncomingShotAimZ, 1e-3f, "조준점이 GK에서 간격만큼 먼 쪽");
         float beforeX = keeper.X;
         float beforeZ = keeper.Z;
@@ -528,7 +532,7 @@ public class MatchSimulationTests
 
         var kickers = new List<int>();
         var shots = new List<bool>();
-        sim.BallKicked += (id, isShot) => { kickers.Add(id); shots.Add(isShot); };
+        sim.BallKicked += report => { kickers.Add(report.KickerId); shots.Add(report.IsShot); };
         for (int i = 0; i < 100 && sim.PassCount == 0; i++) { sim.Tick(Dt); }
         Assert.AreEqual(1, sim.PassCount, "첫 행동은 패스");
         Assert.AreEqual(1, kickers.Count, "패스도 찼다 이벤트 1회(킥 애니)");
@@ -822,12 +826,14 @@ public class MatchSimulationTests
         MatchSimulation sim = LitmusMatch(new RollQueue(sequence));
         var kickers = new List<int>();
         int shotFlags = 0;
-        sim.BallKicked += (id, isShot) => { kickers.Add(id); if (isShot) { shotFlags++; } };
+        var dirX = new List<float>();
+        sim.BallKicked += report => { kickers.Add(report.KickerId); dirX.Add(report.DirX); if (report.IsShot) { shotFlags++; } };
 
         RunShots(sim, 10);
 
         Assert.AreEqual(10, kickers.Count);
         Assert.AreEqual(10, shotFlags, "전부 슛");
+        for (int i = 0; i < dirX.Count; i++) { Assert.Greater(dirX[i], 0f, $"{i}번째 슛 방향은 +X 골 쪽(찬 순간 공 속도가 0이라 방향은 보고가 들고 있어야 한다)"); }
         for (int i = 0; i < kickers.Count; i++) { Assert.AreEqual(0, kickers[i], "리트머스에서 차는 건 스트라이커(0)뿐"); }
     }
 }

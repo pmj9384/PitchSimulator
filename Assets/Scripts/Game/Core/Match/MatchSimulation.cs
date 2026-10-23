@@ -31,6 +31,23 @@ namespace Game.Core.Match
         }
     }
 
+    // 선수가 공을 찼다(패스·슛). 화면 킥 애니용(10-21, 슛·패스 구분 10-23). 방향을 같이 준다: 슛은 Kick 전에 알리므로(막혀도 찬 것) 그 순간 공 속도는 0이다(10-24 리뷰 🔴)
+    public readonly struct KickReport
+    {
+        public readonly int KickerId;
+        public readonly bool IsShot;
+        public readonly float DirX;   // 찬 방향(정규화 안 함)
+        public readonly float DirZ;
+
+        public KickReport(int kickerId, bool isShot, float dirX, float dirZ)
+        {
+            KickerId = kickerId;
+            IsShot = isShot;
+            DirX = dirX;
+            DirZ = dirZ;
+        }
+    }
+
     // 슛 하나의 결과 보고. MatchManager가 콘솔에 찍고 테스트가 대조한다
     public readonly struct ShotReport
     {
@@ -63,7 +80,7 @@ namespace Game.Core.Match
 
         public event Action<ShotReport>? ShotResolved;
         public event Action<PossessionReport>? PossessionChanged;
-        public event Action<int, bool>? BallKicked;   // 선수가 공을 찼다(인자 = 선수 번호, 슛이면 true). 화면 킥 애니용(10-21, 슛·패스 구분 10-23). 규칙·결정성과 무관
+        public event Action<KickReport>? BallKicked;   // 선수가 공을 찼다. 화면 킥 애니용. 규칙·결정성과 무관
 
         public int TickCount => tickCount;                                   // 첫 Tick부터 센 수. 하프타임·HUD 시계의 기준(MatchManager.Ticks와 같은 값)
         public bool IsSecondHalf => tickCount >= MatchClock.HalfTimeTick(Added);
@@ -675,11 +692,8 @@ namespace Game.Core.Match
 
             float goalX = FieldBounds.HalfLength * shooter.AttackSign;
             shotTicks = 0;
-            if (!shotWillScore && MatchRules.IsOnTarget(shotAimZ) && keeper != null && !KeeperCanReachShot(keeper, shooter, goalX))
-            {
-                shotAimZ = MatchRules.PushWide(shotAimZ);   // 노골 + GK가 못 닿음 = 빗나감. 유효 슛의 노골은 GK가 닿아 세이브로 끝난다(골라인 ResolveSaveAtLine)
-            }
-            BallKicked?.Invoke(shooter.PlayerId, true);   // 막혀도 찬 건 찬 것
+            if (ShouldPushWide(keeper, shooter, goalX)) { shotAimZ = MatchRules.PushWide(shotAimZ); }
+            BallKicked?.Invoke(new KickReport(shooter.PlayerId, true, goalX - shooter.X, shotAimZ - shooter.Z));   // 막혀도 찬 건 찬 것
             if (TryBlockShot(shooter, goalX)) { return; }
             Ball = BallRules.Kick(Ball, goalX - shooter.X, shotAimZ - shooter.Z, MatchTuning.ShotSpeed);
         }
@@ -744,7 +758,7 @@ namespace Game.Core.Match
             takeOnOwnerId = BallState.NoOwner;    // 공을 내줬으면 돌파도 끝
 
             Ball = BallRules.Kick(Ball, dx, dz, speed);
-            BallKicked?.Invoke(passer.PlayerId, false);
+            BallKicked?.Invoke(new KickReport(passer.PlayerId, false, dx, dz));
         }
 
         // 소유자가 바뀐 틱: 패스 비행 마감(받았거나 가로챘거나), 볼 끌기 대기 시작
@@ -816,6 +830,14 @@ namespace Game.Core.Match
             return true;
         }
 
+        // 노골인데 골문 안이고 GK가 못 닿는 슛 = 빗나감으로 보이게 포스트 밖으로. 유효 슛의 노골은 GK가 닿아 세이브로 끝난다(골라인 ResolveSaveAtLine)
+        private bool ShouldPushWide(PlayerState? keeper, PlayerState shooter, float goalX)
+        {
+            if (shotWillScore || keeper == null) { return false; }
+            if (!MatchRules.IsOnTarget(shotAimZ)) { return false; }
+            return !KeeperCanReachShot(keeper, shooter, goalX);
+        }
+
         // 찬 순간의 판정: GK가 반응 지연 뒤 비행 시간 안에 조준점(가로)까지 닿나
         private bool KeeperCanReachShot(PlayerState keeper, PlayerState shooter, float goalX)
         {
@@ -835,11 +857,16 @@ namespace Game.Core.Match
             return shotTicks >= reaction;
         }
 
-        // 골문 안인데 노골로 정해진 슛이 GK 접촉 없이 골라인에 닿음: GK를 공의 가로 자리로 당겨 세이브(찬 순간 "닿을 수 있다"고 본 슛이라 작은 보정). GK 없는 시뮬은 빗나감
+        // 골문 안인데 노골로 정해진 슛이 GK 접촉 없이 골라인에 닿음: 공을 라인 안쪽 발 반경으로 들이고 GK를 그 자리로 당겨 세이브(찬 순간 "닿을 수 있다"고 본 슛이라 작은 보정). GK 없는 시뮬은 빗나감
+        // 공을 라인 밖(골라인을 넘은 자리)에 둔 채 세이브하면 캐치 뒤 배급 패스·펀칭 튕김이 "나간 공"으로 판정돼 골킥 자리에 자유 공으로 떨어졌다(10-24 리뷰 뒤 probe: 골 1.37 → 2.00)
         private bool ResolveSaveAtLine()
         {
             PlayerState? keeper = FindGoalkeeper(1 - TeamOfSign(shooterAttackSign));
             if (keeper == null) { return false; }
+            BallState inside = Ball;
+            inside.X = shooterAttackSign * (FieldBounds.HalfLength - MatchTuning.CaptureRadius);
+            Ball = inside;
+            keeper.X = Ball.X;
             keeper.Z = Ball.Z;
             ResolveSave(keeper);
             if (ResetAfterEveryShot) { Kickoff(); }

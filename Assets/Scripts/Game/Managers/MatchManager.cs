@@ -61,6 +61,7 @@ public class MatchManager : InGameManager
         Ticks = 0;
         holdTicksLeft = 0;
         holdIsHalfTime = false;
+        snapAfterHold = false;
         goalScorerId = BallState.NoOwner;
         celebrationBeforeHalfTime = false;
         celebration.Stop();
@@ -80,11 +81,11 @@ public class MatchManager : InGameManager
     }
 
     // 찬 선수의 킥 애니. 시뮬은 안 기다린다(연출)
-    private void OnBallKicked(int playerId, bool isShot)
+    private void OnBallKicked(KickReport report)
     {
-        PlayerController player = GameManager.Players.Find(playerId);
+        PlayerController player = GameManager.Players.Find(report.KickerId);
         if (player == null) { return; }
-        player.PlayKick(new Vector3(Simulation.Ball.VelX, 0f, Simulation.Ball.VelZ), isShot);   // 이벤트는 Kick 직후라 공 속도 = 찬 방향
+        player.PlayKick(new Vector3(report.DirX, 0f, report.DirZ), report.IsShot);
     }
 
     private float NextRoll()
@@ -170,7 +171,7 @@ public class MatchManager : InGameManager
             BeginCelebration();
             return;
         }
-        if (shotMissedThisTick && !halfTimeTick && Ticks < MatchTuning.MatchTicks)
+        if (shotMissedThisTick && goalKickHoldSec > 0f && !halfTimeTick && Ticks < MatchTuning.MatchTicks)
         {
             // 빗나간 슛: 시뮬은 이 틱에 공을 GK 발(골킥)로 옮겼다. 화면은 직전 자리(골라인 근처)에 잠깐 멈췄다가 스냅한다(10-23 유저 "공이 GK에게 순간이동")
             HoldAllViews();

@@ -12,7 +12,7 @@ namespace Game.Core.Match
         public const float SpeedMpsAt50 = 7f;         // speed 스탯 50 = 7m/s(경기 중 달리기). 선형 변환의 기준점
         public const float Tempo = 1f;                // 이동 속도 전체 배율. 3분 경기에 공격 횟수를 맞추는 손잡이
         public const float CatchBase = 0.5f;          // 세이브 중 캐치(GK 소유) 비율. 나머지는 앞으로 튕겨 자유 공. 0.65 → 0.5(10-23 격자: 펀칭 23 → 31%로 세컨드볼. 09-28 유저 "슛만 차면 다 잡아")
-        public const float CatchHandlingScale = 0.2f; // handling 0→100이 캐치 확률을 ±0.2 움직인다(0.45~0.85)
+        public const float CatchHandlingScale = 0.2f; // handling 0→100이 캐치 확률을 ±0.2 움직인다(0.3~0.7)
         public const float ParrySpeed = 8f;           // 튕겨 나가는 공의 초속. 박스 근처에 떨어지는 값
         public const float GoalKickOffset = 5.5f;     // 골킥 자리 = 골라인에서 5.5m(골 에어리어 앞)
         public const float ThrowInInset = 1f;         // 스로인 자리 = 터치라인 안쪽 1m
@@ -95,11 +95,12 @@ namespace Game.Core.Match
         public const float BoxStepOutDepth = Placement.FieldBounds.PenaltyBoxDepth + 5f;
         // 슈터 압박·슛 블록(09-29 수비 D3, MatchRules.PressuredShotProbability·ShotBlocker 주석). 블록 확률·튕기는 속도는 출처 없는 출발값
         public const float ShotPressureLogit = 0.4f;     // 압박받는 슛의 로짓 감소
+        // GK 슛 대응(10-23 유저 Play 3·4차). 규칙은 MatchSimulation.Shoot·IncomingShotFor·ResolveSaveAtLine, 판정은 MatchRules.KeeperCanReach·PushWide·AimAwayFromKeeper
         public const float KeeperDiveSpeed = 8f;         // 슛에 반응하는 동안 GK의 가로 이동 m/s(스탯과 무관한 다이빙 버스트). 스탯 30 = 4.2m/s로는 0.5초에 1.5m라 화면에서 제자리 셔플로 보였다(10-23 유저 Play 4차). [가정] 실제 GK는 포스트 쪽 3m를 0.5~0.6초에 닿는다. 격자(20판): 마감 때 공과 간격 0.56 → 0.11m, 빗나감 5 → 1%, 골 불변
         public const float GoalAimMinGapFromKeeper = 2.5f;   // 골로 정해진 슛의 조준점은 찬 순간 GK 자리에서 가로로 이만큼 넘게 먼 구석으로. 다이빙 버스트를 넣자 골인데도 GK가 공 0.2m까지 닿아 몸을 뚫고 들어가는 모양이 됐다(10-23 probe). [가정] 스탯 30 GK가 반응 ×2 뒤 남는 0.3초에 가는 1.3m보다 멀게
         public const int KeeperReactionTicks = 10;       // GK가 슛에 반응해 조준점으로 움직이기 시작하는 지연(0.2초). [가정] 사람 단순 반응 시간 0.2~0.25초. 골로 정해진 슛엔 ×2(못 막을 슛을 "늦게 반응한" 모양으로)
-        public const float ShotWideMargin = 0.5f;        // 노골로 정해졌는데 GK가 못 닿을 유효 슛을 포스트 밖으로 미는 거리(m). 골대 안으로 들어가는 노골을 없앤다(10-23 유저 "안 들어가면 골대 안으로 가면 안 된다")
-        public const float ShotResolveLogitBonus = 0.8f; // 슛 확정 확률에만 더하는 로짓(판정 WantsShot은 안 본다). 10-23 인게임 경로 계측: 슛이 현실의 절반(5.9/팀)이라 골 1.44·0:0 22%였다. 0.6 → 0.8은 GK 슛 대응·조준 반폭·압박 재임을 넣은 뒤 격자(4부 골 2.00·0:0 9%·무 25%).
+        public const float ShotWideMargin = 0.5f;        // 노골로 정해졌는데 GK가 못 닿을 유효 슛을 포스트 밖으로 미는 거리(m). 골대 안으로 들어가는 노골을 없앤다(10-23 유저 "안 들어가면 골대 안으로 가면 안 된다"). [가정] 출처 없음, 화면에서 확실히 밖으로 보이는 값
+        public const float ShotResolveLogitBonus = 0.8f; // 슛 확정 확률에만 더하는 로짓(판정 WantsShot은 안 본다). 10-23 인게임 경로 계측: 슛이 현실의 절반(5.9/팀)이라 골 1.44·0:0 22%였다. 0.6 → 0.8은 GK 슛 대응·조준 반폭·압박 재임을 넣은 뒤 격자(최종 4부 20시즌 골 2.13·0:0 9%·무 27%). [가정] 임시 레버
                                                          // 문턱을 낮추면 나쁜 자리에서 일찍 쏴 골이 줄고(0.88), 확정만 올리면 슛 수 그대로 골 2.17·0:0 6%(+0.3 1.76 / +0.9 2.70). 유저 "중간점".
                                                          // 임시 레버: ⑦ 공격 장면·④ 침투로 슛이 늘면 0으로 되돌린다. 기록 실험/2026-10-23-골-가뭄-레버-격자.md
         public const float ShotBlockRange = TackleRange;  // 슛을 막을 수 있는 수비수 거리(발 뻗어 막는 범위 = 태클 사거리)

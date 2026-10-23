@@ -185,6 +185,34 @@ public class ShotProbabilityTests
     }
 
     [Test]
+    public void 슛_확정_보정은_로짓을_더해_확률을_올리고_0이면_그대로다()
+    {
+        Assert.AreEqual(0.4f, MatchRules.ResolveShotProbability(0.4f, 0f), 1e-6f);
+        Assert.Greater(MatchRules.ResolveShotProbability(0.4f, 0.8f), 0.4f);
+        Assert.Greater(MatchRules.ResolveShotProbability(0.4f, 0.8f), MatchRules.PressuredShotProbability(0.4f, 0.8f), "압박은 내리고 확정 보정은 올린다");
+        Assert.AreEqual(0.4f, MatchRules.ResolveShotProbability(MatchRules.PressuredShotProbability(0.4f, 0.8f), 0.8f), 1e-5f, "같은 로짓을 빼고 더하면 제자리");
+    }
+
+    [Test]
+    public void 슛_비행_시간은_등감속_식이고_정지_거리_밖이면_음수다()
+    {
+        Assert.AreEqual(0f, MatchRules.ShotFlightTime(0f, 25f, 4f), 1e-6f);
+        // 25t - 2t² = 30 → t = (25 - √(625 - 240)) / 4 = 1.3448
+        Assert.AreEqual(1.3448f, MatchRules.ShotFlightTime(30f, 25f, 4f), 1e-3f);
+        Assert.Less(MatchRules.ShotFlightTime(80f, 25f, 4f), 0f, "정지 거리 78.125m 밖");
+    }
+
+    [Test]
+    public void 포스트_밖으로_밀기는_조준_쪽_포스트_바깥_여유만큼이다()
+    {
+        float outside = FieldBounds.GoalHalfWidth + MatchTuning.ShotWideMargin;
+        Assert.AreEqual(outside, MatchRules.PushWide(0.5f), 1e-6f);
+        Assert.AreEqual(-outside, MatchRules.PushWide(-1f), 1e-6f);
+        Assert.AreEqual(outside, MatchRules.PushWide(0f), 1e-6f, "정중앙은 오른쪽");
+        Assert.IsFalse(MatchRules.IsOnTarget(MatchRules.PushWide(0.5f)));
+    }
+
+    [Test]
     public void 골로_정해진_조준점은_GK_자리에서_최소_간격_넘게_먼_쪽으로_민다()
     {
         Assert.AreEqual(3f, MatchRules.AimAwayFromKeeper(3f, 0f, 2.5f), 1e-3f, "이미 멀면 그대로");
