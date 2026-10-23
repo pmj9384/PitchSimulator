@@ -132,8 +132,9 @@ public static class PlayerClipBuilder
         return new List<Pose>
         {
             new Pose(0f),
-            new Pose(0.12f).Add(UpperArmL, Axis.Right, -90f).Add(UpperArmR, Axis.Right, -90f).Add(LowerArmL, Axis.Right, -30f).Add(LowerArmR, Axis.Right, -30f).Add(Abdomen, Axis.Right, -8f),
-            new Pose(0.30f).Add(UpperArmL, Axis.Right, -70f).Add(UpperArmR, Axis.Right, -70f).Add(LowerArmL, Axis.Right, -90f).Add(LowerArmR, Axis.Right, -90f).Add(Abdomen, Axis.Right, -5f),
+            // 팔 -90은 손이 어깨 위로 올라갔다(에디터 측정 y 1.55). -60 + 아래팔로 손이 가슴 앞(y 1.2, z 0.5)에 오게
+            new Pose(0.12f).Add(UpperArmL, Axis.Right, -60f).Add(UpperArmR, Axis.Right, -60f).Add(LowerArmL, Axis.Right, -40f).Add(LowerArmR, Axis.Right, -40f).Add(Abdomen, Axis.Right, -12f),
+            new Pose(0.30f).Add(UpperArmL, Axis.Right, -45f).Add(UpperArmR, Axis.Right, -45f).Add(LowerArmL, Axis.Right, -80f).Add(LowerArmR, Axis.Right, -80f).Add(Abdomen, Axis.Right, -8f),
             new Pose(0.50f),
         };
     }

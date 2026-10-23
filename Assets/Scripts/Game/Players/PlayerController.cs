@@ -19,7 +19,7 @@ public class PlayerController : MonoBehaviour
 
     private const float TurnDegreesPerSecond = 720f;   // [가정] 출처 없음. 한 스텝(0.02초) 사이 반대 방향 전환을 0.25초 안에 끝내는 값
     private const float MinMoveSqr = 0.0001f;            // 이보다 덜 움직이면 서 있는 것(향한 방향 유지)
-    private const float KickFaceSeconds = 0.4f;          // 킥 뒤 이 동안은 이동 방향이 아니라 찬 방향을 본다(클립 길이 0.6의 앞부분) [가정]
+    private const float KickFaceSeconds = 0.5f;          // 킥 뒤 이 동안은 이동 방향이 아니라 찬 방향을 본다. 찬 순간 즉시 돌린다: 720°/s로 돌리면 옆·뒤 패스는 접촉(0.18초) 전에 못 돈다(10-23 유저) [가정]
     private const float SaveSeconds = 0.45f;             // 세이브 클립이 끝날 때까지. 이 안에 오는 배급 킥은 애니를 안 튼다(GK가 잡자마자 차면 캐치가 0.05초 만에 끊겼다) [가정]
 
     private Vector3 faceOverride;       // 킥 직후 보는 방향
@@ -101,6 +101,7 @@ public class PlayerController : MonoBehaviour
         if (direction.sqrMagnitude < MinMoveSqr) { return; }
         faceOverride = direction;
         faceOverrideUntil = Time.time + seconds;
+        transform.rotation = Quaternion.LookRotation(direction, Vector3.up);
     }
 
     // 시뮬 밖 연출(골 세리머니, 09-29): 상태는 그대로 두고 화면만 옮긴다. 보간은 SyncView와 같은 방식
