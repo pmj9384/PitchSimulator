@@ -160,7 +160,8 @@ public class MatchSimulationTests
     {
         // 슛마다 골 주사위 1 + 조준 주사위 1(09-18 슛 오차), 골이 아니고 골문 안이면 캐치 주사위 1. 30개면 넉넉하다.
         // 조준 roll은 0.5(정중앙)로 고정해 골문 안이 되게 한다(오차 자체는 ShotDirectionTests가 검증)
-        float[] sequence = { 0.10f,0.5f, 0.50f,0.5f,0.50f, 0.90f,0.5f,0.20f, 0.35f,0.5f,0.70f, 0.05f,0.5f, 0.60f,0.5f,0.99f, 0.40f,0.5f,0.30f, 0.80f,0.5f,0.15f, 0.55f,0.5f,0.25f, 0.65f,0.5f,0.45f, 0.75f,0.5f,0.33f, 0.66f,0.5f,0.11f };
+        // 10-23 슛 확정 보정(ShotResolveLogitBonus) 뒤 p가 0.35~0.65라, 골 roll은 그 띠를 피해 0.15 이하(골) 또는 0.8 이상(아님)으로만 둔다. 골 5·세이브 5
+        float[] sequence = { 0.10f,0.5f, 0.95f,0.5f,0.50f, 0.90f,0.5f,0.20f, 0.05f,0.5f, 0.99f,0.5f,0.70f, 0.15f,0.5f, 0.85f,0.5f,0.99f, 0.12f,0.5f, 0.80f,0.5f,0.30f, 0.08f,0.5f, 0.5f,0.5f,0.5f };
         var rolls = new RollQueue(sequence);
         MatchSimulation sim = LitmusMatch(rolls);
 
@@ -191,10 +192,10 @@ public class MatchSimulationTests
         Assert.AreEqual(goals, sim.HomeGoals, "득점 합 = Goal 결과 수");
         Assert.AreEqual(0, sim.AwayGoals);
         Assert.AreEqual(sequence.Length - cursor, rolls.Remaining, "주사위는 슛 판정에만 쓴다");
-        Assert.That(expectedGoals, Is.InRange(1.5f, 4.5f), "ST(shot 90) 대 GK(80/40) 10회 기대 골. 판당 2~4골 축(스펙 §0)의 감을 잡는 값");
+        Assert.That(expectedGoals, Is.InRange(2.5f, 6.5f), "ST(shot 90) 대 GK(80/40) 10회 기대 골(확정 보정 +0.6 로짓 포함). 보정 전엔 1.5~4.5");
         // 트리는 상대 GK를 모르므로 중립 GK(50)로 "확률 ≥ shotBias 0.3"을 판단하고, 보고된 p는 실제 GK(80·40 → 60)로 낮아진다.
-        // 로짓 -0.2만큼이라 0.3 문턱이 약 0.25로 내려온다. 그보다 훨씬 가까이 가서 쏘지도(0.5 이상) 않는다
-        Assert.That(reports[0].Probability, Is.InRange(0.22f, 0.5f), "shotBias 0.3(중립 GK 기준) 넘자마자 쏜다");
+        // 로짓 -0.2만큼이라 0.3 문턱이 약 0.25로 내려오고, 확정 보정 +0.6이 붙어 보고 값은 0.35 근처. 그보다 훨씬 가까이 가서 쏘지도(0.7 이상) 않는다
+        Assert.That(reports[0].Probability, Is.InRange(0.3f, 0.7f), "shotBias 0.3(중립 GK 기준) 넘자마자 쏜다. 보고된 p는 확정 보정(+0.6 로짓)이 붙은 값");
     }
 
     [Test]

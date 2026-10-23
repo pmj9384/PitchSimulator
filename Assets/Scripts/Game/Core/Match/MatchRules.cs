@@ -64,6 +64,12 @@ namespace Game.Core.Match
             return MatchTuning.TackleBaseChance * Logistic(logit);
         }
 
+        // 슛 확정 보정(10-23): 판정에 쓴 확률에 로짓 bonus를 더한 값으로 들어갈지를 굴린다. 판정과 확정을 가르는 유일한 자리
+        public static float ResolveShotProbability(float probability, float logitBonus)
+        {
+            return PressuredShotProbability(probability, -logitBonus);
+        }
+
         // 압박받는 슛(09-29 수비 D3): 슈터 발 뻗는 범위(PressedRadius) 안에 상대가 있으면 로짓에서 penalty를 뺀다.
         // StatsBomb "Closing down": 슛의 약 65%가 압박 속에서 나오고 무압박 슛이 더 잘 들어간다. 슛 경로 수비수 예시 xG 0.25 → 0.18은 로짓 약 -0.4
         public static float PressuredShotProbability(float probability, float logitPenalty)
