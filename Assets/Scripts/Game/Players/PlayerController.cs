@@ -10,7 +10,7 @@ public class PlayerController : MonoBehaviour
     private static readonly int ShootParam = Animator.StringToHash("Shoot");   // 트리거. 슛 순간. 패스보다 백스윙·팔로스루가 크다(10-23 유저 "슛도 똑같아서 모르겠다")
     private static readonly int CatchParam = Animator.StringToHash("Catch");         // 트리거. GK가 슛을 잡음(ShotResolved Caught)
     private static readonly int ParryParam = Animator.StringToHash("Parry");         // 트리거. GK가 슛을 쳐냄(ShotResolved Parried)
-    private static readonly int DiveLeftParam = Animator.StringToHash("DiveLeft");   // 트리거. GK가 왼쪽으로 몸을 날려 세이브(가로로 1m 넘게 움직인 세이브, MatchManager.PlayKeeperSave)
+    private static readonly int DiveLeftParam = Animator.StringToHash("DiveLeft");   // 트리거. 조준점이 1m 넘게 먼 슛에 반응을 시작하는 순간 그쪽으로 몸을 날린다(StartDive)
     private static readonly int DiveRightParam = Animator.StringToHash("DiveRight");
     private static readonly int CelebrateParam = Animator.StringToHash("Celebrate"); // bool. 골 세리머니 동안 참
 
@@ -22,11 +22,14 @@ public class PlayerController : MonoBehaviour
     private const float TurnDegreesPerSecond = 720f;   // [가정] 출처 없음. 한 스텝(0.02초) 사이 반대 방향 전환을 0.25초 안에 끝내는 값
     private const float MinMoveSqr = 0.0001f;            // 이보다 덜 움직이면 서 있는 것(향한 방향 유지)
     private const float KickFaceSeconds = 0.5f;          // 킥 뒤 이 동안은 이동 방향이 아니라 찬 방향을 본다. 찬 순간 즉시 돌린다: 720°/s로 돌리면 옆·뒤 패스는 접촉(0.18초) 전에 못 돈다(10-23 유저) [가정]
+    private const float DiveMinMeters = 1f;              // 조준점이 GK 자리에서 가로로 이만큼 넘게 멀면 다이빙, 안이면 서서 캐치·펀칭 [가정]
+    private const float DiveSeconds = 0.85f;             // 다이빙 클립 길이. 그 안의 캐치·펀칭·킥 트리거는 버린다(다이빙이 이미 그 장면)
     private const float SaveSeconds = 0.45f;             // 세이브 클립이 끝날 때까지. 이 안에 오는 배급 킥은 애니를 안 튼다(GK가 잡자마자 차면 캐치가 0.05초 만에 끊겼다) [가정]
 
     private Vector3 faceOverride;       // 킥 직후 보는 방향
     private float faceOverrideUntil;    // 그 방향을 유지하는 끝 시각(Time.time)
     private float saveUntil;            // 세이브 애니가 끝나는 시각. 그 전의 킥 트리거는 버린다
+    private bool wasIncomingShot;       // 직전 스텝의 State.IncomingShot. 올라오는 순간 한 번만 다이빙을 튼다
 
     public PlayerState State { get; private set; }
     public int PlayerId => State.PlayerId;
@@ -46,6 +49,26 @@ public class PlayerController : MonoBehaviour
         previous = current;
         current = new Vector3(State.X, 0f, State.Z);
         SetSpeed();
+        WatchIncomingShot();
+    }
+
+    // 슛에 반응할 차례가 오는 순간(시뮬 IncomingShot 상승) 다이빙을 튼다. 세이브 순간에 틀면 이미 공 자리에 선 채 기울여 애매했다(10-23 유저)
+    private void WatchIncomingShot()
+    {
+        bool incoming = State.IncomingShot;
+        if (incoming && !wasIncomingShot) { StartDive(); }
+        wasIncomingShot = incoming;
+    }
+
+    // 조준점이 멀면 그쪽으로 몸을 날린다. 좌우는 GK가 슈터(자기 공격 방향)를 본다고 놓고 센다: 공격 방향 +X를 보면 오른쪽 = -Z
+    private void StartDive()
+    {
+        float dz = State.IncomingShotAimZ - State.Z;
+        if (Mathf.Abs(dz) <= DiveMinMeters) { return; }
+        saveUntil = Time.time + DiveSeconds;
+        if (animator == null) { return; }
+        bool right = dz * State.AttackSign < 0f;
+        animator.SetTrigger(right ? DiveRightParam : DiveLeftParam);
     }
 
     // 배치·킥오프처럼 순간이동이 맞는 때: 보간 없이 바로 세운다
@@ -68,26 +91,19 @@ public class PlayerController : MonoBehaviour
         animator.SetTrigger(shot ? ShootParam : KickParam);
     }
 
+    // 다이빙 중(saveUntil 안)이면 다이빙이 이미 세이브 장면이라 안 튼다
     public void PlayCatch()
     {
+        if (Time.time < saveUntil) { return; }
         saveUntil = Time.time + SaveSeconds;
         if (animator != null) { animator.SetTrigger(CatchParam); }
     }
 
     public void PlayParry()
     {
+        if (Time.time < saveUntil) { return; }
         saveUntil = Time.time + SaveSeconds;
         if (animator != null) { animator.SetTrigger(ParryParam); }
-    }
-
-    // 다이빙 세이브: 공을 보게 돌린 뒤 움직인 쪽(월드)이 몸의 왼쪽인지 오른쪽인지로 클립을 고른다
-    public void PlayDive(Vector3 toBall, Vector3 worldMove)
-    {
-        FaceToward(toBall, SaveSeconds);
-        saveUntil = Time.time + SaveSeconds;
-        if (animator == null) { return; }
-        bool right = Vector3.Cross(transform.forward, worldMove).y > 0f;
-        animator.SetTrigger(right ? DiveRightParam : DiveLeftParam);
     }
 
     // 슛에 반응해 옆으로 뛰는 동안 공을 본다. 안 돌리면 FaceMovement가 골라인 방향(이동 방향)을 보게 해 등이나 옆구리로 공을 받는다
@@ -105,6 +121,7 @@ public class PlayerController : MonoBehaviour
     {
         faceOverrideUntil = 0f;
         saveUntil = 0f;
+        wasIncomingShot = false;
         if (animator == null) { return; }
         animator.ResetTrigger(KickParam);
         animator.ResetTrigger(ShootParam);

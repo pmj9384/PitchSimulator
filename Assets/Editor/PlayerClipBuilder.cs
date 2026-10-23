@@ -28,6 +28,10 @@ public static class PlayerClipBuilder
     private const string LowerLegR = UpperLegR + "/LowerLeg.R";
     private const string ShinEndR = LowerLegR + "/LowerLeg.R_end";
     private const string FootR = "CharacterArmature/Root/Foot.R";
+    private const string UpperLegL = Body + "/UpperLeg.L";
+    private const string LowerLegL = UpperLegL + "/LowerLeg.L";
+    private const string ShinEndL = LowerLegL + "/LowerLeg.L_end";
+    private const string FootL = "CharacterArmature/Root/Foot.L";
 
     // 회전 축은 모델 기준 월드 축. Right 축 양수 = 뒤로(다리·팔이 뒤로 감), 음수 = 앞으로. Forward 축 양수 = 오른쪽 위로 벌림
     private enum Axis { Right, Forward, Up }
@@ -51,6 +55,7 @@ public static class PlayerClipBuilder
         public readonly float Time;
         public readonly List<Joint> Joints = new List<Joint>();
         public float FootDegrees;   // 발끝 추가 회전(Right 축). 양수 = 발끝이 아래로(킥 접촉 때 펴기)
+        public float BodyDrop;      // 엉덩이 루트를 내리는 높이(m). 다이빙처럼 몸이 눕는 자세. 발은 정강이를 따라간다
 
         public Pose(float time)
         {
@@ -67,6 +72,41 @@ public static class PlayerClipBuilder
         {
             FootDegrees = degrees;
             return this;
+        }
+
+        public Pose Drop(float meters)
+        {
+            BodyDrop = meters;
+            return this;
+        }
+    }
+
+    // IK형 리그의 다리 하나: 정강이가 돈 만큼 발을 정강이 끝에 다시 붙인다
+    private sealed class LegFollow
+    {
+        private readonly Transform shin;
+        private readonly Transform shinEnd;
+        private readonly Transform foot;
+        private readonly Vector3 footFromShin;
+        private readonly Quaternion shinRest;
+        private readonly Quaternion footRest;
+
+        public LegFollow(Transform model, string shinPath, string shinEndPath, string footPath)
+        {
+            shin = model.Find(shinPath);
+            shinEnd = model.Find(shinEndPath);
+            foot = model.Find(footPath);
+            footFromShin = foot.position - shinEnd.position;
+            shinRest = shin.rotation;
+            footRest = foot.rotation;
+        }
+
+        public void Apply(Vector3 extraAxis, float extraDegrees)
+        {
+            Quaternion delta = shin.rotation * Quaternion.Inverse(shinRest);
+            foot.position = shinEnd.position + delta * footFromShin;
+            foot.rotation = delta * footRest;
+            foot.Rotate(extraAxis, extraDegrees, Space.World);
         }
     }
 
@@ -153,20 +193,22 @@ public static class PlayerClipBuilder
         };
     }
 
-    // GK 다이빙: 상체를 그쪽으로 크게 기울이고 두 팔을 그쪽 위로 뻗는다(side +1 = 오른쪽, -1 = 왼쪽. Forward 축 양수 = 오른쪽 위).
-    // 다리는 안 날린다: 리그가 IK형이라 발을 띄우면 뜬 발이 바닥에 남는다. 몸이 8m/s로 옆으로 가는 동안 기운 상체면 실루엣은 다이빙(10-23) [가정]
+    // GK 다이빙(side +1 = 오른쪽, -1 = 왼쪽. Forward 축 음수 = 오른쪽으로 기울기): 반응 시작 순간 틀어서 옆으로 8m/s로 가는 0.5초 동안
+    // 엉덩이 루트(Body)째 70° 눕히고 0.55m 내려 몸이 수평이 되게, 두 팔은 그쪽 위로, 발은 정강이를 따라 떠오른다(다리가 몸을 따라 뒤로 끌린다).
+    // 상체만 45° 기울인 1판은 "옆으로 기운 사람"이라 애매했다(10-23 유저). 각도·높이는 출처 없는 눈대중 [가정]
     private static List<Pose> DivePoses(float side)
     {
-        float near = 150f * side;   // 공 쪽 팔: 옆 위로 쭉
-        float far = 110f * side;    // 반대쪽 팔: 가슴 앞을 가로질러 같은 쪽으로
+        string nearArm = side > 0f ? UpperArmR : UpperArmL;
+        string farArm = side > 0f ? UpperArmL : UpperArmR;
         return new List<Pose>
         {
             new Pose(0f),
-            new Pose(0.12f).Add(Abdomen, Axis.Forward, -40f * side).Add(Chest, Axis.Forward, -15f * side).Add(Head, Axis.Forward, -10f * side)
-                .Add(side > 0f ? UpperArmR : UpperArmL, Axis.Forward, near).Add(side > 0f ? UpperArmL : UpperArmR, Axis.Forward, far),
-            new Pose(0.32f).Add(Abdomen, Axis.Forward, -45f * side).Add(Chest, Axis.Forward, -15f * side).Add(Head, Axis.Forward, -10f * side)
-                .Add(side > 0f ? UpperArmR : UpperArmL, Axis.Forward, near).Add(side > 0f ? UpperArmL : UpperArmR, Axis.Forward, far),
-            new Pose(0.55f),
+            new Pose(0.12f).Add(Body, Axis.Forward, -25f * side).Add(Abdomen, Axis.Forward, -15f * side).Add(nearArm, Axis.Forward, 100f * side).Add(farArm, Axis.Forward, 60f * side).Drop(0.15f),
+            new Pose(0.32f).Add(Body, Axis.Forward, -70f * side).Add(Abdomen, Axis.Forward, -10f * side).Add(Head, Axis.Forward, 15f * side)
+                .Add(nearArm, Axis.Forward, 160f * side).Add(farArm, Axis.Forward, 110f * side).Drop(0.55f),
+            new Pose(0.55f).Add(Body, Axis.Forward, -70f * side).Add(Abdomen, Axis.Forward, -10f * side).Add(Head, Axis.Forward, 15f * side)
+                .Add(nearArm, Axis.Forward, 160f * side).Add(farArm, Axis.Forward, 110f * side).Drop(0.55f),
+            new Pose(0.85f),
         };
     }
 
@@ -241,6 +283,16 @@ public static class PlayerClipBuilder
         AddIfMissing(list, FootR, "m_LocalRotation.y");
         AddIfMissing(list, FootR, "m_LocalRotation.z");
         AddIfMissing(list, FootR, "m_LocalRotation.w");
+        AddIfMissing(list, FootL, "m_LocalPosition.x");
+        AddIfMissing(list, FootL, "m_LocalPosition.y");
+        AddIfMissing(list, FootL, "m_LocalPosition.z");
+        AddIfMissing(list, FootL, "m_LocalRotation.x");
+        AddIfMissing(list, FootL, "m_LocalRotation.y");
+        AddIfMissing(list, FootL, "m_LocalRotation.z");
+        AddIfMissing(list, FootL, "m_LocalRotation.w");
+        AddIfMissing(list, Body, "m_LocalPosition.x");
+        AddIfMissing(list, Body, "m_LocalPosition.y");
+        AddIfMissing(list, Body, "m_LocalPosition.z");
         return list.ToArray();
     }
 
@@ -255,24 +307,19 @@ public static class PlayerClipBuilder
 
     private static void ApplyPose(Transform model, Pose pose)
     {
-        Transform shin = model.Find(LowerLegR);
-        Transform shinEnd = model.Find(ShinEndR);
-        Transform foot = model.Find(FootR);
-        Vector3 footFromShin = foot.position - shinEnd.position;
-        Quaternion shinRest = shin.rotation;
-        Quaternion footRest = foot.rotation;
+        var legR = new LegFollow(model, LowerLegR, ShinEndR, FootR);
+        var legL = new LegFollow(model, LowerLegL, ShinEndL, FootL);
 
         for (int i = 0; i < pose.Joints.Count; i++)
         {
             Joint joint = pose.Joints[i];
             model.Find(joint.Path).Rotate(AxisOf(model, joint.Axis), joint.Degrees, Space.World);
         }
+        model.Find(Body).position += Vector3.down * pose.BodyDrop;
 
-        // 발은 정강이가 돈 만큼 같이 돌려 정강이 끝에 붙인다
-        Quaternion delta = shin.rotation * Quaternion.Inverse(shinRest);
-        foot.position = shinEnd.position + delta * footFromShin;
-        foot.rotation = delta * footRest;
-        foot.Rotate(AxisOf(model, Axis.Right), pose.FootDegrees, Space.World);
+        // 발은 정강이가 돈 만큼 같이 돌려 정강이 끝에 붙인다(루트를 내리거나 눕혀도 따라온다)
+        legR.Apply(AxisOf(model, Axis.Right), pose.FootDegrees);
+        legL.Apply(AxisOf(model, Axis.Right), 0f);
     }
 
     private static Vector3 AxisOf(Transform model, Axis axis)
