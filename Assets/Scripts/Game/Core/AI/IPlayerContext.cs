@@ -57,6 +57,10 @@ namespace Game.Core.AI
         float PassTargetX { get; }     // 그 패스의 도착점
         float PassTargetZ { get; }
 
+        // ── GK 슛 대응(10-23)
+        bool IncomingShot { get; }      // 내 골로 날아오는 유효 슛에 반응할 차례인가(GK만, 반응 지연 뒤)
+        float IncomingShotAimZ { get; } // 그 슛이 골라인에 닿을 Z
+
         // ── 시키기. 실행(속도·판정)은 시뮬 몫, 트리는 의도만 남긴다
         void MoveToward(float x, float z);
         void Shoot();

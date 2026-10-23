@@ -31,6 +31,23 @@ namespace Game.Core.Match
         }
     }
 
+    // 선수가 공을 찼다(패스·슛). 화면 킥 애니용(10-21, 슛·패스 구분 10-23). 방향을 같이 준다: 슛은 Kick 전에 알리므로(막혀도 찬 것) 그 순간 공 속도는 0이다(10-24 리뷰 🔴)
+    public readonly struct KickReport
+    {
+        public readonly int KickerId;
+        public readonly bool IsShot;
+        public readonly float DirX;   // 찬 방향(정규화 안 함)
+        public readonly float DirZ;
+
+        public KickReport(int kickerId, bool isShot, float dirX, float dirZ)
+        {
+            KickerId = kickerId;
+            IsShot = isShot;
+            DirX = dirX;
+            DirZ = dirZ;
+        }
+    }
+
     // 슛 하나의 결과 보고. MatchManager가 콘솔에 찍고 테스트가 대조한다
     public readonly struct ShotReport
     {
@@ -63,7 +80,7 @@ namespace Game.Core.Match
 
         public event Action<ShotReport>? ShotResolved;
         public event Action<PossessionReport>? PossessionChanged;
-        public event Action<int>? BallKicked;   // 선수가 공을 찼다(슛·패스, 인자 = 선수 번호). 화면 킥 애니용(10-21). 규칙·결정성과 무관
+        public event Action<KickReport>? BallKicked;   // 선수가 공을 찼다. 화면 킥 애니용. 규칙·결정성과 무관
 
         public int TickCount => tickCount;                                   // 첫 Tick부터 센 수. 하프타임·HUD 시계의 기준(MatchManager.Ticks와 같은 값)
         public bool IsSecondHalf => tickCount >= MatchClock.HalfTimeTick(Added);
@@ -92,6 +109,7 @@ namespace Game.Core.Match
         private readonly List<TargetInfo>[] blockCandidates = { new List<TargetInfo>(), new List<TargetInfo>() }; // 팀별 슛 블록 후보(얼음 제외, 09-30 리뷰). 틱 시작 스냅샷과 같은 시점
         // 팀별 "지금 맡은 선수"(09-28 F1b 히스테리시스). 압박 1순위는 상대 소유 중에만, 루즈볼 추격자는 소유 팀이 없을 때만 유지하고 아니면 -1
         private readonly int[] pressLeader = { -1, -1 };
+        private readonly int[] pressLeaderSince = { 0, 0 };   // 지금 담당이 맡기 시작한 틱. 최소 재임(PressMinTenureTicks) 판정
         private readonly int[] looseChaser = { -1, -1 };
         // 팀 국면 스냅샷 버퍼. 틱마다 새 배열을 만들면 3분에 9,000 × 3번 할당(09-21 전수조사 S5)
         private readonly bool[] counteringByTeam = new bool[2];
@@ -104,6 +122,7 @@ namespace Game.Core.Match
 
         // 비행 중인 슛의 결정된 결과. 골이면 GK 접촉을 무시하고 골라인을 넘긴다
         private bool shotInFlight;
+        private int shotTicks;                // 슛이 뜬 뒤 지난 틱. GK 반응 지연(KeeperReactionTicks)의 기준
         private bool shotWillScore;
         private int shooterId;
         private int shooterAttackSign;
@@ -256,9 +275,11 @@ namespace Game.Core.Match
             bool loose = Ball.Phase != BallPhase.Owned && ownerTeam == -1;
             for (int team = 0; team < 2; team++)
             {
-                pressLeader[team] = ownerTeam == 1 - team
-                    ? PressRules.FirstInRank(pressEligible[team], Ball.X, Ball.Z, pressLeader[team], MatchTuning.ChaserSwitchMargin)
+                int candidate = ownerTeam == 1 - team
+                    ? PressRules.FirstInRank(pressEligible[team], Ball.X, Ball.Z, pressLeader[team], PressMargin(team))
                     : -1;
+                if (candidate != pressLeader[team]) { pressLeaderSince[team] = tickCount; }
+                pressLeader[team] = candidate;
 
                 if (!loose)
                 {
@@ -275,6 +296,13 @@ namespace Game.Core.Match
                 }
                 looseChaser[team] = PressRules.FirstInRank(candidates, Ball.X, Ball.Z, looseChaser[team], MatchTuning.ChaserSwitchMargin);
             }
+        }
+
+        // 압박 담당 교체 마진. 담당을 받은 지 최소 재임 안이면 사실상 무한(거리로 못 뺏김). 후보 목록에서 빠진 담당(얼음·범위 밖)은 마진과 무관하게 넘어간다(10-23 ③ probe 뒤 (b)안)
+        private float PressMargin(int team)
+        {
+            if (tickCount - pressLeaderSince[team] < MatchTuning.PressMinTenureTicks) { return MatchTuning.LockedMargin; }
+            return MatchTuning.ChaserSwitchMargin;
         }
 
         // 소유 팀. 비행 중인 패스는 찬 팀의 것이다: -1로 두면 22명 전부 자유 공으로 봐서 최근접 1명이 날아가는 공을 쫓고
@@ -375,6 +403,7 @@ namespace Game.Core.Match
             takeOnOwnerId = BallState.NoOwner;
             takeOnTicksLeft = 0;
             pressLeader[0] = pressLeader[1] = -1;
+            pressLeaderSince[0] = pressLeaderSince[1] = tickCount;
             looseChaser[0] = looseChaser[1] = -1;
             for (int i = 0; i < players.Count; i++)
             {
@@ -413,6 +442,7 @@ namespace Game.Core.Match
                 KickoffBy(1 - firstKickoffTeam);
             }
 
+            if (shotInFlight) { shotTicks++; }
             Ball = BallRules.Step(Ball, deltaTime, MatchTuning.BallDeceleration);
 
             // 골라인에 못 미치고 감속으로 멈춘 슛(정지 거리 78m 밖에서 쏜 경우). 빗나감으로 마감해야 옛 슛 표시가 남지 않는다
@@ -549,7 +579,7 @@ namespace Game.Core.Match
                 p.BallThird = thirdByTeam[p.Team];
                 p.IsCountering = counteringByTeam[p.Team];
                 p.IsCounterPressing = counterPressingByTeam[p.Team];
-                p.PressRank = PressRules.PressRank(p.PlayerId, pressEligible[p.Team], Ball.X, Ball.Z, pressLeader[p.Team], MatchTuning.ChaserSwitchMargin);
+                p.PressRank = PressRules.PressRank(p.PlayerId, pressEligible[p.Team], Ball.X, Ball.Z, pressLeader[p.Team], PressMargin(p.Team));
                 p.IsLooseBallChaser = looseChaser[p.Team] == p.PlayerId;
                 p.IsKickoffTaker = kickoffTakerId == p.PlayerId;
                 p.WantsTakeOn = takeOnOwnerId == p.PlayerId && takeOnTicksLeft > 0;
@@ -560,6 +590,8 @@ namespace Game.Core.Match
                 p.IsPassTarget = passInFlight && passReceiverId == p.PlayerId;
                 p.PassTargetX = passTargetX;
                 p.PassTargetZ = passTargetZ;
+                p.IncomingShot = IncomingShotFor(p);
+                p.IncomingShotAimZ = shotAimZ;
             }
         }
 
@@ -612,6 +644,7 @@ namespace Game.Core.Match
             if (!p.WantsMove) { return; }
 
             float speed = MatchRules.SpeedMps(p.Stats.Speed) * FatigueRules.Effort(p.Stamina, MatchTuning.FatigueEffortThreshold, MatchTuning.FatigueEffortMin);
+            if (p.IsGoalkeeper && p.IncomingShot && !shotWillScore) { speed = MatchTuning.KeeperDiveSpeed; }   // 슛 대응은 다이빙 버스트. 피로·스탯 무관(KeeperCanReach와 같은 속도여야 "닿는다"고 본 슛에 실제로 닿는다). 골로 정해진 슛엔 스탯 속도로 한 발 늦게
             bool carrying = Ball.Phase == BallPhase.Owned && Ball.OwnerId == p.PlayerId;
             if (carrying) { speed *= MatchTuning.DribbleFactor; }
 
@@ -645,6 +678,7 @@ namespace Game.Core.Match
 
             shotProbability = MatchRules.ShotProbability(shooter.X, shooter.Z, shooter.AttackSign, shooter.Stats.Shot, reflexes, diving);
             if (IsPressed(shooter)) { shotProbability = MatchRules.PressuredShotProbability(shotProbability, MatchTuning.ShotPressureLogit); }   // 트리 WantsShot과 같은 식(09-29 D3)
+            shotProbability = MatchRules.ResolveShotProbability(shotProbability, MatchTuning.ShotResolveLogitBonus);   // 확정만 보정. 판정(WantsShot)은 보정 전 값
             shotWillScore = MatchRules.Resolve(shotProbability, nextRoll());
             shotInFlight = true;
             shooterId = shooter.PlayerId;
@@ -654,9 +688,12 @@ namespace Game.Core.Match
             // 조준: 골 중심이 아니라 shot 스탯에 따라 퍼진 지점. 골문 밖이면 골라인에서 빗나감으로 마감
             shotAimZ = MatchRules.ShotAimZ(shooter.Stats.Shot, nextRoll());
             if (!MatchRules.IsOnTarget(shotAimZ)) { shotWillScore = false; }
+            if (shotWillScore && keeper != null) { shotAimZ = MatchRules.AimAwayFromKeeper(shotAimZ, keeper.Z, MatchTuning.GoalAimMinGapFromKeeper); }   // 골은 GK가 못 닿는 구석으로(골 여부는 이미 정해져 조준만 바뀐다)
 
             float goalX = FieldBounds.HalfLength * shooter.AttackSign;
-            BallKicked?.Invoke(shooter.PlayerId);   // 막혀도 찬 건 찬 것
+            shotTicks = 0;
+            if (ShouldPushWide(keeper, shooter, goalX)) { shotAimZ = MatchRules.PushWide(shotAimZ); }
+            BallKicked?.Invoke(new KickReport(shooter.PlayerId, true, goalX - shooter.X, shotAimZ - shooter.Z));   // 막혀도 찬 건 찬 것
             if (TryBlockShot(shooter, goalX)) { return; }
             Ball = BallRules.Kick(Ball, goalX - shooter.X, shotAimZ - shooter.Z, MatchTuning.ShotSpeed);
         }
@@ -721,7 +758,7 @@ namespace Game.Core.Match
             takeOnOwnerId = BallState.NoOwner;    // 공을 내줬으면 돌파도 끝
 
             Ball = BallRules.Kick(Ball, dx, dz, speed);
-            BallKicked?.Invoke(passer.PlayerId);
+            BallKicked?.Invoke(new KickReport(passer.PlayerId, false, dx, dz));
         }
 
         // 소유자가 바뀐 틱: 패스 비행 마감(받았거나 가로챘거나), 볼 끌기 대기 시작
@@ -786,12 +823,71 @@ namespace Game.Core.Match
                 return true;
             }
 
-            Finish(ShotOutcome.Missed);   // 골문 밖 조준이거나(shotAimZ) GK를 지나쳤거나
+            if (MatchRules.IsOnTarget(shotAimZ) && ResolveSaveAtLine()) { return true; }
+
+            Finish(ShotOutcome.Missed);   // 골문 밖 조준(찬 순간 포스트 밖으로 밀린 것 포함). 골문 안 노골은 위에서 세이브로 끝난다
             RestartAfterMiss();
             return true;
         }
 
-        // 골이 아닌 슛이 GK 반경에 닿으면 세이브: 캐치(GK 소유) 또는 튕김(앞으로 자유 공)
+        // 노골인데 골문 안이고 GK가 못 닿는 슛 = 빗나감으로 보이게 포스트 밖으로. 유효 슛의 노골은 GK가 닿아 세이브로 끝난다(골라인 ResolveSaveAtLine)
+        private bool ShouldPushWide(PlayerState? keeper, PlayerState shooter, float goalX)
+        {
+            if (shotWillScore || keeper == null) { return false; }
+            if (!MatchRules.IsOnTarget(shotAimZ)) { return false; }
+            return !KeeperCanReachShot(keeper, shooter, goalX);
+        }
+
+        // 찬 순간의 판정: GK가 반응 지연 뒤 비행 시간 안에 조준점(가로)까지 닿나
+        private bool KeeperCanReachShot(PlayerState keeper, PlayerState shooter, float goalX)
+        {
+            float dx = goalX - shooter.X;
+            float dz = shotAimZ - shooter.Z;
+            float flight = MatchRules.ShotFlightTime((float)Math.Sqrt(dx * dx + dz * dz), MatchTuning.ShotSpeed, MatchTuning.BallDeceleration);
+            if (flight < 0f) { return false; }
+            return MatchRules.KeeperCanReach(keeper.Z, shotAimZ, flight, MatchTuning.KeeperReactionTicks * MatchTuning.FixedStep);
+        }
+
+        // 내 골로 오는 유효 슛에 GK가 반응할 차례인가(트리 ⑨b). 반응 지연 뒤부터. 골로 정해진 슛은 두 배 늦게
+        private bool IncomingShotFor(PlayerState p)
+        {
+            if (!shotInFlight || !p.IsGoalkeeper || p.Team == TeamOfSign(shooterAttackSign)) { return false; }
+            if (!MatchRules.IsOnTarget(shotAimZ)) { return false; }
+            int reaction = shotWillScore ? MatchTuning.KeeperReactionTicks * 2 : MatchTuning.KeeperReactionTicks;
+            return shotTicks >= reaction;
+        }
+
+        // 골문 안인데 노골로 정해진 슛이 GK 접촉 없이 골라인에 닿음: 공을 라인 안쪽 발 반경으로 들이고 GK를 그 자리로 당겨 세이브(찬 순간 "닿을 수 있다"고 본 슛이라 작은 보정). GK 없는 시뮬은 빗나감
+        // 공을 라인 밖(골라인을 넘은 자리)에 둔 채 세이브하면 캐치 뒤 배급 패스·펀칭 튕김이 "나간 공"으로 판정돼 골킥 자리에 자유 공으로 떨어졌다(10-24 리뷰 뒤 probe: 골 1.37 → 2.00)
+        private bool ResolveSaveAtLine()
+        {
+            PlayerState? keeper = FindGoalkeeper(1 - TeamOfSign(shooterAttackSign));
+            if (keeper == null) { return false; }
+            BallState inside = Ball;
+            inside.X = shooterAttackSign * (FieldBounds.HalfLength - MatchTuning.CaptureRadius);
+            Ball = inside;
+            keeper.X = Ball.X;
+            keeper.Z = Ball.Z;
+            ResolveSave(keeper);
+            if (ResetAfterEveryShot) { Kickoff(); }
+            return true;
+        }
+
+        // 세이브: 캐치(GK 소유) 또는 튕김(앞으로 자유 공)
+        private void ResolveSave(PlayerState keeper)
+        {
+            bool caught = MatchRules.Resolve(MatchRules.CatchProbability(keeper.Stats.Handling), nextRoll());
+            if (caught)
+            {
+                Ball = BallRules.Own(Ball, keeper.PlayerId, keeper.X, keeper.Z);
+                Finish(ShotOutcome.Caught);
+                return;
+            }
+            Ball = BallRules.Kick(Ball, -shooterAttackSign, 0f, MatchTuning.ParrySpeed);
+            Finish(ShotOutcome.Parried);
+        }
+
+        // 골이 아닌 슛이 GK 반경에 닿으면 세이브
         private bool ResolveSaveOnContact()
         {
             PlayerState? keeper = FindGoalkeeper(1 - TeamOfSign(shooterAttackSign));
@@ -801,17 +897,7 @@ namespace Game.Core.Match
             float dz = keeper.Z - Ball.Z;
             if (dx * dx + dz * dz > MatchTuning.CaptureRadius * MatchTuning.CaptureRadius) { return false; }
 
-            bool caught = MatchRules.Resolve(MatchRules.CatchProbability(keeper.Stats.Handling), nextRoll());
-            if (caught)
-            {
-                Ball = BallRules.Own(Ball, keeper.PlayerId, keeper.X, keeper.Z);
-                Finish(ShotOutcome.Caught);
-            }
-            else
-            {
-                Ball = BallRules.Kick(Ball, -shooterAttackSign, 0f, MatchTuning.ParrySpeed);
-                Finish(ShotOutcome.Parried);
-            }
+            ResolveSave(keeper);
 
             if (ResetAfterEveryShot)
             {

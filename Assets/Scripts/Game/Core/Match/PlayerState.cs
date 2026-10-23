@@ -53,6 +53,8 @@ namespace Game.Core.Match
         public bool IsPassTarget { get; set; }
         public float PassTargetX { get; set; }
         public float PassTargetZ { get; set; }
+        public bool IncomingShot { get; set; }       // 내 골로 오는 유효 슛에 반응할 차례(GK만, 반응 지연 뒤). 시뮬이 넣는다(10-23)
+        public float IncomingShotAimZ { get; set; }  // 그 슛이 골라인에 닿을 Z(골 중심 기준)
 
         // ── 의도(시뮬이 읽고 지운다)
         public bool WantsMove { get; private set; }

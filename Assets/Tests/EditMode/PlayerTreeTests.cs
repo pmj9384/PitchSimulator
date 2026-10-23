@@ -45,6 +45,8 @@ public class PlayerTreeTests
         public bool IsPassTarget { get; set; }
         public float PassTargetX { get; set; }
         public float PassTargetZ { get; set; }
+        public bool IncomingShot { get; set; }
+        public float IncomingShotAimZ { get; set; }
 
         public string Did = "";
         public float MoveX, MoveZ; public int PassedTo = -1; public float PassX, PassZ;

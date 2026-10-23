@@ -53,11 +53,11 @@ public class MatchRulesTests
     }
 
     [Test]
-    public void 캐치_확률은_기본_0_65에_handling이_보정한다()
+    public void 캐치_확률은_기본_0_5에_handling이_보정한다()
     {
-        Assert.AreEqual(0.65f, MatchRules.CatchProbability(50), 1e-5f);
-        Assert.AreEqual(0.85f, MatchRules.CatchProbability(100), 1e-5f);
-        Assert.AreEqual(0.45f, MatchRules.CatchProbability(0), 1e-5f);
+        Assert.AreEqual(0.5f, MatchRules.CatchProbability(50), 1e-5f);    // 0.65 → 0.5(10-23 격자, 펀칭 세컨드볼)
+        Assert.AreEqual(0.7f, MatchRules.CatchProbability(100), 1e-5f);
+        Assert.AreEqual(0.3f, MatchRules.CatchProbability(0), 1e-5f);
         Assert.Greater(MatchRules.CatchProbability(60), MatchRules.CatchProbability(50));
     }
 
@@ -182,6 +182,53 @@ public class ShotProbabilityTests
     {
         double rad = deg * Math.PI / 180.0;
         return new TargetInfo(playerId, 40f + dist * (float)Math.Cos(rad), dist * (float)Math.Sin(rad));
+    }
+
+    [Test]
+    public void 슛_확정_보정은_로짓을_더해_확률을_올리고_0이면_그대로다()
+    {
+        Assert.AreEqual(0.4f, MatchRules.ResolveShotProbability(0.4f, 0f), 1e-6f);
+        Assert.Greater(MatchRules.ResolveShotProbability(0.4f, 0.8f), 0.4f);
+        Assert.Greater(MatchRules.ResolveShotProbability(0.4f, 0.8f), MatchRules.PressuredShotProbability(0.4f, 0.8f), "압박은 내리고 확정 보정은 올린다");
+        Assert.AreEqual(0.4f, MatchRules.ResolveShotProbability(MatchRules.PressuredShotProbability(0.4f, 0.8f), 0.8f), 1e-5f, "같은 로짓을 빼고 더하면 제자리");
+    }
+
+    [Test]
+    public void 슛_비행_시간은_등감속_식이고_정지_거리_밖이면_음수다()
+    {
+        Assert.AreEqual(0f, MatchRules.ShotFlightTime(0f, 25f, 4f), 1e-6f);
+        // 25t - 2t² = 30 → t = (25 - √(625 - 240)) / 4 = 1.3448
+        Assert.AreEqual(1.3448f, MatchRules.ShotFlightTime(30f, 25f, 4f), 1e-3f);
+        Assert.Less(MatchRules.ShotFlightTime(80f, 25f, 4f), 0f, "정지 거리 78.125m 밖");
+    }
+
+    [Test]
+    public void 포스트_밖으로_밀기는_조준_쪽_포스트_바깥_여유만큼이다()
+    {
+        float outside = FieldBounds.GoalHalfWidth + MatchTuning.ShotWideMargin;
+        Assert.AreEqual(outside, MatchRules.PushWide(0.5f), 1e-6f);
+        Assert.AreEqual(-outside, MatchRules.PushWide(-1f), 1e-6f);
+        Assert.AreEqual(outside, MatchRules.PushWide(0f), 1e-6f, "정중앙은 오른쪽");
+        Assert.IsFalse(MatchRules.IsOnTarget(MatchRules.PushWide(0.5f)));
+    }
+
+    [Test]
+    public void 골로_정해진_조준점은_GK_자리에서_최소_간격_넘게_먼_쪽으로_민다()
+    {
+        Assert.AreEqual(3f, MatchRules.AimAwayFromKeeper(3f, 0f, 2.5f), 1e-3f, "이미 멀면 그대로");
+        Assert.AreEqual(2.5f, MatchRules.AimAwayFromKeeper(1f, 0f, 2.5f), 1e-3f, "조준 쪽으로 간격만큼");
+        Assert.AreEqual(-2.5f, MatchRules.AimAwayFromKeeper(-0.2f, 0f, 2.5f), 1e-3f, "조준이 왼쪽이면 왼쪽으로");
+        Assert.AreEqual(0.5f, MatchRules.AimAwayFromKeeper(3.3f, 3f, 2.5f), 1e-3f, "조준 쪽(5.5)은 골문 밖이라 반대쪽");
+        Assert.AreEqual(3.36f, MatchRules.AimAwayFromKeeper(0.1f, 0f, 4f), 1e-3f, "양쪽 다 안 되면 조준 쪽 포스트 안쪽 0.3");
+    }
+
+    [Test]
+    public void GK가_닿는지는_스탯이_아니라_다이빙_속도로_본다()
+    {
+        // 가로 3m, 비행 0.6초 - 반응 0.2초 = 0.4초. 다이빙 8m/s면 3.2 + 발 0.8 = 4.0 ≥ 3 → 닿음. 스탯 30(4.2m/s)이었으면 1.68 + 0.8 = 2.48 < 3이라 못 닿았다
+        Assert.IsTrue(MatchRules.KeeperCanReach(0f, 3f, 0.6f, 0.2f));
+        Assert.IsFalse(MatchRules.KeeperCanReach(0f, 4.1f, 0.6f, 0.2f), "4.0을 넘으면 못 닿음");
+        Assert.IsTrue(MatchRules.KeeperCanReach(0f, 0.7f, 0.1f, 0.2f), "반응 지연 안에 닿는 공은 발 반경으로만");
     }
 
     [Test]

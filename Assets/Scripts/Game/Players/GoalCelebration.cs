@@ -40,6 +40,7 @@ public sealed class GoalCelebration
             if (Vector3.Distance(mate.ViewPosition, at) > JoinRadius) { continue; }
             joiners.Add(mate);
         }
+        SetCelebrating(true);
     }
 
     // 고정 스텝마다 한 번. 마지막 스텝에서 IsPlaying이 false가 된다
@@ -63,9 +64,20 @@ public sealed class GoalCelebration
     // 판이 새로 차려질 때·끝났을 때 참조를 놓는다
     public void Stop()
     {
+        SetCelebrating(false);
         ticksLeft = 0;
         scorer = null;
         joiners.Clear();
+    }
+
+    // 득점자와 모인 동료의 팔 들기 애니(10-23). 득점자는 뛰면서 들고, 동료는 멈추면 든다
+    private void SetCelebrating(bool on)
+    {
+        if (scorer != null) { scorer.SetCelebrating(on); }
+        for (int i = 0; i < joiners.Count; i++)
+        {
+            joiners[i].SetCelebrating(on);
+        }
     }
 
     // 동료가 설 자리: 득점자에게서 지금 방향 그대로 Gap만큼 떨어진 점

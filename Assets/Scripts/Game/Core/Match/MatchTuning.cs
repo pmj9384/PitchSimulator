@@ -11,8 +11,8 @@ namespace Game.Core.Match
         public const float DribbleFactor = 0.75f;     // 공을 몰면 이동 속도의 이 비율(엘리트 70~80%). 09-23에 0.6으로 내렸던 건 비행 중 소유 팀 버그로 수비 블록이 무너지던 때 10골을 잡으려던 것. 블록이 서는 09-26엔 0.75로 W(8.4)가 FB(9.1)에 잡힐락 말락, ST(6.3)가 CB(5.6)를 겨우 따돌린다. 개인차는 dribble 다이얼 몫(나중)
         public const float SpeedMpsAt50 = 7f;         // speed 스탯 50 = 7m/s(경기 중 달리기). 선형 변환의 기준점
         public const float Tempo = 1f;                // 이동 속도 전체 배율. 3분 경기에 공격 횟수를 맞추는 손잡이
-        public const float CatchBase = 0.65f;         // 세이브 중 캐치(GK 소유) 비율. 나머지는 앞으로 튕겨 자유 공
-        public const float CatchHandlingScale = 0.2f; // handling 0→100이 캐치 확률을 ±0.2 움직인다(0.45~0.85)
+        public const float CatchBase = 0.5f;          // 세이브 중 캐치(GK 소유) 비율. 나머지는 앞으로 튕겨 자유 공. 0.65 → 0.5(10-23 격자: 펀칭 23 → 31%로 세컨드볼. 09-28 유저 "슛만 차면 다 잡아")
+        public const float CatchHandlingScale = 0.2f; // handling 0→100이 캐치 확률을 ±0.2 움직인다(0.3~0.7)
         public const float ParrySpeed = 8f;           // 튕겨 나가는 공의 초속. 박스 근처에 떨어지는 값
         public const float GoalKickOffset = 5.5f;     // 골킥 자리 = 골라인에서 5.5m(골 에어리어 앞)
         public const float ThrowInInset = 1f;         // 스로인 자리 = 터치라인 안쪽 1m
@@ -37,8 +37,8 @@ namespace Game.Core.Match
         public const float CounterPressScale = 2f;                              // 역압박 중 개인 압박 거리에 추가로 곱하는 배율(단계 배율 × 이 값. 표준 2.0·적극 3.0, 10-08)
         public static readonly int[] CounterPressThreshold = { int.MaxValue, 3, 2 }; // 역압박 성향(안 함·상황 봐서·적극) → 뺏긴 순간 우리 뒤 수비 수 문턱
         public const int CounterPressWindowTicks = 300;                         // 역압박 창 6초(과르디올라 6초 룰, 2차 출처) ÷ 0.02s
-        public const float ShotSpreadMin = 2.5f;                                // shot 100의 조준 반폭(m). 골문 반폭 3.66 안
-        public const float ShotSpreadMax = 6f;                                  // shot 0의 조준 반폭(m). 골문 밖까지 퍼진다
+        public const float ShotSpreadMin = 3f;                                  // shot 100의 조준 반폭(m). 2.5 → 3(10-23 격자): 2.5/6이면 유효 슛 97%라 빗나감이 거의 없었다. 격자는 3.5/7(빗나감 13~15%)이 좋았지만 shot 90의 반폭이 3.85로 골문(3.66)을 넘어 "주사위 0 = 골문 안" 전제(테스트 4개)가 깨져 3으로. shot 90 → 3.4
+        public const float ShotSpreadMax = 7f;                                  // shot 0의 조준 반폭(m). 골문 밖까지 퍼진다. 6 → 7(10-23 격자, 위와 같이)
         public const float MatchSeconds = 180f;   // 스펙 §0: 실시간 3분 = 게임 내 90분. 러너·시즌·인게임·테스트가 전부 이 한 곳을 본다(09-27 리뷰 X4)
         public const int MatchTicks = 9000;       // = MatchSeconds / FixedStep. float 나눗셈으로 파생하지 않고 정수로 못 박는다(테스트가 둘의 일치를 잠근다)
         public const int HalfTimeTick = MatchTicks / 2;   // 추가시간이 없을 때의 45:00 틱. 시계 테스트만 쓴다. 실제 하프타임 틱은 표시 추가시간을 반영한 MatchClock.HalfTimeTick이고, 진영 교체·킥오프 교대는 MatchSimulation.Tick이 한다
@@ -71,6 +71,8 @@ namespace Game.Core.Match
         public const float CounterForwardMargin = 3f;                           // 역습 리시버는 패서보다 이만큼 앞선 아군만(자기만 빼면 뒤로 돌려 핑퐁)
         public const float PressedRadius = TackleRange;                         // 상대가 이 거리 안이면 "압박받는 중". 옆·뒤 돌리기는 이때만. 09-23: 3m였을 땐 압박이 3m 선을 넘는 순간 3틱 만에 안전한 뒤 패스로 도망가 접촉이 0이었다. 태클 사거리와 같게 두면 같은 틱에 태클이 먼저 시도되고 실패해야 돌린다
         public const float BackPassDepthPenalty = 0.01f;                        // 뒤로 1m마다 깎는 점수. 20m 뒤면 -0.2라 깊은 백패스(GK 등)는 0 이하로 떨어져 별도 컷 없이 후보에서 빠진다
+        public const int PressMinTenureTicks = 50;                              // 압박 1순위를 받으면 이 동안(1초)은 거리로 안 뺏긴다(10-23 probe: 왕복의 45%가 태클 실패 정지 0.5초 뒤 되찾기, 간격 중앙값 0.50초). 후보에서 빠지면(얼음·범위 밖) 즉시 넘어간다 [가정 1초, 러너로 조정]
+        public const float LockedMargin = 1000f;                                // 최소 재임 중 히스테리시스 마진. 사실상 무한이라 현 담당이 0순위를 지킨다
         public const float ChaserSwitchMargin = 2f;                             // 추격자 히스테리시스(09-28 F1b): 압박 1순위·루즈볼 추격자는 도전자가 이만큼 더 가까워야 넘겨준다. 출처가 주는 수치는 없어 태클 사거리와 같은 값으로 출발(러너·Play로 조정)
         // 드리블 돌파. 방향 고르기는 HELIOS 드리블 생성기(DribbleRules 주석), 빈도·지속은 출처 없는 출발값이라 러너로 조정한다.
         // 비교 기준: Opta 25/26 EPL 돌파 성공률 평균 36.7%, 돌파 시도가 많은 윙어 90분당 6.5~9.5회(theanalyst "Premier League's Most Impactful Dribblers")
@@ -93,6 +95,14 @@ namespace Game.Core.Match
         public const float BoxStepOutDepth = Placement.FieldBounds.PenaltyBoxDepth + 5f;
         // 슈터 압박·슛 블록(09-29 수비 D3, MatchRules.PressuredShotProbability·ShotBlocker 주석). 블록 확률·튕기는 속도는 출처 없는 출발값
         public const float ShotPressureLogit = 0.4f;     // 압박받는 슛의 로짓 감소
+        // GK 슛 대응(10-23 유저 Play 3·4차). 규칙은 MatchSimulation.Shoot·IncomingShotFor·ResolveSaveAtLine, 판정은 MatchRules.KeeperCanReach·PushWide·AimAwayFromKeeper
+        public const float KeeperDiveSpeed = 8f;         // 슛에 반응하는 동안 GK의 가로 이동 m/s(스탯과 무관한 다이빙 버스트). 스탯 30 = 4.2m/s로는 0.5초에 1.5m라 화면에서 제자리 셔플로 보였다(10-23 유저 Play 4차). [가정] 실제 GK는 포스트 쪽 3m를 0.5~0.6초에 닿는다. 격자(20판): 마감 때 공과 간격 0.56 → 0.11m, 빗나감 5 → 1%, 골 불변
+        public const float GoalAimMinGapFromKeeper = 2.5f;   // 골로 정해진 슛의 조준점은 찬 순간 GK 자리에서 가로로 이만큼 넘게 먼 구석으로. 다이빙 버스트를 넣자 골인데도 GK가 공 0.2m까지 닿아 몸을 뚫고 들어가는 모양이 됐다(10-23 probe). [가정] 스탯 30 GK가 반응 ×2 뒤 남는 0.3초에 가는 1.3m보다 멀게
+        public const int KeeperReactionTicks = 10;       // GK가 슛에 반응해 조준점으로 움직이기 시작하는 지연(0.2초). [가정] 사람 단순 반응 시간 0.2~0.25초. 골로 정해진 슛엔 ×2(못 막을 슛을 "늦게 반응한" 모양으로)
+        public const float ShotWideMargin = 0.5f;        // 노골로 정해졌는데 GK가 못 닿을 유효 슛을 포스트 밖으로 미는 거리(m). 골대 안으로 들어가는 노골을 없앤다(10-23 유저 "안 들어가면 골대 안으로 가면 안 된다"). [가정] 출처 없음, 화면에서 확실히 밖으로 보이는 값
+        public const float ShotResolveLogitBonus = 0.8f; // 슛 확정 확률에만 더하는 로짓(판정 WantsShot은 안 본다). 10-23 인게임 경로 계측: 슛이 현실의 절반(5.9/팀)이라 골 1.44·0:0 22%였다. 0.6 → 0.8은 GK 슛 대응·조준 반폭·압박 재임을 넣은 뒤 격자(최종 4부 20시즌 골 2.13·0:0 9%·무 27%). [가정] 임시 레버
+                                                         // 문턱을 낮추면 나쁜 자리에서 일찍 쏴 골이 줄고(0.88), 확정만 올리면 슛 수 그대로 골 2.17·0:0 6%(+0.3 1.76 / +0.9 2.70). 유저 "중간점".
+                                                         // 임시 레버: ⑦ 공격 장면·④ 침투로 슛이 늘면 0으로 되돌린다. 기록 실험/2026-10-23-골-가뭄-레버-격자.md
         public const float ShotBlockRange = TackleRange;  // 슛을 막을 수 있는 수비수 거리(발 뻗어 막는 범위 = 태클 사거리)
         public const float ShotBlockConeDeg = 20f;       // 슛 방향 기준 각도
         public const float ShotBlockChance = 0.3f;       // 후보가 있을 때 실제로 막을 확률

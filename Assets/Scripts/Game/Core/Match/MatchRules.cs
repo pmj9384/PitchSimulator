@@ -64,6 +64,12 @@ namespace Game.Core.Match
             return MatchTuning.TackleBaseChance * Logistic(logit);
         }
 
+        // 슛 확정 보정(10-23): 판정에 쓴 확률에 로짓 bonus를 더한 값으로 들어갈지를 굴린다. 판정과 확정을 가르는 유일한 자리
+        public static float ResolveShotProbability(float probability, float logitBonus)
+        {
+            return PressuredShotProbability(probability, -logitBonus);
+        }
+
         // 압박받는 슛(09-29 수비 D3): 슈터 발 뻗는 범위(PressedRadius) 안에 상대가 있으면 로짓에서 penalty를 뺀다.
         // StatsBomb "Closing down": 슛의 약 65%가 압박 속에서 나오고 무압박 슛이 더 잘 들어간다. 슛 경로 수비수 예시 xG 0.25 → 0.18은 로짓 약 -0.4
         public static float PressuredShotProbability(float probability, float logitPenalty)
@@ -134,6 +140,42 @@ namespace Game.Core.Match
         public static float ShotAimZ(int shot, float roll)
         {
             return (roll * 2f - 1f) * ShotSpread(shot);
+        }
+
+        // 슛 비행 시간(초): 초속 speed·등감속 deceleration으로 distance를 가는 시간. 그 전에 멈추면 -1
+        public static float ShotFlightTime(float distance, float speed, float deceleration)
+        {
+            float disc = speed * speed - 2f * deceleration * distance;
+            if (disc < 0f) { return -1f; }
+            return (speed - (float)Math.Sqrt(disc)) / deceleration;
+        }
+
+        // GK가 반응 지연 뒤 남은 시간 안에 조준점까지 가로로 닿나. 속도는 다이빙 버스트(KeeperDiveSpeed, 스탯 무관), 발 뻗는 반경(CaptureRadius)은 공짜
+        public static bool KeeperCanReach(float keeperZ, float aimZ, float flightTime, float reactionSeconds)
+        {
+            float time = flightTime - reactionSeconds;
+            if (time < 0f) { time = 0f; }
+            return Math.Abs(aimZ - keeperZ) <= MatchTuning.KeeperDiveSpeed * time + MatchTuning.CaptureRadius;
+        }
+
+        // 골로 정해진 슛의 조준점을 GK 자리에서 minGap 넘게 먼 쪽으로(골문 안, 포스트 안쪽 0.3m 여유). 조준 쪽에 자리가 없으면 반대쪽, 양쪽 다 없으면(GK가 골문을 다 덮음) 조준 쪽 포스트 안쪽
+        public static float AimAwayFromKeeper(float aimZ, float keeperZ, float minGap)
+        {
+            if (Math.Abs(aimZ - keeperZ) >= minGap) { return aimZ; }
+            float limit = FieldBounds.GoalHalfWidth - 0.3f;
+            float side = aimZ >= keeperZ ? 1f : -1f;
+            float pushed = keeperZ + side * minGap;
+            if (Math.Abs(pushed) <= limit) { return pushed; }
+            float other = keeperZ - side * minGap;
+            if (Math.Abs(other) <= limit) { return other; }
+            return side * limit;
+        }
+
+        // 조준을 가까운 포스트 바깥으로. 노골로 정해졌는데 GK가 못 닿으면 "GK는 서 있고 공은 골대 안"이 되므로 빗나감으로 보이게 한다(10-23)
+        public static float PushWide(float aimZ)
+        {
+            float side = aimZ < 0f ? -1f : 1f;
+            return side * (FieldBounds.GoalHalfWidth + MatchTuning.ShotWideMargin);
         }
 
         // 조준 Z가 두 포스트 사이면 골문 안(경계 포함). 밖이면 빗나감
