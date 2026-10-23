@@ -161,7 +161,6 @@ namespace Game.Core.Data
                 Map(p => p.GkRushRadius).Name("gkRushRadius");
                 Map(p => p.DisplayName).Name("displayName");
                 Map(p => p.Description).Name("description");
-                Map(p => p.Icon).Name("icon");
             }
         }
     }
