@@ -53,11 +53,11 @@ public class MatchRulesTests
     }
 
     [Test]
-    public void 캐치_확률은_기본_0_65에_handling이_보정한다()
+    public void 캐치_확률은_기본_0_5에_handling이_보정한다()
     {
-        Assert.AreEqual(0.65f, MatchRules.CatchProbability(50), 1e-5f);
-        Assert.AreEqual(0.85f, MatchRules.CatchProbability(100), 1e-5f);
-        Assert.AreEqual(0.45f, MatchRules.CatchProbability(0), 1e-5f);
+        Assert.AreEqual(0.5f, MatchRules.CatchProbability(50), 1e-5f);    // 0.65 → 0.5(10-23 격자, 펀칭 세컨드볼)
+        Assert.AreEqual(0.7f, MatchRules.CatchProbability(100), 1e-5f);
+        Assert.AreEqual(0.3f, MatchRules.CatchProbability(0), 1e-5f);
         Assert.Greater(MatchRules.CatchProbability(60), MatchRules.CatchProbability(50));
     }
 
