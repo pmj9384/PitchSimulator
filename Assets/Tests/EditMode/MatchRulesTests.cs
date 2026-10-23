@@ -185,6 +185,25 @@ public class ShotProbabilityTests
     }
 
     [Test]
+    public void 골로_정해진_조준점은_GK_자리에서_최소_간격_넘게_먼_쪽으로_민다()
+    {
+        Assert.AreEqual(3f, MatchRules.AimAwayFromKeeper(3f, 0f, 2.5f), 1e-3f, "이미 멀면 그대로");
+        Assert.AreEqual(2.5f, MatchRules.AimAwayFromKeeper(1f, 0f, 2.5f), 1e-3f, "조준 쪽으로 간격만큼");
+        Assert.AreEqual(-2.5f, MatchRules.AimAwayFromKeeper(-0.2f, 0f, 2.5f), 1e-3f, "조준이 왼쪽이면 왼쪽으로");
+        Assert.AreEqual(0.5f, MatchRules.AimAwayFromKeeper(3.3f, 3f, 2.5f), 1e-3f, "조준 쪽(5.5)은 골문 밖이라 반대쪽");
+        Assert.AreEqual(3.36f, MatchRules.AimAwayFromKeeper(0.1f, 0f, 4f), 1e-3f, "양쪽 다 안 되면 조준 쪽 포스트 안쪽 0.3");
+    }
+
+    [Test]
+    public void GK가_닿는지는_스탯이_아니라_다이빙_속도로_본다()
+    {
+        // 가로 3m, 비행 0.6초 - 반응 0.2초 = 0.4초. 다이빙 8m/s면 3.2 + 발 0.8 = 4.0 ≥ 3 → 닿음. 스탯 30(4.2m/s)이었으면 1.68 + 0.8 = 2.48 < 3이라 못 닿았다
+        Assert.IsTrue(MatchRules.KeeperCanReach(0f, 3f, 0.6f, 0.2f));
+        Assert.IsFalse(MatchRules.KeeperCanReach(0f, 4.1f, 0.6f, 0.2f), "4.0을 넘으면 못 닿음");
+        Assert.IsTrue(MatchRules.KeeperCanReach(0f, 0.7f, 0.1f, 0.2f), "반응 지연 안에 닿는 공은 발 반경으로만");
+    }
+
+    [Test]
     public void 막힌_공은_슛_반대_방향에서_블로커_쪽으로_60도_비틀어_튕긴다()
     {
         // 슛 +X, 블로커가 슛 라인 +Z 쪽 → 반대 방향(-X)을 +Z 쪽으로 비틀어 옆·뒤

@@ -95,6 +95,8 @@ namespace Game.Core.Match
         public const float BoxStepOutDepth = Placement.FieldBounds.PenaltyBoxDepth + 5f;
         // 슈터 압박·슛 블록(09-29 수비 D3, MatchRules.PressuredShotProbability·ShotBlocker 주석). 블록 확률·튕기는 속도는 출처 없는 출발값
         public const float ShotPressureLogit = 0.4f;     // 압박받는 슛의 로짓 감소
+        public const float KeeperDiveSpeed = 8f;         // 슛에 반응하는 동안 GK의 가로 이동 m/s(스탯과 무관한 다이빙 버스트). 스탯 30 = 4.2m/s로는 0.5초에 1.5m라 화면에서 제자리 셔플로 보였다(10-23 유저 Play 4차). [가정] 실제 GK는 포스트 쪽 3m를 0.5~0.6초에 닿는다. 격자(20판): 마감 때 공과 간격 0.56 → 0.11m, 빗나감 5 → 1%, 골 불변
+        public const float GoalAimMinGapFromKeeper = 2.5f;   // 골로 정해진 슛의 조준점은 찬 순간 GK 자리에서 가로로 이만큼 넘게 먼 구석으로. 다이빙 버스트를 넣자 골인데도 GK가 공 0.2m까지 닿아 몸을 뚫고 들어가는 모양이 됐다(10-23 probe). [가정] 스탯 30 GK가 반응 ×2 뒤 남는 0.3초에 가는 1.3m보다 멀게
         public const int KeeperReactionTicks = 10;       // GK가 슛에 반응해 조준점으로 움직이기 시작하는 지연(0.2초). [가정] 사람 단순 반응 시간 0.2~0.25초. 골로 정해진 슛엔 ×2(못 막을 슛을 "늦게 반응한" 모양으로)
         public const float ShotWideMargin = 0.5f;        // 노골로 정해졌는데 GK가 못 닿을 유효 슛을 포스트 밖으로 미는 거리(m). 골대 안으로 들어가는 노골을 없앤다(10-23 유저 "안 들어가면 골대 안으로 가면 안 된다")
         public const float ShotResolveLogitBonus = 0.8f; // 슛 확정 확률에만 더하는 로짓(판정 WantsShot은 안 본다). 10-23 인게임 경로 계측: 슛이 현실의 절반(5.9/팀)이라 골 1.44·0:0 22%였다. 0.6 → 0.8은 GK 슛 대응·조준 반폭·압박 재임을 넣은 뒤 격자(4부 골 2.00·0:0 9%·무 25%).

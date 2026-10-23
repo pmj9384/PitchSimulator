@@ -627,6 +627,7 @@ namespace Game.Core.Match
             if (!p.WantsMove) { return; }
 
             float speed = MatchRules.SpeedMps(p.Stats.Speed) * FatigueRules.Effort(p.Stamina, MatchTuning.FatigueEffortThreshold, MatchTuning.FatigueEffortMin);
+            if (p.IsGoalkeeper && p.IncomingShot && !shotWillScore) { speed = MatchTuning.KeeperDiveSpeed; }   // 슛 대응은 다이빙 버스트. 피로·스탯 무관(KeeperCanReach와 같은 속도여야 "닿는다"고 본 슛에 실제로 닿는다). 골로 정해진 슛엔 스탯 속도로 한 발 늦게
             bool carrying = Ball.Phase == BallPhase.Owned && Ball.OwnerId == p.PlayerId;
             if (carrying) { speed *= MatchTuning.DribbleFactor; }
 
@@ -670,6 +671,7 @@ namespace Game.Core.Match
             // 조준: 골 중심이 아니라 shot 스탯에 따라 퍼진 지점. 골문 밖이면 골라인에서 빗나감으로 마감
             shotAimZ = MatchRules.ShotAimZ(shooter.Stats.Shot, nextRoll());
             if (!MatchRules.IsOnTarget(shotAimZ)) { shotWillScore = false; }
+            if (shotWillScore && keeper != null) { shotAimZ = MatchRules.AimAwayFromKeeper(shotAimZ, keeper.Z, MatchTuning.GoalAimMinGapFromKeeper); }   // 골은 GK가 못 닿는 구석으로(골 여부는 이미 정해져 조준만 바뀐다)
 
             float goalX = FieldBounds.HalfLength * shooter.AttackSign;
             shotTicks = 0;
@@ -821,7 +823,7 @@ namespace Game.Core.Match
             float dz = shotAimZ - shooter.Z;
             float flight = MatchRules.ShotFlightTime((float)Math.Sqrt(dx * dx + dz * dz), MatchTuning.ShotSpeed, MatchTuning.BallDeceleration);
             if (flight < 0f) { return false; }
-            return MatchRules.KeeperCanReach(keeper.Z, shotAimZ, keeper.Stats.Speed, flight, MatchTuning.KeeperReactionTicks * MatchTuning.FixedStep);
+            return MatchRules.KeeperCanReach(keeper.Z, shotAimZ, flight, MatchTuning.KeeperReactionTicks * MatchTuning.FixedStep);
         }
 
         // 내 골로 오는 유효 슛에 GK가 반응할 차례인가(트리 ⑨b). 반응 지연 뒤부터. 골로 정해진 슛은 두 배 늦게

@@ -150,12 +150,25 @@ namespace Game.Core.Match
             return (speed - (float)Math.Sqrt(disc)) / deceleration;
         }
 
-        // GK가 반응 지연 뒤 남은 시간 안에 조준점까지 가로로 닿나. 발 뻗는 반경(CaptureRadius)은 공짜
-        public static bool KeeperCanReach(float keeperZ, float aimZ, int keeperSpeedStat, float flightTime, float reactionSeconds)
+        // GK가 반응 지연 뒤 남은 시간 안에 조준점까지 가로로 닿나. 속도는 다이빙 버스트(KeeperDiveSpeed, 스탯 무관), 발 뻗는 반경(CaptureRadius)은 공짜
+        public static bool KeeperCanReach(float keeperZ, float aimZ, float flightTime, float reactionSeconds)
         {
             float time = flightTime - reactionSeconds;
             if (time < 0f) { time = 0f; }
-            return Math.Abs(aimZ - keeperZ) <= SpeedMps(keeperSpeedStat) * time + MatchTuning.CaptureRadius;
+            return Math.Abs(aimZ - keeperZ) <= MatchTuning.KeeperDiveSpeed * time + MatchTuning.CaptureRadius;
+        }
+
+        // 골로 정해진 슛의 조준점을 GK 자리에서 minGap 넘게 먼 쪽으로(골문 안, 포스트 안쪽 0.3m 여유). 조준 쪽에 자리가 없으면 반대쪽, 양쪽 다 없으면(GK가 골문을 다 덮음) 조준 쪽 포스트 안쪽
+        public static float AimAwayFromKeeper(float aimZ, float keeperZ, float minGap)
+        {
+            if (Math.Abs(aimZ - keeperZ) >= minGap) { return aimZ; }
+            float limit = FieldBounds.GoalHalfWidth - 0.3f;
+            float side = aimZ >= keeperZ ? 1f : -1f;
+            float pushed = keeperZ + side * minGap;
+            if (Math.Abs(pushed) <= limit) { return pushed; }
+            float other = keeperZ - side * minGap;
+            if (Math.Abs(other) <= limit) { return other; }
+            return side * limit;
         }
 
         // 조준을 가까운 포스트 바깥으로. 노골로 정해졌는데 GK가 못 닿으면 "GK는 서 있고 공은 골대 안"이 되므로 빗나감으로 보이게 한다(10-23)

@@ -249,6 +249,42 @@ public class MatchSimulationTests
     }
 
     [Test]
+    public void GK는_슛에_반응하는_동안_스탯이_아니라_다이빙_속도로_조준점까지_간다()
+    {
+        // 전체 트리(⑨b). 골 roll 0.99(노골), 조준 roll 0.3 → z -1.14. 반응 지연이 지난 첫 틱에 GK가 움직인 거리 = 8m/s × 0.02 = 0.16m(스탯 30이면 0.084)
+        var sim = new MatchSimulation(new RollQueue(new[] { 0.99f, 0.3f, 0.5f, 0.5f, 0.5f }).Next, PlayerTreeBuilder.Build()) { ResetAfterEveryShot = true };
+        sim.AddPlayer(new PlayerState(0, 0, Striker(), 30f, 0f));
+        PlayerState keeper = sim.AddPlayer(new PlayerState(1, 1, Keeper(), 50f, 0f));
+        sim.Kickoff();
+        for (int i = 0; i < 20000 && !keeper.IncomingShot; i++) { sim.Tick(Dt); }
+        Assert.IsTrue(keeper.IncomingShot, "반응 차례가 와야 한다");
+        float beforeX = keeper.X;
+        float beforeZ = keeper.Z;
+        sim.Tick(Dt);
+        float moved = (float)System.Math.Sqrt((keeper.X - beforeX) * (keeper.X - beforeX) + (keeper.Z - beforeZ) * (keeper.Z - beforeZ));   // 자기 x(라인)까지 같이 가므로 대각선
+        Assert.AreEqual(MatchTuning.KeeperDiveSpeed * Dt, moved, 1e-3f, "한 틱 이동 = 다이빙 속도");
+        Assert.Less(keeper.Z, beforeZ, "조준점(-1.14) 쪽으로");
+    }
+
+    [Test]
+    public void 골로_정해진_슛은_GK_자리에서_먼_구석으로_조준되고_GK는_버스트_없이_간다()
+    {
+        // 골 roll 0.05, 조준 roll 0.5 → 중앙 0. GK z 0 → 2.5로 밀린다. 반응 ×2(20틱) 뒤 한 틱 이동 = 스탯 30(4.2m/s) × 0.02 = 0.084
+        var sim = new MatchSimulation(new RollQueue(new[] { 0.05f, 0.5f, 0.5f, 0.5f, 0.5f }).Next, PlayerTreeBuilder.Build()) { ResetAfterEveryShot = true };
+        sim.AddPlayer(new PlayerState(0, 0, Striker(), 30f, 0f));
+        PlayerState keeper = sim.AddPlayer(new PlayerState(1, 1, Keeper(), 50f, 0f));
+        sim.Kickoff();
+        for (int i = 0; i < 20000 && !keeper.IncomingShot; i++) { sim.Tick(Dt); }
+        Assert.IsTrue(keeper.IncomingShot, "반응 차례가 와야 한다");
+        Assert.AreEqual(MatchTuning.GoalAimMinGapFromKeeper, keeper.IncomingShotAimZ, 1e-3f, "조준점이 GK에서 간격만큼 먼 쪽");
+        float beforeX = keeper.X;
+        float beforeZ = keeper.Z;
+        sim.Tick(Dt);
+        float moved = (float)System.Math.Sqrt((keeper.X - beforeX) * (keeper.X - beforeX) + (keeper.Z - beforeZ) * (keeper.Z - beforeZ));
+        Assert.AreEqual(MatchRules.SpeedMps(keeper.Stats.Speed) * Dt, moved, 1e-2f, "골엔 스탯 속도(버스트 없음)");
+    }
+
+    [Test]
     public void 같은_주사위_수열이면_같은_경기다()
     {
         float[] sequence = { 0.10f,0.5f, 0.50f,0.5f,0.50f, 0.90f,0.5f,0.20f, 0.35f,0.5f,0.70f, 0.05f,0.5f, 0.60f,0.5f,0.99f, 0.40f,0.5f,0.30f, 0.80f,0.5f,0.15f, 0.55f,0.5f,0.25f, 0.65f,0.5f,0.45f, 0.75f,0.5f,0.33f, 0.66f,0.5f,0.11f };
