@@ -15,11 +15,14 @@ namespace Game.Core.League
         public TeamTactics Tactics0 { get; }
         public TeamTactics Tactics1 { get; }
         public string OpponentName { get; }
+        public int Kit0 => KitRules.MyKit;   // 내 유니폼 번호
+        public int Kit1 { get; }             // 상대 유니폼 번호(KitRules.Of). 색은 화면 PlayerPalette
 
         public MatchSetup(Fixture fixture, int seed, IReadOnlyList<LineupSlot> team0, IReadOnlyList<LineupSlot> team1,
-            TeamTactics tactics0, TeamTactics tactics1, string opponentName)
+            TeamTactics tactics0, TeamTactics tactics1, string opponentName, int kit1)   // kit1에 기본값을 두지 않는다: 빠뜨리면 양 팀이 같은 색인데 에러가 안 난다
         {
             Fixture = fixture;
+            Kit1 = kit1;
             Seed = seed;
             Team0 = team0;
             Team1 = team1;

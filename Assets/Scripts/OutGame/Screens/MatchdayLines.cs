@@ -118,6 +118,24 @@ public static class MatchdayLines
         return sb.ToString();
     }
 
+    // 홈 띠 아래 한 줄 소식(10-21). 종류·재료는 코어 HomeNews가 시드로 정하고 여기는 문장만 만든다. 없으면 빈 줄
+    public static string NewsLine(SeasonSystem season)
+    {
+        SeasonState state = season.State;
+        NewsItem item = HomeNews.Pick(state.SeasonSeed, state.RoundsPlayed, state.Results, SeasonState.MyTeamId, season.Tier.Teams, season.BestScoutStars());
+        if (item.Kind == NewsKind.OtherResult) { return $"소식 · {season.TeamName(item.HomeTeamId)} {item.HomeGoals}-{item.AwayGoals} {season.TeamName(item.AwayTeamId)}"; }
+        if (item.Kind == NewsKind.RankChange) { return $"소식 · 내 순위 {item.Rank + 1}위 {RankMove(item)}"; }
+        if (item.Kind == NewsKind.ScoutCandidate) { return $"소식 · 스카우트 후보에 ★{item.Stars} 선수가 있다"; }
+        return string.Empty;
+    }
+
+    private static string RankMove(NewsItem item)
+    {
+        if (item.Rank < item.PreviousRank) { return $"(▲{item.PreviousRank - item.Rank})"; }
+        if (item.Rank > item.PreviousRank) { return $"(▼{item.Rank - item.PreviousRank})"; }
+        return "(유지)";
+    }
+
     // 매치데이 오른쪽 아래 작은 순위표: "1  청운  10". 내 줄 강조
     public static string TableLines(SeasonSystem season)
     {

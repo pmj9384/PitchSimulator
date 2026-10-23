@@ -46,7 +46,7 @@ namespace Game.Core.League
             for (int i = 0; i < Rows.Count; i++)
             {
                 StageEntry r = Rows[i];
-                slots.Add(new LineupSlot(Players[i], r.PosX * sign, r.PosZ, r.DefendX * sign, r.DefendZ));
+                slots.Add(new LineupSlot(Players[i], r.PosX * sign, r.PosZ, r.DefendX * sign, r.DefendZ, PortraitRules.Of(TeamId, i)));   // 스카우트 후보 행과 같은 얼굴
             }
             return slots;
         }

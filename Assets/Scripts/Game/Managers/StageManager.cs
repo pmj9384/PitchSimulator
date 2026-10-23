@@ -29,16 +29,16 @@ public class StageManager : InGameManager
         current = GameDataManager.Instance.Season.CurrentMatch;
         DisplayName = $"{current.Fixture.Round + 1}라운드";
 
-        Spawn(current.Team0, 0);
-        Spawn(current.Team1, 1);
+        Spawn(current.Team0, 0, current.Kit0);
+        Spawn(current.Team1, 1, current.Kit1);
     }
 
-    private void Spawn(IReadOnlyList<LineupSlot> slots, int team)
+    private void Spawn(IReadOnlyList<LineupSlot> slots, int team, int kit)
     {
         for (int i = 0; i < slots.Count; i++)
         {
             LineupSlot slot = slots[i];
-            GameManager.Players.Spawn(slot.Stats, team, new Vector3(slot.AttackX, 0f, slot.AttackZ), new Vector3(slot.DefendX, 0f, slot.DefendZ));
+            GameManager.Players.Spawn(slot.Stats, team, new Vector3(slot.AttackX, 0f, slot.AttackZ), new Vector3(slot.DefendX, 0f, slot.DefendZ), slot.Portrait, kit);
         }
     }
 

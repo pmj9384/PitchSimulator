@@ -64,7 +64,7 @@ namespace Game.Core.League
             int opponentId = mine.HomeTeamId == SeasonState.MyTeamId ? mine.AwayTeamId : mine.HomeTeamId;
             GeneratedTeam opponent = Find(opponents, opponentId);
             return new MatchSetup(mine, MatchSeed(state.SeasonSeed, mine), state.MyLineup(), opponent.ToLineup(asHome: false),
-                state.MyTactics(presets), FindPreset(presets, opponent.PresetId), opponent.Name);   // 내 전술 = 바꾼 값 또는 기준 카드
+                state.MyTactics(presets), FindPreset(presets, opponent.PresetId), opponent.Name, KitRules.Of(state.SeasonSeed, state.Tier, opponent.TeamId));   // 내 전술 = 바꾼 값 또는 기준 카드
         }
 
         // ── 승강전(10-08, 스펙 §10 10-08 구현 설계). 내 팀이 걸린 경기만 치른다
@@ -130,7 +130,7 @@ namespace Game.Core.League
             int awayId = myHome ? opponent.TeamId : me;
             var fixture = new Fixture(tier.Matches + (int)stage - 1, homeId, awayId);
             return new MatchSetup(fixture, MatchSeed(state.SeasonSeed, fixture), state.MyLineup(), opponent.ToLineup(asHome: false),
-                state.MyTactics(presets), FindPreset(presets, opponent.PresetId), opponent.Name);
+                state.MyTactics(presets), FindPreset(presets, opponent.PresetId), opponent.Name, KitRules.Of(state.SeasonSeed, state.Tier, opponent.TeamId));
         }
 
         // 내 승강전 경기의 결과. 2차전에서 합산 동점이면 승부차기까지 여기서 정한다(주사위 = 경기 시드 + 1, 결정적)

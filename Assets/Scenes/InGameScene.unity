@@ -846,8 +846,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerManager
   playerPrefab: {fileID: 7105019092733779963, guid: 05d15ddedc4904d8c9f0fc4f4ec60214, type: 3}
-  homeMaterial: {fileID: 2100000, guid: 26fbc925138a5470cae40ffbd7ecdc13, type: 2}
-  awayMaterial: {fileID: 2100000, guid: 83d6fa9fa3ac4406aac5c5f8482440a2, type: 2}
+  lookTemplate: {fileID: 2100000, guid: 26fbc925138a5470cae40ffbd7ecdc13, type: 2}
 --- !u!1001 &616587539
 PrefabInstance:
   m_ObjectHideFlags: 0

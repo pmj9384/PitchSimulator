@@ -48,7 +48,6 @@ namespace Game.Core.Data
         // ── 표시 텍스트(선수 세팅 화면, 3주차에 채움)
         public string DisplayName { get; set; } = string.Empty;
         public string Description { get; set; } = string.Empty;
-        public string Icon { get; set; } = string.Empty;
 
         public int BuildTotal => Speed + Stamina + Pass + Shot + Tackle + Positioning + Reflexes + Handling + Diving;
 

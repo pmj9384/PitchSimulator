@@ -84,7 +84,7 @@ public class SeasonFlowTests
     [Test]
     public void 내가_원정이면_시뮬_골이_일정의_홈_원정으로_뒤집혀_들어간다()
     {
-        var away = new MatchSetup(new Fixture(2, 4, SeasonState.MyTeamId), 0, new List<LineupSlot>(), new List<LineupSlot>(), presets[0], presets[0], "상대");
+        var away = new MatchSetup(new Fixture(2, 4, SeasonState.MyTeamId), 0, new List<LineupSlot>(), new List<LineupSlot>(), presets[0], presets[0], "상대", 1);
         MatchResult r = away.ResultFor(team0Goals: 0, team1Goals: 1);
         Assert.AreEqual(4, r.HomeTeamId);
         Assert.AreEqual(SeasonState.MyTeamId, r.AwayTeamId);
@@ -92,7 +92,7 @@ public class SeasonFlowTests
         Assert.AreEqual(0, r.AwayGoals, "내(원정) 골 = 시뮬 팀 0 골");
         Assert.AreEqual(1, away.KickoffTeam, "원정이면 상대가 킥오프");
 
-        var home = new MatchSetup(new Fixture(0, SeasonState.MyTeamId, 2), 0, away.Team0, away.Team1, presets[0], presets[0], "상대");
+        var home = new MatchSetup(new Fixture(0, SeasonState.MyTeamId, 2), 0, away.Team0, away.Team1, presets[0], presets[0], "상대", 1);
         MatchResult h = home.ResultFor(3, 2);
         Assert.AreEqual(SeasonState.MyTeamId, h.HomeTeamId);
         Assert.AreEqual(3, h.HomeGoals);

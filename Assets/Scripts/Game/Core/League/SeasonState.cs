@@ -15,15 +15,19 @@ namespace Game.Core.League
         public PlayerStats Stats { get; }   // 능력치(빌드) + 역할 값(다이얼). 개인 지시는 여기 안 들어 있다
         public IReadOnlyList<int> Instructions => instructions;   // 개인 지시: 역할 값 기준 오프셋, PlayerDial 순서. 전부 0이면 역할 값 그대로
         public int Stars { get; }   // 조합 특이성(ScoutRules.Stars). 기본 로스터는 1, 영입 선수는 판정 때 값. 방출 코인의 재료(스펙 §4-5 10-19)
+        public int Portrait { get; } // 초상 번호(PortraitRules, 1~VariantCount). 영입 선수는 후보 때 본 얼굴, 기본 로스터·옛 세이브는 playerId로(10-21)
 
         private readonly int[] instructions;
 
-        public RosterPlayer(int playerId, PlayerStats stats, int[]? instructions = null, int stars = SquadRules.DefaultStars)
+        // portrait를 안 주면(None) playerId로 정한다. 영입·복사 경로는 반드시 넘긴다 — 빠뜨리면 그 선수 얼굴이 바뀐다(PortraitTests가 잡는다)
+        public RosterPlayer(int playerId, PlayerStats stats, int[]? instructions = null, int stars = SquadRules.DefaultStars, int portrait = PortraitRules.None)
         {
             if (stars < ScoutRules.MinStars || stars > ScoutRules.MaxStars) { throw new ArgumentOutOfRangeException(nameof(stars), $"[RosterPlayer] ★ {stars}"); }
+            if (portrait != PortraitRules.None && !PortraitRules.IsValid(portrait)) { throw new ArgumentOutOfRangeException(nameof(portrait), $"[RosterPlayer] 초상 {portrait}"); }
             PlayerId = playerId;
             Stats = stats;
             Stars = stars;
+            Portrait = portrait == PortraitRules.None ? PortraitRules.Of(playerId) : portrait;
             this.instructions = instructions == null ? new int[PlayerInstructions.DialCount] : (int[])instructions.Clone();
             PlayerInstructions.Validate(this.instructions, stats);
         }
@@ -54,12 +58,12 @@ namespace Game.Core.League
         // 불변 객체라 "하나만 바꾼 복사본"으로 고친다. 필드가 늘어도 호출부가 빠뜨릴 자리가 없게(10-19 리뷰: 생성자를 손으로 다시 부르다 ★을 빠뜨렸다)
         public RosterPlayer WithStats(PlayerStats stats)
         {
-            return new RosterPlayer(PlayerId, stats, instructions, Stars);
+            return new RosterPlayer(PlayerId, stats, instructions, Stars, Portrait);
         }
 
         public RosterPlayer WithInstructions(int[]? next)
         {
-            return new RosterPlayer(PlayerId, Stats, next, Stars);
+            return new RosterPlayer(PlayerId, Stats, next, Stars, Portrait);
         }
     }
 
@@ -269,7 +273,7 @@ namespace Game.Core.League
                 if (variant == null) { continue; }
                 if (!PlayerTableLookup.IsSamePosition(variant, roster[index].Stats.RoleId)) { continue; }
                 ApplyRole(index, variant);
-                roster[index] = new RosterPlayer(roster[index].PlayerId, roster[index].Stats, previous.CopyInstructions(), previous.Stars);
+                roster[index] = new RosterPlayer(roster[index].PlayerId, roster[index].Stats, previous.CopyInstructions(), previous.Stars, previous.Portrait);
             }
         }
 
@@ -393,13 +397,14 @@ namespace Game.Core.League
         }
 
         // 영입 = 벤치에 추가. 대상의 역할(변형)·다이얼을 가져오고 빌드는 내 총점(300)으로 재분배한다(강화 아님). 벤치가 차 있으면 던진다(화면이 먼저 막는다)
-        public RosterPlayer AddToBench(PlayerStats scouted, int stars)
+        // portrait = 후보 때 보여 준 얼굴(PortraitRules.Of(팀, 번호)). 새 playerId로 다시 정하면 영입 순간 얼굴이 바뀐다
+        public RosterPlayer AddToBench(PlayerStats scouted, int stars, int portrait)
         {
             if (!SquadRules.BenchHasRoom(BenchCount)) { throw new InvalidOperationException($"[SeasonState] 벤치가 찼다({BenchCount}/{SquadRules.MaxBench}). 먼저 방출한다"); }
             if (!FitsLineupRole(scouted)) { throw new InvalidOperationException($"[SeasonState] {scouted.RoleId} 자리가 내 라인업에 없다"); }
             PlayerStats incoming = BuildScaler.Copy(scouted);
             incoming = BuildScaler.Scale(incoming, PlayerStats.TotalPoints);
-            var player = new RosterPlayer(NextPlayerId(), incoming, null, stars);
+            var player = new RosterPlayer(NextPlayerId(), incoming, null, stars, portrait);
             roster.Add(player);
             return player;
         }
@@ -436,7 +441,7 @@ namespace Game.Core.League
                 if (variant == null) { continue; }
                 if (!SquadRules.BenchHasRoom(BenchCount)) { return; }
                 if (!FitsLineupRole(variant)) { continue; }
-                roster.Add(new RosterPlayer(NextPlayerId(), BuildScaler.Copy(variant), null, previousBench[i].Stars));
+                roster.Add(new RosterPlayer(NextPlayerId(), BuildScaler.Copy(variant), null, previousBench[i].Stars, previousBench[i].Portrait));
             }
         }
 
@@ -500,7 +505,8 @@ namespace Game.Core.League
             for (int i = 0; i < lineup.Count; i++)
             {
                 LineupEntry e = lineup[i];
-                slots.Add(new LineupSlot(FindRosterPlayer(e.PlayerId).EffectiveStats(), e.AttackX, e.AttackZ, e.DefendX, e.DefendZ));   // 역할 값 + 개인 지시
+                RosterPlayer player = FindRosterPlayer(e.PlayerId);
+                slots.Add(new LineupSlot(player.EffectiveStats(), e.AttackX, e.AttackZ, e.DefendX, e.DefendZ, player.Portrait));   // 역할 값 + 개인 지시
             }
             return slots;
         }
@@ -547,6 +553,7 @@ namespace Game.Core.League
                     build = new[] { s.Speed, s.Stamina, s.Pass, s.Shot, s.Tackle, s.Positioning, s.Reflexes, s.Handling, s.Diving },
                     instructions = roster[i].HasInstructions ? roster[i].CopyInstructions() : null,
                     stars = roster[i].Stars,
+                    portrait = roster[i].Portrait,
                 });
             }
             for (int i = 0; i < lineup.Count; i++)
@@ -581,7 +588,7 @@ namespace Game.Core.League
                 copy.Diving = p.build[8];
                 if (copy.BuildTotal != PlayerStats.TotalPoints) { throw new InvalidOperationException($"[SeasonState] 선수 {p.playerId} 빌드 합계가 {PlayerStats.TotalPoints}가 아니다({copy.BuildTotal}). 내 선수는 총점 고정(스펙 축: 강화 없음)"); }
                 int stars = p.stars == 0 ? SquadRules.DefaultStars : p.stars;   // 옛 세이브(10-19 전)엔 없어 0 = 기본 로스터
-                roster.Add(new RosterPlayer(p.playerId, copy, p.instructions, stars));   // 지시 칸 수·범위·★ 범위는 생성자가 검증한다
+                roster.Add(new RosterPlayer(p.playerId, copy, p.instructions, stars, p.portrait));   // 지시 칸 수·범위·★·초상 범위는 생성자가 검증한다. 초상 0(10-21 전)은 playerId로
             }
             var lineup = new List<LineupEntry>(save.lineup.Count);
             for (int i = 0; i < save.lineup.Count; i++)
@@ -709,6 +716,7 @@ namespace Game.Core.League
             public int[] build = Array.Empty<int>();
             public int[]? instructions;               // 개인 지시 오프셋(PlayerDial 순서). 지시가 없으면 null, 옛 세이브에도 없어 null → 역할 값 그대로
             public int stars;                         // 10-19 추가. 옛 세이브엔 없어 0 → 기본 1
+            public int portrait;                      // 10-21 추가. 초상 번호(PortraitRules). 옛 세이브엔 없어 0 → playerId로
         }
         [Serializable] public sealed class Slot
         {

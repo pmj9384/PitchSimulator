@@ -9,10 +9,10 @@ using NUnit.Framework;
 public class PlayerTableParserTests
 {
     private const string ValidHeader =
-        "roleId,variantId,exposed,focus,speed,stamina,pass,shot,tackle,positioning,reflexes,handling,diving,pushUp,pressRange,shotBias,passLength,width,lineHeight,roamRadius,passRisk,dribble,holdUp,gkRushRadius,displayName,description,icon";
+        "roleId,variantId,exposed,focus,speed,stamina,pass,shot,tackle,positioning,reflexes,handling,diving,pushUp,pressRange,shotBias,passLength,width,lineHeight,roamRadius,passRisk,dribble,holdUp,gkRushRadius,displayName,description";
 
-    private const string StRow = "ST,st_poacher,true,2,60,45,40,90,20,45,0,0,0,30,8,0.2,15,10,0,3,0.5,0.5,0.1,0,포처,박스 안에서 골만 노린다,";
-    private const string GkRow = "GK,gk_standard,true,1,30,30,30,5,10,15,80,60,40,0,3,0.9,25,0,0,2,0.3,0,0.5,12,골키퍼,박스 안에서 골문을 지킨다,";
+    private const string StRow = "ST,st_poacher,true,2,60,45,40,90,20,45,0,0,0,30,8,0.2,15,10,0,3,0.5,0.5,0.1,0,포처,박스 안에서 골만 노린다";
+    private const string GkRow = "GK,gk_standard,true,1,30,30,30,5,10,15,80,60,40,0,3,0.9,25,0,0,2,0.3,0,0.5,12,골키퍼,박스 안에서 골문을 지킨다";
 
     private const string ValidCsv = ValidHeader + "\n" + StRow + "\n" + GkRow + "\n";
 

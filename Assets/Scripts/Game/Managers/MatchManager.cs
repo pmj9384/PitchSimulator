@@ -73,6 +73,15 @@ public class MatchManager : InGameManager
         Simulation.ShotResolved += LogShot;
         Simulation.ShotResolved += OnShotResolved;
         Simulation.PossessionChanged += LogPossession;
+        Simulation.BallKicked += OnBallKicked;
+    }
+
+    // 찬 선수의 킥 애니. 시뮬은 안 기다린다(연출)
+    private void OnBallKicked(int playerId)
+    {
+        PlayerController player = GameManager.Players.Find(playerId);
+        if (player == null) { return; }
+        player.PlayKick();
     }
 
     private float NextRoll()
