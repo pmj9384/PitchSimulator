@@ -142,6 +142,29 @@ namespace Game.Core.Match
             return (roll * 2f - 1f) * ShotSpread(shot);
         }
 
+        // 슛 비행 시간(초): 초속 speed·등감속 deceleration으로 distance를 가는 시간. 그 전에 멈추면 -1
+        public static float ShotFlightTime(float distance, float speed, float deceleration)
+        {
+            float disc = speed * speed - 2f * deceleration * distance;
+            if (disc < 0f) { return -1f; }
+            return (speed - (float)Math.Sqrt(disc)) / deceleration;
+        }
+
+        // GK가 반응 지연 뒤 남은 시간 안에 조준점까지 가로로 닿나. 발 뻗는 반경(CaptureRadius)은 공짜
+        public static bool KeeperCanReach(float keeperZ, float aimZ, int keeperSpeedStat, float flightTime, float reactionSeconds)
+        {
+            float time = flightTime - reactionSeconds;
+            if (time < 0f) { time = 0f; }
+            return Math.Abs(aimZ - keeperZ) <= SpeedMps(keeperSpeedStat) * time + MatchTuning.CaptureRadius;
+        }
+
+        // 조준을 가까운 포스트 바깥으로. 노골로 정해졌는데 GK가 못 닿으면 "GK는 서 있고 공은 골대 안"이 되므로 빗나감으로 보이게 한다(10-23)
+        public static float PushWide(float aimZ)
+        {
+            float side = aimZ < 0f ? -1f : 1f;
+            return side * (FieldBounds.GoalHalfWidth + MatchTuning.ShotWideMargin);
+        }
+
         // 조준 Z가 두 포스트 사이면 골문 안(경계 포함). 밖이면 빗나감
         public static bool IsOnTarget(float aimZ)
         {

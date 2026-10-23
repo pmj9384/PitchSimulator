@@ -198,6 +198,56 @@ public class MatchSimulationTests
         Assert.That(reports[0].Probability, Is.InRange(0.3f, 0.7f), "shotBias 0.3(중립 GK 기준) 넘자마자 쏜다. 보고된 p는 확정 보정(+0.6 로짓)이 붙은 값");
     }
 
+    // ── GK 슛 대응(10-23 유저 "안 들어가면 골대 안으로 가면 안 된다")
+    // 노골로 정해진 유효 슛은 GK가 닿을 수 있으면 세이브, 못 닿으면 찬 순간 포스트 밖으로 밀린다. "GK는 서 있고 공은 골대 안"은 없다
+    [Test]
+    public void 노골_유효_슛을_GK가_못_닿으면_포스트_밖으로_밀려_빗나간다()
+    {
+        // 골 roll 0.99(노골), 조준 roll 0 → 왼쪽 끝(shot 90 반폭 2.85, 골문 안). GK 자리 z +3이라 가로 5.85m를 0.3초 안에 못 간다
+        var sim = new MatchSimulation(new RollQueue(new[] { 0.99f, 0f, 0.5f, 0.5f, 0.5f }).Next, PlayerTreeBuilder.BuildLitmus()) { ResetAfterEveryShot = true };
+        sim.AddPlayer(new PlayerState(0, 0, Striker(), -10f, 0f));
+        PlayerState keeper = sim.AddPlayer(new PlayerState(1, 1, Keeper(), 50f, 3f));
+        sim.Kickoff();
+
+        List<ShotReport> reports = RunShots(sim, 1);
+
+        Assert.AreEqual(ShotOutcome.Missed, reports[0].Outcome, "GK가 못 닿는 노골은 빗나감");
+        Assert.AreEqual(3f, keeper.Z, 1e-3f, "GK는 제자리(라인 세이브로 당겨지지 않음)");
+    }
+
+    [Test]
+    public void 노골_유효_슛을_GK가_닿을_수_있으면_접촉이_없어도_골라인에서_세이브로_끝난다()
+    {
+        // 조준 roll 0.3 → z -1.14(골문 안). GK z 0, speed 30(4.2m/s): 가로 1.14m 중 발 반경 0.8을 빼면 0.34m라 반응 지연 뒤에도 닿는다 → 유효 슛 유지.
+        // 리트머스 트리엔 GK 이동 노드가 없어 접촉(0.8m)은 안 생기고 골라인에서 세이브
+        var sim = new MatchSimulation(new RollQueue(new[] { 0.99f, 0.3f, 0.5f, 0.5f, 0.5f }).Next, PlayerTreeBuilder.BuildLitmus()) { ResetAfterEveryShot = true };
+        sim.AddPlayer(new PlayerState(0, 0, Striker(), -10f, 0f));
+        PlayerState keeper = sim.AddPlayer(new PlayerState(1, 1, Keeper(), 50f, 0f));
+        sim.Kickoff();
+
+        List<ShotReport> reports = RunShots(sim, 1);
+
+        Assert.AreNotEqual(ShotOutcome.Missed, reports[0].Outcome, "골문 안 노골은 Missed가 아니다");
+        Assert.AreNotEqual(ShotOutcome.Goal, reports[0].Outcome);
+        Assert.IsTrue(reports[0].Outcome == ShotOutcome.Caught || reports[0].Outcome == ShotOutcome.Parried);
+    }
+
+    [Test]
+    public void GK는_슛이_뜬_뒤_반응_지연이_지나야_조준점으로_움직일_차례가_된다()
+    {
+        var sim = new MatchSimulation(new RollQueue(new[] { 0.99f, 0.3f, 0.5f, 0.5f, 0.5f }).Next, PlayerTreeBuilder.BuildLitmus()) { ResetAfterEveryShot = true };
+        sim.AddPlayer(new PlayerState(0, 0, Striker(), -10f, 0f));
+        PlayerState keeper = sim.AddPlayer(new PlayerState(1, 1, Keeper(), 50f, 0f));
+        sim.Kickoff();
+        for (int i = 0; i < 20000 && sim.Ball.Phase != BallPhase.Flight; i++) { sim.Tick(Dt); }
+        Assert.AreEqual(BallPhase.Flight, sim.Ball.Phase, "슛이 떠야 한다");
+        Assert.IsFalse(keeper.IncomingShot, "뜬 틱엔 아직");
+        for (int i = 1; i < MatchTuning.KeeperReactionTicks; i++) { sim.Tick(Dt); Assert.IsFalse(keeper.IncomingShot, $"{i}틱: 반응 지연 안"); }
+        sim.Tick(Dt);
+        Assert.IsTrue(keeper.IncomingShot, "반응 지연이 지나면 차례");
+        Assert.AreEqual((0.3f * 2f - 1f) * MatchRules.ShotSpread(90), keeper.IncomingShotAimZ, 1e-3f, "조준점 = roll 0.3 자리");
+    }
+
     [Test]
     public void 같은_주사위_수열이면_같은_경기다()
     {

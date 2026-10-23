@@ -85,6 +85,12 @@ namespace Game.Core.AI
                     new ConditionNode(ctx => ctx.BallOwnerTeam == 1 - ctx.Team),
                     new ActionNode(ctx => MoveToDefendHome(ctx))),
 
+                // ⑨b GK 슛 대응(10-23): 내 골로 오는 유효 슛엔 자리 규칙 대신 조준점으로 전력 이동. 반응 지연·골 여부는 시뮬이 IncomingShot으로 준다.
+                // 슛 비행 중엔 소유 팀이 없어(OwnerTeam -1) 자유 공 분기로 떨어지므로 그 앞에 둔다
+                new SequenceNode(
+                    new ConditionNode(ctx => ctx.IsGoalkeeper && ctx.IncomingShot),
+                    new ActionNode(ctx => MoveToShotLine(ctx))),
+
                 // ── 자유 공 ──────────────────────────────────────────────
                 // ⑩ 팀마다 가장 가까운 1명이 쫓는다(09-28, Simple Soccer isClosestTeamMemberToBall). 22명 중 1명만 쫓으면 루즈볼을 양 팀이 다투지 않았다(20판 계측: 양 팀 동시 추격 1.8%).
                 // GK는 개인 출격 반경 안(박스 상한) 공만. 필드 플레이어 추격자는 시뮬이 우리 GK를 뺀 후보에서 고른다(09-23 리뷰 R3: 최근접이 출격 못 하는 GK면 아무도 안 쫓아 파링 공이 박스 밖에 멈추면 영구 정지였다).
@@ -334,6 +340,13 @@ namespace Game.Core.AI
             (float x, float z) home = PositionRules.DefendHome(ctx.DefendHomeX, ctx.DefendHomeZ, ctx.AttackSign, ctx.Stats.LineHeight);
             (float x, float z) slid = PositionRules.SlideTowardBall(home.x, home.z, ctx.BallX, ctx.BallZ, defending: true, ctx.IsGoalkeeper);
             ctx.MoveToward(slid.x, slid.z);
+        }
+
+        // GK: 골라인 쪽 자기 x는 지키고 가로로만 조준점까지
+        private static void MoveToShotLine(IPlayerContext ctx)
+        {
+            (float x, float z) home = PositionRules.DefendHome(ctx.DefendHomeX, ctx.DefendHomeZ, ctx.AttackSign, ctx.Stats.LineHeight);
+            ctx.MoveToward(home.x, ctx.IncomingShotAimZ);
         }
 
         // GK: 우리 팀 전원 중 최근접이고 출격 가능할 때. 필드 플레이어: 시뮬이 정한 우리 팀 추격자일 때(팀별 최근접 + 히스테리시스, 09-28 F1b). 상대 팀은 보지 않는다(팀마다 1명)
