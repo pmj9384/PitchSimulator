@@ -81,7 +81,7 @@ public class MatchManager : InGameManager
     {
         PlayerController player = GameManager.Players.Find(playerId);
         if (player == null) { return; }
-        player.PlayKick();
+        player.PlayKick(new Vector3(Simulation.Ball.VelX, 0f, Simulation.Ball.VelZ));   // 이벤트는 Kick 직후라 공 속도 = 찬 방향
     }
 
     private float NextRoll()
@@ -206,6 +206,33 @@ public class MatchManager : InGameManager
     private void OnShotResolved(ShotReport report)
     {
         if (report.Outcome == ShotOutcome.Goal) { goalScorerId = report.ShooterId; }
+        PlayKeeperSave(report);
+    }
+
+    // 세이브 애니(연출). 잡으면 캐치, 쳐내면 펀칭. 슈터의 상대 팀 GK
+    private void PlayKeeperSave(ShotReport report)
+    {
+        if (report.Outcome != ShotOutcome.Caught && report.Outcome != ShotOutcome.Parried) { return; }
+        PlayerController shooter = FindView(report.ShooterId);
+        if (shooter == null) { return; }
+        PlayerController keeper = KeeperView(1 - shooter.Team);
+        if (keeper == null) { return; }
+        if (report.Outcome == ShotOutcome.Caught)
+        {
+            keeper.PlayCatch();
+            return;
+        }
+        keeper.PlayParry();
+    }
+
+    private PlayerController KeeperView(int team)
+    {
+        IReadOnlyList<PlayerController> roster = GameManager.Players.Roster(team);
+        for (int i = 0; i < roster.Count; i++)
+        {
+            if (roster[i].State.IsGoalkeeper) { return roster[i]; }
+        }
+        return null;
     }
 
     #region 골 세리머니(연출, 09-29)

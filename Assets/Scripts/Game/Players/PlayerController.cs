@@ -7,6 +7,9 @@ public class PlayerController : MonoBehaviour
 {
     private static readonly int SpeedParam = Animator.StringToHash("Speed");   // PlayerAnimator.controller의 float. 서기/걷기/달리기를 고른다
     private static readonly int KickParam = Animator.StringToHash("Kick");     // 트리거. 슛·패스 순간(MatchSimulation.BallKicked)
+    private static readonly int CatchParam = Animator.StringToHash("Catch");         // 트리거. GK가 슛을 잡음(ShotResolved Caught)
+    private static readonly int ParryParam = Animator.StringToHash("Parry");         // 트리거. GK가 슛을 쳐냄(ShotResolved Parried)
+    private static readonly int CelebrateParam = Animator.StringToHash("Celebrate"); // bool. 골 세리머니 동안 참
 
     [SerializeField] private Animator animator;
 
@@ -15,6 +18,10 @@ public class PlayerController : MonoBehaviour
 
     private const float TurnDegreesPerSecond = 720f;   // [가정] 출처 없음. 한 스텝(0.02초) 사이 반대 방향 전환을 0.25초 안에 끝내는 값
     private const float MinMoveSqr = 0.0001f;            // 이보다 덜 움직이면 서 있는 것(향한 방향 유지)
+    private const float KickFaceSeconds = 0.4f;          // 킥 뒤 이 동안은 이동 방향이 아니라 찬 방향을 본다(클립 길이 0.6의 앞부분) [가정]
+
+    private Vector3 faceOverride;       // 킥 직후 보는 방향
+    private float faceOverrideUntil;    // 그 방향을 유지하는 끝 시각(Time.time)
 
     public PlayerState State { get; private set; }
     public int PlayerId => State.PlayerId;
@@ -24,7 +31,7 @@ public class PlayerController : MonoBehaviour
     {
         State = state;
         name = $"Player_{state.Team}_{state.Stats.VariantId}_{state.PlayerId}";   // 하이어라키에서 바로 읽히게
-        if (animator != null) { animator.ResetTrigger(KickParam); }   // 풀에서 다시 꺼낸 몸에 지난 경기의 킥 트리거가 남아 있을 수 있다
+        ResetAnimation();   // 풀에서 다시 꺼낸 몸에 지난 경기의 트리거·세리머니가 남아 있을 수 있다
         SnapView();
     }
 
@@ -48,9 +55,44 @@ public class PlayerController : MonoBehaviour
 
     public Vector3 ViewPosition => current;
 
-    public void PlayKick()
+    // 찬 순간. direction = 공이 떠난 방향(시뮬 공 속도). 몸을 그쪽으로 돌려 발이 공을 향하게 한다
+    public void PlayKick(Vector3 direction)
     {
         if (animator != null) { animator.SetTrigger(KickParam); }
+        FaceToward(direction, KickFaceSeconds);
+    }
+
+    public void PlayCatch()
+    {
+        if (animator != null) { animator.SetTrigger(CatchParam); }
+    }
+
+    public void PlayParry()
+    {
+        if (animator != null) { animator.SetTrigger(ParryParam); }
+    }
+
+    public void SetCelebrating(bool on)
+    {
+        if (animator != null) { animator.SetBool(CelebrateParam, on); }
+    }
+
+    private void ResetAnimation()
+    {
+        faceOverrideUntil = 0f;
+        if (animator == null) { return; }
+        animator.ResetTrigger(KickParam);
+        animator.ResetTrigger(CatchParam);
+        animator.ResetTrigger(ParryParam);
+        animator.SetBool(CelebrateParam, false);
+    }
+
+    private void FaceToward(Vector3 direction, float seconds)
+    {
+        direction.y = 0f;
+        if (direction.sqrMagnitude < MinMoveSqr) { return; }
+        faceOverride = direction;
+        faceOverrideUntil = Time.time + seconds;
     }
 
     // 시뮬 밖 연출(골 세리머니, 09-29): 상태는 그대로 두고 화면만 옮긴다. 보간은 SyncView와 같은 방식
@@ -90,10 +132,10 @@ public class PlayerController : MonoBehaviour
         FaceMovement();
     }
 
-    // 모델이 가는 방향을 본다. 서 있으면 마지막 방향 그대로
+    // 모델이 가는 방향을 본다. 서 있으면 마지막 방향 그대로. 킥 직후엔 찬 방향
     private void FaceMovement()
     {
-        Vector3 step = current - previous;
+        Vector3 step = Time.time < faceOverrideUntil ? faceOverride : current - previous;
         if (step.sqrMagnitude < MinMoveSqr) { return; }
         Quaternion target = Quaternion.LookRotation(step, Vector3.up);
         transform.rotation = Quaternion.RotateTowards(transform.rotation, target, TurnDegreesPerSecond * Time.deltaTime);
