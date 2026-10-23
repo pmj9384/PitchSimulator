@@ -27,7 +27,7 @@ public static class PortraitRepository
         for (int portrait = 1; portrait <= PortraitRules.VariantCount; portrait++)
         {
             Sprite sprite = Resources.Load<Sprite>($"{ResourceFolder}/portrait_{portrait:000}");
-            if (sprite == null) { Debug.LogError($"[PortraitRepository] {ResourceFolder}/portrait_{portrait:00} 없음"); }
+            if (sprite == null) { Debug.LogError($"[PortraitRepository] {ResourceFolder}/portrait_{portrait:000} 없음"); }
             cache[portrait - 1] = sprite;
         }
     }

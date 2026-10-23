@@ -69,6 +69,7 @@ public class PlayerManager : InGameManager
     {
         if (pool != null) { return pool; }
 
+        if (!PlayerPalette.Matches()) { Debug.LogError("[PlayerManager] PlayerPalette 표 길이가 KitRules·PortraitRules 상수와 다르다"); }
         pool = GameManager.ObjectPool.CreateObjectPool(playerPrefab, CreateBody, OnGetFromPool, OnReleaseToPool);
         return pool;
     }
@@ -81,17 +82,22 @@ public class PlayerManager : InGameManager
     private void ApplyLook(GameObject body, int portrait, int kit)
     {
         PlayerView view = body.GetComponent<PlayerView>();
-        if (view == null) { return; }
+        if (view == null)
+        {
+            Debug.LogError("[PlayerManager] 선수 프리팹에 PlayerView가 없다. 기본 머티리얼로 나온다");
+            return;
+        }
         if (!PortraitRules.IsValid(portrait))
         {
             Debug.LogError($"[PlayerManager] 겉모습 번호 범위 밖: {portrait}");
             portrait = PortraitRules.Of(0);
         }
-        if (!PlayerPalette.Matches()) { Debug.LogError("[PlayerManager] PlayerPalette 표 길이가 KitRules·PortraitRules 상수와 다르다"); }
+        int skin = PortraitRules.SkinOf(portrait);
+        int hair = PortraitRules.HairOf(portrait);
         view.ApplyLook(PortraitRules.HeadOf(portrait),
             LookMaterial("kit", kit, PlayerPalette.Kit(kit)),
-            LookMaterial("skin", PortraitRules.SkinOf(portrait), PlayerPalette.Skin(PortraitRules.SkinOf(portrait))),
-            LookMaterial("hair", PortraitRules.HairOf(portrait), PlayerPalette.Hair(PortraitRules.HairOf(portrait))),
+            LookMaterial("skin", skin, PlayerPalette.Skin(skin)),
+            LookMaterial("hair", hair, PlayerPalette.Hair(hair)),
             LookMaterial("boots", 0, PlayerPalette.Boots));
     }
 
@@ -125,5 +131,8 @@ public class PlayerManager : InGameManager
         rosters[1].Clear();
         byId.Clear();
         nextPlayerId = 0;
+        // new Material은 씬이 내려가도 안 사라진다(에셋 취급). 만든 쪽이 지운다
+        foreach (Material material in looks.Values) { Destroy(material); }
+        looks.Clear();
     }
 }

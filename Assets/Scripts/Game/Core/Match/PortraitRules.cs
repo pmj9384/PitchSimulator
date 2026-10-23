@@ -48,6 +48,7 @@ namespace Game.Core.Match
             return (portrait - 1) / (HeadCount * SkinCount);
         }
 
+        // 파츠 → 번호. HeadOf·SkinOf·HairOf의 역함수라 셋이 같은 배치를 쓴다(PortraitTests가 1~VariantCount 왕복을 잠근다)
         public static int Compose(int head, int skin, int hair)
         {
             return 1 + head + skin * HeadCount + hair * HeadCount * SkinCount;

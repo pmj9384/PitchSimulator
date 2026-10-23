@@ -3,7 +3,7 @@ using Game.Core.Match;
 using UnityEngine;
 
 // 선수 겉모습 색. 번호는 코어(KitRules·PortraitRules)가 정하고 색만 여기 둔다.
-// 유니폼: 0 = 내 팀, 1~7 = 상대(10-21 유저 "색만 좀" → 원색 대신 실제 유니폼 톤으로 채도를 낮춤 [가정])
+// 유니폼: 0 = 내 팀, 1~7 = 상대. 원색은 잔디 위에서 장난감처럼 보여 실제 유니폼 톤으로 채도를 낮췄다 [가정]
 public static class PlayerPalette
 {
     private static readonly Color[] Kits =
@@ -62,7 +62,7 @@ public static class PlayerPalette
         return table[index];
     }
 
-    // 코어 상수와 표 길이가 어긋나면 색이 돌아 다른 선수와 겹친다. 시작 때 한 번 확인(PlayerManager)
+    // 코어 상수와 표 길이가 어긋나면 색이 돌아 다른 선수와 겹친다. 풀을 만들 때 한 번 확인한다(PlayerManager.Pool)
     public static bool Matches()
     {
         return Kits.Length == KitRules.KitCount && Skins.Length == PortraitRules.SkinCount && Hairs.Length == PortraitRules.HairCount;

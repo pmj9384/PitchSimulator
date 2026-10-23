@@ -1,4 +1,5 @@
 using System;
+using Game.Core.Match;
 using UnityEngine;
 
 // 선수의 겉모습 담당. 컨트롤러는 경기만 알고, 유니폼·피부·머리는 여기서 입힌다.
@@ -25,6 +26,21 @@ public class PlayerView : MonoBehaviour
     [SerializeField] private Renderer[] headRenderers;   // PortraitRules.HeadCount개, 머리 번호 순. 하나만 켠다
     [SerializeField] private Part[] parts;               // 몸·다리·발 + 머리 전부
 
+    // 프리팹과 코어 상수가 어긋나면 번호 뒤쪽 머리가 조용히 0번으로 몰린다. 몸 하나당 한 번만 확인한다
+    private void Awake()
+    {
+        if (headRenderers.Length != PortraitRules.HeadCount)
+        {
+            Debug.LogError($"[PlayerView] 머리 렌더러 수 {headRenderers.Length}가 PortraitRules.HeadCount {PortraitRules.HeadCount}와 다르다");
+        }
+        for (int i = 0; i < parts.Length; i++)
+        {
+            int slots = parts[i].renderer.sharedMaterials.Length;
+            if (parts[i].kinds.Length == slots) { continue; }
+            Debug.LogError($"[PlayerView] {parts[i].renderer.name} 슬롯 역할 수 {parts[i].kinds.Length}가 머티리얼 수 {slots}와 다르다");
+        }
+    }
+
     public void ApplyLook(int head, Material kit, Material skin, Material hair, Material boots)
     {
         if (head < 0 || head >= headRenderers.Length)
@@ -48,13 +64,13 @@ public class PlayerView : MonoBehaviour
         Material[] materials = part.renderer.sharedMaterials;
         for (int i = 0; i < materials.Length && i < part.kinds.Length; i++)
         {
-            Material replacement = Pick(part.kinds[i], kit, skin, hair, boots);
+            Material replacement = MaterialFor(part.kinds[i], kit, skin, hair, boots);
             if (replacement != null) { materials[i] = replacement; }
         }
         part.renderer.sharedMaterials = materials;
     }
 
-    private static Material Pick(SlotKind kind, Material kit, Material skin, Material hair, Material boots)
+    private static Material MaterialFor(SlotKind kind, Material kit, Material skin, Material hair, Material boots)
     {
         if (kind == SlotKind.Skin) { return skin; }
         if (kind == SlotKind.Hair) { return hair; }

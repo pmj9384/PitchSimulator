@@ -49,6 +49,19 @@ public class KitRulesTests
     }
 
     [Test]
+    public void 같은_부_7팀_밖의_팀_번호와_음수도_유효한_상대_번호가_된다()
+    {
+        // 승강전 상대는 다른 부 팀이라 번호가 8 이상일 수 있다(SeasonRunner). 1~7 안으로 돌아야지 범위 밖이나 내 번호(0)가 나오면 안 된다
+        for (int teamId = -3; teamId <= 20; teamId++)
+        {
+            int kit = KitRules.Of(11, 2, teamId);
+            Assert.IsTrue(KitRules.IsValid(kit), $"team {teamId}: {kit}");
+            Assert.AreNotEqual(KitRules.MyKit, kit, $"team {teamId}: 내 번호");
+        }
+        Assert.AreEqual(KitRules.Of(11, 2, 1), KitRules.Of(11, 2, 8), "7팀마다 같은 번호로 돈다");
+    }
+
+    [Test]
     public void 경기_세팅의_얼굴과_유니폼은_로스터와_규칙을_따른다()
     {
         SeasonState state = SeasonState.NewSeason(4, 42, myRows, table);

@@ -114,6 +114,26 @@ public class PortraitTests
     }
 
     [Test]
+    public void 번호와_파츠는_전수_왕복하고_머리가_가장_빨리_돈다()
+    {
+        for (int portrait = 1; portrait <= PortraitRules.VariantCount; portrait++)
+        {
+            int head = PortraitRules.HeadOf(portrait);
+            int skin = PortraitRules.SkinOf(portrait);
+            int hair = PortraitRules.HairOf(portrait);
+            Assert.IsTrue(head >= 0 && head < PortraitRules.HeadCount, $"{portrait} 머리 {head}");
+            Assert.IsTrue(skin >= 0 && skin < PortraitRules.SkinCount, $"{portrait} 피부 {skin}");
+            Assert.IsTrue(hair >= 0 && hair < PortraitRules.HairCount, $"{portrait} 머리색 {hair}");
+            Assert.AreEqual(portrait, PortraitRules.Compose(head, skin, hair), $"{portrait} 왕복");
+        }
+        Assert.AreEqual(0, PortraitRules.HeadOf(1));
+        Assert.AreEqual(PortraitRules.HeadCount - 1, PortraitRules.HeadOf(PortraitRules.HeadCount));
+        Assert.AreEqual(0, PortraitRules.HeadOf(PortraitRules.HeadCount + 1), "머리가 한 바퀴 돌면 처음으로");
+        Assert.AreEqual(1, PortraitRules.SkinOf(PortraitRules.HeadCount + 1), "그때 피부가 한 칸 간다");
+        Assert.AreEqual(PortraitRules.HairCount - 1, PortraitRules.HairOf(PortraitRules.VariantCount), "마지막 번호는 마지막 머리색");
+    }
+
+    [Test]
     public void Resources_초상_스프라이트_수가_VariantCount와_같다()
     {
         Sprite[] sprites = Resources.LoadAll<Sprite>("Sprites/Portrait");

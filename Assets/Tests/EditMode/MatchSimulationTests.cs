@@ -439,8 +439,12 @@ public class MatchSimulationTests
         Assert.GreaterOrEqual(oppDist, FieldBounds.CenterCircleRadius - 1e-4f, "상대는 9.15m 밖");
         Assert.Greater(opp.X, 0f, "상대는 자기 진영");
 
+        var kickers = new List<int>();
+        sim.BallKicked += id => kickers.Add(id);
         for (int i = 0; i < 100 && sim.PassCount == 0; i++) { sim.Tick(Dt); }
         Assert.AreEqual(1, sim.PassCount, "첫 행동은 패스");
+        Assert.AreEqual(1, kickers.Count, "패스도 찼다 이벤트 1회(킥 애니)");
+        Assert.AreEqual(st1.PlayerId, kickers[0], "찬 사람 = 키커");
         sim.Tick(Dt);
         Assert.IsTrue(st2.IsPassTarget, "옆·뒤 동료(ST2)에게");
         Assert.IsFalse(st1.IsKickoffTaker, "첫 킥 뒤엔 키커 표시가 풀린다");
