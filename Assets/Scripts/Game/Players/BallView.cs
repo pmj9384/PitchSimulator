@@ -6,6 +6,7 @@ using UnityEngine;
 public class BallView : MonoBehaviour
 {
     private const float Radius = 0.11f;   // 축구공 반지름(지름 22cm). 잔디 위에 얹히는 높이
+    private const float CarryOffset = 0.4f;   // 소유 중 소유자 앞으로 띄우는 거리(m). 시뮬은 공을 소유자 좌표에 두므로(BallRules.Carry) 그대로 그리면 다리 사이에 보인다(10-23 유저 Play). [가정] 출처 없음, Play로 조정
 
     private Vector3 previous;
     private Vector3 current;
@@ -19,20 +20,28 @@ public class BallView : MonoBehaviour
         rendered = current;
     }
 
-    // 고정 스텝 뒤 MatchManager가 부른다
-    public void Apply(in BallState ball)
+    // 고정 스텝 뒤 MatchManager가 부른다. carrierForward = 소유자 뷰가 보는 방향(소유 중이 아니면 0)
+    public void Apply(in BallState ball, Vector3 carrierForward)
     {
         previous = current;
-        current = new Vector3(ball.X, Radius, ball.Z);
+        current = Place(ball, carrierForward);
     }
 
     // 배치·킥오프: 보간 없이 바로
-    public void Snap(in BallState ball)
+    public void Snap(in BallState ball, Vector3 carrierForward)
     {
-        current = new Vector3(ball.X, Radius, ball.Z);
+        current = Place(ball, carrierForward);
         previous = current;
         rendered = current;
         transform.position = current;
+    }
+
+    // 시뮬 좌표 → 화면 좌표. 소유 중이면 발 앞. 판정은 시뮬 좌표 그대로라 화면만 움직인다
+    private static Vector3 Place(in BallState ball, Vector3 carrierForward)
+    {
+        var position = new Vector3(ball.X, Radius, ball.Z);
+        if (ball.Phase != BallPhase.Owned) { return position; }
+        return position + carrierForward * CarryOffset;
     }
 
     // 연출 중 제자리(골 세리머니, 09-29): 골망 앞에 멈춘 공을 그대로 둔다

@@ -193,7 +193,7 @@ public class MatchManager : InGameManager
 
         if (ballView != null)
         {
-            ballView.Apply(Simulation.Ball);
+            ballView.Apply(Simulation.Ball, CarrierForward());
         }
     }
 
@@ -253,6 +253,17 @@ public class MatchManager : InGameManager
         }
     }
 
+    // 소유 중인 공을 발 앞에 그리려고 소유자 뷰가 보는 방향을 준다. 자유 공·비행 중·뷰 없음이면 0
+    private Vector3 CarrierForward()
+    {
+        if (Simulation.Ball.Phase != BallPhase.Owned) { return Vector3.zero; }
+        PlayerController owner = FindView(Simulation.Ball.OwnerId);
+        if (owner == null) { return Vector3.zero; }
+        Vector3 forward = owner.transform.forward;
+        forward.y = 0f;
+        return forward.normalized;
+    }
+
     private PlayerController FindView(int playerId)
     {
         for (int team = 0; team < 2; team++)
@@ -281,7 +292,7 @@ public class MatchManager : InGameManager
 
         if (ballView != null)
         {
-            ballView.Snap(Simulation.Ball);
+            ballView.Snap(Simulation.Ball, CarrierForward());
         }
     }
 
