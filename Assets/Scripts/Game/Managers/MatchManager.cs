@@ -34,6 +34,9 @@ public class MatchManager : InGameManager
     private bool holdIsHalfTime;
     private int goalScorerId = BallState.NoOwner;   // 이번 틱 골 넣은 선수. ShotResolved에서 받는다
     private bool shotMissedThisTick;   // 이번 틱 빗나간 슛. 시뮬은 같은 틱에 골킥(GK 발)으로 옮기므로 화면은 잠깐 멈췄다 스냅한다
+    private const float DiveMinMeters = 1f;   // 슛이 뜬 뒤 GK가 가로로 이만큼 넘게 움직인 세이브는 다이빙 클립. 그 안이면 서서 캐치·펀칭 [가정]
+
+    private float keeperZAtShot;       // 슛이 뜬 순간 수비 GK의 z. 세이브 때 얼마나 움직였는지(다이빙 여부·방향) 재는 기준
     private bool snapAfterHold;        // 멈춤이 끝나면 뷰를 시뮬 자리로 스냅(멈춤 동안 시뮬 자리가 바뀐 경우)
     private TacticsProbe myProbe;   // 내 팀의 전술 실측. 결과 화면이 설정과 나란히 보여 준다
     private readonly GoalCelebration celebration = new GoalCelebration();   // 세리머니 안무. 언제 시작·끝낼지는 여기서 정한다
@@ -85,6 +88,9 @@ public class MatchManager : InGameManager
         PlayerController player = GameManager.Players.Find(playerId);
         if (player == null) { return; }
         player.PlayKick(new Vector3(Simulation.Ball.VelX, 0f, Simulation.Ball.VelZ), isShot);   // 이벤트는 Kick 직후라 공 속도 = 찬 방향
+        if (!isShot) { return; }
+        PlayerController keeper = KeeperView(1 - player.Team);
+        if (keeper != null) { keeperZAtShot = keeper.State.Z; }
     }
 
     private float NextRoll()
@@ -201,6 +207,7 @@ public class MatchManager : InGameManager
             for (int i = 0; i < roster.Count; i++)
             {
                 roster[i].SyncView();
+                if (roster[i].State.IncomingShot) { roster[i].FaceBall(new Vector3(Simulation.Ball.X, 0f, Simulation.Ball.Z)); }   // 옆으로 뛰면서도 공을 본다
             }
         }
 
@@ -229,7 +236,7 @@ public class MatchManager : InGameManager
         PlayKeeperSave(report);
     }
 
-    // 세이브 애니(연출). 잡으면 캐치, 쳐내면 펀칭. 슈터의 상대 팀 GK
+    // 세이브 애니(연출). 슛이 뜬 뒤 가로로 1m 넘게 움직였으면 다이빙, 아니면 잡으면 캐치·쳐내면 펀칭. 슈터의 상대 팀 GK
     private void PlayKeeperSave(ShotReport report)
     {
         if (report.Outcome != ShotOutcome.Caught && report.Outcome != ShotOutcome.Parried) { return; }
@@ -237,6 +244,13 @@ public class MatchManager : InGameManager
         if (shooter == null) { return; }
         PlayerController keeper = KeeperView(1 - shooter.Team);
         if (keeper == null) { return; }
+        float movedZ = keeper.State.Z - keeperZAtShot;
+        if (Mathf.Abs(movedZ) > DiveMinMeters)
+        {
+            Vector3 toBall = new Vector3(Simulation.Ball.X - keeper.State.X, 0f, Simulation.Ball.Z - keeper.State.Z);
+            keeper.PlayDive(toBall, new Vector3(0f, 0f, movedZ));
+            return;
+        }
         if (report.Outcome == ShotOutcome.Caught)
         {
             keeper.PlayCatch();

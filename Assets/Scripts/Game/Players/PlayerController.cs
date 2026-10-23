@@ -10,6 +10,8 @@ public class PlayerController : MonoBehaviour
     private static readonly int ShootParam = Animator.StringToHash("Shoot");   // 트리거. 슛 순간. 패스보다 백스윙·팔로스루가 크다(10-23 유저 "슛도 똑같아서 모르겠다")
     private static readonly int CatchParam = Animator.StringToHash("Catch");         // 트리거. GK가 슛을 잡음(ShotResolved Caught)
     private static readonly int ParryParam = Animator.StringToHash("Parry");         // 트리거. GK가 슛을 쳐냄(ShotResolved Parried)
+    private static readonly int DiveLeftParam = Animator.StringToHash("DiveLeft");   // 트리거. GK가 왼쪽으로 몸을 날려 세이브(가로로 1m 넘게 움직인 세이브, MatchManager.PlayKeeperSave)
+    private static readonly int DiveRightParam = Animator.StringToHash("DiveRight");
     private static readonly int CelebrateParam = Animator.StringToHash("Celebrate"); // bool. 골 세리머니 동안 참
 
     [SerializeField] private Animator animator;
@@ -78,6 +80,22 @@ public class PlayerController : MonoBehaviour
         if (animator != null) { animator.SetTrigger(ParryParam); }
     }
 
+    // 다이빙 세이브: 공을 보게 돌린 뒤 움직인 쪽(월드)이 몸의 왼쪽인지 오른쪽인지로 클립을 고른다
+    public void PlayDive(Vector3 toBall, Vector3 worldMove)
+    {
+        FaceToward(toBall, SaveSeconds);
+        saveUntil = Time.time + SaveSeconds;
+        if (animator == null) { return; }
+        bool right = Vector3.Cross(transform.forward, worldMove).y > 0f;
+        animator.SetTrigger(right ? DiveRightParam : DiveLeftParam);
+    }
+
+    // 슛에 반응해 옆으로 뛰는 동안 공을 본다. 안 돌리면 FaceMovement가 골라인 방향(이동 방향)을 보게 해 등이나 옆구리로 공을 받는다
+    public void FaceBall(Vector3 ballPosition)
+    {
+        FaceToward(ballPosition - current, MatchTuning.FixedStep * 2f);
+    }
+
     public void SetCelebrating(bool on)
     {
         if (animator != null) { animator.SetBool(CelebrateParam, on); }
@@ -92,6 +110,8 @@ public class PlayerController : MonoBehaviour
         animator.ResetTrigger(ShootParam);
         animator.ResetTrigger(CatchParam);
         animator.ResetTrigger(ParryParam);
+        animator.ResetTrigger(DiveLeftParam);
+        animator.ResetTrigger(DiveRightParam);
         animator.SetBool(CelebrateParam, false);
     }
 

@@ -6,7 +6,7 @@ using UnityEngine;
 // 선수 연출 클립 빌더(10-23). 모캡·외부 클립 없이, Idle 첫 프레임 위에 "이름 붙은 포즈"(관절별 회전 오프셋)를 얹고
 // 그 자세를 샘플링해 커브로 굽는다. 유저 Play "차는 동작이 현실적이지 않다"(범용 팩 격투 킥)에 대한 1차 답.
 // 리그가 IK형(Foot.R이 다리의 자식이 아니라 Root 직속)이라 발은 정강이 끝을 따라가게 따로 놓는다.
-// 메뉴 한 번이면 클립 5개(Kick·Shoot·Catch·Parry·Celebrate)와 컨트롤러 상태·트리거를 다시 만든다. 카메라가 멀어 실루엣이면 충분.
+// 메뉴 한 번이면 클립 7개(Kick·Shoot·Catch·Parry·DiveLeft·DiveRight·Celebrate)와 컨트롤러 상태·트리거를 다시 만든다. 카메라가 멀어 실루엣이면 충분.
 // 각도는 전부 출처 없는 눈대중 [가정]. Play로 조정한다
 public static class PlayerClipBuilder
 {
@@ -86,10 +86,12 @@ public static class PlayerClipBuilder
             AnimationClip shoot = Bake(model, idle, "Shoot", ShootPoses(), false);
             AnimationClip catchClip = Bake(model, idle, "Catch", CatchPoses(), false);
             AnimationClip parry = Bake(model, idle, "Parry", ParryPoses(), false);
+            AnimationClip diveLeft = Bake(model, idle, "DiveLeft", DivePoses(-1f), false);
+            AnimationClip diveRight = Bake(model, idle, "DiveRight", DivePoses(1f), false);
             AnimationClip celebrate = Bake(model, idle, "Celebrate", CelebratePoses(), true);
-            Wire(controller, kick, shoot, catchClip, parry, celebrate);
+            Wire(controller, kick, shoot, catchClip, parry, diveLeft, diveRight, celebrate);
             AssetDatabase.SaveAssets();
-            Debug.Log("[PlayerClipBuilder] 클립 5개를 굽고 컨트롤러를 갱신했다");
+            Debug.Log("[PlayerClipBuilder] 클립 7개를 굽고 컨트롤러를 갱신했다");
         }
         finally
         {
@@ -148,6 +150,23 @@ public static class PlayerClipBuilder
             new Pose(0.12f).Add(UpperArmR, Axis.Forward, 140f).Add(LowerArmR, Axis.Forward, 20f).Add(UpperArmL, Axis.Forward, -30f).Add(Abdomen, Axis.Forward, -15f),
             new Pose(0.30f).Add(UpperArmR, Axis.Forward, 140f).Add(LowerArmR, Axis.Forward, 20f).Add(UpperArmL, Axis.Forward, -30f).Add(Abdomen, Axis.Forward, -15f),
             new Pose(0.50f),
+        };
+    }
+
+    // GK 다이빙: 상체를 그쪽으로 크게 기울이고 두 팔을 그쪽 위로 뻗는다(side +1 = 오른쪽, -1 = 왼쪽. Forward 축 양수 = 오른쪽 위).
+    // 다리는 안 날린다: 리그가 IK형이라 발을 띄우면 뜬 발이 바닥에 남는다. 몸이 8m/s로 옆으로 가는 동안 기운 상체면 실루엣은 다이빙(10-23) [가정]
+    private static List<Pose> DivePoses(float side)
+    {
+        float near = 150f * side;   // 공 쪽 팔: 옆 위로 쭉
+        float far = 110f * side;    // 반대쪽 팔: 가슴 앞을 가로질러 같은 쪽으로
+        return new List<Pose>
+        {
+            new Pose(0f),
+            new Pose(0.12f).Add(Abdomen, Axis.Forward, -40f * side).Add(Chest, Axis.Forward, -15f * side).Add(Head, Axis.Forward, -10f * side)
+                .Add(side > 0f ? UpperArmR : UpperArmL, Axis.Forward, near).Add(side > 0f ? UpperArmL : UpperArmR, Axis.Forward, far),
+            new Pose(0.32f).Add(Abdomen, Axis.Forward, -45f * side).Add(Chest, Axis.Forward, -15f * side).Add(Head, Axis.Forward, -10f * side)
+                .Add(side > 0f ? UpperArmR : UpperArmL, Axis.Forward, near).Add(side > 0f ? UpperArmL : UpperArmR, Axis.Forward, far),
+            new Pose(0.55f),
         };
     }
 
@@ -265,12 +284,14 @@ public static class PlayerClipBuilder
 
     // ── 컨트롤러
 
-    private static void Wire(AnimatorController controller, AnimationClip kick, AnimationClip shoot, AnimationClip catchClip, AnimationClip parry, AnimationClip celebrate)
+    private static void Wire(AnimatorController controller, AnimationClip kick, AnimationClip shoot, AnimationClip catchClip, AnimationClip parry, AnimationClip diveLeft, AnimationClip diveRight, AnimationClip celebrate)
     {
         EnsureParameter(controller, "Kick", AnimatorControllerParameterType.Trigger);
         EnsureParameter(controller, "Shoot", AnimatorControllerParameterType.Trigger);
         EnsureParameter(controller, "Catch", AnimatorControllerParameterType.Trigger);
         EnsureParameter(controller, "Parry", AnimatorControllerParameterType.Trigger);
+        EnsureParameter(controller, "DiveLeft", AnimatorControllerParameterType.Trigger);
+        EnsureParameter(controller, "DiveRight", AnimatorControllerParameterType.Trigger);
         EnsureParameter(controller, "Celebrate", AnimatorControllerParameterType.Bool);
 
         AnimatorStateMachine machine = controller.layers[0].stateMachine;
@@ -279,6 +300,8 @@ public static class PlayerClipBuilder
         OneShot(machine, idle, "Shoot", shoot);
         OneShot(machine, idle, "Catch", catchClip);
         OneShot(machine, idle, "Parry", parry);
+        OneShot(machine, idle, "DiveLeft", diveLeft);
+        OneShot(machine, idle, "DiveRight", diveRight);
         Held(machine, idle, "Celebrate", celebrate);
         EditorUtility.SetDirty(controller);
     }
