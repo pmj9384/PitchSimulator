@@ -187,6 +187,7 @@ public static class PlayerClipBuilder
         }
 
         var clip = new AnimationClip();
+        clip.name = name;   // 비어 있으면 CopySerialized가 빈 이름까지 덮어 임포트 경고(Main Object Name)가 난다
         clip.frameRate = Fps;
         AnimationUtility.SetEditorCurves(clip, bindings, curves);
         clip.EnsureQuaternionContinuity();
