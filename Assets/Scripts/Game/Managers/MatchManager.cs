@@ -16,6 +16,7 @@ public class MatchManager : InGameManager
     [SerializeField] private float halfTimeHoldSec = 2f;   // 하프타임 멈춤(연출). 시뮬 틱은 안 돌아 러너·시즌 결과와 무관. 0이면 멈춤 없음
     [SerializeField] private float celebrationSec = 3f;    // 골 세리머니(연출, 09-29 유저 Play "골 넣은 사람 세리머니 시간을 줘야"). 시뮬 틱은 안 돈다. 0이면 없음
     [SerializeField] private float kickoffSetSec = 1f;     // 킥오프 전 제자리 멈춤(연출, 09-29). 경기 시작·골 뒤. 하프타임은 halfTimeHoldSec이 맡는다
+    [SerializeField] private float goalKickHoldSec = 1f;   // 빗나간 슛 뒤 골킥 전 멈춤(연출, 10-23). 공이 골라인 근처에 멈춰 보이다 GK 발로 스냅한다
 
     public int Ticks { get; private set; }                       // 킥오프부터 센 고정 스텝 수. float 누적은 종료 틱이 9000/9001로 갈려 러너와 어긋난다
     public float Elapsed => Ticks * MatchTuning.FixedStep;     // 로그용 초
@@ -32,6 +33,8 @@ public class MatchManager : InGameManager
     private int holdTicksLeft;   // 멈춤(하프타임·킥오프 준비) 남은 고정 스텝 수
     private bool holdIsHalfTime;
     private int goalScorerId = BallState.NoOwner;   // 이번 틱 골 넣은 선수. ShotResolved에서 받는다
+    private bool shotMissedThisTick;   // 이번 틱 빗나간 슛. 시뮬은 같은 틱에 골킥(GK 발)으로 옮기므로 화면은 잠깐 멈췄다 스냅한다
+    private bool snapAfterHold;        // 멈춤이 끝나면 뷰를 시뮬 자리로 스냅(멈춤 동안 시뮬 자리가 바뀐 경우)
     private TacticsProbe myProbe;   // 내 팀의 전술 실측. 결과 화면이 설정과 나란히 보여 준다
     private readonly GoalCelebration celebration = new GoalCelebration();   // 세리머니 안무. 언제 시작·끝낼지는 여기서 정한다
     private bool celebrationBeforeHalfTime;   // 이번 세리머니가 하프타임 틱의 골인가. 끝나면 킥오프 준비 대신 하프타임 멈춤
@@ -77,11 +80,11 @@ public class MatchManager : InGameManager
     }
 
     // 찬 선수의 킥 애니. 시뮬은 안 기다린다(연출)
-    private void OnBallKicked(int playerId)
+    private void OnBallKicked(int playerId, bool isShot)
     {
         PlayerController player = GameManager.Players.Find(playerId);
         if (player == null) { return; }
-        player.PlayKick(new Vector3(Simulation.Ball.VelX, 0f, Simulation.Ball.VelZ));   // 이벤트는 Kick 직후라 공 속도 = 찬 방향
+        player.PlayKick(new Vector3(Simulation.Ball.VelX, 0f, Simulation.Ball.VelZ), isShot);   // 이벤트는 Kick 직후라 공 속도 = 찬 방향
     }
 
     private float NextRoll()
@@ -142,6 +145,7 @@ public class MatchManager : InGameManager
         if (holdTicksLeft > 0)
         {
             holdTicksLeft--;
+            if (holdTicksLeft == 0 && snapAfterHold) { EndHoldWithSnap(); }
             return;
         }
         if (Ticks >= MatchTuning.MatchTicks)
@@ -153,6 +157,7 @@ public class MatchManager : InGameManager
         // 이번 틱이 하프타임 틱인지 미리 안다. 전제: Ticks와 시뮬 내부 tickCount가 늘 같다(Simulation.Tick을 부르는 곳은 여기 한 곳, 09-30 리뷰)
         bool halfTimeTick = Ticks + 1 == MatchClock.HalfTimeTick(Simulation.Added);
         goalScorerId = BallState.NoOwner;
+        shotMissedThisTick = false;
         Simulation.Tick(MatchTuning.FixedStep);   // Unity 설정(Fixed Timestep)이 아니라 코어 상수로 흐른다: 설정이 바뀌어도 같은 시드 = 같은 경기(러너와 동일). 호출 주기만 설정이 정한다
         myProbe.Sample();
         Ticks++;
@@ -163,6 +168,14 @@ public class MatchManager : InGameManager
             // 하프타임 틱의 골(휘슬 순간 날아가던 슛, 09-30)이면 세리머니 뒤에 하프타임 멈춤을 이어 준다: 그냥 두면 킥오프 준비 1초로 끝나 "하프타임" 자막이 안 뜬다
             celebrationBeforeHalfTime = halfTimeTick;
             BeginCelebration();
+            return;
+        }
+        if (shotMissedThisTick && !halfTimeTick && Ticks < MatchTuning.MatchTicks)
+        {
+            // 빗나간 슛: 시뮬은 이 틱에 공을 GK 발(골킥)로 옮겼다. 화면은 직전 자리(골라인 근처)에 잠깐 멈췄다가 스냅한다(10-23 유저 "공이 GK에게 순간이동")
+            HoldAllViews();
+            snapAfterHold = true;
+            Hold(goalKickHoldSec, halfTime: false);
             return;
         }
         SyncViews();
@@ -203,9 +216,16 @@ public class MatchManager : InGameManager
         holdIsHalfTime = halfTime;
     }
 
+    private void EndHoldWithSnap()
+    {
+        snapAfterHold = false;
+        SnapViews();
+    }
+
     private void OnShotResolved(ShotReport report)
     {
         if (report.Outcome == ShotOutcome.Goal) { goalScorerId = report.ShooterId; }
+        if (report.Outcome == ShotOutcome.Missed) { shotMissedThisTick = true; }
         PlayKeeperSave(report);
     }
 
