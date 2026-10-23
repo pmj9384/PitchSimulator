@@ -441,11 +441,13 @@ public class MatchSimulationTests
         Assert.Greater(opp.X, 0f, "상대는 자기 진영");
 
         var kickers = new List<int>();
-        sim.BallKicked += id => kickers.Add(id);
+        var shots = new List<bool>();
+        sim.BallKicked += (id, isShot) => { kickers.Add(id); shots.Add(isShot); };
         for (int i = 0; i < 100 && sim.PassCount == 0; i++) { sim.Tick(Dt); }
         Assert.AreEqual(1, sim.PassCount, "첫 행동은 패스");
         Assert.AreEqual(1, kickers.Count, "패스도 찼다 이벤트 1회(킥 애니)");
         Assert.AreEqual(st1.PlayerId, kickers[0], "찬 사람 = 키커");
+        Assert.IsFalse(shots[0], "패스는 슛이 아니다");
         sim.Tick(Dt);
         Assert.IsTrue(st2.IsPassTarget, "옆·뒤 동료(ST2)에게");
         Assert.IsFalse(st1.IsKickoffTaker, "첫 킥 뒤엔 키커 표시가 풀린다");
@@ -733,11 +735,13 @@ public class MatchSimulationTests
         float[] sequence = { 0.10f,0.5f, 0.50f,0.5f,0.50f, 0.90f,0.5f,0.20f, 0.35f,0.5f,0.70f, 0.05f,0.5f, 0.60f,0.5f,0.99f, 0.40f,0.5f,0.30f, 0.80f,0.5f,0.15f, 0.55f,0.5f,0.25f, 0.65f,0.5f,0.45f, 0.75f,0.5f,0.33f, 0.66f,0.5f,0.11f };
         MatchSimulation sim = LitmusMatch(new RollQueue(sequence));
         var kickers = new List<int>();
-        sim.BallKicked += id => kickers.Add(id);
+        int shotFlags = 0;
+        sim.BallKicked += (id, isShot) => { kickers.Add(id); if (isShot) { shotFlags++; } };
 
         RunShots(sim, 10);
 
         Assert.AreEqual(10, kickers.Count);
+        Assert.AreEqual(10, shotFlags, "전부 슛");
         for (int i = 0; i < kickers.Count; i++) { Assert.AreEqual(0, kickers[i], "리트머스에서 차는 건 스트라이커(0)뿐"); }
     }
 }

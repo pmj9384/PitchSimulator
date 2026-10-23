@@ -6,7 +6,7 @@ using UnityEngine;
 public class BallView : MonoBehaviour
 {
     private const float Radius = 0.11f;   // 축구공 반지름(지름 22cm). 잔디 위에 얹히는 높이
-    private const float CarryOffset = 0.4f;   // 소유 중 소유자 앞으로 띄우는 거리(m). 시뮬은 공을 소유자 좌표에 두므로(BallRules.Carry) 그대로 그리면 다리 사이에 보인다(10-23 유저 Play). [가정] 출처 없음, Play로 조정
+    private const float CarryOffset = 0.55f;   // 소유 중 소유자 앞으로 띄우는 거리(m). 0.4는 유저 Play "좀 더 가야"(10-23). 시뮬은 공을 소유자 좌표에 두므로(BallRules.Carry) 그대로 그리면 다리 사이에 보인다(10-23 유저 Play). [가정] 출처 없음, Play로 조정
 
     private Vector3 previous;
     private Vector3 current;

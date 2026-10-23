@@ -6,7 +6,7 @@ using UnityEngine;
 // 선수 연출 클립 빌더(10-23). 모캡·외부 클립 없이, Idle 첫 프레임 위에 "이름 붙은 포즈"(관절별 회전 오프셋)를 얹고
 // 그 자세를 샘플링해 커브로 굽는다. 유저 Play "차는 동작이 현실적이지 않다"(범용 팩 격투 킥)에 대한 1차 답.
 // 리그가 IK형(Foot.R이 다리의 자식이 아니라 Root 직속)이라 발은 정강이 끝을 따라가게 따로 놓는다.
-// 메뉴 한 번이면 클립 4개(Kick·Catch·Parry·Celebrate)와 컨트롤러 상태·트리거를 다시 만든다. 카메라가 멀어 실루엣이면 충분.
+// 메뉴 한 번이면 클립 5개(Kick·Shoot·Catch·Parry·Celebrate)와 컨트롤러 상태·트리거를 다시 만든다. 카메라가 멀어 실루엣이면 충분.
 // 각도는 전부 출처 없는 눈대중 [가정]. Play로 조정한다
 public static class PlayerClipBuilder
 {
@@ -83,12 +83,13 @@ public static class PlayerClipBuilder
             if (!AssetDatabase.IsValidFolder(ClipFolder)) { AssetDatabase.CreateFolder("Assets/Animations", "Clips"); }
 
             AnimationClip kick = Bake(model, idle, "Kick", KickPoses(), false);
+            AnimationClip shoot = Bake(model, idle, "Shoot", ShootPoses(), false);
             AnimationClip catchClip = Bake(model, idle, "Catch", CatchPoses(), false);
             AnimationClip parry = Bake(model, idle, "Parry", ParryPoses(), false);
             AnimationClip celebrate = Bake(model, idle, "Celebrate", CelebratePoses(), true);
-            Wire(controller, kick, catchClip, parry, celebrate);
+            Wire(controller, kick, shoot, catchClip, parry, celebrate);
             AssetDatabase.SaveAssets();
-            Debug.Log("[PlayerClipBuilder] 클립 4개를 굽고 컨트롤러를 갱신했다");
+            Debug.Log("[PlayerClipBuilder] 클립 5개를 굽고 컨트롤러를 갱신했다");
         }
         finally
         {
@@ -104,11 +105,24 @@ public static class PlayerClipBuilder
         return new List<Pose>
         {
             new Pose(0f),
-            // 각은 발 궤적을 에디터에서 재서 맞췄다: 접촉 때 발이 앞 0.45m·높이 0.1m(= BallView 오프셋 0.4 + 공 반지름)
+            // 각은 발 궤적을 에디터에서 재서 맞췄다: 접촉 때 발이 앞 0.55~0.6m·높이 0.2m 근처(= BallView 오프셋 0.55 + 공 반지름)
             new Pose(0.10f).Add(UpperLegR, Axis.Right, 30f).Add(LowerLegR, Axis.Right, 55f).Add(Abdomen, Axis.Right, -10f).Add(UpperArmL, Axis.Right, -30f).Add(UpperArmR, Axis.Right, 20f),
-            new Pose(0.18f).Add(UpperLegR, Axis.Right, -15f).Add(LowerLegR, Axis.Right, 5f).Add(Abdomen, Axis.Right, -2f).Add(UpperArmL, Axis.Right, 15f).Add(UpperArmR, Axis.Right, -25f).Foot(25f),
+            new Pose(0.18f).Add(UpperLegR, Axis.Right, -26f).Add(LowerLegR, Axis.Right, 5f).Add(Abdomen, Axis.Right, -2f).Add(UpperArmL, Axis.Right, 15f).Add(UpperArmR, Axis.Right, -25f).Foot(25f),
             new Pose(0.32f).Add(UpperLegR, Axis.Right, -50f).Add(LowerLegR, Axis.Right, 15f).Add(Abdomen, Axis.Right, 8f).Add(UpperArmL, Axis.Right, 25f).Add(UpperArmR, Axis.Right, -35f).Foot(15f),
             new Pose(0.60f),
+        };
+    }
+
+    // 슛: 패스보다 백스윙이 크고(무릎 90°) 상체가 앞으로 숙였다 뒤로 젖혀지며 팔로스루가 길다. 접촉 0.24초
+    private static List<Pose> ShootPoses()
+    {
+        return new List<Pose>
+        {
+            new Pose(0f),
+            new Pose(0.14f).Add(UpperLegR, Axis.Right, 45f).Add(LowerLegR, Axis.Right, 90f).Add(Abdomen, Axis.Right, -15f).Add(UpperArmL, Axis.Right, -45f).Add(UpperArmR, Axis.Right, 30f),
+            new Pose(0.24f).Add(UpperLegR, Axis.Right, -26f).Add(LowerLegR, Axis.Right, 5f).Add(Abdomen, Axis.Right, 5f).Add(UpperArmL, Axis.Right, 20f).Add(UpperArmR, Axis.Right, -30f).Foot(30f),
+            new Pose(0.42f).Add(UpperLegR, Axis.Right, -85f).Add(LowerLegR, Axis.Right, 25f).Add(Abdomen, Axis.Right, 18f).Add(UpperArmL, Axis.Right, 35f).Add(UpperArmR, Axis.Right, -45f).Foot(20f),
+            new Pose(0.70f),
         };
     }
 
@@ -249,9 +263,10 @@ public static class PlayerClipBuilder
 
     // ── 컨트롤러
 
-    private static void Wire(AnimatorController controller, AnimationClip kick, AnimationClip catchClip, AnimationClip parry, AnimationClip celebrate)
+    private static void Wire(AnimatorController controller, AnimationClip kick, AnimationClip shoot, AnimationClip catchClip, AnimationClip parry, AnimationClip celebrate)
     {
         EnsureParameter(controller, "Kick", AnimatorControllerParameterType.Trigger);
+        EnsureParameter(controller, "Shoot", AnimatorControllerParameterType.Trigger);
         EnsureParameter(controller, "Catch", AnimatorControllerParameterType.Trigger);
         EnsureParameter(controller, "Parry", AnimatorControllerParameterType.Trigger);
         EnsureParameter(controller, "Celebrate", AnimatorControllerParameterType.Bool);
@@ -259,6 +274,7 @@ public static class PlayerClipBuilder
         AnimatorStateMachine machine = controller.layers[0].stateMachine;
         AnimatorState idle = FindState(machine, "Idle");
         OneShot(machine, idle, "Kick", kick);
+        OneShot(machine, idle, "Shoot", shoot);
         OneShot(machine, idle, "Catch", catchClip);
         OneShot(machine, idle, "Parry", parry);
         Held(machine, idle, "Celebrate", celebrate);

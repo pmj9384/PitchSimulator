@@ -6,7 +6,8 @@ using UnityEngine;
 public class PlayerController : MonoBehaviour
 {
     private static readonly int SpeedParam = Animator.StringToHash("Speed");   // PlayerAnimator.controller의 float. 서기/걷기/달리기를 고른다
-    private static readonly int KickParam = Animator.StringToHash("Kick");     // 트리거. 슛·패스 순간(MatchSimulation.BallKicked)
+    private static readonly int KickParam = Animator.StringToHash("Kick");     // 트리거. 패스 순간(MatchSimulation.BallKicked)
+    private static readonly int ShootParam = Animator.StringToHash("Shoot");   // 트리거. 슛 순간. 패스보다 백스윙·팔로스루가 크다(10-23 유저 "슛도 똑같아서 모르겠다")
     private static readonly int CatchParam = Animator.StringToHash("Catch");         // 트리거. GK가 슛을 잡음(ShotResolved Caught)
     private static readonly int ParryParam = Animator.StringToHash("Parry");         // 트리거. GK가 슛을 쳐냄(ShotResolved Parried)
     private static readonly int CelebrateParam = Animator.StringToHash("Celebrate"); // bool. 골 세리머니 동안 참
@@ -19,9 +20,11 @@ public class PlayerController : MonoBehaviour
     private const float TurnDegreesPerSecond = 720f;   // [가정] 출처 없음. 한 스텝(0.02초) 사이 반대 방향 전환을 0.25초 안에 끝내는 값
     private const float MinMoveSqr = 0.0001f;            // 이보다 덜 움직이면 서 있는 것(향한 방향 유지)
     private const float KickFaceSeconds = 0.4f;          // 킥 뒤 이 동안은 이동 방향이 아니라 찬 방향을 본다(클립 길이 0.6의 앞부분) [가정]
+    private const float SaveSeconds = 0.45f;             // 세이브 클립이 끝날 때까지. 이 안에 오는 배급 킥은 애니를 안 튼다(GK가 잡자마자 차면 캐치가 0.05초 만에 끊겼다) [가정]
 
     private Vector3 faceOverride;       // 킥 직후 보는 방향
     private float faceOverrideUntil;    // 그 방향을 유지하는 끝 시각(Time.time)
+    private float saveUntil;            // 세이브 애니가 끝나는 시각. 그 전의 킥 트리거는 버린다
 
     public PlayerState State { get; private set; }
     public int PlayerId => State.PlayerId;
@@ -55,20 +58,23 @@ public class PlayerController : MonoBehaviour
 
     public Vector3 ViewPosition => current;
 
-    // 찬 순간. direction = 공이 떠난 방향(시뮬 공 속도). 몸을 그쪽으로 돌려 발이 공을 향하게 한다
-    public void PlayKick(Vector3 direction)
+    // 찬 순간. direction = 공이 떠난 방향(시뮬 공 속도). 몸을 그쪽으로 돌려 발이 공을 향하게 한다. 슛과 패스는 클립이 다르다
+    public void PlayKick(Vector3 direction, bool shot)
     {
-        if (animator != null) { animator.SetTrigger(KickParam); }
         FaceToward(direction, KickFaceSeconds);
+        if (animator == null || Time.time < saveUntil) { return; }
+        animator.SetTrigger(shot ? ShootParam : KickParam);
     }
 
     public void PlayCatch()
     {
+        saveUntil = Time.time + SaveSeconds;
         if (animator != null) { animator.SetTrigger(CatchParam); }
     }
 
     public void PlayParry()
     {
+        saveUntil = Time.time + SaveSeconds;
         if (animator != null) { animator.SetTrigger(ParryParam); }
     }
 
@@ -80,8 +86,10 @@ public class PlayerController : MonoBehaviour
     private void ResetAnimation()
     {
         faceOverrideUntil = 0f;
+        saveUntil = 0f;
         if (animator == null) { return; }
         animator.ResetTrigger(KickParam);
+        animator.ResetTrigger(ShootParam);
         animator.ResetTrigger(CatchParam);
         animator.ResetTrigger(ParryParam);
         animator.SetBool(CelebrateParam, false);
