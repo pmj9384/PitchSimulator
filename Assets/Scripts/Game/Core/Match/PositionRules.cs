@@ -50,24 +50,42 @@ namespace Game.Core.Match
             return Offset(baseX, baseZ, lineHeight * MatchTuning.PositionDialScale * attackSign, 0f);
         }
 
-        // 공 지향 슬라이드: 자리(공격 시/수비 시 계산 결과)에 공 좌표 × 계수를 더한다. 공 좌표를 그대로 쓰므로 팀 부호가 필요 없다:
-        // 공이 상대 진영이면 양 팀 다 그쪽으로(공격 팀은 침투, 수비 팀은 라인 상승), 공이 왼쪽이면 전원 왼쪽으로. 세로는 상한으로 자른다.
-        // GK는 가로만 조금(SlideLateralKeeper), 세로 0. 결과는 필드 안으로 클램프
-        public static (float x, float z) SlideTowardBall(float homeX, float homeZ, float ballX, float ballZ, bool defending, bool goalkeeper)
+        // 공 지향 슬라이드 두 가지(09-21 유저 "자리가 완전 고정은 아닌 것 같다"). 공 좌표 기준이라 팀 부호가 필요 없다. 결과는 필드 안으로 클램프.
+        // 식의 근거·버린 안·수치는 실험/2026-10-25-슬라이드-수축-격자.md. 비소유 폭·라인 높이는 ③ 가속·F3·④ 공 높이가 함께 다룬다.
+
+        // 아군 소유 때: 세로는 공 x × 계수 평행이동(상한), 가로는 (공 z − 자리 z) × 계수 수축. 공에서 먼 선수가 더 들어와 소유 폭이 준다(10-25).
+        // 전원이 같은 양을 더하는 평행이동은 폭을 못 줄였고, 공이 중앙이어도 당기므로 편성 자리 = 가장 벌어진 모양(전술판 PitchView도 같은 식).
+        public static (float x, float z) SlideAttack(float homeX, float homeZ, float ballX, float ballZ, bool goalkeeper)
         {
-            if (goalkeeper)
-            {
-                return Offset(homeX, homeZ, 0f, ballZ * MatchTuning.SlideLateralKeeper);
-            }
+            if (goalkeeper) { return SlideKeeper(homeX, homeZ, ballZ); }
+            float dx = VerticalShift(ballX, MatchTuning.SlideVerticalAttack, MatchTuning.SlideVerticalMaxAttack);
+            float dz = (ballZ - homeZ) * MatchTuning.SlideLateralAttack;
+            return Offset(homeX, homeZ, dx, dz);
+        }
 
-            float lateral = defending ? MatchTuning.SlideLateralDefend : MatchTuning.SlideLateralAttack;
-            float vertical = defending ? MatchTuning.SlideVerticalDefend : MatchTuning.SlideVerticalAttack;
-            float verticalMax = defending ? MatchTuning.SlideVerticalMaxDefend : MatchTuning.SlideVerticalMaxAttack;
+        // 상대 소유 때: 세로·가로 모두 공 좌표 × 계수 평행이동(세로는 상한). 블록이 공을 따라 옮기되 폭은 그대로다.
+        // 수비까지 수축하면 공격 수축과 겹쳐 내 빌드업 패스가 상대 ST 앞에서 끊겨 4부 승률이 무너졌고(10-25 격자),
+        // 세로를 수축하면 라인이 올라가 골이 반으로 줄었다(공 높이가 없어 올라간 라인 뒤를 못 찌름. 09-30 F3와 같은 원인)
+        public static (float x, float z) SlideDefend(float homeX, float homeZ, float ballX, float ballZ, bool goalkeeper)
+        {
+            if (goalkeeper) { return SlideKeeper(homeX, homeZ, ballZ); }
+            float dx = VerticalShift(ballX, MatchTuning.SlideVerticalDefend, MatchTuning.SlideVerticalMaxDefend);
+            float dz = ballZ * MatchTuning.SlideLateralDefend;
+            return Offset(homeX, homeZ, dx, dz);
+        }
 
-            float dx = ballX * vertical;
-            if (dx > verticalMax) { dx = verticalMax; }
-            if (dx < -verticalMax) { dx = -verticalMax; }
-            return Offset(homeX, homeZ, dx, ballZ * lateral);
+        // GK는 가로만 조금(SlideLateralKeeper), 세로 0. 라인을 따라 나오면 안 된다
+        private static (float x, float z) SlideKeeper(float homeX, float homeZ, float ballZ)
+        {
+            return Offset(homeX, homeZ, 0f, ballZ * MatchTuning.SlideLateralKeeper);
+        }
+
+        private static float VerticalShift(float ballX, float coefficient, float max)
+        {
+            float dx = ballX * coefficient;
+            if (dx > max) { return max; }
+            if (dx < -max) { return -max; }
+            return dx;
         }
 
         private static (float x, float z) Offset(float baseX, float baseZ, float dx, float dz)

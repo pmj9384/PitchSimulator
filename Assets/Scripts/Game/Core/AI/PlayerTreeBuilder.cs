@@ -325,7 +325,7 @@ namespace Game.Core.AI
             int third = Third(ctx);
             (float x, float z) home = PositionRules.AttackHome(ctx.AttackHomeX, ctx.AttackHomeZ, ctx.AttackSign,
                 ctx.Tactics.Mentality, ctx.Stats.PushUp, ctx.Tactics.Width[third], ctx.Stats.Width);
-            (float x, float z) slid = PositionRules.SlideTowardBall(home.x, home.z, ctx.BallX, ctx.BallZ, defending: false, ctx.IsGoalkeeper);
+            (float x, float z) slid = PositionRules.SlideAttack(home.x, home.z, ctx.BallX, ctx.BallZ, ctx.IsGoalkeeper);
             float x = slid.x;
             if (ctx.BallOwnerTeam == ctx.Team && !ctx.OwnsBall && !ctx.IsGoalkeeper)
             {
@@ -338,7 +338,7 @@ namespace Game.Core.AI
         private static void MoveToDefendHome(IPlayerContext ctx)
         {
             (float x, float z) home = PositionRules.DefendHome(ctx.DefendHomeX, ctx.DefendHomeZ, ctx.AttackSign, ctx.Stats.LineHeight);
-            (float x, float z) slid = PositionRules.SlideTowardBall(home.x, home.z, ctx.BallX, ctx.BallZ, defending: true, ctx.IsGoalkeeper);
+            (float x, float z) slid = PositionRules.SlideDefend(home.x, home.z, ctx.BallX, ctx.BallZ, ctx.IsGoalkeeper);
             ctx.MoveToward(slid.x, slid.z);
         }
 

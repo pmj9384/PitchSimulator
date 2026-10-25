@@ -82,27 +82,72 @@ public class PositionRulesTests
         Assert.AreEqual(36f - 6f * MatchTuning.PositionDialScale, home.x, 1e-4f, "팀 1은 -X가 앞");
     }
 
+    // 공 지향 슬라이드(10-25 격자): 공격 가로만 (공 z − 자리 z) × 계수 수축, 수비 가로·세로는 공 좌표 × 계수 평행이동.
+    // 식마다의 이유는 PositionRules 주석, 수치는 실험/2026-10-25-슬라이드-수축-격자.md
     [Test]
-    public void 공_지향_슬라이드는_공_쪽으로_평행이동하고_세로는_상한으로_잘린다()
+    public void 수비_슬라이드는_공_좌표에_비례해_전원이_같은_양을_옮긴다()
     {
-        // 수비 시: 공 (30, -20) → 세로 30×0.3 = 9, 가로 -20×0.3 = -6(09-26 0.4 → 0.3: 블록이 너무 촘촘해 골 0.6)
-        (float x, float z) d = PositionRules.SlideTowardBall(-20f, 5f, ballX: 30f, ballZ: -20f, defending: true, goalkeeper: false);
-        Assert.AreEqual(-11f, d.x, 1e-4f, "공이 멀면 라인이 올라간다");
-        Assert.AreEqual(-1f, d.z, 1e-4f, "공이 왼쪽이면 왼쪽으로");
+        float defendLateral = MatchTuning.SlideLateralDefend;
+        float defendVertical = MatchTuning.SlideVerticalDefend;
 
-        // 세로 상한: 공 X 45 × 0.3 = 13.5 → 10으로 잘림
-        d = PositionRules.SlideTowardBall(-20f, 0f, 45f, 0f, defending: true, goalkeeper: false);
-        Assert.AreEqual(-10f, d.x, 1e-4f);
+        // 자리 (-20, 5), 공 (30, -20): 세로 30×계수, 가로 -20×계수
+        (float x, float z) d = PositionRules.SlideDefend(-20f, 5f, ballX: 30f, ballZ: -20f, goalkeeper: false);
+        Assert.AreEqual(-20f + System.Math.Min(30f * defendVertical, MatchTuning.SlideVerticalMaxDefend), d.x, 1e-4f, "공이 멀면 라인이 올라간다(상한 안에서)");
+        Assert.AreEqual(5f - 20f * defendLateral, d.z, 1e-4f, "가로는 공 z × 계수. 자리와 무관하게 같은 양");
 
-        // 공격 시: 세로 0.4·상한 15, 가로 0.2
-        (float x, float z) a = PositionRules.SlideTowardBall(22f, 6f, 45f, 10f, defending: false, goalkeeper: false);
-        Assert.AreEqual(37f, a.x, 1e-4f, "45×0.4 = 18 → 15로 잘림");
-        Assert.AreEqual(8f, a.z, 1e-4f);
+        (float x, float z) center = PositionRules.SlideDefend(-41f, 7f, 0f, 0f, goalkeeper: false);
+        Assert.AreEqual(-41f, center.x, 1e-4f, "공이 중앙이면 자리 그대로");
+        Assert.AreEqual(7f, center.z, 1e-4f);
+    }
 
-        // GK: 세로 0, 가로 0.15
-        (float x, float z) gk = PositionRules.SlideTowardBall(-48f, 0f, 30f, 20f, defending: true, goalkeeper: true);
-        Assert.AreEqual(-48f, gk.x, 1e-4f);
-        Assert.AreEqual(3f, gk.z, 1e-4f);
+    [Test]
+    public void 세로_슬라이드는_상한으로_잘린다()
+    {
+        // 수비: 공 45 × 0.3 = 13.5 > 10. 공격: 공 50 × 0.4 = 20 > 15
+        (float x, float z) d = PositionRules.SlideDefend(-20f, 0f, 45f, 0f, goalkeeper: false);
+        Assert.AreEqual(-20f + MatchTuning.SlideVerticalMaxDefend, d.x, 1e-4f);
+
+        (float x, float z) a = PositionRules.SlideAttack(22f, 0f, 50f, 0f, goalkeeper: false);
+        Assert.AreEqual(22f + MatchTuning.SlideVerticalMaxAttack, a.x, 1e-4f);
+    }
+
+    [Test]
+    public void 공격_슬라이드는_가로를_자리와_공의_차이에_비례해_당긴다()
+    {
+        // 자리 (22, 6), 공 (10, 10): 세로 10×계수, 가로는 자리에서 공까지 4m × 계수
+        (float x, float z) a = PositionRules.SlideAttack(22f, 6f, ballX: 10f, ballZ: 10f, goalkeeper: false);
+        Assert.AreEqual(22f + 10f * MatchTuning.SlideVerticalAttack, a.x, 1e-4f);
+        Assert.AreEqual(6f + 4f * MatchTuning.SlideLateralAttack, a.z, 1e-4f, "공격은 (공 z − 자리 z) × 계수");
+
+        // 공이 중앙이면 세로는 0, 가로만 자리에서 중앙 쪽으로. 편성 자리 = 가장 벌어진 모양이라 전술판(PitchView)도 공 (0, 0)으로 같은 식을 부른다
+        (float x, float z) center = PositionRules.SlideAttack(22f, 6f, 0f, 0f, goalkeeper: false);
+        Assert.AreEqual(22f, center.x, 1e-4f);
+        Assert.AreEqual(6f - 6f * MatchTuning.SlideLateralAttack, center.z, 1e-4f);
+    }
+
+    [Test]
+    public void GK_슬라이드는_가로만_조금이고_공격_수비_같다()
+    {
+        (float x, float z) d = PositionRules.SlideDefend(-48f, 0f, 30f, 20f, goalkeeper: true);
+        Assert.AreEqual(-48f, d.x, 1e-4f, "세로 0");
+        Assert.AreEqual(20f * MatchTuning.SlideLateralKeeper, d.z, 1e-4f);
+
+        (float x, float z) a = PositionRules.SlideAttack(-48f, 0f, 30f, 20f, goalkeeper: true);
+        Assert.AreEqual(d, a, "GK는 소유 여부와 무관");
+    }
+
+    [Test]
+    public void 공격_때_공에서_먼_선수가_더_많이_움직여_두_선수_간격이_줄어들고_수비_때는_그대로다()
+    {
+        // 코칭 원칙 10(Coaches' Voice): 공 쪽은 터치라인을 쓰고 반대편 윙은 중앙으로 들어온다. 좌우 W(z ±24), 공 z=+20
+        float k = MatchTuning.SlideLateralAttack;
+        (float x, float z) near = PositionRules.SlideAttack(-18f, 24f, ballX: 0f, ballZ: 20f, goalkeeper: false);
+        (float x, float z) far = PositionRules.SlideAttack(-18f, -24f, ballX: 0f, ballZ: 20f, goalkeeper: false);
+        Assert.AreEqual(48f * (1f - k), near.z - far.z, 1e-4f, "두 선수 간격은 (1 − k)배로 줄어든다");
+
+        (float x, float z) dNear = PositionRules.SlideDefend(-23f, 24f, 0f, 20f, goalkeeper: false);
+        (float x, float z) dFar = PositionRules.SlideDefend(-23f, -24f, 0f, 20f, goalkeeper: false);
+        Assert.AreEqual(48f, dNear.z - dFar.z, 1e-4f, "수비 블록은 같은 양을 옮겨 폭이 그대로");
     }
 
     [Test]
@@ -117,7 +162,7 @@ public class PositionRulesTests
     public void 공_쪽_윙어는_슬라이드로_밀려도_터치라인_여유_안에_선다()
     {
         // 09-26 Play: 윙어 자리 z 31.5에 공 z 30 → 슬라이드 +6 → 가장자리 33.5에 붙어 라인 위 빌드업. 여유 3m면 30.5에서 멈춘다
-        (float x, float z) slid = PositionRules.SlideTowardBall(7f, 31.5f, ballX: 10f, ballZ: 30f, defending: false, goalkeeper: false);
+        (float x, float z) slid = PositionRules.SlideAttack(7f, 31.5f, ballX: 10f, ballZ: 30f, goalkeeper: false);
         Assert.AreEqual(FieldBounds.HalfWidth - MatchTuning.TouchlineMargin, slid.z, 1e-4f);
     }
 }

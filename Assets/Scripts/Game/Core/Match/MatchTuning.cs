@@ -50,12 +50,12 @@ namespace Game.Core.Match
         public static readonly float[] PassLeadOptions = { PassLeadMax, 3.5f, 0f };
         public const float DribbleReluctance = 0.3f;                            // 개인 드리블 성향이 이 미만이면 골 대신 가까운 아군 쪽으로 몰아 패스를 노린다
         public const float BackPassScale = 0.3f;                                // 옆·뒤 아군 후보 점수 배율(플랜 09-22 칸). 전진 5m 이상 앞 후보는 못 이기고, 1~3m 앞 찔끔 후보에겐 이길 수 있다(의도: 핑퐁 방지)
-        // 공 지향 슬라이드(09-21 유저: "자리가 완전 고정은 아닌 것 같다"): 자리에 공 좌표 × 계수를 더해 블록이 공을 따라 평행이동한다.
-        // 지역 방어는 공 기준(Spielverlagerung ball-oriented zonal marking). 수비는 컴팩트(가로 큼), 공격은 침투(세로 큼). 출발값, 러너로 조정
+        // 공 지향 슬라이드(PositionRules.SlideAttack·SlideDefend). 지역 방어는 공 기준(Spielverlagerung ball-oriented zonal marking).
+        // 수비는 컴팩트(가로 큼), 공격은 침투(세로 큼). 공격 가로만 수축식이고 나머지는 평행이동(10-25, 실험/2026-10-25-슬라이드-수축-격자.md)
         public const float SlideLateralDefend = 0.3f;   // 09-26 0.4 → 0.3: 압박 1명 제한·킥 속도 역산 뒤 블록이 너무 촘촘해 100판 골 0.6. 0.3이면 1.06·슛 10
         public const float SlideVerticalDefend = 0.3f;
         public const float SlideVerticalMaxDefend = 10f;
-        public const float SlideLateralAttack = 0.2f;
+        public const float SlideLateralAttack = 0.2f;   // 수축 계수. 10-25 격자: 0.18/0.20/0.25에서 4부 승률 46/74/48%로 튐(ST 가로채기 문턱). 0.2는 시드 3블록 73~76%로 재현
         public const float SlideVerticalAttack = 0.4f;
         public const float SlideVerticalMaxAttack = 15f;
         public const float SlideLateralKeeper = 0.15f;                           // GK는 가로만 조금. 라인을 따라 나오면 안 된다
