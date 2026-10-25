@@ -328,6 +328,22 @@ public class PlayerTreeTests
     }
 
     [Test]
+    public void GK는_내_골로_오는_슛_차례면_자리_규칙_대신_수비_자리_x와_조준_z로_간다()
+    {
+        // ⑨b(10-23). 시뮬이 IncomingShot·조준점을 주면 GK만 그쪽으로. 자기 x(라인)는 지킨다 — 시뮬의 닿음 판정(KeeperCanReachShot)도 같은 점까지의 거리를 본다
+        var gk = new Fake { PlayerId = 0, IsGoalkeeper = true, BallPhase = BallPhase.Flight, BallOwnerTeam = -1, X = -48f, Z = 0f, BallX = 20f, BallZ = 1f,
+            DefendHomeX = -48f, DefendHomeZ = 0f, IncomingShot = true, IncomingShotAimZ = 3f };
+        Tree.Tick(gk);
+        Assert.AreEqual("move", gk.Did);
+        Assert.AreEqual(-48f + gk.Stats.LineHeight * MatchTuning.PositionDialScale, gk.MoveX, 1e-4f, "수비 자리 x(라인)");
+        Assert.AreEqual(3f, gk.MoveZ, 1e-4f, "조준점 z");
+
+        var fieldPlayer = new Fake { PlayerId = 5, BallPhase = BallPhase.Flight, BallOwnerTeam = -1, X = -30f, BallX = 20f, DefendHomeX = -30f, IncomingShot = true, IncomingShotAimZ = 3f, IsLooseBallChaser = false };
+        Tree.Tick(fieldPlayer);
+        Assert.AreNotEqual(3f, fieldPlayer.MoveZ, "필드 플레이어는 ⑨b를 안 탄다");
+    }
+
+    [Test]
     public void 킥오프_키커는_앞선_동료가_있어도_옆_뒤_가장_가까운_동료에게_내준다()
     {
         // 09-29 유저 Play: 킥오프가 센터 킥 없이 바로 시작됐다. 키커 표시(시뮬이 정함)가 있으면 슛·드리블보다 먼저 옆·뒤로 짧게
