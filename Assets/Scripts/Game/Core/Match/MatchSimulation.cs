@@ -688,9 +688,15 @@ namespace Game.Core.Match
             // 조준: 골 중심이 아니라 shot 스탯에 따라 퍼진 지점. 골문 밖이면 골라인에서 빗나감으로 마감
             shotAimZ = MatchRules.ShotAimZ(shooter.Stats.Shot, nextRoll());
             if (!MatchRules.IsOnTarget(shotAimZ)) { shotWillScore = false; }
-            if (shotWillScore && keeper != null) { shotAimZ = MatchRules.AimAwayFromKeeper(shotAimZ, keeper.Z, MatchTuning.GoalAimMinGapFromKeeper); }   // 골은 GK가 못 닿는 구석으로(골 여부는 이미 정해져 조준만 바뀐다)
-
             float goalX = FieldBounds.HalfLength * shooter.AttackSign;
+            if (shotWillScore && keeper != null)
+            {
+                // 골은 GK가 못 닿는 구석으로(골 여부는 이미 정해져 조준만 바뀐다). 간격은 GK가 반응 ×2 뒤 스탯 속도로 가는 거리에서 파생.
+                // 비행 시간은 밀기 전 조준점 기준(가로 몇 m 차이는 0.02~0.03초, 여유 0.5m 안)
+                float flight = ShotFlightSeconds(shooter, goalX);
+                float gap = MatchRules.GoalAimGap(MatchRules.SpeedMps(keeper.Stats.Speed), flight, KeeperReactionTicksFor(willScore: true) * MatchTuning.FixedStep);
+                shotAimZ = MatchRules.AimAwayFromKeeper(shotAimZ, keeper.Z, gap);
+            }
             shotTicks = 0;
             if (ShouldPushWide(keeper, shooter, goalX)) { shotAimZ = MatchRules.PushWide(shotAimZ); }
             BallKicked?.Invoke(new KickReport(shooter.PlayerId, true, goalX - shooter.X, shotAimZ - shooter.Z));   // 막혀도 찬 건 찬 것
@@ -838,23 +844,41 @@ namespace Game.Core.Match
             return !KeeperCanReachShot(keeper, shooter, goalX);
         }
 
-        // 찬 순간의 판정: GK가 반응 지연 뒤 비행 시간 안에 조준점(가로)까지 닿나
+        // 찬 순간의 판정: GK가 지연 뒤 비행 시간 안에 조준점까지 닿나. 거리는 트리 ⑨b(MoveToShotLine)가 실제로 가는 점(수비 자리 x, 조준 z)까지의 대각선,
+        // 지연은 반응과 남은 얼음(태클 실패 정지) 중 긴 쪽. 판정과 실행의 전제를 같게 둔다(10-24 리뷰 🟡 → 10-25).
+        // 공이 실제로 닿는 점은 골라인의 조준점이고 GK 라인은 그 조금 앞이라 물리 접촉과는 근사다. 노골 슛만 부른다(ShouldPushWide가 골이면 먼저 돌아감)
         private bool KeeperCanReachShot(PlayerState keeper, PlayerState shooter, float goalX)
+        {
+            float flight = ShotFlightSeconds(shooter, goalX);
+            if (flight < 0f) { return false; }
+            float lineX = PositionRules.DefendHome(keeper.DefendHomeX, keeper.DefendHomeZ, keeper.AttackSign, keeper.Stats.LineHeight).x;
+            float dx = lineX - keeper.X;
+            float dz = shotAimZ - keeper.Z;
+            float distance = (float)Math.Sqrt(dx * dx + dz * dz);
+            int delayTicks = Math.Max(KeeperReactionTicksFor(willScore: false), keeper.FrozenTicks);
+            return MatchRules.KeeperCanReach(distance, flight, delayTicks * MatchTuning.FixedStep);
+        }
+
+        // 슈터 자리에서 조준점(골라인)까지의 비행 시간(초). 멈추면 -1
+        private float ShotFlightSeconds(PlayerState shooter, float goalX)
         {
             float dx = goalX - shooter.X;
             float dz = shotAimZ - shooter.Z;
-            float flight = MatchRules.ShotFlightTime((float)Math.Sqrt(dx * dx + dz * dz), MatchTuning.ShotSpeed, MatchTuning.BallDeceleration);
-            if (flight < 0f) { return false; }
-            return MatchRules.KeeperCanReach(keeper.Z, shotAimZ, flight, MatchTuning.KeeperReactionTicks * MatchTuning.FixedStep);
+            return MatchRules.ShotFlightTime((float)Math.Sqrt(dx * dx + dz * dz), MatchTuning.ShotSpeed, MatchTuning.BallDeceleration);
         }
 
-        // 내 골로 오는 유효 슛에 GK가 반응할 차례인가(트리 ⑨b). 반응 지연 뒤부터. 골로 정해진 슛은 두 배 늦게
+        // GK가 슛에 반응하기 시작하는 지연(틱). 골로 정해진 슛은 두 배 늦게(못 막을 슛을 "늦게 반응한" 모양으로). 판정(GoalAimGap)과 실행(IncomingShotFor)이 같은 값을 쓴다
+        private static int KeeperReactionTicksFor(bool willScore)
+        {
+            return willScore ? MatchTuning.KeeperReactionTicks * 2 : MatchTuning.KeeperReactionTicks;
+        }
+
+        // 내 골로 오는 유효 슛에 GK가 반응할 차례인가(트리 ⑨b). 반응 지연 뒤부터
         private bool IncomingShotFor(PlayerState p)
         {
             if (!shotInFlight || !p.IsGoalkeeper || p.Team == TeamOfSign(shooterAttackSign)) { return false; }
             if (!MatchRules.IsOnTarget(shotAimZ)) { return false; }
-            int reaction = shotWillScore ? MatchTuning.KeeperReactionTicks * 2 : MatchTuning.KeeperReactionTicks;
-            return shotTicks >= reaction;
+            return shotTicks >= KeeperReactionTicksFor(shotWillScore);
         }
 
         // 골문 안인데 노골로 정해진 슛이 GK 접촉 없이 골라인에 닿음: 공을 라인 안쪽 발 반경으로 들이고 GK를 그 자리로 당겨 세이브(찬 순간 "닿을 수 있다"고 본 슛이라 작은 보정). GK 없는 시뮬은 빗나감

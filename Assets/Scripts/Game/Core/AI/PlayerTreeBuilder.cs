@@ -342,7 +342,7 @@ namespace Game.Core.AI
             ctx.MoveToward(slid.x, slid.z);
         }
 
-        // GK: 골라인 쪽 자기 x는 지키고 가로로만 조준점까지
+        // GK: 수비 자리 x(라인)를 지키며 조준점 z로. 시뮬의 닿음 판정(KeeperCanReachShot)도 이 점까지의 거리를 본다
         private static void MoveToShotLine(IPlayerContext ctx)
         {
             (float x, float z) home = PositionRules.DefendHome(ctx.DefendHomeX, ctx.DefendHomeZ, ctx.AttackSign, ctx.Stats.LineHeight);

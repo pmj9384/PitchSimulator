@@ -150,12 +150,22 @@ namespace Game.Core.Match
             return (speed - (float)Math.Sqrt(disc)) / deceleration;
         }
 
-        // GK가 반응 지연 뒤 남은 시간 안에 조준점까지 가로로 닿나. 속도는 다이빙 버스트(KeeperDiveSpeed, 스탯 무관), 발 뻗는 반경(CaptureRadius)은 공짜
-        public static bool KeeperCanReach(float keeperZ, float aimZ, float flightTime, float reactionSeconds)
+        // GK가 지연(반응, 얼어 있으면 그 남은 시간) 뒤 남은 비행 시간 안에 조준점까지 닿나. 거리는 호출자가 실행(트리 MoveToShotLine: 수비 자리 x, 조준 z)과
+        // 같은 대각선으로 재서 준다(10-25. 가로만 보던 10-23 식은 자리에서 먼 GK를 "닿는다"고 봐 라인 세이브 보정이 커졌다). 속도는 다이빙 버스트(스탯 무관), 발 반경은 공짜
+        public static bool KeeperCanReach(float distance, float flightTime, float delaySeconds)
         {
-            float time = flightTime - reactionSeconds;
+            float time = flightTime - delaySeconds;
             if (time < 0f) { time = 0f; }
-            return Math.Abs(aimZ - keeperZ) <= MatchTuning.KeeperDiveSpeed * time + MatchTuning.CaptureRadius;
+            return distance <= MatchTuning.KeeperDiveSpeed * time + MatchTuning.CaptureRadius;
+        }
+
+        // 골로 정해진 슛의 조준점이 GK 자리에서 떨어져야 하는 가로 간격: GK가 지연(반응 ×2) 뒤 남은 비행 시간에 스탯 속도로 가는 거리 + 발 반경 + 여유.
+        // 2.5m 고정(10-23)은 먼 슛·빠른 GK에서 골 공이 GK 몸을 통과했다(10-24 리뷰 🟡). 골 슛 때 GK가 실제로 그 속도·지연으로 움직이니 같은 식으로 "못 닿을 간격"을 뺀다
+        public static float GoalAimGap(float keeperSpeedMps, float flightTime, float delaySeconds)
+        {
+            float time = flightTime - delaySeconds;
+            if (time < 0f) { time = 0f; }
+            return keeperSpeedMps * time + MatchTuning.CaptureRadius + MatchTuning.GoalAimKeeperMargin;
         }
 
         // 골로 정해진 슛의 조준점을 GK 자리에서 minGap 넘게 먼 쪽으로(골문 안, 포스트 안쪽 0.3m 여유). 조준 쪽에 자리가 없으면 반대쪽, 양쪽 다 없으면(GK가 골문을 다 덮음) 조준 쪽 포스트 안쪽
