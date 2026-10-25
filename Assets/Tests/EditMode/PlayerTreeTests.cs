@@ -45,6 +45,7 @@ public class PlayerTreeTests
         public bool IsPassTarget { get; set; }
         public float PassTargetX { get; set; }
         public float PassTargetZ { get; set; }
+        public bool WaitingForShot { get; set; }
         public bool IncomingShot { get; set; }
         public float IncomingShotAimZ { get; set; }
 
@@ -341,6 +342,16 @@ public class PlayerTreeTests
         var fieldPlayer = new Fake { PlayerId = 5, BallPhase = BallPhase.Flight, BallOwnerTeam = -1, X = -30f, BallX = 20f, DefendHomeX = -30f, IncomingShot = true, IncomingShotAimZ = 3f, IsLooseBallChaser = false };
         Tree.Tick(fieldPlayer);
         Assert.AreNotEqual(3f, fieldPlayer.MoveZ, "필드 플레이어는 ⑨b를 안 탄다");
+    }
+
+    [Test]
+    public void GK는_슛_대기_차례면_움직이지_않는다()
+    {
+        // ⑨a(10-25). 시뮬이 WaitingForShot을 주면 GK는 자리 규칙(수비 자리·공 추적)으로도 안 간다
+        var gk = new Fake { PlayerId = 0, IsGoalkeeper = true, BallPhase = BallPhase.Flight, BallOwnerTeam = -1, X = -48f, Z = 1.5f, BallX = 20f, BallZ = 0f,
+            DefendHomeX = -48f, DefendHomeZ = 0f, WaitingForShot = true };
+        Tree.Tick(gk);
+        Assert.AreNotEqual("move", gk.Did, "대기 중엔 이동 의도 없음");
     }
 
     [Test]

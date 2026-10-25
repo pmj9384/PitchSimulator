@@ -301,6 +301,53 @@ public class MatchSimulationTests
     }
 
     [Test]
+    public void 유효_슛이_날아오는_동안_GK는_반응_차례_전엔_제자리다()
+    {
+        // 10-25 GK 간격 probe: 골의 56%가 마감 때 GK가 공 0.8m 안이었다. GK가 반응 ×2 전에도 자리 규칙(공 z 추적)으로 움직여
+        // 간격 파생의 전제("지연 뒤에만 움직임")와 달랐다. 골 roll 0.05, 조준 roll 0.5(중앙, 유효) → 반응 ×2 = 20틱 동안 제자리
+        var sim = new MatchSimulation(new RollQueue(new[] { 0.05f, 0.5f, 0.5f, 0.5f, 0.5f }).Next, PlayerTreeBuilder.Build()) { ResetAfterEveryShot = true };
+        sim.AddPlayer(new PlayerState(0, 0, Striker(), 30f, 0f));
+        PlayerState keeper = sim.AddPlayer(new PlayerState(1, 1, Keeper(), 50f, 1.5f));   // 공 z 0과 다른 자리: 추적 슬라이드가 있었다면 움직인다
+        sim.Kickoff();
+        for (int i = 0; i < 20000 && sim.Ball.Phase != BallPhase.Flight; i++) { sim.Tick(Dt); }
+        Assert.AreEqual(BallPhase.Flight, sim.Ball.Phase, "슛이 떠야 한다");
+        float holdX = keeper.X;
+        float holdZ = keeper.Z;
+        for (int i = 1; i < MatchTuning.KeeperReactionTicks * 2; i++)
+        {
+            sim.Tick(Dt);
+            Assert.AreEqual(holdX, keeper.X, 1e-4f, $"{i}틱: 반응 전엔 x 그대로");
+            Assert.AreEqual(holdZ, keeper.Z, 1e-4f, $"{i}틱: 반응 전엔 z 그대로");
+        }
+        sim.Tick(Dt);
+        Assert.IsTrue(keeper.IncomingShot, "반응 ×2가 지나면 차례");
+        sim.Tick(Dt);
+        Assert.AreNotEqual(holdZ, keeper.Z, "차례가 오면 조준점 쪽으로 움직인다");
+    }
+
+    [Test]
+    public void 노골_유효_슛도_GK는_반응_차례_전엔_제자리고_차례는_반응_1배다()
+    {
+        // 골 roll 0.99(노골), 조준 roll 0.3(골문 안). 닿음 판정(KeeperCanReach)도 "지연 뒤부터 움직인다"고 보므로 대기는 노골도 같다
+        var sim = new MatchSimulation(new RollQueue(new[] { 0.99f, 0.3f, 0.5f, 0.5f, 0.5f }).Next, PlayerTreeBuilder.Build()) { ResetAfterEveryShot = true };
+        sim.AddPlayer(new PlayerState(0, 0, Striker(), 30f, 0f));
+        PlayerState keeper = sim.AddPlayer(new PlayerState(1, 1, Keeper(), 50f, 1.5f));
+        sim.Kickoff();
+        for (int i = 0; i < 20000 && sim.Ball.Phase != BallPhase.Flight; i++) { sim.Tick(Dt); }
+        Assert.AreEqual(BallPhase.Flight, sim.Ball.Phase, "슛이 떠야 한다");
+        float holdX = keeper.X;
+        float holdZ = keeper.Z;
+        for (int i = 1; i < MatchTuning.KeeperReactionTicks; i++)
+        {
+            sim.Tick(Dt);
+            Assert.AreEqual(holdX, keeper.X, 1e-4f, $"{i}틱: x 그대로");
+            Assert.AreEqual(holdZ, keeper.Z, 1e-4f, $"{i}틱: z 그대로");
+        }
+        sim.Tick(Dt);
+        Assert.IsTrue(keeper.IncomingShot, "노골은 반응 1배 뒤 차례");
+    }
+
+    [Test]
     public void GK가_없는_시뮬에서_골문_안_노골_슛은_빗나감으로_끝난다()
     {
         // 10-24 리뷰 🟡 ④: ResolveSaveAtLine은 GK가 없으면 false → 골라인에서 Missed. 골 roll 0.99(노골), 조준 roll 0.5(중앙, 유효)

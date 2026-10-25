@@ -58,6 +58,7 @@ namespace Game.Core.AI
         float PassTargetZ { get; }
 
         // ── GK 슛 대응(10-23)
+        bool WaitingForShot { get; }    // 내 골로 유효 슛이 날아오는데 아직 반응 차례가 아닌가(GK만). 이 동안은 제자리(10-25)
         bool IncomingShot { get; }      // 내 골로 날아오는 유효 슛에 반응할 차례인가(GK만, 반응 지연 뒤)
         float IncomingShotAimZ { get; } // 그 슛이 골라인에 닿을 Z
 

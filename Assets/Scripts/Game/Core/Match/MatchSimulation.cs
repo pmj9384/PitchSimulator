@@ -590,6 +590,7 @@ namespace Game.Core.Match
                 p.IsPassTarget = passInFlight && passReceiverId == p.PlayerId;
                 p.PassTargetX = passTargetX;
                 p.PassTargetZ = passTargetZ;
+                p.WaitingForShot = IsWaitingForShot(p);
                 p.IncomingShot = IncomingShotFor(p);
                 p.IncomingShotAimZ = shotAimZ;
             }
@@ -873,11 +874,26 @@ namespace Game.Core.Match
             return willScore ? MatchTuning.KeeperReactionTicks * 2 : MatchTuning.KeeperReactionTicks;
         }
 
+        // 내 골로 유효 슛(골문 안 조준)이 날아오는 GK인가. 대기(WaitingForShot)와 반응(IncomingShot)이 같은 조건을 나눠 쓴다: 한쪽만 바뀌면 "대기도 반응도 아닌" 틈이 생긴다
+        private bool IsShotAimedAtMyGoal(PlayerState p)
+        {
+            if (!shotInFlight || !p.IsGoalkeeper || p.Team == TeamOfSign(shooterAttackSign)) { return false; }
+            return MatchRules.IsOnTarget(shotAimZ);
+        }
+
+        // 아직 반응 차례가 아닌 GK는 트리가 제자리에 둔다(10-25). 전엔 자리 규칙(공 z 추적)으로 미리 움직여 골 조준 간격(GoalAimGap)의 전제
+        // "지연 뒤에만 움직임"과 달랐고, 골의 56%에서 GK가 마감 때 공 0.8m 안에 있었다(실험/2026-10-25-GK-골-간격-probe.md).
+        // 노골 슛도 같다: 닿음 판정(KeeperCanReach)도 지연 뒤부터 움직인다고 봤다. 슛이 뜨는 틱엔 Apply 순서상 GK가 한 틱 더 움직일 수 있다(0.02초, 무시)
+        private bool IsWaitingForShot(PlayerState p)
+        {
+            if (!IsShotAimedAtMyGoal(p)) { return false; }
+            return shotTicks < KeeperReactionTicksFor(shotWillScore);
+        }
+
         // 내 골로 오는 유효 슛에 GK가 반응할 차례인가(트리 ⑨b). 반응 지연 뒤부터
         private bool IncomingShotFor(PlayerState p)
         {
-            if (!shotInFlight || !p.IsGoalkeeper || p.Team == TeamOfSign(shooterAttackSign)) { return false; }
-            if (!MatchRules.IsOnTarget(shotAimZ)) { return false; }
+            if (!IsShotAimedAtMyGoal(p)) { return false; }
             return shotTicks >= KeeperReactionTicksFor(shotWillScore);
         }
 
