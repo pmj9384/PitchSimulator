@@ -169,8 +169,9 @@ public class PassFlightTests
 
         float shortKick = Kick(5f, out int shortOwner);
         float longKick = Kick(35f, out int longOwner);
-        Assert.Less(shortKick, 12f, "5m(+리드)는 12m/s 아래");
-        Assert.Greater(longKick, shortKick + 5f, "35m(+리드)는 확실히 세게");
+        // 10-25: 입력이 평균 속도(표준 12.2)라 초속 차이는 거리에 비례(a·d/(2v̄)). 5m ≈ 12.4, 35m(+리드) ≈ 14.3
+        Assert.Less(shortKick, MatchTuning.PassAverageSpeed[1] + 1f, "5m(+리드)는 평균 속도 근처");
+        Assert.Greater(longKick, shortKick + 1f, "35m(+리드)는 더 세게");
         Assert.AreEqual(1, shortOwner, "짧은 패스를 리시버가 받음");
         Assert.AreEqual(1, longOwner, "긴 패스도 리시버가 받음(못 미쳐 멈추지 않는다)");
     }

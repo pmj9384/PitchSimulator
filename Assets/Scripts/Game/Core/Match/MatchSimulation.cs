@@ -445,7 +445,7 @@ namespace Game.Core.Match
             if (shotInFlight) { shotTicks++; }
             Ball = BallRules.Step(Ball, deltaTime, MatchTuning.BallDeceleration);
 
-            // 골라인에 못 미치고 감속으로 멈춘 슛(정지 거리 78m 밖에서 쏜 경우). 빗나감으로 마감해야 옛 슛 표시가 남지 않는다
+            // 골라인에 못 미치고 감속으로 멈춘 슛. 감속 1.2(10-25)면 정지 거리 260m라 필드 안에선 안 일어나는 안전장치다. 빗나감으로 마감해야 옛 슛 표시가 남지 않는다
             if (shotInFlight && Ball.Phase != BallPhase.Flight)
             {
                 Finish(ShotOutcome.Missed);
@@ -738,10 +738,10 @@ namespace Game.Core.Match
         private void Pass(PlayerState passer, int receiverId, float landingX, float landingZ)
         {
             Third third = PositionRules.ThirdOf(Ball.X, passer.AttackSign);
-            float arrival = MatchTuning.PassArrivalSpeed[tactics[passer.Team].Tempo[(int)third]];
+            float average = MatchTuning.PassAverageSpeed[tactics[passer.Team].Tempo[(int)third]];
             float dx = landingX - passer.X;
             float dz = landingZ - passer.Z;
-            float speed = PassRules.KickSpeed((float)Math.Sqrt(dx * dx + dz * dz), arrival, MatchTuning.BallDeceleration, MatchTuning.PassSpeedMax);
+            float speed = PassRules.KickSpeed((float)Math.Sqrt(dx * dx + dz * dz), average, MatchTuning.BallDeceleration, MatchTuning.PassSpeedMax);
 
             passInFlight = true;
             passReceiverId = receiverId;

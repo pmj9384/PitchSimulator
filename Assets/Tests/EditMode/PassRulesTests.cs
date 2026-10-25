@@ -162,15 +162,15 @@ public class PassRulesTests
     }
 
     [Test]
-    public void 킥_초속은_도착_속도와_거리로_역산하고_상한을_넘지_않는다()
+    public void 킥_초속은_평균_속도와_거리로_역산하고_상한을_넘지_않는다()
     {
-        // 감속 4, 도착 5: 5m → √(25 + 40) = 8.06, 30m → √(25 + 240) = 16.28, 100m → √(825) = 28.7은 상한 22로
-        Assert.AreEqual(8.062f, PassRules.KickSpeed(5f, 5f, 4f, 22f), 1e-3f, "짧은 패스는 살살");
-        Assert.AreEqual(16.279f, PassRules.KickSpeed(30f, 5f, 4f, 22f), 1e-3f, "긴 패스는 세게");
-        Assert.AreEqual(22f, PassRules.KickSpeed(100f, 5f, 4f, 22f), "상한");
-        // 평균 속도 = (초속 + 도착) / 2. 상한에 걸려 못 미치면 도착 0
-        Assert.AreEqual(6.531f, PassRules.AverageSpeed(8.062f, 5f, 4f), 1e-3f);
-        Assert.AreEqual(11f, PassRules.AverageSpeed(22f, 100f, 4f), 1e-3f, "484 − 800 < 0 → 도착 0 → 평균 11");
+        // 10-25: 입력이 평균 속도(실측 Metrica). v0 = v̄ + a·d/(2v̄). 감속 1.2·평균 12.2: 15m → 12.2 + 18/24.4 = 12.938, 도착 = 2v̄ − v0 = 11.462
+        Assert.AreEqual(12.938f, PassRules.KickSpeed(15f, 12.2f, 1.2f, 22f), 1e-3f, "표준 15m");
+        Assert.AreEqual(8.8f + 1.2f * 5f / 17.6f, PassRules.KickSpeed(5f, 8.8f, 1.2f, 22f), 1e-3f, "짧은 패스는 평균 근처");
+        Assert.AreEqual(22f, PassRules.KickSpeed(400f, 12.2f, 1.2f, 22f), "상한(12.2 + 480/24.4 = 31.9 → 22)");
+        // 실제 평균 = (초속 + 도착) / 2. 입력 평균이 그대로 나와야 한다. 상한에 걸려 못 미치면 도착 0
+        Assert.AreEqual(12.2f, PassRules.AverageSpeed(12.938f, 15f, 1.2f), 1e-3f, "역산이 맞으면 평균이 입력과 같다");
+        Assert.AreEqual(11f, PassRules.AverageSpeed(22f, 400f, 1.2f), 1e-3f, "484 − 960 < 0 → 도착 0 → 평균 11");
     }
 
     [Test]

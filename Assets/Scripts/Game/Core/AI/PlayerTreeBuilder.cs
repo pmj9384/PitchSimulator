@@ -148,10 +148,10 @@ namespace Game.Core.AI
             return Math.Max(MatchTuning.PassRiskAllow[ctx.Tactics.PassRisk[Third(ctx)]], ctx.Stats.PassRisk);
         }
 
-        // 패스가 목표점에 닿을 때 남는 속도(서드별 팀 템포). 킥 초속은 거리로 역산한다(시뮬 Pass와 같은 식)
-        private static float ArrivalSpeed(IPlayerContext ctx)
+        // 패스의 평균 속도(서드별 팀 템포, 10-25 실측 기반). 킥 초속은 거리로 역산한다(시뮬 Pass와 같은 식)
+        private static float PassAverageSpeed(IPlayerContext ctx)
         {
-            return MatchTuning.PassArrivalSpeed[ctx.Tactics.Tempo[Third(ctx)]];
+            return MatchTuning.PassAverageSpeed[ctx.Tactics.Tempo[Third(ctx)]];
         }
 
         // 리시버 후보 중 최고점이면서 안전한 아군과 그 착지점. 서드별 팀 값(패스 방식·리스크·폭)에 개인 패스 길이·리스크가 얹힌다
@@ -160,7 +160,7 @@ namespace Game.Core.AI
             int third = Third(ctx);
             TeamTactics t = ctx.Tactics;
             float riskAllow = RiskAllow(ctx);
-            float arrival = ArrivalSpeed(ctx);
+            float average = PassAverageSpeed(ctx);
 
             // 옆·뒤 돌리기는 압박받을 때만(09-21 3분 계측: 압박 없이도 돌리니 앞·뒤 패스가 158·157로 교대하고 아무도 몰지 않아 박스에 못 들어감).
             // 압박이 없으면 앞 후보가 없을 때 ⑤ 드리블로 떨어진다
@@ -184,7 +184,7 @@ namespace Game.Core.AI
 
                 // 안전 판정은 실제 착지점까지(09-21 3분 계측: 리시버 위치까지만 보면 그 앞 8m에 선 수비수가 걸러져 롱패스가 늘 먹혔다).
                 // 착지점은 후보 중 안전한 가장 긴 것. 고른 점을 그대로 시뮬에 넘겨 판정과 실행이 같은 점을 본다
-                PassLanding landing = PassRules.PickLanding(ctx.X, ctx.Z, m.X, m.Z, ctx.AttackSign, arrival, ctx.Opponents, riskAllow);
+                PassLanding landing = PassRules.PickLanding(ctx.X, ctx.Z, m.X, m.Z, ctx.AttackSign, average, ctx.Opponents, riskAllow);
                 if (!PassRules.IsPassSafe(landing.Risk, riskAllow)) { continue; }
 
                 var choice = new PassChoice(m.PlayerId, landing.X, landing.Z);
@@ -262,7 +262,7 @@ namespace Game.Core.AI
                 return;
             }
             TargetInfo m = Find(ctx.Teammates, receiverId);
-            (float x, float z) landing = PassRules.LandingPoint(ctx.X, ctx.Z, m.X, m.Z, ctx.AttackSign, ArrivalSpeed(ctx), MatchTuning.PassLeadMax);
+            (float x, float z) landing = PassRules.LandingPoint(ctx.X, ctx.Z, m.X, m.Z, ctx.AttackSign, PassAverageSpeed(ctx), MatchTuning.PassLeadMax);
             ctx.Pass(receiverId, landing.x, landing.z);
         }
 

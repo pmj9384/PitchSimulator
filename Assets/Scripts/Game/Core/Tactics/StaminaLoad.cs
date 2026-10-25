@@ -23,10 +23,11 @@ namespace Game.Core.Tactics
     public static class StaminaLoad
     {
         public const int Segments = 8;          // 막대 칸 수. FM26 Intensity 막대와 같은 8칸
-        // 단계 경계는 출처 없는 출발값이다. 3·6으로 두면 카드 4장 중 빌드업·균형·역습(6칸)이 "보통", 압박 축구(8칸)가 "높음"이고
-        // 81칸이 낮음 25·보통 32·높음 24로 갈린다(09-30 표 기준). 3·5였을 땐 기본 카드 3장이 전부 "높음"이었다
+        // 단계 경계는 출처 없는 출발값이다. 10-25 공 감속 1.2(실측)로 공이 멀리 굴러 추격이 늘자 81칸 전부가 약 1%p 올라 카드가 표 상단에 몰렸다:
+        // 3·6이면 빌드업·균형·역습(7칸)까지 "높음"이라 3·7로. 지금은 세 카드 7칸 "보통", 압박 축구 8칸 "높음"(09-30엔 3·6으로 6칸/8칸), 81칸은 낮음 14·보통 43·높음 24.
+        // 3·5였을 땐(09-30) 기본 카드 3장이 전부 "높음"이었다
         private const int LowMaxSegments = 3;
-        private const int MediumMaxSegments = 6;
+        private const int MediumMaxSegments = 7;
 
         // 내 전술에 해당하는 칸의 값. 표는 81칸 전부 있어야 한다(파서가 확인)
         public static float Find(IReadOnlyList<StaminaLoadEntry> table, TeamTactics tactics)

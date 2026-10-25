@@ -80,13 +80,13 @@ public class StaminaLoadTests
     }
 
     [Test]
-    public void 단계는_3칸까지_낮음_6칸까지_보통_그_위는_높음이다()
+    public void 단계는_3칸까지_낮음_7칸까지_보통_그_위는_높음이다()
     {
         Assert.AreEqual(StaminaLoadLevel.Low, StaminaLoad.LevelOf(1));
         Assert.AreEqual(StaminaLoadLevel.Low, StaminaLoad.LevelOf(3));
         Assert.AreEqual(StaminaLoadLevel.Medium, StaminaLoad.LevelOf(4));
         Assert.AreEqual(StaminaLoadLevel.Medium, StaminaLoad.LevelOf(6));
-        Assert.AreEqual(StaminaLoadLevel.High, StaminaLoad.LevelOf(7));
+        Assert.AreEqual(StaminaLoadLevel.Medium, StaminaLoad.LevelOf(7), "10-25: 공 감속 1.2로 표 전체가 올라 경계를 6 → 7로");
         Assert.AreEqual(StaminaLoadLevel.High, StaminaLoad.LevelOf(8));
     }
 

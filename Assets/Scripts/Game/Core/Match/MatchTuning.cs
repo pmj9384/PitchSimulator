@@ -6,14 +6,15 @@ namespace Game.Core.Match
     public static class MatchTuning
     {
         public const float CaptureRadius = 0.8f;      // 공과 선수 거리가 이 안이면 소유(유저 결정. 발이 닿는 범위)
-        public const float BallDeceleration = 4f;     // 비행·굴림 감속 m/s². 잔디 위 15m/s 패스가 30~40m 가서 멈추는 값
+        public const float BallDeceleration = 1.2f;   // 비행·굴림 감속 m/s². 천연 잔디 측정 0.45~1.5(Baker 1990, 90% 구간)·FIFA 롤 시험 환산 0.9~1.4의 중간(10-25, 실험/2026-10-25-공-속도-대조.md).
+                                                      // 09-23~10-24의 4.0은 "15m/s 패스가 28m 가서 멈추게" 맞춘 설계값이라 공이 빨리 죽어 데굴데굴 보였다(10-25 유저)
         public const float ShotSpeed = 25f;           // 슛 초속 m/s(프로 강슛 약 100km/h)
         public const float DribbleFactor = 0.75f;     // 공을 몰면 이동 속도의 이 비율(엘리트 70~80%). 09-23에 0.6으로 내렸던 건 비행 중 소유 팀 버그로 수비 블록이 무너지던 때 10골을 잡으려던 것. 블록이 서는 09-26엔 0.75로 W(8.4)가 FB(9.1)에 잡힐락 말락, ST(6.3)가 CB(5.6)를 겨우 따돌린다. 개인차는 dribble 다이얼 몫(나중)
         public const float SpeedMpsAt50 = 7f;         // speed 스탯 50 = 7m/s(경기 중 달리기). 선형 변환의 기준점
         public const float Tempo = 1f;                // 이동 속도 전체 배율. 3분 경기에 공격 횟수를 맞추는 손잡이
         public const float CatchBase = 0.5f;          // 세이브 중 캐치(GK 소유) 비율. 나머지는 앞으로 튕겨 자유 공. 0.65 → 0.5(10-23 격자: 펀칭 23 → 31%로 세컨드볼. 09-28 유저 "슛만 차면 다 잡아")
         public const float CatchHandlingScale = 0.2f; // handling 0→100이 캐치 확률을 ±0.2 움직인다(0.3~0.7)
-        public const float ParrySpeed = 8f;           // 튕겨 나가는 공의 초속. 박스 근처에 떨어지는 값
+        public const float ParrySpeed = 4.4f;         // 튕겨 나가는 공의 초속. 약 8m 가서 멈춤(√(2·1.2·8)). 감속 4 때 8m/s와 같은 거리(10-25)
         public const float GoalKickOffset = 5.5f;     // 골킥 자리 = 골라인에서 5.5m(골 에어리어 앞)
         public const float ThrowInInset = 1f;         // 스로인 자리 = 터치라인 안쪽 1m
         public const float MaxShotRange = 40f;        // 골 중심에서 이 밖은 슛 확률 0. xG 다항식이 학습 범위 밖(원거리)에서 역주행해서 막는다
@@ -29,8 +30,9 @@ namespace Game.Core.Match
         public static readonly float[] WidthScale = { 0.5f, 1f, 1.5f };        // 폭(좁게·표준·넓게) → 개인 측면 쏠림에 곱하는 배율
         public static readonly float[] PassRiskAllow = { 0.2f, 0.5f, 0.8f };   // 패스 리스크(안전·균형·모험) → 허용하는 가로채기 위험도
         public static readonly float[] PassStyleLengthScale = { 0.6f, 1f, 1.8f }; // 패스 방식(짧게·직접·롱볼) → 개인 선호 패스 거리에 곱함
-        public static readonly float[] PassArrivalSpeed = { 2f, 5f, 8f };       // 속도(느리게·표준·빠르게) → 패스가 목표점에 닿을 때 남는 속도 m/s. 초속은 거리로 역산(PassRules.KickSpeed). 09-23 전엔 초속 12/15/18 고정이라 정지 거리 18/28/40m 밖은 못 미치고 5m 패스는 받는 순간 15→0으로 꺾였다
-        public const float PassSpeedMax = 22f;                                  // 패스 초속 상한(강한 킥, 슛 25 아래). 도착 속도 5·감속 4면 57m까지 닿고 그 밖은 못 미쳐 멈춘다
+        public static readonly float[] PassAverageSpeed = { 10f, 12.2f, 14.5f };   // 속도(느리게·표준·빠르게) → 패스의 평균 속도 m/s. Metrica 10~20m 패스 775건의 Q1·중앙값·Q3(10-25). 초속·도착은 거리로 역산(PassRules.KickSpeed).
+                                                                                 // 09-23~10-24는 "도착 속도" 2/5/8이 입력이라 15m 표준 패스의 평균이 8.5로 실측보다 30% 느렸다
+        public const float PassSpeedMax = 22f;                                  // 패스 초속 상한(강한 킥, 슛 25 아래). 평균 14.5·감속 1.2면 2·14.5·(22−14.5)/1.2 ≈ 180m까지 식이 성립해 사실상 안 걸린다
         public const float InterceptRunSpeed = SpeedMpsAt50;                    // 가로채기 판정의 상대 달리기 속도. 09-23 밤까지 5(반응·가속 가정)였는데 이 시뮬의 선수는 가속 없이 즉시 전력이고 추격 예측까지 하니 판정이 실제보다 낙관적이었다. 킥 속도 역산으로 공이 느려지자 "안전" 패스를 압박 선수가 매번 끊는 결정적 왕복(100판 전부 0:0)이 됐다. 시뮬과 같은 값(7)으로
         public const float InterceptReach = 1.2f;                               // 달려와서 발을 뻗어 공을 건드리는 범위(m). 잡기 반경 0.8보다 넓다(밸런스 값)
         public static readonly float[] PressStartScale = { 0f, 1f, 1.5f };      // 압박 시작(안 감·표준·적극) → 개인 압박 거리 배율. 0은 안 씀(ShouldPress가 먼저 거름)
@@ -106,7 +108,7 @@ namespace Game.Core.Match
         public const float ShotBlockRange = TackleRange;  // 슛을 막을 수 있는 수비수 거리(발 뻗어 막는 범위 = 태클 사거리)
         public const float ShotBlockConeDeg = 20f;       // 슛 방향 기준 각도
         public const float ShotBlockChance = 0.3f;       // 후보가 있을 때 실제로 막을 확률
-        public const float BlockReboundSpeed = 6f;       // 막힌 공이 튕겨 나가는 초속(m/s)
+        public const float BlockReboundSpeed = 3.3f;     // 막힌 공이 튕겨 나가는 초속(m/s). 약 4.5m 가서 멈춤, 감속 4 때 6m/s와 같은 거리(10-25)
         public const float BlockReboundTurnDeg = 60f;    // 슛 반대 방향에서 비트는 각도. 슈터 쪽 직선이면 슈터가 도로 잡았다
         public const float BlockReboundStart = 0.9f;     // 튕긴 공이 막은 선수에게서 떨어져 출발하는 거리. 잡기 반경(0.8) 밖
         // 공격수 운반(10-08 결정 7, 09-30 B 실험). 노드는 슛 판단 바로 뒤, 슛 사거리(MaxShotRange) 안에서만.
