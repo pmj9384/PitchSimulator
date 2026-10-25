@@ -85,7 +85,12 @@ namespace Game.Core.AI
                     new ConditionNode(ctx => ctx.BallOwnerTeam == 1 - ctx.Team),
                     new ActionNode(ctx => MoveToDefendHome(ctx))),
 
-                // ⑨b GK 슛 대응(10-23): 내 골로 오는 유효 슛엔 자리 규칙 대신 조준점으로 전력 이동. 반응 지연·골 여부는 시뮬이 IncomingShot으로 준다.
+                // ⑨a GK 슛 대기(10-25): 내 골로 유효 슛이 오는데 아직 반응 차례가 아니면 제자리. 자리 규칙으로 미리 움직이면 골 조준 간격·닿음 판정의 전제("지연 뒤에만 움직임")가 깨진다
+                new SequenceNode(
+                    new ConditionNode(ctx => ctx.IsGoalkeeper && ctx.WaitingForShot),
+                    new ActionNode(ctx => HoldForShot(ctx))),
+
+                // ⑨b GK 슛 대응(10-23): 내 골로 오는 유효 슛엔 자리 규칙 대신 공이 내 라인을 지나는 점으로 전력 이동(10-25 교차점). 반응 지연·골 여부는 시뮬이 IncomingShot으로 준다.
                 // 슛 비행 중엔 소유 팀이 없어(OwnerTeam -1) 자유 공 분기로 떨어지므로 그 앞에 둔다
                 new SequenceNode(
                     new ConditionNode(ctx => ctx.IsGoalkeeper && ctx.IncomingShot),
@@ -342,11 +347,16 @@ namespace Game.Core.AI
             ctx.MoveToward(slid.x, slid.z);
         }
 
-        // GK: 골라인 쪽 자기 x는 지키고 가로로만 조준점까지
+        // GK: 슛에 반응하기 전엔 아무 의도도 내지 않는다(이동 없음). 시뮬의 대기 판정과 짝
+        private static void HoldForShot(IPlayerContext ctx)
+        {
+        }
+
+        // GK: 수비 자리 x(라인)를 지키며 공이 그 라인을 지나는 z(시뮬이 IncomingShotTargetZ로 준다)로. 시뮬의 닿음 판정(KeeperCanReachShot)도 이 점까지의 거리·시간을 본다
         private static void MoveToShotLine(IPlayerContext ctx)
         {
             (float x, float z) home = PositionRules.DefendHome(ctx.DefendHomeX, ctx.DefendHomeZ, ctx.AttackSign, ctx.Stats.LineHeight);
-            ctx.MoveToward(home.x, ctx.IncomingShotAimZ);
+            ctx.MoveToward(home.x, ctx.IncomingShotTargetZ);
         }
 
         // GK: 우리 팀 전원 중 최근접이고 출격 가능할 때. 필드 플레이어: 시뮬이 정한 우리 팀 추격자일 때(팀별 최근접 + 히스테리시스, 09-28 F1b). 상대 팀은 보지 않는다(팀마다 1명)

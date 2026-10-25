@@ -237,8 +237,16 @@ public class MatchSimulationTests
     public void GK는_슛이_뜬_뒤_반응_지연이_지나야_조준점으로_움직일_차례가_된다()
     {
         var sim = new MatchSimulation(new RollQueue(new[] { 0.99f, 0.3f, 0.5f, 0.5f, 0.5f }).Next, PlayerTreeBuilder.BuildLitmus()) { ResetAfterEveryShot = true };
-        sim.AddPlayer(new PlayerState(0, 0, Striker(), -10f, 0f));
+        PlayerState striker = sim.AddPlayer(new PlayerState(0, 0, Striker(), -10f, 0f));
         PlayerState keeper = sim.AddPlayer(new PlayerState(1, 1, Keeper(), 50f, 0f));
+        float shotX = 0f;
+        float shotZ = 0f;
+        sim.BallKicked += k =>
+        {
+            if (!k.IsShot) { return; }
+            shotX = striker.X;
+            shotZ = striker.Z;
+        };
         sim.Kickoff();
         for (int i = 0; i < 20000 && sim.Ball.Phase != BallPhase.Flight; i++) { sim.Tick(Dt); }
         Assert.AreEqual(BallPhase.Flight, sim.Ball.Phase, "슛이 떠야 한다");
@@ -246,7 +254,8 @@ public class MatchSimulationTests
         for (int i = 1; i < MatchTuning.KeeperReactionTicks; i++) { sim.Tick(Dt); Assert.IsFalse(keeper.IncomingShot, $"{i}틱: 반응 지연 안"); }
         sim.Tick(Dt);
         Assert.IsTrue(keeper.IncomingShot, "반응 지연이 지나면 차례");
-        Assert.AreEqual((0.3f * 2f - 1f) * MatchRules.ShotSpread(90), keeper.IncomingShotAimZ, 1e-3f, "조준점 = roll 0.3 자리");
+        float aimZ = (0.3f * 2f - 1f) * MatchRules.ShotSpread(90);
+        Assert.AreEqual(MatchRules.BallZAtLine(shotX, shotZ, FieldBounds.HalfLength, aimZ, keeper.X), keeper.IncomingShotTargetZ, 1e-3f, "GK 목표 = roll 0.3 조준점이 GK 라인(x 50)을 지나는 z(10-25)");
     }
 
     [Test]
@@ -270,22 +279,113 @@ public class MatchSimulationTests
     [Test]
     public void 골로_정해진_슛은_GK_자리에서_먼_구석으로_조준되고_GK는_버스트_없이_간다()
     {
-        // 골 roll 0.05, 조준 roll 0.5 → 중앙 0. GK z 0 → 2.5로 밀린다. 반응 ×2(20틱) 뒤 한 틱 이동 = 스탯 30(4.2m/s) × 0.02 = 0.084
+        // 골 roll 0.05, 조준 roll 0.5 → 중앙 0. GK z 0 → 파생 간격만큼 밀린다. 반응 ×2(20틱) 뒤 한 틱 이동 = 스탯 30(4.2m/s) × 0.02 = 0.084
         var sim = new MatchSimulation(new RollQueue(new[] { 0.05f, 0.5f, 0.5f, 0.5f, 0.5f }).Next, PlayerTreeBuilder.Build()) { ResetAfterEveryShot = true };
-        sim.AddPlayer(new PlayerState(0, 0, Striker(), 30f, 0f));
+        PlayerState striker = sim.AddPlayer(new PlayerState(0, 0, Striker(), 30f, 0f));
         PlayerState keeper = sim.AddPlayer(new PlayerState(1, 1, Keeper(), 50f, 0f));
+        float shotX = 0f;
+        float shotZ = 0f;
+        sim.BallKicked += k =>
+        {
+            // 전체 트리라 슈터가 몰고 들어간 뒤 쏜다. 찬 자리를 받아 둔다
+            if (!k.IsShot) { return; }
+            shotX = striker.X;
+            shotZ = striker.Z;
+        };
         sim.Kickoff();
         for (int i = 0; i < 20000 && sim.Ball.Phase != BallPhase.Flight; i++) { sim.Tick(Dt); }
         Assert.AreEqual(BallPhase.Flight, sim.Ball.Phase, "슛이 떠야 한다");
         for (int i = 1; i < MatchTuning.KeeperReactionTicks * 2; i++) { sim.Tick(Dt); Assert.IsFalse(keeper.IncomingShot, $"{i}틱: 골로 정해진 슛은 반응이 두 배 늦다"); }
         sim.Tick(Dt);
         Assert.IsTrue(keeper.IncomingShot, "반응 ×2가 지나면 차례");
-        Assert.AreEqual(MatchTuning.GoalAimMinGapFromKeeper, keeper.IncomingShotAimZ, 1e-3f, "조준점이 GK에서 간격만큼 먼 쪽");
+        float shotDistance = (float)System.Math.Sqrt((FieldBounds.HalfLength - shotX) * (FieldBounds.HalfLength - shotX) + shotZ * shotZ);   // 밀기 전 조준점 0 기준
+        float fraction = MatchRules.LineFraction(shotX, FieldBounds.HalfLength, 50f);   // GK 라인 x 50까지의 비율
+        float flightToLine = MatchRules.ShotFlightTime(shotDistance * fraction, MatchTuning.ShotSpeed, MatchTuning.BallDeceleration);   // 라인 교차점까지(감속 반영)
+        float gapAtLine = MatchRules.GoalAimGap(MatchRules.SpeedMps(keeper.Stats.Speed), flightToLine, MatchTuning.KeeperReactionTicks * 2 * Dt);
+        Assert.AreEqual(gapAtLine, keeper.IncomingShotTargetZ, 1e-3f, "GK 목표(라인 교차점)가 GK에서 파생 간격만큼 먼 쪽(10-25: 스탯 속도 × 라인까지 남은 시간 + 발 반경 + 여유)");
         float beforeX = keeper.X;
         float beforeZ = keeper.Z;
         sim.Tick(Dt);
         float moved = (float)System.Math.Sqrt((keeper.X - beforeX) * (keeper.X - beforeX) + (keeper.Z - beforeZ) * (keeper.Z - beforeZ));
         Assert.AreEqual(MatchRules.SpeedMps(keeper.Stats.Speed) * Dt, moved, 1e-2f, "골엔 스탯 속도(버스트 없음)");
+    }
+
+    [Test]
+    public void 유효_슛이_날아오는_동안_GK는_반응_차례_전엔_제자리다()
+    {
+        // 10-25 GK 간격 probe: 골의 56%가 마감 때 GK가 공 0.8m 안이었다. GK가 반응 ×2 전에도 자리 규칙(공 z 추적)으로 움직여
+        // 간격 파생의 전제("지연 뒤에만 움직임")와 달랐다. 골 roll 0.05, 조준 roll 0.5(중앙, 유효) → 반응 ×2 = 20틱 동안 제자리
+        var sim = new MatchSimulation(new RollQueue(new[] { 0.05f, 0.5f, 0.5f, 0.5f, 0.5f }).Next, PlayerTreeBuilder.Build()) { ResetAfterEveryShot = true };
+        sim.AddPlayer(new PlayerState(0, 0, Striker(), 30f, 0f));
+        PlayerState keeper = sim.AddPlayer(new PlayerState(1, 1, Keeper(), 50f, 1.5f));   // 공 z 0과 다른 자리: 추적 슬라이드가 있었다면 움직인다
+        sim.Kickoff();
+        for (int i = 0; i < 20000 && sim.Ball.Phase != BallPhase.Flight; i++) { sim.Tick(Dt); }
+        Assert.AreEqual(BallPhase.Flight, sim.Ball.Phase, "슛이 떠야 한다");
+        float holdX = keeper.X;
+        float holdZ = keeper.Z;
+        for (int i = 1; i < MatchTuning.KeeperReactionTicks * 2; i++)
+        {
+            sim.Tick(Dt);
+            Assert.AreEqual(holdX, keeper.X, 1e-4f, $"{i}틱: 반응 전엔 x 그대로");
+            Assert.AreEqual(holdZ, keeper.Z, 1e-4f, $"{i}틱: 반응 전엔 z 그대로");
+        }
+        sim.Tick(Dt);
+        Assert.IsTrue(keeper.IncomingShot, "반응 ×2가 지나면 차례");
+        sim.Tick(Dt);
+        Assert.AreNotEqual(holdZ, keeper.Z, "차례가 오면 조준점 쪽으로 움직인다");
+    }
+
+    [Test]
+    public void 노골_유효_슛도_GK는_반응_차례_전엔_제자리고_차례는_반응_1배다()
+    {
+        // 골 roll 0.99(노골), 조준 roll 0.3(골문 안). 닿음 판정(KeeperCanReach)도 "지연 뒤부터 움직인다"고 보므로 대기는 노골도 같다
+        var sim = new MatchSimulation(new RollQueue(new[] { 0.99f, 0.3f, 0.5f, 0.5f, 0.5f }).Next, PlayerTreeBuilder.Build()) { ResetAfterEveryShot = true };
+        sim.AddPlayer(new PlayerState(0, 0, Striker(), 30f, 0f));
+        PlayerState keeper = sim.AddPlayer(new PlayerState(1, 1, Keeper(), 50f, 1.5f));
+        sim.Kickoff();
+        for (int i = 0; i < 20000 && sim.Ball.Phase != BallPhase.Flight; i++) { sim.Tick(Dt); }
+        Assert.AreEqual(BallPhase.Flight, sim.Ball.Phase, "슛이 떠야 한다");
+        float holdX = keeper.X;
+        float holdZ = keeper.Z;
+        for (int i = 1; i < MatchTuning.KeeperReactionTicks; i++)
+        {
+            sim.Tick(Dt);
+            Assert.AreEqual(holdX, keeper.X, 1e-4f, $"{i}틱: x 그대로");
+            Assert.AreEqual(holdZ, keeper.Z, 1e-4f, $"{i}틱: z 그대로");
+        }
+        sim.Tick(Dt);
+        Assert.IsTrue(keeper.IncomingShot, "노골은 반응 1배 뒤 차례");
+    }
+
+    [Test]
+    public void GK가_없는_시뮬에서_골문_안_노골_슛은_빗나감으로_끝난다()
+    {
+        // 10-24 리뷰 🟡 ④: ResolveSaveAtLine은 GK가 없으면 false → 골라인에서 Missed. 골 roll 0.99(노골), 조준 roll 0.5(중앙, 유효)
+        var sim = new MatchSimulation(new RollQueue(new[] { 0.99f, 0.5f }).Next, PlayerTreeBuilder.BuildLitmus()) { ResetAfterEveryShot = true };
+        sim.AddPlayer(new PlayerState(0, 0, Striker(), -10f, 0f));
+        sim.Kickoff();
+
+        List<ShotReport> reports = RunShots(sim, 1);
+
+        Assert.AreEqual(ShotOutcome.Missed, reports[0].Outcome, "GK가 없으면 라인 세이브도 없다");
+    }
+
+    [Test]
+    public void 후반_진영_교체_뒤에도_GK는_자기_골로_오는_슛에_반응한다()
+    {
+        // 10-24 리뷰 🟡 ④: IncomingShotFor는 슈터의 공격 부호로 팀을 찾는다. 진영이 바뀌면 부호도 바뀌어야 같은 GK가 걸린다.
+        // 주사위 상수 0.5: 조준 roll 0.5 = 골문 중앙(유효 슛). 골 roll 0.5는 p에 따라 골/노골 어느 쪽이든 되므로 반응 ×2 + 1틱까지 기다린다
+        var sim = new MatchSimulation(() => 0.5f, PlayerTreeBuilder.BuildLitmus()) { ResetAfterEveryShot = true };
+        sim.AddPlayer(new PlayerState(0, 0, Striker(), -10f, 0f));
+        PlayerState keeper = sim.AddPlayer(new PlayerState(1, 1, Keeper(), 50f, 0f));
+        sim.KickoffBy(0);   // 진영 교체는 첫 킥오프 팀을 아는 경기(KickoffBy)에서만 일어난다
+        while (!sim.IsSecondHalf) { sim.Tick(Dt); }
+        Assert.AreEqual(+1, keeper.AttackSign, "후반엔 팀 1이 +X를 공격한다(진영 교체)");
+
+        for (int i = 0; i < 20000 && sim.Ball.Phase != BallPhase.Flight; i++) { sim.Tick(Dt); }
+        Assert.AreEqual(BallPhase.Flight, sim.Ball.Phase, "후반에도 슛이 떠야 한다");
+        for (int i = 0; i < MatchTuning.KeeperReactionTicks * 2 + 1 && !keeper.IncomingShot; i++) { sim.Tick(Dt); }
+        Assert.IsTrue(keeper.IncomingShot, "교체된 진영에서도 GK 차례가 온다");
     }
 
     [Test]
