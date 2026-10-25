@@ -47,7 +47,7 @@ public class PlayerTreeTests
         public float PassTargetZ { get; set; }
         public bool WaitingForShot { get; set; }
         public bool IncomingShot { get; set; }
-        public float IncomingShotAimZ { get; set; }
+        public float IncomingShotTargetZ { get; set; }
 
         public string Did = "";
         public float MoveX, MoveZ; public int PassedTo = -1; public float PassX, PassZ;
@@ -333,13 +333,13 @@ public class PlayerTreeTests
     {
         // ⑨b(10-23). 시뮬이 IncomingShot·조준점을 주면 GK만 그쪽으로. 자기 x(라인)는 지킨다 — 시뮬의 닿음 판정(KeeperCanReachShot)도 같은 점까지의 거리를 본다
         var gk = new Fake { PlayerId = 0, IsGoalkeeper = true, BallPhase = BallPhase.Flight, BallOwnerTeam = -1, X = -48f, Z = 0f, BallX = 20f, BallZ = 1f,
-            DefendHomeX = -48f, DefendHomeZ = 0f, IncomingShot = true, IncomingShotAimZ = 3f };
+            DefendHomeX = -48f, DefendHomeZ = 0f, IncomingShot = true, IncomingShotTargetZ = 3f };
         Tree.Tick(gk);
         Assert.AreEqual("move", gk.Did);
         Assert.AreEqual(-48f + gk.Stats.LineHeight * MatchTuning.PositionDialScale, gk.MoveX, 1e-4f, "수비 자리 x(라인)");
         Assert.AreEqual(3f, gk.MoveZ, 1e-4f, "조준점 z");
 
-        var fieldPlayer = new Fake { PlayerId = 5, BallPhase = BallPhase.Flight, BallOwnerTeam = -1, X = -30f, BallX = 20f, DefendHomeX = -30f, IncomingShot = true, IncomingShotAimZ = 3f, IsLooseBallChaser = false };
+        var fieldPlayer = new Fake { PlayerId = 5, BallPhase = BallPhase.Flight, BallOwnerTeam = -1, X = -30f, BallX = 20f, DefendHomeX = -30f, IncomingShot = true, IncomingShotTargetZ = 3f, IsLooseBallChaser = false };
         Tree.Tick(fieldPlayer);
         Assert.AreNotEqual(3f, fieldPlayer.MoveZ, "필드 플레이어는 ⑨b를 안 탄다");
     }

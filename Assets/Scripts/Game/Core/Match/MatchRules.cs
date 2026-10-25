@@ -150,8 +150,8 @@ namespace Game.Core.Match
             return (speed - (float)Math.Sqrt(disc)) / deceleration;
         }
 
-        // GK가 지연(반응, 얼어 있으면 그 남은 시간) 뒤 남은 비행 시간 안에 조준점까지 닿나. 거리는 호출자가 실행(트리 MoveToShotLine: 수비 자리 x, 조준 z)과
-        // 같은 대각선으로 재서 준다(10-25. 가로만 보던 10-23 식은 자리에서 먼 GK를 "닿는다"고 봐 라인 세이브 보정이 커졌다). 속도는 다이빙 버스트(스탯 무관), 발 반경은 공짜
+        // GK가 지연(반응, 얼어 있으면 그 남은 시간) 뒤 공이 GK 라인을 지나기 전에 교차점까지 닿나. 거리·시간은 호출자가 실행(트리 MoveToShotLine:
+        // 수비 자리 x, 라인 교차 z)과 같은 점으로 재서 준다(10-25). 속도는 다이빙 버스트(스탯 무관), 발 반경은 공짜
         public static bool KeeperCanReach(float distance, float flightTime, float delaySeconds)
         {
             float time = flightTime - delaySeconds;
@@ -166,6 +166,27 @@ namespace Game.Core.Match
             float time = flightTime - delaySeconds;
             if (time < 0f) { time = 0f; }
             return keeperSpeedMps * time + MatchTuning.CaptureRadius + MatchTuning.GoalAimKeeperMargin;
+        }
+
+        // 슛이 GK 라인(x = lineX)을 지날 때의 z. 슈터 → 골라인 조준점 직선을 선형 보간한다(공은 비행 중 방향이 안 바뀜).
+        // GK는 골라인이 아니라 자기 라인에서 공을 만나므로, 이동 목표·닿음 판정·골 조준 간격이 모두 이 점을 쓴다(10-25 probe: 세이브의 65%가 골라인 조준 z로 달려
+        // 공을 지나쳐 라인에서 GK를 공으로 옮기는 ResolveSaveAtLine이었다). 슈터가 이미 GK 라인 안쪽이면 공은 라인을 안 지나니 골라인 조준점 그대로
+        public static float BallZAtLine(float shooterX, float shooterZ, float goalX, float aimZ, float lineX)
+        {
+            float fraction = LineFraction(shooterX, goalX, lineX);
+            return shooterZ + (aimZ - shooterZ) * fraction;
+        }
+
+        // 슈터 → 골라인 경로에서 GK 라인이 있는 비율. 라인이 경로 밖(슈터가 라인 안쪽)이면 1 = 골라인.
+        // 하한 KeeperLineMinFraction: 슈터가 라인에 붙으면 비율이 0에 가까워 골 조준 간격의 골라인 환산(÷비율)이 터진다(10-25 리뷰 🟡)
+        public static float LineFraction(float shooterX, float goalX, float lineX)
+        {
+            float span = goalX - shooterX;
+            if (Math.Abs(span) < 1e-4f) { return 1f; }
+            float fraction = (lineX - shooterX) / span;
+            if (fraction < 0f || fraction > 1f) { return 1f; }
+            if (fraction < MatchTuning.KeeperLineMinFraction) { return MatchTuning.KeeperLineMinFraction; }
+            return fraction;
         }
 
         // 골로 정해진 슛의 조준점을 GK 자리에서 minGap 넘게 먼 쪽으로(골문 안, 포스트 안쪽 0.3m 여유). 조준 쪽에 자리가 없으면 반대쪽, 양쪽 다 없으면(GK가 골문을 다 덮음) 조준 쪽 포스트 안쪽

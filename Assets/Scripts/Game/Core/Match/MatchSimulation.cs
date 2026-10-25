@@ -128,6 +128,8 @@ namespace Game.Core.Match
         private int shooterAttackSign;
         private float shotProbability;
         private float shotAimZ;               // 조준 Z(골 중심 기준). 골문 밖이면 골라인에서 Missed
+        private float shotStartX;             // 찬 자리. GK 라인 교차점(BallZAtLine)의 재료
+        private float shotStartZ;
 
         // 비행 중인 패스. 리시버는 스냅샷으로 "나한테 온다"를 알고 마중 나간다
         private bool passInFlight;
@@ -592,7 +594,7 @@ namespace Game.Core.Match
                 p.PassTargetZ = passTargetZ;
                 p.WaitingForShot = IsWaitingForShot(p);
                 p.IncomingShot = IncomingShotFor(p);
-                p.IncomingShotAimZ = shotAimZ;
+                p.IncomingShotTargetZ = p.IncomingShot || p.WaitingForShot ? KeeperTargetZ(p) : 0f;   // GK만 쓴다(트리 ⑨b·뷰 다이빙)
             }
         }
 
@@ -687,16 +689,22 @@ namespace Game.Core.Match
             shooterAttackSign = shooter.AttackSign;
 
             // 조준: 골 중심이 아니라 shot 스탯에 따라 퍼진 지점. 골문 밖이면 골라인에서 빗나감으로 마감
+            shotStartX = shooter.X;
+            shotStartZ = shooter.Z;
             shotAimZ = MatchRules.ShotAimZ(shooter.Stats.Shot, nextRoll());
             if (!MatchRules.IsOnTarget(shotAimZ)) { shotWillScore = false; }
             float goalX = FieldBounds.HalfLength * shooter.AttackSign;
             if (shotWillScore && keeper != null)
             {
-                // 골은 GK가 못 닿는 구석으로(골 여부는 이미 정해져 조준만 바뀐다). 간격은 GK가 반응 ×2 뒤 스탯 속도로 가는 거리에서 파생.
-                // 비행 시간은 밀기 전 조준점 기준(가로 몇 m 차이는 0.02~0.03초, 여유 0.5m 안)
-                float flight = ShotFlightSeconds(shooter, goalX);
-                float gap = MatchRules.GoalAimGap(MatchRules.SpeedMps(keeper.Stats.Speed), flight, KeeperReactionTicksFor(willScore: true) * MatchTuning.FixedStep);
-                shotAimZ = MatchRules.AimAwayFromKeeper(shotAimZ, keeper.Z, gap);
+                // 골은 GK가 못 닿는 구석으로(골 여부는 이미 정해져 조준만 바뀐다). GK는 자기 라인에서 공을 만나므로 간격은 라인 교차점에서 잰다:
+                // GK가 반응 ×2 뒤 스탯 속도로 라인 교차 시점까지 가는 거리 + 발 반경 + 여유. 골라인 조준점으로 환산하려면 라인 비율로 나눈다
+                // (교차점 z는 조준 z의 비율 배로 움직인다). 비행 시간은 밀기 전 조준점 기준(가로 몇 m 차이는 0.02~0.03초, 여유 0.5m 안)
+                float lineX = KeeperLineX(keeper);
+                float fraction = MatchRules.LineFraction(shooter.X, goalX, lineX);
+                float flightToLine = ShotFlightSecondsToLine(keeper, goalX);
+                float gapAtLine = MatchRules.GoalAimGap(MatchRules.SpeedMps(keeper.Stats.Speed), flightToLine, KeeperReactionTicksFor(willScore: true) * MatchTuning.FixedStep);
+                float keeperZAtGoalLine = shooter.Z + (keeper.Z - shooter.Z) / fraction;   // GK z를 골라인 조준 좌표로 환산한 기준점
+                shotAimZ = MatchRules.AimAwayFromKeeper(shotAimZ, keeperZAtGoalLine, gapAtLine / fraction);
             }
             shotTicks = 0;
             if (ShouldPushWide(keeper, shooter, goalX)) { shotAimZ = MatchRules.PushWide(shotAimZ); }
@@ -845,19 +853,31 @@ namespace Game.Core.Match
             return !KeeperCanReachShot(keeper, shooter, goalX);
         }
 
-        // 찬 순간의 판정: GK가 지연 뒤 비행 시간 안에 조준점까지 닿나. 거리는 트리 ⑨b(MoveToShotLine)가 실제로 가는 점(수비 자리 x, 조준 z)까지의 대각선,
-        // 지연은 반응과 남은 얼음(태클 실패 정지) 중 긴 쪽. 판정과 실행의 전제를 같게 둔다(10-24 리뷰 🟡 → 10-25).
-        // 공이 실제로 닿는 점은 골라인의 조준점이고 GK 라인은 그 조금 앞이라 물리 접촉과는 근사다. 노골 슛만 부른다(ShouldPushWide가 골이면 먼저 돌아감)
+        // 찬 순간의 판정: GK가 지연 뒤 공이 자기 라인을 지나기 전에 교차점(수비 자리 x, 공이 그 라인을 지나는 z)까지 닿나 — 트리 ⑨b(MoveToShotLine)가 가는 점과 같다.
+        // 지연은 반응과 남은 얼음(태클 실패 정지) 중 긴 쪽. 판정과 실행의 전제를 같게 둔다(10-24 리뷰 🟡 → 10-25). 노골 슛만 부른다(ShouldPushWide가 골이면 먼저 돌아감)
         private bool KeeperCanReachShot(PlayerState keeper, PlayerState shooter, float goalX)
         {
-            float flight = ShotFlightSeconds(shooter, goalX);
-            if (flight < 0f) { return false; }
-            float lineX = PositionRules.DefendHome(keeper.DefendHomeX, keeper.DefendHomeZ, keeper.AttackSign, keeper.Stats.LineHeight).x;
+            float flightToLine = ShotFlightSecondsToLine(keeper, goalX);
+            if (flightToLine < 0f) { return false; }
+            float lineX = KeeperLineX(keeper);
             float dx = lineX - keeper.X;
-            float dz = shotAimZ - keeper.Z;
+            float dz = KeeperTargetZ(keeper) - keeper.Z;
             float distance = (float)Math.Sqrt(dx * dx + dz * dz);
             int delayTicks = Math.Max(KeeperReactionTicksFor(willScore: false), keeper.FrozenTicks);
-            return MatchRules.KeeperCanReach(distance, flight, delayTicks * MatchTuning.FixedStep);
+            return MatchRules.KeeperCanReach(distance, flightToLine, delayTicks * MatchTuning.FixedStep);
+        }
+
+        // GK가 지키는 라인 x: 트리 MoveToShotLine과 같은 수비 자리(DefendHome) 식
+        private static float KeeperLineX(PlayerState keeper)
+        {
+            return PositionRules.DefendHome(keeper.DefendHomeX, keeper.DefendHomeZ, keeper.AttackSign, keeper.Stats.LineHeight).x;
+        }
+
+        // GK가 가야 할 z = 공이 GK 라인을 지나는 z(골라인 조준 z가 아니다)
+        private float KeeperTargetZ(PlayerState keeper)
+        {
+            float goalX = FieldBounds.HalfLength * shooterAttackSign;
+            return MatchRules.BallZAtLine(shotStartX, shotStartZ, goalX, shotAimZ, KeeperLineX(keeper));
         }
 
         // 슈터 자리에서 조준점(골라인)까지의 비행 시간(초). 멈추면 -1
@@ -865,6 +885,16 @@ namespace Game.Core.Match
         {
             float dx = goalX - shooter.X;
             float dz = shotAimZ - shooter.Z;
+            return MatchRules.ShotFlightTime((float)Math.Sqrt(dx * dx + dz * dz), MatchTuning.ShotSpeed, MatchTuning.BallDeceleration);
+        }
+
+        // 찬 자리에서 GK 라인 교차점까지의 비행 시간(초). 공이 감속하므로 "전체 비행 × 비율"보다 짧다(10-25 리뷰 🟡). 멈추면 -1
+        private float ShotFlightSecondsToLine(PlayerState keeper, float goalX)
+        {
+            float lineX = KeeperLineX(keeper);
+            float fraction = MatchRules.LineFraction(shotStartX, goalX, lineX);
+            float dx = (goalX - shotStartX) * fraction;
+            float dz = (shotAimZ - shotStartZ) * fraction;
             return MatchRules.ShotFlightTime((float)Math.Sqrt(dx * dx + dz * dz), MatchTuning.ShotSpeed, MatchTuning.BallDeceleration);
         }
 

@@ -237,8 +237,16 @@ public class MatchSimulationTests
     public void GK는_슛이_뜬_뒤_반응_지연이_지나야_조준점으로_움직일_차례가_된다()
     {
         var sim = new MatchSimulation(new RollQueue(new[] { 0.99f, 0.3f, 0.5f, 0.5f, 0.5f }).Next, PlayerTreeBuilder.BuildLitmus()) { ResetAfterEveryShot = true };
-        sim.AddPlayer(new PlayerState(0, 0, Striker(), -10f, 0f));
+        PlayerState striker = sim.AddPlayer(new PlayerState(0, 0, Striker(), -10f, 0f));
         PlayerState keeper = sim.AddPlayer(new PlayerState(1, 1, Keeper(), 50f, 0f));
+        float shotX = 0f;
+        float shotZ = 0f;
+        sim.BallKicked += k =>
+        {
+            if (!k.IsShot) { return; }
+            shotX = striker.X;
+            shotZ = striker.Z;
+        };
         sim.Kickoff();
         for (int i = 0; i < 20000 && sim.Ball.Phase != BallPhase.Flight; i++) { sim.Tick(Dt); }
         Assert.AreEqual(BallPhase.Flight, sim.Ball.Phase, "슛이 떠야 한다");
@@ -246,7 +254,8 @@ public class MatchSimulationTests
         for (int i = 1; i < MatchTuning.KeeperReactionTicks; i++) { sim.Tick(Dt); Assert.IsFalse(keeper.IncomingShot, $"{i}틱: 반응 지연 안"); }
         sim.Tick(Dt);
         Assert.IsTrue(keeper.IncomingShot, "반응 지연이 지나면 차례");
-        Assert.AreEqual((0.3f * 2f - 1f) * MatchRules.ShotSpread(90), keeper.IncomingShotAimZ, 1e-3f, "조준점 = roll 0.3 자리");
+        float aimZ = (0.3f * 2f - 1f) * MatchRules.ShotSpread(90);
+        Assert.AreEqual(MatchRules.BallZAtLine(shotX, shotZ, FieldBounds.HalfLength, aimZ, keeper.X), keeper.IncomingShotTargetZ, 1e-3f, "GK 목표 = roll 0.3 조준점이 GK 라인(x 50)을 지나는 z(10-25)");
     }
 
     [Test]
@@ -290,9 +299,10 @@ public class MatchSimulationTests
         sim.Tick(Dt);
         Assert.IsTrue(keeper.IncomingShot, "반응 ×2가 지나면 차례");
         float shotDistance = (float)System.Math.Sqrt((FieldBounds.HalfLength - shotX) * (FieldBounds.HalfLength - shotX) + shotZ * shotZ);   // 밀기 전 조준점 0 기준
-        float flight = MatchRules.ShotFlightTime(shotDistance, MatchTuning.ShotSpeed, MatchTuning.BallDeceleration);
-        float gap = MatchRules.GoalAimGap(MatchRules.SpeedMps(keeper.Stats.Speed), flight, MatchTuning.KeeperReactionTicks * 2 * Dt);
-        Assert.AreEqual(gap, keeper.IncomingShotAimZ, 1e-3f, "조준점이 GK에서 파생 간격만큼 먼 쪽(10-25: 스탯 속도 × 남은 시간 + 발 반경 + 여유)");
+        float fraction = MatchRules.LineFraction(shotX, FieldBounds.HalfLength, 50f);   // GK 라인 x 50까지의 비율
+        float flightToLine = MatchRules.ShotFlightTime(shotDistance * fraction, MatchTuning.ShotSpeed, MatchTuning.BallDeceleration);   // 라인 교차점까지(감속 반영)
+        float gapAtLine = MatchRules.GoalAimGap(MatchRules.SpeedMps(keeper.Stats.Speed), flightToLine, MatchTuning.KeeperReactionTicks * 2 * Dt);
+        Assert.AreEqual(gapAtLine, keeper.IncomingShotTargetZ, 1e-3f, "GK 목표(라인 교차점)가 GK에서 파생 간격만큼 먼 쪽(10-25: 스탯 속도 × 라인까지 남은 시간 + 발 반경 + 여유)");
         float beforeX = keeper.X;
         float beforeZ = keeper.Z;
         sim.Tick(Dt);
