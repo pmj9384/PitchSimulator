@@ -101,6 +101,8 @@ namespace Game.Core.Match
         public const float GoalAimKeeperMargin = 0.5f;   // 그 간격에 더하는 여유(m). [가정] 화면에서 GK 몸이 공을 안 뚫는 최소
         public const float KeeperLineMinFraction = 0.2f; // 슈터 → 골라인 경로에서 GK 라인 비율의 하한. 슈터가 라인에 붙은 슛은 교차점을 경로 20% 지점으로 본다(÷비율 폭주 방지, 10-25) [가정]
         public const int KeeperReactionTicks = 10;       // GK가 슛에 반응해 라인 교차점으로 움직이기 시작하는 지연(0.2초). [가정] 사람 단순 반응 시간 0.2~0.25초. 골로 정해진 슛엔 ×2(못 막을 슛을 "늦게 반응한" 모양으로)
+        public const float GoalAimPostInset = 0.3f;      // 골로 정해진 슛의 조준점이 포스트 안쪽으로 두는 여유(m). 포스트에 맞는 모양을 피한다 [가정]
+        public const float KeeperHoldAfterCatchSeconds = 2f;   // GK가 슛을 잡은 뒤 배급까지 들고 있는 시간. FIFA 규칙은 6초 안(Law 12). 바로 차면 "잡자마자 패스"가 어색했다(10-25 유저 Play) [가정 2초]
         public const float ShotWideMargin = 0.5f;        // 노골로 정해졌는데 GK가 못 닿을 유효 슛을 포스트 밖으로 미는 거리(m). 골대 안으로 들어가는 노골을 없앤다(10-23 유저 "안 들어가면 골대 안으로 가면 안 된다"). [가정] 출처 없음, 화면에서 확실히 밖으로 보이는 값
         public const float ShotResolveLogitBonus = 0.8f; // 슛 확정 확률에만 더하는 로짓(판정 WantsShot은 안 본다). 10-23 인게임 경로 계측: 슛이 현실의 절반(5.9/팀)이라 골 1.44·0:0 22%였다. 0.6 → 0.8은 GK 슛 대응·조준 반폭·압박 재임을 넣은 뒤 격자(최종 4부 20시즌 골 2.13·0:0 9%·무 27%). [가정] 임시 레버
                                                          // 문턱을 낮추면 나쁜 자리에서 일찍 쏴 골이 줄고(0.88), 확정만 올리면 슛 수 그대로 골 2.17·0:0 6%(+0.3 1.76 / +0.9 2.70). 유저 "중간점".

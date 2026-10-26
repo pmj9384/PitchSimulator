@@ -355,8 +355,8 @@ namespace Game.Core.AI
         // GK: 수비 자리 x(라인)를 지키며 공이 그 라인을 지나는 z(시뮬이 IncomingShotTargetZ로 준다)로. 시뮬의 닿음 판정(KeeperCanReachShot)도 이 점까지의 거리·시간을 본다
         private static void MoveToShotLine(IPlayerContext ctx)
         {
-            (float x, float z) home = PositionRules.DefendHome(ctx.DefendHomeX, ctx.DefendHomeZ, ctx.AttackSign, ctx.Stats.LineHeight);
-            ctx.MoveToward(home.x, ctx.IncomingShotTargetZ);
+            float lineX = PositionRules.KeeperLineX(ctx.DefendHomeX, ctx.DefendHomeZ, ctx.AttackSign, ctx.Stats.LineHeight);
+            ctx.MoveToward(lineX, ctx.IncomingShotTargetZ);
         }
 
         // GK: 우리 팀 전원 중 최근접이고 출격 가능할 때. 필드 플레이어: 시뮬이 정한 우리 팀 추격자일 때(팀별 최근접 + 히스테리시스, 09-28 F1b). 상대 팀은 보지 않는다(팀마다 1명)

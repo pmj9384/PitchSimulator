@@ -140,6 +140,7 @@ namespace Game.Core.Match
         private int ballOwnerAtLastTick = BallState.NoOwner;
         private int immunityTicksLeft;        // 소유 면역: 소유 뒤 이 틱 동안 태클 불가
         private int holdUpTicksLeft;          // 볼 끌기(개인 holdUp): 소유 뒤 킥까지 대기 틱
+        private bool keeperJustCaught;        // 직전 슛을 GK가 잡았다 → 그 소유의 볼 끌기 대기는 KeeperHoldAfterCatchSeconds(10-25)
         private readonly bool[] keeperAlternate = new bool[2];   // GK 배급 "섞어"의 교대 스위치(팀별). GK 패스가 실행될 때 뒤집고 스냅샷으로 트리에 준다(09-23 R2)
         // 킥 릴리스(09-21 Play 진단): 찬 공은 킥 원점에서 잡기 반경을 벗어난 뒤에야 누구든 잡을 수 있다.
         // 발치에 붙은 상대가 첫 틱(0.3m)에 그 자리에서 가로채 소유가 0.4초마다 뒤집히던 잠금을 막는다
@@ -398,6 +399,7 @@ namespace Game.Core.Match
             passReceiverId = -1;
             ballOwnerAtLastTick = BallState.NoOwner;
             holdUpTicksLeft = 0;
+            keeperJustCaught = false;
             immunityTicksLeft = 0;
             passReleased = true;
             lastKickerId = BallState.NoOwner;
@@ -592,9 +594,7 @@ namespace Game.Core.Match
                 p.IsPassTarget = passInFlight && passReceiverId == p.PlayerId;
                 p.PassTargetX = passTargetX;
                 p.PassTargetZ = passTargetZ;
-                p.WaitingForShot = IsWaitingForShot(p);
-                p.IncomingShot = IncomingShotFor(p);
-                p.IncomingShotTargetZ = p.IncomingShot || p.WaitingForShot ? KeeperTargetZ(p) : 0f;   // GK만 쓴다(트리 ⑨b·뷰 다이빙)
+                FillKeeperShotSnapshot(p);
             }
         }
 
@@ -806,9 +806,17 @@ namespace Game.Core.Match
             }
             RollTakeOn(owner);
 
-            holdUpTicksLeft = (int)Math.Round(owner.Stats.HoldUp / MatchTuning.FixedStep);
+            holdUpTicksLeft = (int)Math.Round(HoldUpSecondsFor(owner) / MatchTuning.FixedStep);
             immunityTicksLeft = MatchTuning.PossessionImmunityTicks;
             PossessionChanged?.Invoke(new PossessionReport(ownerNow, owner.Team, previousOwnerId, kind, Ball.X, Ball.Z));
+        }
+
+        // 소유 직후 킥을 미루는 시간. 보통은 개인 볼 끌기(holdUp). GK가 슛을 잡은 소유는 KeeperHoldAfterCatchSeconds — 바로 차면 "잡자마자 패스"가 어색했다(10-25 유저 Play)
+        private float HoldUpSecondsFor(PlayerState owner)
+        {
+            if (!keeperJustCaught) { return owner.Stats.HoldUp; }
+            keeperJustCaught = false;
+            return Math.Max(owner.Stats.HoldUp, MatchTuning.KeeperHoldAfterCatchSeconds);
         }
 
         // 돌파 의도는 소유가 바뀔 때 한 번 정한다. GK·킥오프 키커·우리 진영 서드는 안 굴린다. 드리블 성향 0(테스트 기본 스탯)이면 주사위를 안 써서
@@ -870,7 +878,7 @@ namespace Game.Core.Match
         // GK가 지키는 라인 x: 트리 MoveToShotLine과 같은 수비 자리(DefendHome) 식
         private static float KeeperLineX(PlayerState keeper)
         {
-            return PositionRules.DefendHome(keeper.DefendHomeX, keeper.DefendHomeZ, keeper.AttackSign, keeper.Stats.LineHeight).x;
+            return PositionRules.KeeperLineX(keeper.DefendHomeX, keeper.DefendHomeZ, keeper.AttackSign, keeper.Stats.LineHeight);
         }
 
         // GK가 가야 할 z = 공이 GK 라인을 지나는 z(골라인 조준 z가 아니다)
@@ -878,14 +886,6 @@ namespace Game.Core.Match
         {
             float goalX = FieldBounds.HalfLength * shooterAttackSign;
             return MatchRules.BallZAtLine(shotStartX, shotStartZ, goalX, shotAimZ, KeeperLineX(keeper));
-        }
-
-        // 슈터 자리에서 조준점(골라인)까지의 비행 시간(초). 멈추면 -1
-        private float ShotFlightSeconds(PlayerState shooter, float goalX)
-        {
-            float dx = goalX - shooter.X;
-            float dz = shotAimZ - shooter.Z;
-            return MatchRules.ShotFlightTime((float)Math.Sqrt(dx * dx + dz * dz), MatchTuning.ShotSpeed, MatchTuning.BallDeceleration);
         }
 
         // 찬 자리에서 GK 라인 교차점까지의 비행 시간(초). 공이 감속하므로 "전체 비행 × 비율"보다 짧다(10-25 리뷰 🟡). 멈추면 -1
@@ -902,6 +902,22 @@ namespace Game.Core.Match
         private static int KeeperReactionTicksFor(bool willScore)
         {
             return willScore ? MatchTuning.KeeperReactionTicks * 2 : MatchTuning.KeeperReactionTicks;
+        }
+
+        // GK의 슛 대응 스냅샷(트리 ⑨a·⑨b, 뷰 다이빙). 대기·반응·목표 z·남은 시간을 같은 틱 값으로 채운다. 해당 없으면 전부 0
+        private void FillKeeperShotSnapshot(PlayerState p)
+        {
+            p.WaitingForShot = IsWaitingForShot(p);
+            p.IncomingShot = IncomingShotFor(p);
+            if (!p.WaitingForShot && !p.IncomingShot)
+            {
+                p.IncomingShotTargetZ = 0f;
+                p.IncomingShotSecondsToLine = 0f;
+                return;
+            }
+            float goalX = FieldBounds.HalfLength * shooterAttackSign;
+            p.IncomingShotTargetZ = KeeperTargetZ(p);
+            p.IncomingShotSecondsToLine = Math.Max(0f, ShotFlightSecondsToLine(p, goalX) - shotTicks * MatchTuning.FixedStep);
         }
 
         // 내 골로 유효 슛(골문 안 조준)이 날아오는 GK인가. 대기(WaitingForShot)와 반응(IncomingShot)이 같은 조건을 나눠 쓴다: 한쪽만 바뀌면 "대기도 반응도 아닌" 틈이 생긴다
@@ -950,6 +966,7 @@ namespace Game.Core.Match
             if (caught)
             {
                 Ball = BallRules.Own(Ball, keeper.PlayerId, keeper.X, keeper.Z);
+                keeperJustCaught = true;   // 다음 OnOwnerChanged에서 볼 끌기 대기를 KeeperHoldAfterCatchSeconds로
                 Finish(ShotOutcome.Caught);
                 return;
             }

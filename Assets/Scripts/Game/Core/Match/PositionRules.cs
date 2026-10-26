@@ -50,6 +50,12 @@ namespace Game.Core.Match
             return Offset(baseX, baseZ, lineHeight * MatchTuning.PositionDialScale * attackSign, 0f);
         }
 
+        // GK가 지키는 라인 x = 수비 시 자리의 x. 시뮬의 닿음 판정(KeeperCanReachShot)과 트리의 이동(MoveToShotLine)이 이 한 함수를 써서 같은 점을 본다(10-25)
+        public static float KeeperLineX(float defendHomeX, float defendHomeZ, int attackSign, float lineHeight)
+        {
+            return DefendHome(defendHomeX, defendHomeZ, attackSign, lineHeight).x;
+        }
+
         // 공 지향 슬라이드 두 가지(09-21 유저 "자리가 완전 고정은 아닌 것 같다"). 공 좌표 기준이라 팀 부호가 필요 없다. 결과는 필드 안으로 클램프.
         // 식의 근거·버린 안·수치는 실험/2026-10-25-슬라이드-수축-격자.md. 비소유 폭·라인 높이는 ③ 가속·F3·④ 공 높이가 함께 다룬다.
 
