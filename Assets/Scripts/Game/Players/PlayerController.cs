@@ -12,6 +12,7 @@ public class PlayerController : MonoBehaviour
     private static readonly int ParryParam = Animator.StringToHash("Parry");         // 트리거. GK가 슛을 쳐냄(ShotResolved Parried)
     private static readonly int DiveLeftParam = Animator.StringToHash("DiveLeft");   // 트리거. 라인 교차점이 1m 넘게 먼 슛에 반응을 시작하는 순간 그쪽으로 몸을 날린다(StartDive)
     private static readonly int DiveRightParam = Animator.StringToHash("DiveRight");
+    private static readonly int DiveSpeedParam = Animator.StringToHash("DiveSpeed");   // float. 다이빙 클립 재생 배율(StartDive가 공 도착 시각으로 정한다)
     private static readonly int CelebrateParam = Animator.StringToHash("Celebrate"); // bool. 골 세리머니 동안 참
 
     [SerializeField] private Animator animator;
@@ -23,7 +24,9 @@ public class PlayerController : MonoBehaviour
     private const float MinMoveSqr = 0.0001f;            // 이보다 덜 움직이면 서 있는 것(향한 방향 유지)
     private const float KickFaceSeconds = 0.5f;          // 킥 뒤 이 동안은 이동 방향이 아니라 찬 방향을 본다. 찬 순간 즉시 돌린다: 720°/s로 돌리면 옆·뒤 패스는 접촉(0.18초) 전에 못 돈다(10-23 유저) [가정]
     private const float DiveMinMeters = 1f;              // 공이 내 라인을 지나는 z가 GK 자리에서 가로로 이만큼 넘게 멀면 다이빙, 안이면 서서 캐치·펀칭 [가정]
-    private const float DiveSeconds = 0.85f;             // 다이빙 클립 길이. 그 안의 캐치·펀칭·킥 트리거는 버린다(다이빙이 이미 그 장면)
+    private const float DiveSeconds = 0.85f;             // 다이빙 클립 길이(1배 재생). 그 안의 캐치·펀칭·킥 트리거는 버린다(다이빙이 이미 그 장면)
+    private const float DiveHorizontalSeconds = 0.32f;   // 클립에서 몸이 수평이 되는 시각(PlayerClipBuilder.DivePoses의 세 번째 포즈). 둘 중 하나를 바꾸면 같이 바꾼다(Editor → Game 방향이라 참조 못 함)
+    private const float DiveSpeedMax = 3f;               // 재생 배율 상한. 10-25 유저 Play "다이빙하는 동안 공이 이미 도착": 반응 뒤 남은 시간이 0.1~0.3초라 1배로는 눕기 전에 공이 온다 [가정]
     private const float SaveSeconds = 0.45f;             // 세이브 클립이 끝날 때까지. 이 안에 오는 배급 킥은 애니를 안 튼다(GK가 잡자마자 차면 캐치가 0.05초 만에 끊겼다) [가정]
 
     private Vector3 faceOverride;       // 킥 직후 보는 방향
@@ -65,10 +68,28 @@ public class PlayerController : MonoBehaviour
     {
         float dz = State.IncomingShotTargetZ - State.Z;
         if (Mathf.Abs(dz) <= DiveMinMeters) { return; }
-        saveUntil = Time.time + DiveSeconds;
+        float speed = DiveSpeedFor(SecondsUntilBallReachesMyLine());
+        saveUntil = Time.time + DiveSeconds;   // 억제 창은 1배 길이 그대로: 빨리 튼 다이빙 뒤에 오는 캐치·펀칭 트리거가 겹쳐 타지 않게(10-25 리뷰 🟡)
         if (animator == null) { return; }
         bool right = dz * State.AttackSign < 0f;
+        animator.SetFloat(DiveSpeedParam, speed);
         animator.SetTrigger(right ? DiveRightParam : DiveLeftParam);
+    }
+
+    // 공이 내 x(라인)에 닿기까지 남은 시간(초). 등속 근사(감속은 비행 0.3초에 0.4m/s라 무시). 공이 멀어지거나·이미 지났거나·멈춰 있으면 "넉넉함"(1배)
+    private float SecondsUntilBallReachesMyLine()
+    {
+        float dx = State.X - State.BallX;
+        float vx = State.BallVelX;
+        if (Mathf.Abs(vx) < 0.01f || dx * vx <= 0f) { return DiveHorizontalSeconds; }
+        return dx / vx;
+    }
+
+    // 수평 자세 시각(0.32초)이 공 도착과 겹치는 재생 배율. 시간이 넉넉하면 1배, 모자라면 올린다(상한 DiveSpeedMax). 느리게 트는 쪽은 없다
+    private static float DiveSpeedFor(float secondsLeft)
+    {
+        if (secondsLeft >= DiveHorizontalSeconds) { return 1f; }
+        return Mathf.Min(DiveHorizontalSeconds / Mathf.Max(secondsLeft, 0.02f), DiveSpeedMax);
     }
 
     // 배치·킥오프처럼 순간이동이 맞는 때: 보간 없이 바로 세운다
@@ -129,6 +150,7 @@ public class PlayerController : MonoBehaviour
         animator.ResetTrigger(ParryParam);
         animator.ResetTrigger(DiveLeftParam);
         animator.ResetTrigger(DiveRightParam);
+        animator.SetFloat(DiveSpeedParam, 1f);   // 풀에서 다시 꺼낸 몸에 지난 경기 배율이 남지 않게
         animator.SetBool(CelebrateParam, false);
     }
 
