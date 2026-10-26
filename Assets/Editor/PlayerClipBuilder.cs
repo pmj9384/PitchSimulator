@@ -339,6 +339,8 @@ public static class PlayerClipBuilder
         EnsureParameter(controller, "Parry", AnimatorControllerParameterType.Trigger);
         EnsureParameter(controller, "DiveLeft", AnimatorControllerParameterType.Trigger);
         EnsureParameter(controller, "DiveRight", AnimatorControllerParameterType.Trigger);
+        EnsureParameter(controller, "DiveSpeed", AnimatorControllerParameterType.Float);   // 다이빙 재생 배율. 공이 GK 라인에 닿는 시각에 수평 자세(0.32초)가 오도록 뷰가 넣는다(10-25)
+        SetFloatDefault(controller, "DiveSpeed", 1f);   // 기본 0이면 SetFloat 전에 다이빙 상태에 들어갈 때 재생이 멈춘다
         EnsureParameter(controller, "Celebrate", AnimatorControllerParameterType.Bool);
 
         AnimatorStateMachine machine = controller.layers[0].stateMachine;
@@ -347,18 +349,21 @@ public static class PlayerClipBuilder
         OneShot(machine, idle, "Shoot", shoot);
         OneShot(machine, idle, "Catch", catchClip);
         OneShot(machine, idle, "Parry", parry);
-        OneShot(machine, idle, "DiveLeft", diveLeft);
-        OneShot(machine, idle, "DiveRight", diveRight);
+        OneShot(machine, idle, "DiveLeft", diveLeft, "DiveSpeed");
+        OneShot(machine, idle, "DiveRight", diveRight, "DiveSpeed");
         Held(machine, idle, "Celebrate", celebrate);
         EditorUtility.SetDirty(controller);
     }
 
     // 트리거 한 번에 끝까지 재생하고 Idle로. Any State에서 들어오고 자기 자신으로는 재진입 안 함
-    private static void OneShot(AnimatorStateMachine machine, AnimatorState idle, string name, AnimationClip clip)
+    // speedParameter: 주면 그 float 파라미터가 재생 배율을 곱한다(다이빙: 공 도착 시각에 맞춤). 없으면 1배
+    private static void OneShot(AnimatorStateMachine machine, AnimatorState idle, string name, AnimationClip clip, string speedParameter = null)
     {
         AnimatorState state = FindOrAddState(machine, name);
         state.motion = clip;
         state.speed = 1f;
+        state.speedParameterActive = !string.IsNullOrEmpty(speedParameter);
+        state.speedParameter = speedParameter ?? string.Empty;
         ClearTransitions(machine, state);
 
         AnimatorStateTransition enter = machine.AddAnyStateTransition(state);
@@ -419,6 +424,17 @@ public static class PlayerClipBuilder
             if (parameters[i].name == name) { return; }
         }
         controller.AddParameter(name, type);
+    }
+
+    private static void SetFloatDefault(AnimatorController controller, string name, float value)
+    {
+        AnimatorControllerParameter[] parameters = controller.parameters;
+        for (int i = 0; i < parameters.Length; i++)
+        {
+            if (parameters[i].name != name) { continue; }
+            parameters[i].defaultFloat = value;
+        }
+        controller.parameters = parameters;   // 배열 복사본이라 다시 넣어야 저장된다
     }
 
     private static AnimatorState FindState(AnimatorStateMachine machine, string name)
