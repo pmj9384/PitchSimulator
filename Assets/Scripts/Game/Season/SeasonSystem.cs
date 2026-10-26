@@ -21,6 +21,7 @@ public class SeasonSystem : ISaveLoad
     public const string MyTeamName = "내 팀";
 
     public SeasonState State { get; private set; }
+    public TacticLibrary Library { get; private set; } = new TacticLibrary();   // 저장 전술(10-25). LoadLibrary가 세이브로 바꿔 끼운다
     public TierRule Tier { get; private set; }
     public IReadOnlyList<GeneratedTeam> Opponents { get; private set; }
     public GeneratedTeam ScoutUpperTeam { get; private set; }   // 스카우트 후보 풀의 바로 위 부 팀(스펙 §4-5 10-19). 1부는 null. 상대 팀과 같이 시드로 다시 만든다
@@ -37,6 +38,21 @@ public class SeasonSystem : ISaveLoad
     public void Save()
     {
         SaveLoadSystem.Instance.CurrentSaveData.seasonSave = State == null ? null : State.ToSave();
+        SaveLoadSystem.Instance.CurrentSaveData.tacticLibrary = Library.ToSave();
+    }
+
+    // 저장 전술 목록(10-25). 시즌과 별개: 시즌이 끝나거나 새로 시작해도 남는다. 깨진 세이브는 시즌과 같은 정책(알리고 빈 목록)
+    public void LoadLibrary(TacticLibrarySave save)
+    {
+        try
+        {
+            Library = TacticLibrary.FromSave(save);
+        }
+        catch (Exception e)
+        {
+            Debug.LogError($"[Season] 저장 전술 세이브 검증 실패, 빈 목록으로 시작한다: {e.Message}");
+            Library = new TacticLibrary();
+        }
     }
 
     // 세이브 없음 → 4부 새 시즌. 시드는 한 번 뽑히면 세이브에 남아 그 뒤로는 결정적이다
@@ -487,10 +503,13 @@ public class SeasonSystem : ISaveLoad
         TeamTactics custom = State.MyCustomTactics;   // 바꾼 전술도 다음 시즌으로 이어 간다. 카드만 넘기면 승격하자마자 세팅이 풀린다
         // 시즌이 끝난 뒤 로비 전술 화면에서 바꾼 값도 끝난 시즌의 State에 들어가 있다가 여기서 읽혀 새 시즌으로 넘어간다(로비 편집 경로가 생기며 처음 도달 가능해진 순서)
         IReadOnlyList<RosterPlayer> previousRoster = State.Roster;   // 역할·개인 지시도 이어 간다. 새 시즌 로스터는 기본 편성에서 다시 만들어져 그대로 두면 풀린다
-        IReadOnlyList<LineupEntry> previousLineup = State.Lineup;    // 끌어 둔 배치도
+        IReadOnlyList<LineupEntry> previousLineup = State.Lineup;    // 슬롯·수비 역할·배치도
+        string attackFormation = State.AttackFormationId;            // 공수 포메이션도. 4-4-2로 되돌리면 유저가 짠 전술이 시즌마다 풀린다(10-25 유저 "리셋은 절대 안 되지")
+        string defenseFormation = State.DefenseFormationId;
         List<RosterPlayer> previousBench = State.Bench();            // 벤치는 역할·★만 넘어간다(스펙 §4-5 10-19)
         StartSeason(nextTier, unchecked(State.SeasonSeed + 1), State.MyPresetId);   // 다음 시즌 시드도 결정적(이전 시드 + 1)
         if (custom != null) { State.SetMyTactics(custom, TeamTacticsRepository.All); }
+        State.SetFormations(attackFormation, defenseFormation, FormationTemplateRepository.All);   // AdoptStarters보다 먼저: 슬롯 좌표가 이 id 기준이라서
         State.AdoptStarters(previousRoster, previousLineup, PlayerTableRepository.All);   // 슬롯 기준(스펙 §11 10-19)
         State.AdoptBench(previousBench, PlayerTableRepository.All);
         SaveLoadSystem.Instance.Save();

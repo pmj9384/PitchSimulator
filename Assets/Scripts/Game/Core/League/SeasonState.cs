@@ -82,23 +82,35 @@ namespace Game.Core.League
         }
     }
 
-    // 라인업 한 자리: 로스터 선수 id + 자리 2쌍(공격 시/수비 시)
+    // 라인업 한 자리: 로스터 선수 id + 공격 포메이션 슬롯·수비 포메이션 슬롯·수비 역할(10-25 슬롯 격자) + 자리 2쌍(공격 시/수비 시).
+    // 자리 2쌍은 포메이션·슬롯에서 파생한 값(SetFormations·SwapLineupSlots가 다시 채운다). 10-08 자유 배치(MoveLineupSlot)가 남아 있는 동안은 직접 쓴 좌표이기도 하다
     public readonly struct LineupEntry
     {
         public readonly int PlayerId;
+        public readonly int AttackSlot;        // 공격 포메이션의 슬롯 1~11
+        public readonly int DefenseSlot;       // 수비 포메이션의 슬롯 1~11
+        public readonly string DefenseRoleId;  // DefenseRoles.csv id
         public readonly float AttackX;
         public readonly float AttackZ;
         public readonly float DefendX;
         public readonly float DefendZ;
 
-        public LineupEntry(int playerId, float attackX, float attackZ, float defendX, float defendZ)
+        public LineupEntry(int playerId, int attackSlot, int defenseSlot, string defenseRoleId, float attackX, float attackZ, float defendX, float defendZ)
         {
             PlayerId = playerId;
+            AttackSlot = attackSlot;
+            DefenseSlot = defenseSlot;
+            DefenseRoleId = string.IsNullOrEmpty(defenseRoleId) ? DefenseRole.DefaultId : defenseRoleId;
             AttackX = attackX;
             AttackZ = attackZ;
             DefendX = defendX;
             DefendZ = defendZ;
         }
+
+        public LineupEntry WithPlayer(int playerId) { return new LineupEntry(playerId, AttackSlot, DefenseSlot, DefenseRoleId, AttackX, AttackZ, DefendX, DefendZ); }
+        public LineupEntry WithAttack(int slot, float x, float z) { return new LineupEntry(PlayerId, slot, DefenseSlot, DefenseRoleId, x, z, DefendX, DefendZ); }
+        public LineupEntry WithDefense(int slot, float x, float z) { return new LineupEntry(PlayerId, AttackSlot, slot, DefenseRoleId, AttackX, AttackZ, x, z); }
+        public LineupEntry WithDefenseRole(string roleId) { return new LineupEntry(PlayerId, AttackSlot, DefenseSlot, roleId, AttackX, AttackZ, DefendX, DefendZ); }
     }
 
     // 시즌 상태(스펙 §11 세이브 항목 그대로). 순수 C#: 엔진·파일을 모른다. 세이브 DTO(SeasonSave)와 왕복한다.
@@ -107,6 +119,10 @@ namespace Game.Core.League
     {
         public const int MyTeamId = 0;
         public const string DefaultPresetId = "balanced";   // 09-26 세이브엔 프리셋이 없다 → 균형
+        public const string DefaultFormationId = "4-4-2";   // 10-25 전 세이브·새 시즌의 공수 포메이션. StageComposition 기본 11명의 순서가 이 템플릿 슬롯 순서와 같다
+
+        public string AttackFormationId { get; private set; } = DefaultFormationId;    // 공격 시 모양(FM26 In Possession)
+        public string DefenseFormationId { get; private set; } = DefaultFormationId;   // 수비 시 모양(FM26 Out of Possession). 따로 고른다
 
         public int Tier { get; }
         public int SeasonSeed { get; }
@@ -158,7 +174,7 @@ namespace Game.Core.League
             {
                 LineupSlot s = slots[i];
                 roster.Add(new RosterPlayer(i, s.Stats));
-                lineup.Add(new LineupEntry(i, s.AttackX, s.AttackZ, s.DefendX, s.DefendZ));
+                lineup.Add(new LineupEntry(i, i + 1, i + 1, DefenseRole.DefaultId, s.AttackX, s.AttackZ, s.DefendX, s.DefendZ));   // 편성 행 순서 = 4-4-2 슬롯 순서
             }
             return new SeasonState(tier, seasonSeed, TeamGenerator.Version, roster, lineup, new List<MatchResult>(), 0, 0, presetId);
         }
@@ -255,7 +271,8 @@ namespace Game.Core.League
         }
 
         // 새 시즌의 로스터는 기본 편성에서 다시 만들어진다(SeasonFactory). 이전 시즌 선발을 **슬롯 번호**로 옮겨 온다: 새 선발 i ← 이전 라인업 슬롯 i에 서 있던 선수의 역할·개인 지시·★·자리 2쌍.
-        // 선수 id가 아니라 슬롯인 이유(10-19 스쿼드): 선발에 영입 선수(id ≥ 11)가 설 수 있어 id = 슬롯이 더는 성립하지 않는다. 내 포메이션은 StageComposition 고정이라 슬롯 순서·자리는 시즌마다 같다.
+        // 선수 id가 아니라 슬롯인 이유(10-19 스쿼드): 선발에 영입 선수(id ≥ 11)가 설 수 있어 id = 슬롯이 더는 성립하지 않는다.
+        // 공수 포메이션 id는 여기서 안 옮긴다: 호출처(SeasonSystem.StartNextSeason)가 이전 id로 SetFormations를 먼저 부른 뒤 이 메서드를 부른다(10-25 리뷰 🔴: 좌표만 이월하면 id와 어긋난다).
         // 이전 역할이 표에서 사라졌거나 자리가 다르면 그 슬롯은 기본 역할로 둔다. 잠긴 역할은 옮긴다(업데이트로 잠겨도 쓰던 것은 남는다, PlayerTableLookup.IsSamePosition 주석).
         // 배치(자리 2쌍)는 필드 규칙이 부와 무관해 그대로 유효하다. 벤치는 AdoptBench
         public void AdoptStarters(IReadOnlyList<RosterPlayer> previousRoster, IReadOnlyList<LineupEntry> previousLineup, IReadOnlyList<PlayerStats> table)
@@ -267,7 +284,7 @@ namespace Game.Core.League
                 RosterPlayer? previous = FindOrNull(previousRoster, previousEntry.PlayerId);
                 if (previous == null) { continue; }
                 int index = RosterIndex(lineup[slot].PlayerId);
-                lineup[slot] = new LineupEntry(lineup[slot].PlayerId, previousEntry.AttackX, previousEntry.AttackZ, previousEntry.DefendX, previousEntry.DefendZ);
+                lineup[slot] = previousEntry.WithPlayer(lineup[slot].PlayerId);   // 슬롯·수비 역할·자리 2쌍 전부 이월
 
                 PlayerStats? variant = PlayerTableLookup.FindVariant(table, previous.Stats.VariantId);
                 if (variant == null) { continue; }
@@ -428,8 +445,7 @@ namespace Game.Core.League
             PlayerStats starter = FindRosterPlayer(starterId).Stats;
             PlayerStats bench = FindRosterPlayer(benchId).Stats;
             if (!PlayerTableLookup.IsSamePosition(bench, starter.RoleId)) { throw new InvalidOperationException($"[SeasonState] {starter.RoleId} 자리에 {bench.RoleId} 선수를 세울 수 없다"); }
-            LineupEntry e = lineup[slot];
-            lineup[slot] = new LineupEntry(benchId, e.AttackX, e.AttackZ, e.DefendX, e.DefendZ);
+            lineup[slot] = lineup[slot].WithPlayer(benchId);
         }
 
         // 다음 시즌: 벤치 선수를 역할·★만 들고 넘어온다. 빌드는 그 역할의 기본값(선발 이월 규칙과 같다, 스펙 §4-5 [가정] ④). 역할이 표에서 사라졌으면 그 선수는 두고 온다
@@ -464,9 +480,110 @@ namespace Game.Core.League
             if (verdict != PlacementVerdict.Ok) { throw new InvalidOperationException($"[SeasonState] 선수 {playerId}를 ({x:0.0}, {z:0.0})에 둘 수 없다: {verdict}"); }
 
             LineupEntry e = lineup[index];
-            lineup[index] = defending
-                ? new LineupEntry(e.PlayerId, e.AttackX, e.AttackZ, x, z)
-                : new LineupEntry(e.PlayerId, x, z, e.DefendX, e.DefendZ);
+            lineup[index] = defending ? e.WithDefense(e.DefenseSlot, x, z) : e.WithAttack(e.AttackSlot, x, z);
+        }
+
+        // ── 슬롯 격자(10-25, FM26 공수 모양 2장). 좌표는 템플릿에서 파생해 LineupEntry에 캐시한다
+
+        // 공격·수비 포메이션을 고른다. 모든 선수의 자리 2쌍을 새 템플릿의 자기 슬롯 값으로 다시 채운다. 없는 id면 던지고 아무것도 안 바뀐다
+        public void SetFormations(string attackFormationId, string defenseFormationId, IReadOnlyList<FormationTemplate> formations)
+        {
+            FormationTemplate attack = FormationRules.Find(formations, attackFormationId);
+            FormationTemplate defense = FormationRules.Find(formations, defenseFormationId);
+            AttackFormationId = attack.Id;
+            DefenseFormationId = defense.Id;
+            for (int i = 0; i < lineup.Count; i++)
+            {
+                LineupEntry e = lineup[i];
+                (float ax, float az) = FormationRules.Position(attack, e.AttackSlot, defending: false);
+                (float dx, float dz) = FormationRules.Position(defense, e.DefenseSlot, defending: true);
+                lineup[i] = e.WithAttack(e.AttackSlot, ax, az).WithDefense(e.DefenseSlot, dx, dz);
+            }
+        }
+
+        // 두 선발의 슬롯을 맞바꾼다(공격 탭이면 공격 슬롯, 수비 탭이면 수비 슬롯). 공격 슬롯은 역할군이 맞아야 한다(FormationRules.CanOccupy).
+        // 수비 슬롯은 수비 역할이 따로 있어 필드 선수끼리는 군을 안 본다. 단 GK 슬롯은 GK만: 수비 자리가 KeeperLineX(GK 라인)와 슛 대응의 기준이라 필드 선수가 거기 서면 안 된다(10-25 리뷰 🔴)
+        public void SwapLineupSlots(int playerA, int playerB, bool defending, IReadOnlyList<FormationTemplate> formations)
+        {
+            int a = LineupIndexOf(playerA);
+            int b = LineupIndexOf(playerB);
+            if (a == b) { return; }
+            FormationTemplate template = FormationRules.Find(formations, defending ? DefenseFormationId : AttackFormationId);
+            LineupEntry ea = lineup[a];
+            LineupEntry eb = lineup[b];
+            FormationSlot slotA = FormationRules.SlotOf(template, defending ? ea.DefenseSlot : ea.AttackSlot);
+            FormationSlot slotB = FormationRules.SlotOf(template, defending ? eb.DefenseSlot : eb.AttackSlot);
+            if (defending)
+            {
+                RequireKeeperSlotsMatch(slotA, slotB);
+            }
+            else
+            {
+                RequireCanOccupy(FindRosterPlayer(playerA).Stats.RoleId, slotB);
+                RequireCanOccupy(FindRosterPlayer(playerB).Stats.RoleId, slotA);
+            }
+            (float xa, float za) = FormationRules.Position(template, slotB.Slot, defending);
+            (float xb, float zb) = FormationRules.Position(template, slotA.Slot, defending);
+            lineup[a] = defending ? ea.WithDefense(slotB.Slot, xa, za) : ea.WithAttack(slotB.Slot, xa, za);
+            lineup[b] = defending ? eb.WithDefense(slotA.Slot, xb, zb) : eb.WithAttack(slotA.Slot, xb, zb);
+        }
+
+        private static void RequireCanOccupy(string playerRoleId, FormationSlot slot)
+        {
+            if (FormationRules.CanOccupy(playerRoleId, slot)) { return; }
+            throw new InvalidOperationException($"[SeasonState] {playerRoleId} 선수를 슬롯 {slot.Slot}({slot.RoleId})에 둘 수 없다: 역할군이 다르다");
+        }
+
+        private static void RequireKeeperSlotsMatch(FormationSlot slotA, FormationSlot slotB)
+        {
+            bool keeperA = RoleGroups.Of(slotA.RoleId) == RoleGroup.Keeper;
+            bool keeperB = RoleGroups.Of(slotB.RoleId) == RoleGroup.Keeper;
+            if (keeperA == keeperB) { return; }
+            throw new InvalidOperationException($"[SeasonState] GK 슬롯은 GK 슬롯과만 바꿀 수 있다 ({slotA.Slot} ↔ {slotB.Slot})");
+        }
+
+        // 선발 한 명의 수비 역할. 없는 id면 던진다(잘못된 id가 세이브에 들어가면 경기 조립 때에야 터진다)
+        public void SetDefenseRole(int playerId, string defenseRoleId, IReadOnlyList<DefenseRole> roles)
+        {
+            if (DefenseRoleParser.Find(roles, defenseRoleId) == null) { throw new InvalidOperationException($"[SeasonState] 없는 수비 역할 id {defenseRoleId}"); }
+            int index = LineupIndexOf(playerId);
+            lineup[index] = lineup[index].WithDefenseRole(defenseRoleId);
+        }
+
+        // ── 저장 전술(10-25). 한 장 = 공수 포메이션 + 수비 슬롯별 역할 + 팀 전술. 선수 배정은 안 담는다(SavedTactic 주석)
+
+        // 지금 세팅을 한 장으로 뜬다. 수비 역할은 선수가 아니라 그 선수가 선 수비 슬롯에 붙인다
+        public SavedTactic SnapshotTactic(string name)
+        {
+            var roles = new string[FormationTemplate.SlotCount];
+            for (int i = 0; i < roles.Length; i++) { roles[i] = DefenseRole.DefaultId; }
+            for (int i = 0; i < lineup.Count; i++)
+            {
+                roles[lineup[i].DefenseSlot - 1] = lineup[i].DefenseRoleId;
+            }
+            return new SavedTactic(name, AttackFormationId, DefenseFormationId, roles, MyPresetId, MyCustomTactics);
+        }
+
+        // 저장 전술을 입힌다: 포메이션 2장 → 각 선발의 수비 슬롯에 붙은 역할 → 팀 전술(카드, 바꾼 값). 선수 배정과 슬롯 번호는 그대로.
+        // 검증은 각 Set*가 한다(없는 포메이션·역할·카드 id면 던진다). 포메이션에서 던지면 아무것도 안 바뀌고, 그 뒤 단계는 표의 id만 보므로 중간에 멈추는 일은 표가 바뀐 경우뿐이다
+        public void ApplyTactic(SavedTactic tactic, IReadOnlyList<FormationTemplate> formations, IReadOnlyList<DefenseRole> roles, IReadOnlyList<TeamTactics> presets)
+        {
+            SetFormations(tactic.AttackFormationId, tactic.DefenseFormationId, formations);
+            for (int i = 0; i < lineup.Count; i++)
+            {
+                SetDefenseRole(lineup[i].PlayerId, tactic.DefenseRoleOf(lineup[i].DefenseSlot), roles);
+            }
+            SetMyPreset(tactic.PresetId, presets);
+            if (tactic.CustomTactics != null) { SetMyTactics(tactic.CustomTactics, presets); }
+        }
+
+        // 선발의 공격 자리·수비 자리 거리. 전술판 경고(FormationRules.IsFarTransition)의 재료
+        public float TransitionDistanceOf(int playerId)
+        {
+            LineupEntry e = lineup[LineupIndexOf(playerId)];
+            float dx = e.AttackX - e.DefendX;
+            float dz = e.AttackZ - e.DefendZ;
+            return (float)Math.Sqrt(dx * dx + dz * dz);
         }
 
         public PlacementVerdict EvaluateLineupSlot(int playerId, bool defending, float x, float z)
@@ -501,12 +618,21 @@ namespace Game.Core.League
 
         public IReadOnlyList<LineupSlot> MyLineup()
         {
+            return MyLineup(null);
+        }
+
+        // 경기 조립 재료. 수비 역할 표를 주면 압박 거리·라인 높이·이탈 반경을 그 역할로 덮는다(없으면 역할 값 + 개인 지시 그대로 = 기본 역할과 같다)
+        public IReadOnlyList<LineupSlot> MyLineup(IReadOnlyList<DefenseRole>? defenseRoles)
+        {
             var slots = new List<LineupSlot>(lineup.Count);
             for (int i = 0; i < lineup.Count; i++)
             {
                 LineupEntry e = lineup[i];
                 RosterPlayer player = FindRosterPlayer(e.PlayerId);
-                slots.Add(new LineupSlot(player.EffectiveStats(), e.AttackX, e.AttackZ, e.DefendX, e.DefendZ, player.Portrait));   // 역할 값 + 개인 지시
+                PlayerStats stats = player.EffectiveStats();   // 역할 값 + 개인 지시
+                DefenseRole? role = defenseRoles == null ? null : DefenseRoleParser.Find(defenseRoles, e.DefenseRoleId);
+                if (role != null) { stats = role.Apply(stats); }
+                slots.Add(new LineupSlot(stats, e.AttackX, e.AttackZ, e.DefendX, e.DefendZ, player.Portrait));
             }
             return slots;
         }
@@ -528,6 +654,8 @@ namespace Game.Core.League
         public SeasonSave ToSave()
         {
             var save = new SeasonSave { tier = Tier, seasonSeed = SeasonSeed, generatorVersion = GeneratorVersion, roundsPlayed = RoundsPlayed, scoutAttempts = ScoutAttempts, myPresetId = MyPresetId, playoff = new List<SeasonSave.PlayoffEntry>() };
+            save.attackFormation = AttackFormationId;
+            save.defenseFormation = DefenseFormationId;
             if (MyCustomTactics != null) { save.myTactics = SeasonSave.TacticsValues.From(MyCustomTactics); }
             save.scoutExtra = ScoutExtraAttempts;
             if (LastReadout != null) { save.lastReadout = SeasonSave.ReadoutEntry.From(LastReadout); }
@@ -559,7 +687,7 @@ namespace Game.Core.League
             for (int i = 0; i < lineup.Count; i++)
             {
                 LineupEntry e = lineup[i];
-                save.lineup.Add(new SeasonSave.Slot { playerId = e.PlayerId, attackX = e.AttackX, attackZ = e.AttackZ, defendX = e.DefendX, defendZ = e.DefendZ });
+                save.lineup.Add(new SeasonSave.Slot { playerId = e.PlayerId, attackSlot = e.AttackSlot, defenseSlot = e.DefenseSlot, defenseRole = e.DefenseRoleId, attackX = e.AttackX, attackZ = e.AttackZ, defendX = e.DefendX, defendZ = e.DefendZ });
             }
             return save;
         }
@@ -594,7 +722,11 @@ namespace Game.Core.League
             for (int i = 0; i < save.lineup.Count; i++)
             {
                 SeasonSave.Slot s = save.lineup[i];
-                lineup.Add(new LineupEntry(s.playerId, s.attackX, s.attackZ, s.defendX, s.defendZ));
+                // 10-25 전 세이브엔 슬롯이 없다(0). 그때 라인업 순서 = 4-4-2 슬롯 순서였으니 i+1로 흡수하고 좌표는 저장된 값을 그대로 쓴다(자유 배치로 옮긴 자리도 남는다)
+                int attackSlot = s.attackSlot == 0 ? i + 1 : s.attackSlot;
+                int defenseSlot = s.defenseSlot == 0 ? i + 1 : s.defenseSlot;
+                if (attackSlot < 1 || attackSlot > FormationTemplate.SlotCount || defenseSlot < 1 || defenseSlot > FormationTemplate.SlotCount) { throw new InvalidOperationException($"[SeasonState] 선수 {s.playerId} 슬롯이 범위 밖이다({attackSlot}, {defenseSlot})"); }
+                lineup.Add(new LineupEntry(s.playerId, attackSlot, defenseSlot, s.defenseRole ?? DefenseRole.DefaultId, s.attackX, s.attackZ, s.defendX, s.defendZ));
             }
             var results = new List<MatchResult>(save.results.Count);
             for (int i = 0; i < save.results.Count; i++)
@@ -605,6 +737,8 @@ namespace Game.Core.League
             TeamTactics? custom = save.myTactics == null ? null : save.myTactics.ToTactics(save.myPresetId ?? DefaultPresetId);   // 범위는 생성자가 검증한다
             var state = new SeasonState(save.tier, save.seasonSeed, save.generatorVersion, roster, lineup, results, save.roundsPlayed, save.scoutAttempts, save.myPresetId, custom);
             state.ScoutExtraAttempts = save.scoutExtra;
+            state.AttackFormationId = string.IsNullOrEmpty(save.attackFormation) ? DefaultFormationId : save.attackFormation!;     // 옛 세이브(10-25 전)엔 없어 4-4-2
+            state.DefenseFormationId = string.IsNullOrEmpty(save.defenseFormation) ? DefaultFormationId : save.defenseFormation!;
             if (save.lastReadout != null) { state.LastReadout = save.lastReadout.ToSummaryOrNull(); }   // 옛 세이브(10-15 전)엔 없어 null = 아직 치른 경기 없음
             if (save.scoutTargets != null)   // 옛 세이브(10-12 전)엔 없어 null
             {
@@ -641,6 +775,8 @@ namespace Game.Core.League
         public int scoutExtra;                // 코인으로 산 스카우트 시도. 옛 세이브엔 없어 0
         public List<ScoutEntry>? scoutTargets;   // 이번 시즌 시도한 (팀, 선수 번호). 옛 세이브엔 없어 null(playoff와 같은 꼴. 초기화자를 두면 Json.NET이 빈 목록을 남겨 주석과 어긋난다)
         public ReadoutEntry? lastReadout;   // 지난 내 경기 실측 요약(10-15). 옛 세이브엔 없어 null
+        public string? attackFormation;      // 10-25 슬롯 격자. 옛 세이브엔 없어 null → 4-4-2
+        public string? defenseFormation;
 
         // 실측 요약. 서드 배열 3칸·설정 3칸·횟수 3개. 길이·범위는 TacticsReadoutSummary 생성자가 본다
         [Serializable] public sealed class ReadoutEntry
@@ -725,6 +861,9 @@ namespace Game.Core.League
             public float attackZ;
             public float defendX;
             public float defendZ;
+            public int attackSlot;          // 10-25 슬롯 격자. 옛 세이브엔 없어 0 → 라인업 순서(i+1)
+            public int defenseSlot;
+            public string? defenseRole;     // 옛 세이브엔 없어 null → 기본 역할
         }
 
         // 바꾼 팀 전술 값. 이름·설명은 기준 카드에서 다시 읽으므로 판정에 쓰는 값만 저장한다

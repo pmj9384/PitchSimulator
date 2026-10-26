@@ -16,5 +16,6 @@ public class GameDataManager : PersistentMonoSingleton<GameDataManager>
 
         Season = new();
         Season.Load(SaveLoadSystem.Instance.CurrentSaveData.seasonSave);
+        Season.LoadLibrary(SaveLoadSystem.Instance.CurrentSaveData.tacticLibrary);
     }
 }
