@@ -358,6 +358,30 @@ public class MatchSimulationTests
     }
 
     [Test]
+    public void GK는_슛을_잡으면_2초_들고_있다가_배급한다()
+    {
+        // 10-25 유저 Play "잡자마자 바로 패스하니 어색". 잡은 소유의 볼 끌기 대기 = KeeperHoldAfterCatchSeconds(FIFA 6초 안).
+        // 주사위 상수 0.52: 골 roll은 22m 슛 확률(0.3 안팎)보다 커서 노골, 조준은 중앙 근처(유효), 캐치는 handling 60의 확률 0.54 아래라 캐치. 전체 트리는 돌파 주사위도 굴려 수열 대신 상수
+        var sim = new MatchSimulation(() => 0.52f, PlayerTreeBuilder.Build());
+        sim.AddPlayer(new PlayerState(0, 0, Striker(), 30f, 0f));
+        PlayerState keeper = sim.AddPlayer(new PlayerState(1, 1, Keeper(), 50f, 0f));
+        sim.AddPlayer(new PlayerState(2, 1, Striker(), 30f, 5f));   // GK가 줄 동료
+        var reports = new List<ShotReport>();
+        sim.ShotResolved += r => reports.Add(r);
+        sim.Kickoff();
+        for (int i = 0; i < 20000 && reports.Count == 0; i++) { sim.Tick(Dt); }
+        Assert.AreEqual(ShotOutcome.Caught, reports[0].Outcome, "잡아야 한다");
+        Assert.AreEqual(keeper.PlayerId, sim.Ball.OwnerId);
+
+        int holdTicks = (int)System.Math.Round(MatchTuning.KeeperHoldAfterCatchSeconds / Dt);
+        for (int i = 0; i < holdTicks - 5; i++) { sim.Tick(Dt); }
+        Assert.AreEqual(keeper.PlayerId, sim.Ball.OwnerId, "대기 안엔 아직 GK 발밑");
+        Assert.AreEqual(BallPhase.Owned, sim.Ball.Phase);
+        for (int i = 0; i < 60 && sim.Ball.Phase == BallPhase.Owned; i++) { sim.Tick(Dt); }
+        Assert.AreNotEqual(BallPhase.Owned, sim.Ball.Phase, "대기가 끝나면 찬다");
+    }
+
+    [Test]
     public void GK가_없는_시뮬에서_골문_안_노골_슛은_빗나감으로_끝난다()
     {
         // 10-24 리뷰 🟡 ④: ResolveSaveAtLine은 GK가 없으면 false → 골라인에서 Missed. 골 roll 0.99(노골), 조준 roll 0.5(중앙, 유효)

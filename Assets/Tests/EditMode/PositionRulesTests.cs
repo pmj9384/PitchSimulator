@@ -151,6 +151,14 @@ public class PositionRulesTests
     }
 
     [Test]
+    public void GK_라인_x는_수비_시_자리의_x와_같다()
+    {
+        // 시뮬의 닿음 판정과 트리의 이동이 같은 함수를 쓴다(10-25). 라인 높이 6 × 0.3 = 1.8 앞
+        Assert.AreEqual(PositionRules.DefendHome(-48f, 0f, +1, 6f).x, PositionRules.KeeperLineX(-48f, 0f, +1, 6f), 1e-4f);
+        Assert.AreEqual(48f - 6f * MatchTuning.PositionDialScale, PositionRules.KeeperLineX(48f, 0f, -1, 6f), 1e-4f, "팀 1은 -X가 앞");
+    }
+
+    [Test]
     public void 자리는_필드_안으로_클램프된다()
     {
         (float x, float z) home = PositionRules.AttackHome(48f, 30f, +1, mentality: 2, pushUp: 25f, widthLevel: 2, width: 20f);

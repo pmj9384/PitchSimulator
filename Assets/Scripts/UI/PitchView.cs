@@ -103,7 +103,7 @@ public class PitchView : MonoBehaviour
 
     // 공격 가로 슬라이드가 자리를 (1 − k)배로 줄여 되풀이마다 오차가 k배(0.2)로만 준다. 10m 옮기면 3회는 0.08m가 남아 허용치를 넘어 거부됐다(10-25). 12회면 사실상 0
     private const int ResolveIterations = 12;
-    private const float ResolveTolerance = 0.05f;   // m. 이 안이면 "놓은 자리에 선다"로 본다
+    private const float ResolveTolerance = 0.05f;   // m. 이 안이면 "놓은 자리에 선다"로 본다. 칩 한 픽셀이 약 0.2m라 5cm는 화면에서 구분 안 되는 크기 [가정]
 
     private static bool TryResolveBase(SeasonState state, LineupEntry entry, bool defending, (float x, float z) dropped, out (float x, float z) basePos)
     {
