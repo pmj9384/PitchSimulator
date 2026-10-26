@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
 using Game.Core.Data;
@@ -206,6 +207,108 @@ public class FormationRulesTests
         Assert.AreEqual("pressing", other.MyPresetId);
         Assert.AreEqual(keeperId, other.Lineup[0].PlayerId, "선수 배정은 안 바뀐다");
         Assert.Throws<System.ArgumentException>(() => new SavedTactic("", "4-4-2", "4-4-2", tactic.DefenseRoleBySlot, "balanced", null), "이름 없음");
+    }
+
+    // 전술판 칩 크기(80×50px)를 필드 그림(약 424×342px)으로 나눈 값. 이보다 가까우면 칩이 겹친다. 프리팹 치수를 바꾸면 같이 바꾼다
+    private const float ChipWidthU = 80f / 424f;
+    private const float ChipHeightV = 50f / 342f;
+
+    [Test]
+    public void 격자는_모든_포메이션_양쪽_모양에서_칩이_겹치지_않고_GK는_왼쪽_가운데다()
+    {
+        foreach (FormationTemplate template in Formations())
+        {
+            foreach (bool defending in new[] { false, true })
+            {
+                (float u, float v)[] grid = FormationGrid.Layout(template, defending);
+                string label = $"{template.Id} {(defending ? "수비" : "공격")}";
+                Assert.AreEqual(FormationGrid.EdgeInset, grid[0].u, 1e-4f, label + " GK 열");
+                Assert.AreEqual(0.5f, grid[0].v, 1e-4f, label + " GK 가운데");
+                for (int i = 0; i < grid.Length; i++)
+                {
+                    Assert.That(grid[i].u, Is.InRange(FormationGrid.EdgeInset - 1e-4f, 1f - FormationGrid.EdgeInset + 1e-4f), label + " u 범위");
+                    Assert.That(grid[i].v, Is.InRange(FormationGrid.EdgeInset - 1e-4f, 1f - FormationGrid.EdgeInset + 1e-4f), label + " v 범위");
+                    for (int j = i + 1; j < grid.Length; j++)
+                    {
+                        bool apart = Math.Abs(grid[i].u - grid[j].u) >= ChipWidthU || Math.Abs(grid[i].v - grid[j].v) >= ChipHeightV;
+                        Assert.IsTrue(apart, $"{label}: 슬롯 {i + 1}·{j + 1}이 겹친다 ({grid[i]} / {grid[j]})");
+                    }
+                }
+            }
+        }
+    }
+
+    [Test]
+    public void 격자는_x가_가까운_슬롯을_한_열로_묶고_열_안은_z_순서로_균등하게_둔다()
+    {
+        FormationTemplate f442 = FormationRules.Find(Formations(), "4-4-2");
+        (float u, float v)[] grid = FormationGrid.Layout(f442, defending: false);
+        Assert.AreEqual(grid[1].u, grid[2].u, 1e-4f, "FB −35와 CB −36은 한 열");
+        Assert.Less(grid[1].v, grid[2].v, "왼쪽 FB(z −22)가 아래");
+        Assert.AreEqual(1f - FormationGrid.EdgeInset, grid[9].u, 1e-4f, "ST 열이 맨 오른쪽");
+        Assert.AreEqual(0.3f, grid[9].v, 1e-4f, "둘인 열은 0.3·0.7");
+        Assert.AreEqual(0.7f, grid[10].v, 1e-4f);
+    }
+
+    [Test]
+    public void 포메이션을_바꾸면_선수는_역할군이_맞는_슬롯에_다시_앉고_넘치는_선수만_어긋난_슬롯에_선다()
+    {
+        List<FormationTemplate> formations = Formations();
+        FormationTemplate f442 = FormationRules.Find(formations, "4-4-2");
+        FormationTemplate f433 = FormationRules.Find(formations, "4-3-3");
+        // 4-4-2 선발: GK·수비 4·미드 4·공격 2(슬롯 1~11 순)
+        var roles = new List<string> { "GK", "FB", "CB", "CB", "FB", "W", "CM", "CM", "W", "ST", "ST" };
+        var slots = new List<int> { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 };
+        int[] reseated = FormationRules.ReseatSlots(roles, slots, f433);
+        for (int i = 0; i < 5; i++) { Assert.AreEqual(slots[i], reseated[i], $"GK·수비는 같은 번호 유지 ({roles[i]})"); }
+        int mismatched = 0;
+        var seen = new HashSet<int>();
+        for (int i = 0; i < reseated.Length; i++)
+        {
+            Assert.IsTrue(seen.Add(reseated[i]), "슬롯은 한 명씩");
+            if (!FormationRules.CanOccupy(roles[i], FormationRules.SlotOf(f433, reseated[i]))) { mismatched++; }
+        }
+        Assert.AreEqual(1, mismatched, "4-4-2의 W 2명은 4-3-3에서 공격군(W·ST) 3칸을 ST 2명과 나눠 1명만 미드 칸에 어긋나 선다");
+        CollectionAssert.AreEqual(slots, FormationRules.ReseatSlots(roles, slots, f442), "같은 모양이면 그대로");
+
+        SeasonState state = NewState();
+        state.SetFormations("4-3-3", "4-3-3", formations);
+        for (int i = 0; i < state.Lineup.Count; i++)
+        {
+            LineupEntry e = state.Lineup[i];
+            Assert.AreEqual(FormationRules.Position(f433, e.AttackSlot, false), (e.AttackX, e.AttackZ), "좌표는 새 슬롯 값");
+        }
+    }
+
+    [Test]
+    public void 저장_전술_입히기는_id_하나라도_표에_없으면_아무것도_바꾸지_않는다()
+    {
+        SeasonState state = NewState();
+        List<FormationTemplate> formations = Formations();
+        List<DefenseRole> roles = Roles();
+        List<TeamTactics> presets = TeamTacticsParser.Parse(File.ReadAllText("Assets/Resources/Tables/TacticPresets.csv"));
+        var badRoles = new List<string>();
+        for (int i = 0; i < FormationTemplate.SlotCount; i++) { badRoles.Add(i == 6 ? "ghost" : DefenseRole.DefaultId); }
+        var tactic = new SavedTactic("깨진 전술", "4-3-3", "5-3-2", badRoles, "balanced", null);
+        Assert.Throws<System.InvalidOperationException>(() => state.ApplyTactic(tactic, formations, roles, presets));
+        Assert.AreEqual("4-4-2", state.AttackFormationId, "포메이션도 안 바뀐다(반쪽 적용 없음)");
+    }
+
+    [Test]
+    public void 교체_가능_판정은_교체와_같은_규칙이다()
+    {
+        SeasonState state = NewState();
+        List<FormationTemplate> formations = Formations();
+        int leftFb = state.Lineup[1].PlayerId;
+        int rightFb = state.Lineup[4].PlayerId;
+        int striker = state.Lineup[9].PlayerId;
+        int keeper = state.Lineup[0].PlayerId;
+        Assert.IsTrue(state.CanSwapLineupSlots(leftFb, rightFb, defending: false, formations));
+        Assert.IsFalse(state.CanSwapLineupSlots(leftFb, striker, defending: false, formations), "공격: 다른 군");
+        Assert.IsTrue(state.CanSwapLineupSlots(leftFb, striker, defending: true, formations), "수비: 필드 선수끼리 자유");
+        Assert.IsFalse(state.CanSwapLineupSlots(keeper, striker, defending: true, formations), "수비: GK 슬롯 보호");
+        Assert.AreEqual("전술 3", TacticLibrary.SlotName(2));
+        Assert.Throws<System.ArgumentOutOfRangeException>(() => TacticLibrary.SlotName(TacticLibrary.MaxCount));
     }
 
     [Test]

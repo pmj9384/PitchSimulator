@@ -485,19 +485,30 @@ namespace Game.Core.League
 
         // ── 슬롯 격자(10-25, FM26 공수 모양 2장). 좌표는 템플릿에서 파생해 LineupEntry에 캐시한다
 
-        // 공격·수비 포메이션을 고른다. 모든 선수의 자리 2쌍을 새 템플릿의 자기 슬롯 값으로 다시 채운다. 없는 id면 던지고 아무것도 안 바뀐다
+        // 공격·수비 포메이션을 고른다. 선수를 새 템플릿의 역할군이 맞는 슬롯에 다시 앉히고(FormationRules.ReseatSlots) 자리 2쌍을 그 슬롯 값으로 채운다. 없는 id면 던지고 아무것도 안 바뀐다
         public void SetFormations(string attackFormationId, string defenseFormationId, IReadOnlyList<FormationTemplate> formations)
         {
             FormationTemplate attack = FormationRules.Find(formations, attackFormationId);
             FormationTemplate defense = FormationRules.Find(formations, defenseFormationId);
+            var roleIds = new List<string>(lineup.Count);
+            var attackSlots = new List<int>(lineup.Count);
+            var defenseSlots = new List<int>(lineup.Count);
+            for (int i = 0; i < lineup.Count; i++)
+            {
+                roleIds.Add(FindRosterPlayer(lineup[i].PlayerId).Stats.RoleId);
+                attackSlots.Add(lineup[i].AttackSlot);
+                defenseSlots.Add(lineup[i].DefenseSlot);
+            }
+            int[] newAttackSlots = FormationRules.ReseatSlots(roleIds, attackSlots, attack);
+            int[] newDefenseSlots = FormationRules.ReseatSlots(roleIds, defenseSlots, defense);
+
             AttackFormationId = attack.Id;
             DefenseFormationId = defense.Id;
             for (int i = 0; i < lineup.Count; i++)
             {
-                LineupEntry e = lineup[i];
-                (float ax, float az) = FormationRules.Position(attack, e.AttackSlot, defending: false);
-                (float dx, float dz) = FormationRules.Position(defense, e.DefenseSlot, defending: true);
-                lineup[i] = e.WithAttack(e.AttackSlot, ax, az).WithDefense(e.DefenseSlot, dx, dz);
+                (float ax, float az) = FormationRules.Position(attack, newAttackSlots[i], defending: false);
+                (float dx, float dz) = FormationRules.Position(defense, newDefenseSlots[i], defending: true);
+                lineup[i] = lineup[i].WithAttack(newAttackSlots[i], ax, az).WithDefense(newDefenseSlots[i], dx, dz);
             }
         }
 
@@ -508,38 +519,52 @@ namespace Game.Core.League
             int a = LineupIndexOf(playerA);
             int b = LineupIndexOf(playerB);
             if (a == b) { return; }
-            FormationTemplate template = FormationRules.Find(formations, defending ? DefenseFormationId : AttackFormationId);
+            string? blocker = SwapBlocker(playerA, playerB, defending, formations);
+            if (blocker != null) { throw new InvalidOperationException(blocker); }
+            FormationTemplate template = SwapTemplate(defending, formations);
             LineupEntry ea = lineup[a];
             LineupEntry eb = lineup[b];
+            int slotA = defending ? ea.DefenseSlot : ea.AttackSlot;
+            int slotB = defending ? eb.DefenseSlot : eb.AttackSlot;
+            (float xa, float za) = FormationRules.Position(template, slotB, defending);
+            (float xb, float zb) = FormationRules.Position(template, slotA, defending);
+            lineup[a] = defending ? ea.WithDefense(slotB, xa, za) : ea.WithAttack(slotB, xa, za);
+            lineup[b] = defending ? eb.WithDefense(slotA, xb, zb) : eb.WithAttack(slotA, xb, zb);
+        }
+
+        // 전술판이 끌어 놓기 전에 묻는다(안 되면 칩을 빨갛게). Swap과 같은 판정 한 곳
+        public bool CanSwapLineupSlots(int playerA, int playerB, bool defending, IReadOnlyList<FormationTemplate> formations)
+        {
+            return SwapBlocker(playerA, playerB, defending, formations) == null;
+        }
+
+        // 못 바꾸는 이유. null이면 바꿀 수 있다
+        private string? SwapBlocker(int playerA, int playerB, bool defending, IReadOnlyList<FormationTemplate> formations)
+        {
+            LineupEntry ea = lineup[LineupIndexOf(playerA)];
+            LineupEntry eb = lineup[LineupIndexOf(playerB)];
+            FormationTemplate template = SwapTemplate(defending, formations);
             FormationSlot slotA = FormationRules.SlotOf(template, defending ? ea.DefenseSlot : ea.AttackSlot);
             FormationSlot slotB = FormationRules.SlotOf(template, defending ? eb.DefenseSlot : eb.AttackSlot);
-            if (defending)
-            {
-                RequireKeeperSlotsMatch(slotA, slotB);
-            }
-            else
-            {
-                RequireCanOccupy(FindRosterPlayer(playerA).Stats.RoleId, slotB);
-                RequireCanOccupy(FindRosterPlayer(playerB).Stats.RoleId, slotA);
-            }
-            (float xa, float za) = FormationRules.Position(template, slotB.Slot, defending);
-            (float xb, float zb) = FormationRules.Position(template, slotA.Slot, defending);
-            lineup[a] = defending ? ea.WithDefense(slotB.Slot, xa, za) : ea.WithAttack(slotB.Slot, xa, za);
-            lineup[b] = defending ? eb.WithDefense(slotA.Slot, xb, zb) : eb.WithAttack(slotA.Slot, xb, zb);
+            if (defending) { return KeeperSlotsBlocker(slotA, slotB); }
+            string roleA = FindRosterPlayer(playerA).Stats.RoleId;
+            string roleB = FindRosterPlayer(playerB).Stats.RoleId;
+            if (!FormationRules.CanOccupy(roleA, slotB)) { return $"[SeasonState] {roleA} 선수를 슬롯 {slotB.Slot}({slotB.RoleId})에 둘 수 없다: 역할군이 다르다"; }
+            if (!FormationRules.CanOccupy(roleB, slotA)) { return $"[SeasonState] {roleB} 선수를 슬롯 {slotA.Slot}({slotA.RoleId})에 둘 수 없다: 역할군이 다르다"; }
+            return null;
         }
 
-        private static void RequireCanOccupy(string playerRoleId, FormationSlot slot)
+        private FormationTemplate SwapTemplate(bool defending, IReadOnlyList<FormationTemplate> formations)
         {
-            if (FormationRules.CanOccupy(playerRoleId, slot)) { return; }
-            throw new InvalidOperationException($"[SeasonState] {playerRoleId} 선수를 슬롯 {slot.Slot}({slot.RoleId})에 둘 수 없다: 역할군이 다르다");
+            return FormationRules.Find(formations, defending ? DefenseFormationId : AttackFormationId);
         }
 
-        private static void RequireKeeperSlotsMatch(FormationSlot slotA, FormationSlot slotB)
+        private static string? KeeperSlotsBlocker(FormationSlot slotA, FormationSlot slotB)
         {
             bool keeperA = RoleGroups.Of(slotA.RoleId) == RoleGroup.Keeper;
             bool keeperB = RoleGroups.Of(slotB.RoleId) == RoleGroup.Keeper;
-            if (keeperA == keeperB) { return; }
-            throw new InvalidOperationException($"[SeasonState] GK 슬롯은 GK 슬롯과만 바꿀 수 있다 ({slotA.Slot} ↔ {slotB.Slot})");
+            if (keeperA == keeperB) { return null; }
+            return $"[SeasonState] GK 슬롯은 GK 슬롯과만 바꿀 수 있다 ({slotA.Slot} ↔ {slotB.Slot})";
         }
 
         // 선발 한 명의 수비 역할. 없는 id면 던진다(잘못된 id가 세이브에 들어가면 경기 조립 때에야 터진다)
@@ -564,10 +589,17 @@ namespace Game.Core.League
             return new SavedTactic(name, AttackFormationId, DefenseFormationId, roles, MyPresetId, MyCustomTactics);
         }
 
-        // 저장 전술을 입힌다: 포메이션 2장 → 각 선발의 수비 슬롯에 붙은 역할 → 팀 전술(카드, 바꾼 값). 선수 배정과 슬롯 번호는 그대로.
-        // 검증은 각 Set*가 한다(없는 포메이션·역할·카드 id면 던진다). 포메이션에서 던지면 아무것도 안 바뀌고, 그 뒤 단계는 표의 id만 보므로 중간에 멈추는 일은 표가 바뀐 경우뿐이다
+        // 저장 전술을 입힌다: 포메이션 2장(선수는 역할군 맞는 슬롯에 다시 앉음) → 각 선발이 선 수비 슬롯의 역할 → 팀 전술(카드, 바꾼 값). 선수 배정은 그대로.
+        // id 셋을 먼저 전부 확인한 뒤 바꾼다(10-26 리뷰 🟡): 중간에 던지면 포메이션만 바뀐 반쪽 상태가 남는다. 옛 세이브의 전술이 표에서 사라진 id를 들고 있을 때 닿는 경로
         public void ApplyTactic(SavedTactic tactic, IReadOnlyList<FormationTemplate> formations, IReadOnlyList<DefenseRole> roles, IReadOnlyList<TeamTactics> presets)
         {
+            FormationRules.Find(formations, tactic.AttackFormationId);
+            FormationRules.Find(formations, tactic.DefenseFormationId);
+            SeasonRunner.FindPreset(presets, tactic.PresetId);
+            for (int slot = 1; slot <= FormationTemplate.SlotCount; slot++)
+            {
+                if (DefenseRoleParser.Find(roles, tactic.DefenseRoleOf(slot)) == null) { throw new InvalidOperationException($"[SeasonState] 저장 전술 {tactic.Name}의 수비 역할 id {tactic.DefenseRoleOf(slot)}가 표에 없다"); }
+            }
             SetFormations(tactic.AttackFormationId, tactic.DefenseFormationId, formations);
             for (int i = 0; i < lineup.Count; i++)
             {

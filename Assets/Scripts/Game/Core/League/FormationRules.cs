@@ -79,6 +79,47 @@ namespace Game.Core.League
             return sum / FormationTemplate.SlotCount;
         }
 
+        // 포메이션을 바꿀 때 선수를 새 템플릿 슬롯에 다시 앉힌다(10-26 리뷰 🟣: 슬롯 번호만 유지하면 4-4-2 슬롯 6 W가 4-3-3에선 DM이라 역할군이 어긋난다).
+        // 세 번에 나눠 결정적으로: ①지금 번호의 새 슬롯이 같은 군이면 그대로 ②남은 선수는 같은 군의 빈 슬롯 중 번호 작은 것 ③그래도 남으면(4-4-2 미드 4명 → 4-3-3 미드 3칸) 빈 슬롯 중 번호 작은 것.
+        // ③은 군이 어긋난 채 선다: 경기는 좌표만 쓰니 돌아가고, 유저가 교체·영입으로 푼다(FM도 적성 낮은 자리에 세울 수 있다). 결과 [i] = playerRoleIds[i]의 새 슬롯
+        public static int[] ReseatSlots(IReadOnlyList<string> playerRoleIds, IReadOnlyList<int> currentSlots, FormationTemplate template)
+        {
+            int count = playerRoleIds.Count;
+            var result = new int[count];
+            var taken = new bool[FormationTemplate.SlotCount + 1];
+            for (int i = 0; i < count; i++)
+            {
+                if (!CanOccupy(playerRoleIds[i], SlotOf(template, currentSlots[i]))) { continue; }
+                result[i] = currentSlots[i];
+                taken[currentSlots[i]] = true;
+            }
+            for (int i = 0; i < count; i++)
+            {
+                if (result[i] != 0) { continue; }
+                result[i] = FirstFreeSlot(template, taken, playerRoleIds[i]);
+                if (result[i] != 0) { taken[result[i]] = true; }
+            }
+            for (int i = 0; i < count; i++)
+            {
+                if (result[i] != 0) { continue; }
+                result[i] = FirstFreeSlot(template, taken, null);
+                taken[result[i]] = true;
+            }
+            return result;
+        }
+
+        // roleId를 주면 같은 군의 빈 슬롯, null이면 아무 빈 슬롯. 없으면 0
+        private static int FirstFreeSlot(FormationTemplate template, bool[] taken, string? roleId)
+        {
+            for (int slot = 1; slot <= FormationTemplate.SlotCount; slot++)
+            {
+                if (taken[slot]) { continue; }
+                if (roleId != null && !CanOccupy(roleId, SlotOf(template, slot))) { continue; }
+                return slot;
+            }
+            return 0;
+        }
+
         // 좌표에 가장 가까운 슬롯(옛 세이브의 자유 배치 좌표를 슬롯으로 흡수할 때, 끌어놓기를 슬롯에 붙일 때). 동률은 번호 작은 쪽
         public static int NearestSlot(FormationTemplate template, bool defending, float x, float z)
         {
