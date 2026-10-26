@@ -10,7 +10,8 @@ using UnityEngine;
 // 전술 화면의 필드(09-30, FM·EA FC 전술 화면이 화면 절반을 필드로 쓰는 것을 따름). 내 11명을 칩으로 세운다.
 // 공격할 때 / 수비할 때 자리를 토글로 본다(스펙 §4-3 자리 2쌍). 자리는 경기가 쓰는 식 그대로 계산한다(PositionRules.AttackHome·DefendHome):
 // 편성 자리 + 팀 전진 정도 + 개인 전진 폭·측면 쏠림·라인 높이. 그래서 "얼마나 앞으로" 슬라이더나 폭을 바꾸면 칩이 같이 움직인다(읽히는 전술).
-// 공 위치에 따라 달라지는 값은 공이 필드 한가운데 있을 때로 고정해 보여 준다: 서드별 폭은 중원 값을 쓰고, 공 지향 슬라이드(SlideTowardBall)는 공이 (0, 0)이면 0이라 부르지 않는다.
+// 공 위치에 따라 달라지는 값은 공이 필드 한가운데 있을 때로 고정해 보여 준다: 서드별 폭은 중원 값, 공 지향 슬라이드는 공 (0, 0)으로 부른다.
+// 공격 가로 슬라이드는 공이 중앙이어도 자리를 안으로 당기므로(편성 자리 = 가장 벌어진 모양, 10-25) 안 부르면 공격할 때 탭이 경기보다 넓게 보인다. 수비할 때는 공 (0, 0)이면 0이다.
 // 칩을 누르면 그 선수를 고른다(09-30 개인 전술: 고른 선수의 역할·개인 지시를 옆 패널이 보여 준다). 자리는 개인 지시까지 얹은 값으로 그린다.
 // 배치(10-08, 스펙 §8 10-08 구현 설계): 칩을 끌어 놓으면 그 자리에서 전진·폭·개인 다이얼 오프셋을 빼 편성 자리로 저장한다. 공격할 때/수비할 때 탭이 "같은 선수를 두 번 놓는" 토글이다.
 // 내 진영 절반 밖이거나 다른 칩과 1.2m 안이면 칩을 원래 자리로 되돌리고 잠깐 빨갛게 한다
@@ -100,7 +101,8 @@ public class PitchView : MonoBehaviour
         GameDataManager.Instance.Season.MoveLineupSlot(entry.PlayerId, defending, basePos.x, basePos.z);
     }
 
-    private const int ResolveIterations = 3;
+    // 공격 가로 슬라이드가 자리를 (1 − k)배로 줄여 되풀이마다 오차가 k배(0.2)로만 준다. 10m 옮기면 3회는 0.08m가 남아 허용치를 넘어 거부됐다(10-25). 12회면 사실상 0
+    private const int ResolveIterations = 12;
     private const float ResolveTolerance = 0.05f;   // m. 이 안이면 "놓은 자리에 선다"로 본다
 
     private static bool TryResolveBase(SeasonState state, LineupEntry entry, bool defending, (float x, float z) dropped, out (float x, float z) basePos)
@@ -121,10 +123,16 @@ public class PitchView : MonoBehaviour
         return dx * dx + dz * dz <= ResolveTolerance * ResolveTolerance;
     }
 
+    // 경기가 서는 자리와 같은 식: 공격 시/수비 시 자리 + 공 (0, 0) 기준 공 지향 슬라이드(공격할 때만 가로 수축이 걸린다)
     private static (float x, float z) Home(float baseX, float baseZ, PlayerStats stats, TeamTactics tactics, bool defending)
     {
-        if (defending) { return PositionRules.DefendHome(baseX, baseZ, MyAttackSign, stats.LineHeight); }
-        return PositionRules.AttackHome(baseX, baseZ, MyAttackSign, tactics.Mentality, stats.PushUp, tactics.Width[(int)Third.Middle], stats.Width);
+        if (defending)
+        {
+            (float x, float z) defendHome = PositionRules.DefendHome(baseX, baseZ, MyAttackSign, stats.LineHeight);
+            return PositionRules.SlideDefend(defendHome.x, defendHome.z, 0f, 0f, stats.IsKeeper);
+        }
+        (float x, float z) attackHome = PositionRules.AttackHome(baseX, baseZ, MyAttackSign, tactics.Mentality, stats.PushUp, tactics.Width[(int)Third.Middle], stats.Width);
+        return PositionRules.SlideAttack(attackHome.x, attackHome.z, 0f, 0f, stats.IsKeeper);
     }
 
     // 필드 그림 로컬 좌표 → 필드 좌표(ToAnchor의 역. 변환식은 FieldBounds가 들고 테스트가 왕복을 잠근다)
@@ -183,20 +191,11 @@ public class PitchView : MonoBehaviour
 
             LineupEntry entry = lineup[i];
             PlayerStats stats = state.FindRosterPlayer(entry.PlayerId).EffectiveStats();   // 역할 값 + 개인 지시. 경기에 들어가는 값과 같다
-            (float x, float z) home = defending ? DefendHome(entry, stats) : AttackHome(entry, stats, tactics);
+            float baseX = defending ? entry.DefendX : entry.AttackX;
+            float baseZ = defending ? entry.DefendZ : entry.AttackZ;
+            (float x, float z) home = Home(baseX, baseZ, stats, tactics, defending);
             chips[i].Show(stats.RoleId, stats.DisplayName, ToAnchor(home.x, home.z), entry.PlayerId == SelectedPlayerId);
         }
-    }
-
-    private static (float x, float z) AttackHome(LineupEntry entry, PlayerStats stats, TeamTactics tactics)
-    {
-        int widthLevel = tactics.Width[(int)Third.Middle];
-        return PositionRules.AttackHome(entry.AttackX, entry.AttackZ, MyAttackSign, tactics.Mentality, stats.PushUp, widthLevel, stats.Width);
-    }
-
-    private static (float x, float z) DefendHome(LineupEntry entry, PlayerStats stats)
-    {
-        return PositionRules.DefendHome(entry.DefendX, entry.DefendZ, MyAttackSign, stats.LineHeight);
     }
 
     // 필드 좌표(중앙 원점, +X가 상대 골, 105 × 68m) → 필드 그림 안 0~1

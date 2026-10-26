@@ -292,6 +292,48 @@ public class PassFlightTests
     }
 
     [Test]
+    public void 압박_1순위는_받은_뒤_최소_재임_동안_거리로_안_뺏기고_지나면_뺏긴다()
+    {
+        // 10-23 (b)안(PressMinTenureTicks 50 = 1초): 태클 실패 정지 0.5초 뒤 되찾기 왕복을 끊는다. 도전자 B를 매 틱 A보다 5m(히스테리시스 2m 넘게) 가깝게 옮겨도 1초 안엔 A가 1순위
+        var sim = new MatchSimulation(() => 0.5f, PlayerTreeBuilder.Build());
+        PlayerStats presser = Mid();
+        presser.PressRange = 20f;
+        sim.AddPlayer(new PlayerState(0, 1, Mid(), 0f, 0f));                                 // 상대 소유자
+        PlayerState a = sim.AddPlayer(new PlayerState(1, 0, presser, -6f, 0f));
+        PlayerState b = sim.AddPlayer(new PlayerState(2, 0, presser, -9f, 0f));
+        sim.SetTactics(0, new TeamTactics { PassRisk = new[] { 1, 1, 1 }, PressStart = new[] { 1, 1, 1 }, Width = new[] { 1, 1, 1 }, Tempo = new[] { 1, 1, 1 }, PassStyle = new[] { 1, 1, 1 }, Mentality = 1 });
+        sim.SetTactics(1, new TeamTactics { PassRisk = new[] { 1, 1, 1 }, PressStart = new[] { 1, 1, 1 }, Width = new[] { 1, 1, 1 }, Tempo = new[] { 1, 1, 1 }, PassStyle = new[] { 1, 1, 1 }, Mentality = 1 });
+        sim.Kickoff();
+        sim.Ball = BallRules.Own(sim.Ball, 0, 0f, 0f);
+        sim.Tick(Dt);
+        Assert.AreEqual(0, a.PressRank, "첫 틱: 더 가까운 A가 1순위");
+
+        // 담당을 받은 틱이 1이면 재임은 틱 1~50(tickCount − since < 50), 51틱부터 거리로 뺏긴다
+        int ticked = 1;
+        while (ticked < MatchTuning.PressMinTenureTicks)
+        {
+            PlaceChallenger(sim, a, b);
+            sim.Tick(Dt);
+            ticked++;
+            Assert.AreEqual(0, a.PressRank, $"{ticked}틱: 재임 안이라 B가 5m 더 가까워도 A가 1순위");
+        }
+
+        PlaceChallenger(sim, a, b);
+        sim.Tick(Dt);
+        Assert.AreEqual(0, b.PressRank, $"{ticked + 1}틱: 재임이 지나면 더 가까운 B가 1순위");
+        Assert.AreNotEqual(0, a.PressRank);
+    }
+
+    // 담당 A를 공에서 8m, 도전자 B를 3m에 세운다(히스테리시스 2m를 넘는 차이). 태클 사거리 2m 밖이라 소유는 안 바뀐다
+    private static void PlaceChallenger(MatchSimulation sim, PlayerState holder, PlayerState challenger)
+    {
+        holder.X = sim.Ball.X - 8f;
+        holder.Z = sim.Ball.Z;
+        challenger.X = sim.Ball.X - 3f;
+        challenger.Z = sim.Ball.Z;
+    }
+
+    [Test]
     public void 압박_거리_안_여럿이어도_팀에서_공에_가장_가까운_1명만_달려들고_나머지는_자리를_지킨다()
     {
         var sim = new MatchSimulation(() => 0.5f, PlayerTreeBuilder.Build());

@@ -52,12 +52,12 @@ namespace Game.Core.Match
         public static readonly float[] PassLeadOptions = { PassLeadMax, 3.5f, 0f };
         public const float DribbleReluctance = 0.3f;                            // 개인 드리블 성향이 이 미만이면 골 대신 가까운 아군 쪽으로 몰아 패스를 노린다
         public const float BackPassScale = 0.3f;                                // 옆·뒤 아군 후보 점수 배율(플랜 09-22 칸). 전진 5m 이상 앞 후보는 못 이기고, 1~3m 앞 찔끔 후보에겐 이길 수 있다(의도: 핑퐁 방지)
-        // 공 지향 슬라이드(09-21 유저: "자리가 완전 고정은 아닌 것 같다"): 자리에 공 좌표 × 계수를 더해 블록이 공을 따라 평행이동한다.
-        // 지역 방어는 공 기준(Spielverlagerung ball-oriented zonal marking). 수비는 컴팩트(가로 큼), 공격은 침투(세로 큼). 출발값, 러너로 조정
+        // 공 지향 슬라이드(PositionRules.SlideAttack·SlideDefend). 지역 방어는 공 기준(Spielverlagerung ball-oriented zonal marking).
+        // 수비는 컴팩트(가로 큼), 공격은 침투(세로 큼). 공격 가로만 수축식이고 나머지는 평행이동(10-25, 실험/2026-10-25-슬라이드-수축-격자.md)
         public const float SlideLateralDefend = 0.3f;   // 09-26 0.4 → 0.3: 압박 1명 제한·킥 속도 역산 뒤 블록이 너무 촘촘해 100판 골 0.6. 0.3이면 1.06·슛 10
         public const float SlideVerticalDefend = 0.3f;
         public const float SlideVerticalMaxDefend = 10f;
-        public const float SlideLateralAttack = 0.2f;
+        public const float SlideLateralAttack = 0.2f;   // 수축 계수. 10-25 격자: 0.18/0.20/0.25에서 4부 승률 46/74/48%로 튐(ST 가로채기 문턱). 0.2는 시드 3블록 73~76%로 재현
         public const float SlideVerticalAttack = 0.4f;
         public const float SlideVerticalMaxAttack = 15f;
         public const float SlideLateralKeeper = 0.15f;                           // GK는 가로만 조금. 라인을 따라 나오면 안 된다
@@ -97,10 +97,12 @@ namespace Game.Core.Match
         public const float BoxStepOutDepth = Placement.FieldBounds.PenaltyBoxDepth + 5f;
         // 슈터 압박·슛 블록(09-29 수비 D3, MatchRules.PressuredShotProbability·ShotBlocker 주석). 블록 확률·튕기는 속도는 출처 없는 출발값
         public const float ShotPressureLogit = 0.4f;     // 압박받는 슛의 로짓 감소
-        // GK 슛 대응(10-23 유저 Play 3·4차). 규칙은 MatchSimulation.Shoot·IncomingShotFor·ResolveSaveAtLine, 판정은 MatchRules.KeeperCanReach·PushWide·AimAwayFromKeeper
-        public const float KeeperDiveSpeed = 8f;         // 슛에 반응하는 동안 GK의 가로 이동 m/s(스탯과 무관한 다이빙 버스트). 스탯 30 = 4.2m/s로는 0.5초에 1.5m라 화면에서 제자리 셔플로 보였다(10-23 유저 Play 4차). [가정] 실제 GK는 포스트 쪽 3m를 0.5~0.6초에 닿는다. 격자(20판): 마감 때 공과 간격 0.56 → 0.11m, 빗나감 5 → 1%, 골 불변
-        public const float GoalAimMinGapFromKeeper = 2.5f;   // 골로 정해진 슛의 조준점은 찬 순간 GK 자리에서 가로로 이만큼 넘게 먼 구석으로. 다이빙 버스트를 넣자 골인데도 GK가 공 0.2m까지 닿아 몸을 뚫고 들어가는 모양이 됐다(10-23 probe). [가정] 스탯 30 GK가 반응 ×2 뒤 남는 0.3초에 가는 1.3m보다 멀게
-        public const int KeeperReactionTicks = 10;       // GK가 슛에 반응해 조준점으로 움직이기 시작하는 지연(0.2초). [가정] 사람 단순 반응 시간 0.2~0.25초. 골로 정해진 슛엔 ×2(못 막을 슛을 "늦게 반응한" 모양으로)
+        // GK 슛 대응(10-23 유저 Play 3·4차). 규칙은 MatchSimulation.Shoot·IncomingShotFor·ResolveSaveAtLine, 판정은 MatchRules.KeeperCanReach·GoalAimGap·PushWide·AimAwayFromKeeper
+        public const float KeeperDiveSpeed = 8f;         // 슛에 반응하는 동안 GK가 라인 교차점(수비 자리 x·공이 그 라인을 지나는 z)으로 가는 속도 m/s(스탯과 무관한 다이빙 버스트). 스탯 30 = 4.2m/s로는 0.5초에 1.5m라 화면에서 제자리 셔플로 보였다(10-23 유저 Play 4차). [가정] 실제 GK는 포스트 쪽 3m를 0.5~0.6초에 닿는다. 격자(20판): 마감 때 공과 간격 0.56 → 0.11m, 빗나감 5 → 1%, 골 불변
+        // 골 조준 간격 자체는 MatchRules.GoalAimGap(GK 스탯 속도 × 남은 비행 시간 + 발 반경)에서 파생한다(10-25. 10-23엔 2.5m 고정)
+        public const float GoalAimKeeperMargin = 0.5f;   // 그 간격에 더하는 여유(m). [가정] 화면에서 GK 몸이 공을 안 뚫는 최소
+        public const float KeeperLineMinFraction = 0.2f; // 슈터 → 골라인 경로에서 GK 라인 비율의 하한. 슈터가 라인에 붙은 슛은 교차점을 경로 20% 지점으로 본다(÷비율 폭주 방지, 10-25) [가정]
+        public const int KeeperReactionTicks = 10;       // GK가 슛에 반응해 라인 교차점으로 움직이기 시작하는 지연(0.2초). [가정] 사람 단순 반응 시간 0.2~0.25초. 골로 정해진 슛엔 ×2(못 막을 슛을 "늦게 반응한" 모양으로)
         public const float ShotWideMargin = 0.5f;        // 노골로 정해졌는데 GK가 못 닿을 유효 슛을 포스트 밖으로 미는 거리(m). 골대 안으로 들어가는 노골을 없앤다(10-23 유저 "안 들어가면 골대 안으로 가면 안 된다"). [가정] 출처 없음, 화면에서 확실히 밖으로 보이는 값
         public const float ShotResolveLogitBonus = 0.8f; // 슛 확정 확률에만 더하는 로짓(판정 WantsShot은 안 본다). 10-23 인게임 경로 계측: 슛이 현실의 절반(5.9/팀)이라 골 1.44·0:0 22%였다. 0.6 → 0.8은 GK 슛 대응·조준 반폭·압박 재임을 넣은 뒤 격자(최종 4부 20시즌 골 2.13·0:0 9%·무 27%). [가정] 임시 레버
                                                          // 문턱을 낮추면 나쁜 자리에서 일찍 쏴 골이 줄고(0.88), 확정만 올리면 슛 수 그대로 골 2.17·0:0 6%(+0.3 1.76 / +0.9 2.70). 유저 "중간점".

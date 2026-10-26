@@ -128,6 +128,8 @@ namespace Game.Core.Match
         private int shooterAttackSign;
         private float shotProbability;
         private float shotAimZ;               // 조준 Z(골 중심 기준). 골문 밖이면 골라인에서 Missed
+        private float shotStartX;             // 찬 자리. GK 라인 교차점(BallZAtLine)의 재료
+        private float shotStartZ;
 
         // 비행 중인 패스. 리시버는 스냅샷으로 "나한테 온다"를 알고 마중 나간다
         private bool passInFlight;
@@ -590,8 +592,9 @@ namespace Game.Core.Match
                 p.IsPassTarget = passInFlight && passReceiverId == p.PlayerId;
                 p.PassTargetX = passTargetX;
                 p.PassTargetZ = passTargetZ;
+                p.WaitingForShot = IsWaitingForShot(p);
                 p.IncomingShot = IncomingShotFor(p);
-                p.IncomingShotAimZ = shotAimZ;
+                p.IncomingShotTargetZ = p.IncomingShot || p.WaitingForShot ? KeeperTargetZ(p) : 0f;   // GK만 쓴다(트리 ⑨b·뷰 다이빙)
             }
         }
 
@@ -686,11 +689,23 @@ namespace Game.Core.Match
             shooterAttackSign = shooter.AttackSign;
 
             // 조준: 골 중심이 아니라 shot 스탯에 따라 퍼진 지점. 골문 밖이면 골라인에서 빗나감으로 마감
+            shotStartX = shooter.X;
+            shotStartZ = shooter.Z;
             shotAimZ = MatchRules.ShotAimZ(shooter.Stats.Shot, nextRoll());
             if (!MatchRules.IsOnTarget(shotAimZ)) { shotWillScore = false; }
-            if (shotWillScore && keeper != null) { shotAimZ = MatchRules.AimAwayFromKeeper(shotAimZ, keeper.Z, MatchTuning.GoalAimMinGapFromKeeper); }   // 골은 GK가 못 닿는 구석으로(골 여부는 이미 정해져 조준만 바뀐다)
-
             float goalX = FieldBounds.HalfLength * shooter.AttackSign;
+            if (shotWillScore && keeper != null)
+            {
+                // 골은 GK가 못 닿는 구석으로(골 여부는 이미 정해져 조준만 바뀐다). GK는 자기 라인에서 공을 만나므로 간격은 라인 교차점에서 잰다:
+                // GK가 반응 ×2 뒤 스탯 속도로 라인 교차 시점까지 가는 거리 + 발 반경 + 여유. 골라인 조준점으로 환산하려면 라인 비율로 나눈다
+                // (교차점 z는 조준 z의 비율 배로 움직인다). 비행 시간은 밀기 전 조준점 기준(가로 몇 m 차이는 0.02~0.03초, 여유 0.5m 안)
+                float lineX = KeeperLineX(keeper);
+                float fraction = MatchRules.LineFraction(shooter.X, goalX, lineX);
+                float flightToLine = ShotFlightSecondsToLine(keeper, goalX);
+                float gapAtLine = MatchRules.GoalAimGap(MatchRules.SpeedMps(keeper.Stats.Speed), flightToLine, KeeperReactionTicksFor(willScore: true) * MatchTuning.FixedStep);
+                float keeperZAtGoalLine = shooter.Z + (keeper.Z - shooter.Z) / fraction;   // GK z를 골라인 조준 좌표로 환산한 기준점
+                shotAimZ = MatchRules.AimAwayFromKeeper(shotAimZ, keeperZAtGoalLine, gapAtLine / fraction);
+            }
             shotTicks = 0;
             if (ShouldPushWide(keeper, shooter, goalX)) { shotAimZ = MatchRules.PushWide(shotAimZ); }
             BallKicked?.Invoke(new KickReport(shooter.PlayerId, true, goalX - shooter.X, shotAimZ - shooter.Z));   // 막혀도 찬 건 찬 것
@@ -838,23 +853,78 @@ namespace Game.Core.Match
             return !KeeperCanReachShot(keeper, shooter, goalX);
         }
 
-        // 찬 순간의 판정: GK가 반응 지연 뒤 비행 시간 안에 조준점(가로)까지 닿나
+        // 찬 순간의 판정: GK가 지연 뒤 공이 자기 라인을 지나기 전에 교차점(수비 자리 x, 공이 그 라인을 지나는 z)까지 닿나 — 트리 ⑨b(MoveToShotLine)가 가는 점과 같다.
+        // 지연은 반응과 남은 얼음(태클 실패 정지) 중 긴 쪽. 판정과 실행의 전제를 같게 둔다(10-24 리뷰 🟡 → 10-25). 노골 슛만 부른다(ShouldPushWide가 골이면 먼저 돌아감)
         private bool KeeperCanReachShot(PlayerState keeper, PlayerState shooter, float goalX)
+        {
+            float flightToLine = ShotFlightSecondsToLine(keeper, goalX);
+            if (flightToLine < 0f) { return false; }
+            float lineX = KeeperLineX(keeper);
+            float dx = lineX - keeper.X;
+            float dz = KeeperTargetZ(keeper) - keeper.Z;
+            float distance = (float)Math.Sqrt(dx * dx + dz * dz);
+            int delayTicks = Math.Max(KeeperReactionTicksFor(willScore: false), keeper.FrozenTicks);
+            return MatchRules.KeeperCanReach(distance, flightToLine, delayTicks * MatchTuning.FixedStep);
+        }
+
+        // GK가 지키는 라인 x: 트리 MoveToShotLine과 같은 수비 자리(DefendHome) 식
+        private static float KeeperLineX(PlayerState keeper)
+        {
+            return PositionRules.DefendHome(keeper.DefendHomeX, keeper.DefendHomeZ, keeper.AttackSign, keeper.Stats.LineHeight).x;
+        }
+
+        // GK가 가야 할 z = 공이 GK 라인을 지나는 z(골라인 조준 z가 아니다)
+        private float KeeperTargetZ(PlayerState keeper)
+        {
+            float goalX = FieldBounds.HalfLength * shooterAttackSign;
+            return MatchRules.BallZAtLine(shotStartX, shotStartZ, goalX, shotAimZ, KeeperLineX(keeper));
+        }
+
+        // 슈터 자리에서 조준점(골라인)까지의 비행 시간(초). 멈추면 -1
+        private float ShotFlightSeconds(PlayerState shooter, float goalX)
         {
             float dx = goalX - shooter.X;
             float dz = shotAimZ - shooter.Z;
-            float flight = MatchRules.ShotFlightTime((float)Math.Sqrt(dx * dx + dz * dz), MatchTuning.ShotSpeed, MatchTuning.BallDeceleration);
-            if (flight < 0f) { return false; }
-            return MatchRules.KeeperCanReach(keeper.Z, shotAimZ, flight, MatchTuning.KeeperReactionTicks * MatchTuning.FixedStep);
+            return MatchRules.ShotFlightTime((float)Math.Sqrt(dx * dx + dz * dz), MatchTuning.ShotSpeed, MatchTuning.BallDeceleration);
         }
 
-        // 내 골로 오는 유효 슛에 GK가 반응할 차례인가(트리 ⑨b). 반응 지연 뒤부터. 골로 정해진 슛은 두 배 늦게
-        private bool IncomingShotFor(PlayerState p)
+        // 찬 자리에서 GK 라인 교차점까지의 비행 시간(초). 공이 감속하므로 "전체 비행 × 비율"보다 짧다(10-25 리뷰 🟡). 멈추면 -1
+        private float ShotFlightSecondsToLine(PlayerState keeper, float goalX)
+        {
+            float lineX = KeeperLineX(keeper);
+            float fraction = MatchRules.LineFraction(shotStartX, goalX, lineX);
+            float dx = (goalX - shotStartX) * fraction;
+            float dz = (shotAimZ - shotStartZ) * fraction;
+            return MatchRules.ShotFlightTime((float)Math.Sqrt(dx * dx + dz * dz), MatchTuning.ShotSpeed, MatchTuning.BallDeceleration);
+        }
+
+        // GK가 슛에 반응하기 시작하는 지연(틱). 골로 정해진 슛은 두 배 늦게(못 막을 슛을 "늦게 반응한" 모양으로). 판정(GoalAimGap)과 실행(IncomingShotFor)이 같은 값을 쓴다
+        private static int KeeperReactionTicksFor(bool willScore)
+        {
+            return willScore ? MatchTuning.KeeperReactionTicks * 2 : MatchTuning.KeeperReactionTicks;
+        }
+
+        // 내 골로 유효 슛(골문 안 조준)이 날아오는 GK인가. 대기(WaitingForShot)와 반응(IncomingShot)이 같은 조건을 나눠 쓴다: 한쪽만 바뀌면 "대기도 반응도 아닌" 틈이 생긴다
+        private bool IsShotAimedAtMyGoal(PlayerState p)
         {
             if (!shotInFlight || !p.IsGoalkeeper || p.Team == TeamOfSign(shooterAttackSign)) { return false; }
-            if (!MatchRules.IsOnTarget(shotAimZ)) { return false; }
-            int reaction = shotWillScore ? MatchTuning.KeeperReactionTicks * 2 : MatchTuning.KeeperReactionTicks;
-            return shotTicks >= reaction;
+            return MatchRules.IsOnTarget(shotAimZ);
+        }
+
+        // 아직 반응 차례가 아닌 GK는 트리가 제자리에 둔다(10-25). 전엔 자리 규칙(공 z 추적)으로 미리 움직여 골 조준 간격(GoalAimGap)의 전제
+        // "지연 뒤에만 움직임"과 달랐고, 골의 56%에서 GK가 마감 때 공 0.8m 안에 있었다(실험/2026-10-25-GK-골-간격-probe.md).
+        // 노골 슛도 같다: 닿음 판정(KeeperCanReach)도 지연 뒤부터 움직인다고 봤다. 슛이 뜨는 틱엔 Apply 순서상 GK가 한 틱 더 움직일 수 있다(0.02초, 무시)
+        private bool IsWaitingForShot(PlayerState p)
+        {
+            if (!IsShotAimedAtMyGoal(p)) { return false; }
+            return shotTicks < KeeperReactionTicksFor(shotWillScore);
+        }
+
+        // 내 골로 오는 유효 슛에 GK가 반응할 차례인가(트리 ⑨b). 반응 지연 뒤부터
+        private bool IncomingShotFor(PlayerState p)
+        {
+            if (!IsShotAimedAtMyGoal(p)) { return false; }
+            return shotTicks >= KeeperReactionTicksFor(shotWillScore);
         }
 
         // 골문 안인데 노골로 정해진 슛이 GK 접촉 없이 골라인에 닿음: 공을 라인 안쪽 발 반경으로 들이고 GK를 그 자리로 당겨 세이브(찬 순간 "닿을 수 있다"고 본 슛이라 작은 보정). GK 없는 시뮬은 빗나감

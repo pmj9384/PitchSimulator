@@ -223,12 +223,38 @@ public class ShotProbabilityTests
     }
 
     [Test]
-    public void GK가_닿는지는_스탯이_아니라_다이빙_속도로_본다()
+    public void GK가_닿는지는_조준점까지_거리를_스탯이_아니라_다이빙_속도로_본다()
     {
-        // 가로 3m, 비행 0.6초 - 반응 0.2초 = 0.4초. 다이빙 8m/s면 3.2 + 발 0.8 = 4.0 ≥ 3 → 닿음. 스탯 30(4.2m/s)이었으면 1.68 + 0.8 = 2.48 < 3이라 못 닿았다
-        Assert.IsTrue(MatchRules.KeeperCanReach(0f, 3f, 0.6f, 0.2f));
-        Assert.IsFalse(MatchRules.KeeperCanReach(0f, 4.1f, 0.6f, 0.2f), "4.0을 넘으면 못 닿음");
-        Assert.IsTrue(MatchRules.KeeperCanReach(0f, 0.7f, 0.1f, 0.2f), "반응 지연 안에 닿는 공은 발 반경으로만");
+        // 거리 3m, 비행 0.6초 - 지연 0.2초 = 0.4초. 다이빙 8m/s면 3.2 + 발 0.8 = 4.0 ≥ 3 → 닿음. 스탯 30(4.2m/s)이었으면 1.68 + 0.8 = 2.48 < 3이라 못 닿았다
+        // 거리는 호출자가 실행(MoveToShotLine)과 같은 대각선(자기 수비 자리 x, 조준 z)으로 재서 준다(10-25, 10-24 리뷰 🟡)
+        Assert.IsTrue(MatchRules.KeeperCanReach(3f, 0.6f, 0.2f));
+        Assert.IsFalse(MatchRules.KeeperCanReach(4.1f, 0.6f, 0.2f), "4.0을 넘으면 못 닿음");
+        Assert.IsTrue(MatchRules.KeeperCanReach(0.7f, 0.1f, 0.2f), "지연 안에 닿는 공은 발 반경으로만");
+        Assert.IsFalse(MatchRules.KeeperCanReach(3f, 0.6f, 0.5f), "얼어 있어 지연이 0.5초면 0.8 + 0.8 = 1.6 < 3");
+    }
+
+    [Test]
+    public void 슛이_GK_라인을_지나는_z는_슈터와_조준점_사이를_선형_보간한_값이다()
+    {
+        // 슈터 (30, 5) → 골라인 52.5 조준 z -2. GK 라인 48 = 경로의 (48-30)/(52.5-30) = 0.8 → z = 5 + (-2-5)×0.8 = -0.6. 골라인 조준 z(-2)와 1.4m 다르다
+        Assert.AreEqual(0.8f, MatchRules.LineFraction(30f, 52.5f, 48f), 1e-4f);
+        Assert.AreEqual(-0.6f, MatchRules.BallZAtLine(30f, 5f, 52.5f, -2f, 48f), 1e-4f);
+        Assert.AreEqual(-1.6f, MatchRules.BallZAtLine(30f, 0f, 52.5f, -2f, 48f), 1e-4f, "중앙에서 비스듬히: -2 × 0.8");
+        Assert.AreEqual(-2f, MatchRules.BallZAtLine(30f, -2f, 52.5f, -2f, 48f), 1e-4f, "슈터 z와 조준 z가 같은 정면 슛은 그대로");
+        Assert.AreEqual(1f, MatchRules.LineFraction(50f, 52.5f, 48f), 1e-4f, "슈터가 GK 라인 안쪽이면 공은 라인을 안 지나니 골라인(1)");
+        Assert.AreEqual(-2f, MatchRules.BallZAtLine(50f, 3f, 52.5f, -2f, 48f), 1e-4f);
+        Assert.AreEqual(0.8f, MatchRules.LineFraction(-30f, -52.5f, -48f), 1e-4f, "팀 1(−X 공격)도 같다");
+        Assert.AreEqual(MatchTuning.KeeperLineMinFraction, MatchRules.LineFraction(47.9f, 52.5f, 48f), 1e-4f, "슈터가 라인에 붙으면 하한(÷비율 폭주 방지)");
+    }
+
+    [Test]
+    public void 골_조준_간격은_GK_스탯_속도가_남은_비행_시간에_가는_거리에_발_반경과_여유를_더한_값이다()
+    {
+        // 10-24 리뷰 🟡: 2.5m 고정이면 먼 슛·빠른 GK에서 골 공이 GK 몸을 통과한다. 골 슛엔 GK가 반응 ×2 뒤 스탯 속도로 움직이니 그 식으로 파생
+        float margin = MatchTuning.CaptureRadius + MatchTuning.GoalAimKeeperMargin;
+        Assert.AreEqual(4.2f * 0.5f + margin, MatchRules.GoalAimGap(4.2f, 0.9f, 0.4f), 1e-4f, "0.9 − 0.4 = 0.5초 동안 4.2m/s");
+        Assert.AreEqual(margin, MatchRules.GoalAimGap(4.2f, 0.3f, 0.4f), 1e-4f, "지연 안에 닿는 공은 발 반경 + 여유만");
+        Assert.Greater(MatchRules.GoalAimGap(7f, 1.5f, 0.4f), MatchRules.GoalAimGap(4.2f, 1.5f, 0.4f), "빠른 GK면 더 멀리");
     }
 
     [Test]

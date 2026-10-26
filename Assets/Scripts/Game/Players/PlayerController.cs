@@ -10,7 +10,7 @@ public class PlayerController : MonoBehaviour
     private static readonly int ShootParam = Animator.StringToHash("Shoot");   // 트리거. 슛 순간. 패스보다 백스윙·팔로스루가 크다(10-23 유저 "슛도 똑같아서 모르겠다")
     private static readonly int CatchParam = Animator.StringToHash("Catch");         // 트리거. GK가 슛을 잡음(ShotResolved Caught)
     private static readonly int ParryParam = Animator.StringToHash("Parry");         // 트리거. GK가 슛을 쳐냄(ShotResolved Parried)
-    private static readonly int DiveLeftParam = Animator.StringToHash("DiveLeft");   // 트리거. 조준점이 1m 넘게 먼 슛에 반응을 시작하는 순간 그쪽으로 몸을 날린다(StartDive)
+    private static readonly int DiveLeftParam = Animator.StringToHash("DiveLeft");   // 트리거. 라인 교차점이 1m 넘게 먼 슛에 반응을 시작하는 순간 그쪽으로 몸을 날린다(StartDive)
     private static readonly int DiveRightParam = Animator.StringToHash("DiveRight");
     private static readonly int CelebrateParam = Animator.StringToHash("Celebrate"); // bool. 골 세리머니 동안 참
 
@@ -22,7 +22,7 @@ public class PlayerController : MonoBehaviour
     private const float TurnDegreesPerSecond = 720f;   // [가정] 출처 없음. 한 스텝(0.02초) 사이 반대 방향 전환을 0.25초 안에 끝내는 값
     private const float MinMoveSqr = 0.0001f;            // 이보다 덜 움직이면 서 있는 것(향한 방향 유지)
     private const float KickFaceSeconds = 0.5f;          // 킥 뒤 이 동안은 이동 방향이 아니라 찬 방향을 본다. 찬 순간 즉시 돌린다: 720°/s로 돌리면 옆·뒤 패스는 접촉(0.18초) 전에 못 돈다(10-23 유저) [가정]
-    private const float DiveMinMeters = 1f;              // 조준점이 GK 자리에서 가로로 이만큼 넘게 멀면 다이빙, 안이면 서서 캐치·펀칭 [가정]
+    private const float DiveMinMeters = 1f;              // 공이 내 라인을 지나는 z가 GK 자리에서 가로로 이만큼 넘게 멀면 다이빙, 안이면 서서 캐치·펀칭 [가정]
     private const float DiveSeconds = 0.85f;             // 다이빙 클립 길이. 그 안의 캐치·펀칭·킥 트리거는 버린다(다이빙이 이미 그 장면)
     private const float SaveSeconds = 0.45f;             // 세이브 클립이 끝날 때까지. 이 안에 오는 배급 킥은 애니를 안 튼다(GK가 잡자마자 차면 캐치가 0.05초 만에 끊겼다) [가정]
 
@@ -60,10 +60,10 @@ public class PlayerController : MonoBehaviour
         wasIncomingShot = incoming;
     }
 
-    // 조준점이 멀면 그쪽으로 몸을 날린다. 좌우는 GK가 슈터(자기 공격 방향)를 본다고 놓고 센다: 공격 방향 +X를 보면 오른쪽 = -Z
+    // 공이 내 라인을 지나는 점이 멀면 그쪽으로 몸을 날린다. 좌우는 GK가 슈터(자기 공격 방향)를 본다고 놓고 센다: 공격 방향 +X를 보면 오른쪽 = -Z
     private void StartDive()
     {
-        float dz = State.IncomingShotAimZ - State.Z;
+        float dz = State.IncomingShotTargetZ - State.Z;
         if (Mathf.Abs(dz) <= DiveMinMeters) { return; }
         saveUntil = Time.time + DiveSeconds;
         if (animator == null) { return; }
