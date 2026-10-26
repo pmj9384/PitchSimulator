@@ -57,13 +57,14 @@ namespace Game.Core.League
         }
 
         // 이번 라운드 내 경기의 재료. 나는 항상 팀 0(-X 진영), 상대는 팀 1(+X 진영, 생성 행 관례 그대로). 홈·원정은 MatchSetup이 킥오프·결과 변환에서 반영한다
+        // defenseRoles(10-25): 주면 내 선발의 수비 역할이 압박 거리·라인 높이·이탈 반경을 덮는다. null이면 역할 값 그대로(러너·옛 테스트)
         public static MatchSetup SetupMyMatch(SeasonState state, IReadOnlyList<GeneratedTeam> opponents, IReadOnlyList<Fixture> schedule,
-            IReadOnlyList<TeamTactics> presets, int round)
+            IReadOnlyList<TeamTactics> presets, int round, IReadOnlyList<DefenseRole>? defenseRoles = null)
         {
             Fixture mine = SeasonSchedule.MyFixture(schedule, round, SeasonState.MyTeamId);
             int opponentId = mine.HomeTeamId == SeasonState.MyTeamId ? mine.AwayTeamId : mine.HomeTeamId;
             GeneratedTeam opponent = Find(opponents, opponentId);
-            return new MatchSetup(mine, MatchSeed(state.SeasonSeed, mine), state.MyLineup(), opponent.ToLineup(asHome: false),
+            return new MatchSetup(mine, MatchSeed(state.SeasonSeed, mine), state.MyLineup(defenseRoles), opponent.ToLineup(asHome: false),
                 state.MyTactics(presets), FindPreset(presets, opponent.PresetId), opponent.Name, KitRules.Of(state.SeasonSeed, state.Tier, opponent.TeamId));   // 내 전술 = 바꾼 값 또는 기준 카드
         }
 
@@ -109,7 +110,7 @@ namespace Game.Core.League
 
         // 이번 승강전 경기의 재료. 단판은 같은 부 상대, 1·2차전은 다른 부 팀(foreign). 라운드 번호는 정규 뒤에 이어 붙여 시드가 안 겹친다
         public static MatchSetup SetupPlayoffMatch(SeasonState state, TierRule tier, PlayoffPlan plan, PlayoffStage stage,
-            IReadOnlyList<GeneratedTeam> opponents, GeneratedTeam? foreign, IReadOnlyList<TeamTactics> presets)
+            IReadOnlyList<GeneratedTeam> opponents, GeneratedTeam? foreign, IReadOnlyList<TeamTactics> presets, IReadOnlyList<DefenseRole>? defenseRoles = null)
         {
             int me = SeasonState.MyTeamId;
             GeneratedTeam opponent;
@@ -129,7 +130,7 @@ namespace Game.Core.League
             int homeId = myHome ? me : opponent.TeamId;
             int awayId = myHome ? opponent.TeamId : me;
             var fixture = new Fixture(tier.Matches + (int)stage - 1, homeId, awayId);
-            return new MatchSetup(fixture, MatchSeed(state.SeasonSeed, fixture), state.MyLineup(), opponent.ToLineup(asHome: false),
+            return new MatchSetup(fixture, MatchSeed(state.SeasonSeed, fixture), state.MyLineup(defenseRoles), opponent.ToLineup(asHome: false),
                 state.MyTactics(presets), FindPreset(presets, opponent.PresetId), opponent.Name, KitRules.Of(state.SeasonSeed, state.Tier, opponent.TeamId));
         }
 

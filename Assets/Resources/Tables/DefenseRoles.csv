@@ -1,0 +1,6 @@
+defenseRoleId,displayName,description,pressRangeScale,lineHeightOffset,roamRadiusScale
+balanced,균형,역할 값 그대로,1.0,0,1.0
+pressing,압박,구역을 벗어나 상대에게 붙는다 (FM Pressing),1.5,3,1.3
+screening,차단,중앙을 지키며 패스길을 막는다 (FM Screening),0.8,0,0.7
+covering,커버,뒤에 남아 동료를 받친다 (FM Holding/Covering),0.6,-3,0.5
+tracking,복귀,공을 잃으면 바로 내려온다 (FM Tracking),1.0,-2,1.0
