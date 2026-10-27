@@ -6,7 +6,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-// 팀 전술 패널(09-30, 스펙 §4-2·§2-1 목업 4번 보드). 전술 화면(TacticsBoardView)의 [팀 전술] 탭 전체.
+// 팀 전술 패널(09-30, 스펙 §4-2·§2-1 목업 4번 보드). 전술 화면(TacticsBoardView)의 [팀 전술] 모달(10-27 ③b: 자리 단위 설정과 층위가 달라 탭이 아니라 필드 위 띠의 버튼으로 연다).
 // 왼쪽 좁은 열이 입구, 오른쪽 표가 주인공이다(10-15 유저 승인, 10-21 재배치. 전엔 왼쪽 패널 안에 카드 ◀ ▶와 세부 3탭이 있어 표가 한눈에 안 보였다).
 // 입구 3단: ①카드 4장(2×2. 고르면 표 전체가 그 카드 값) → ②슬라이더 3개(카드 값에 오프셋, TacticsEditing.ApplySlider) → ③표(서드 3행 × 항목 4열 + 압박 시작 1행 + 전환 1행).
 // 슬라이더는 자기 담당 칸만 기준 카드 + 오프셋으로 다시 쓴다(다른 칸에서 표로 바꾼 값은 지킨다). 표를 만지면 그 칸만 바뀐다.
@@ -39,7 +39,7 @@ public class TeamTacticsPanel : MonoBehaviour
     [SerializeField] private TacticLevelSelector counter;
     [SerializeField] private TacticLevelSelector counterPress;
     [SerializeField] private TacticLevelSelector gkDistribution;
-    [SerializeField] private TacticLevelSelector defenseLine;   // 수비 라인 높이(10-27). 프리팹 배선은 ③b 모달 3구역에서. 그때까지 null이면 건너뛴다
+    [SerializeField] private TacticLevelSelector defenseLine;   // 수비 라인 높이(10-27 ③c, FM Out of Possession의 Defensive Line). 표의 수비 행에 압박 시작 옆
 
     // 전술 값이 바뀔 때마다. 필드(PitchView)가 자리를 다시 그리려고 듣는다
     public event Action Changed;
@@ -106,7 +106,7 @@ public class TeamTacticsPanel : MonoBehaviour
         counter.SetLabels(TacticLevelNames.Counter);
         counterPress.SetLabels(TacticLevelNames.CounterPress);
         gkDistribution.SetLabels(TacticLevelNames.GkDistribution);
-        if (defenseLine != null) { defenseLine.SetLabels(TacticLevelNames.DefenseLine); }
+        defenseLine.SetLabels(TacticLevelNames.DefenseLine);
     }
 
     private static void SetRowLabels(TacticLevelSelector[] row, string[] names)
@@ -203,7 +203,7 @@ public class TeamTacticsPanel : MonoBehaviour
         counter.SetLevel(tactics.Counter);
         counterPress.SetLevel(tactics.CounterPress);
         gkDistribution.SetLevel(tactics.GkDistribution);
-        if (defenseLine != null) { defenseLine.SetLevel(tactics.DefenseLine); }
+        defenseLine.SetLevel(tactics.DefenseLine);
         ShowCard(baseIndex);
         ShowDiff(tactics, presets[baseIndex]);
         ShowLoad(tactics);
@@ -220,7 +220,7 @@ public class TeamTacticsPanel : MonoBehaviour
         counter.SetDiffersFromCard(card.Counter != tactics.Counter);
         counterPress.SetDiffersFromCard(card.CounterPress != tactics.CounterPress);
         gkDistribution.SetDiffersFromCard(card.GkDistribution != tactics.GkDistribution);
-        if (defenseLine != null) { defenseLine.SetDiffersFromCard(card.DefenseLine != tactics.DefenseLine); }
+        defenseLine.SetDiffersFromCard(card.DefenseLine != tactics.DefenseLine);
     }
 
     // 체력 부담: 지금 값(압박 시작·전진 정도)에 해당하는 실측 표 칸을 막대로. 압박을 올리면 그 자리에서 막대가 찬다
@@ -264,7 +264,7 @@ public class TeamTacticsPanel : MonoBehaviour
         tactics.Counter = counter.Level;
         tactics.CounterPress = counterPress.Level;
         tactics.GkDistribution = gkDistribution.Level;
-        if (defenseLine != null) { tactics.DefenseLine = defenseLine.Level; }
+        tactics.DefenseLine = defenseLine.Level;
         return tactics;
     }
 
@@ -279,7 +279,7 @@ public class TeamTacticsPanel : MonoBehaviour
         allSelectors.Add(counter);
         allSelectors.Add(counterPress);
         allSelectors.Add(gkDistribution);
-        if (defenseLine != null) { allSelectors.Add(defenseLine); }
+        allSelectors.Add(defenseLine);
     }
 
     private static void SetThirds(TacticLevelSelector[] row, int[] values)
