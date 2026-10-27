@@ -37,12 +37,25 @@ namespace Game.Core.League
         {
             return DefenseRoleBySlot[defenseSlot - 1];
         }
+
+        // 화면에 적는 팀 전술 이름. 바꾼 값이 있어도 기준 카드 이름(SeasonState.MyCardName과 같은 규칙)
+        public string CardName(IReadOnlyList<TeamTactics> presets)
+        {
+            return SeasonRunner.FindPreset(presets, PresetId).DisplayName;
+        }
     }
 
     // 저장 전술 목록. 시즌과 별개로 세이브에 남는다(시즌이 끝나도 전술은 남아야 한다). 이름이 열쇠: 같은 이름으로 저장하면 덮어쓴다
     public sealed class TacticLibrary
     {
         public const int MaxCount = 5;   // [가정] FM은 활성 전술 3장. 저장은 더 두되 전술판 탭이 넘치지 않는 수
+
+        // 전술판의 저장 칸 이름(10-26 ②). 이름 입력 없이 FM 모바일처럼 고정 칸 5개를 쓴다: 프로젝트에 글자 입력 UI가 없고 모바일 키보드보다 칸 하나 누르기가 빠르다
+        public static string SlotName(int index)
+        {
+            if (index < 0 || index >= MaxCount) { throw new ArgumentOutOfRangeException(nameof(index), $"[TacticLibrary] 칸은 0~{MaxCount - 1} ({index})"); }
+            return $"전술 {index + 1}";
+        }
 
         private readonly List<SavedTactic> tactics = new List<SavedTactic>();
 

@@ -4,8 +4,8 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
-// 필드 그림 위의 선수 한 명. 자리(역할 약칭)와 역할 이름을 보여 주고 필드 안 비율 좌표에 선다. 누르면 그 선수를 고른다(09-30 개인 전술).
-// 끌면 따라 움직이고 놓는 자리를 알린다(10-08 배치, 스펙 §8). 놓아도 되는지는 모른다: PitchView가 판정하고 안 되면 Show로 되돌린다.
+// 필드 그림 위의 선수 한 명. 자리(역할 약칭)와 역할 이름을 보여 주고 필드 안 비율 좌표(격자 칸)에 선다. 누르면 그 선수를 고른다(09-30 개인 전술).
+// 끌면 따라 움직이고 놓는 자리를 알린다(10-08). 놓은 자리에 무엇이 있는지는 모른다: PitchView가 다른 칩 위면 슬롯을 바꾸고(10-26), 안 되면 Show로 되돌린다.
 // 값만 받는다. 시즌도 전술도 모른다(PitchView가 채운다)
 public class PitchChip : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragHandler
 {
@@ -83,6 +83,16 @@ public class PitchChip : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDra
         if (field == null) { return; }
         if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(field, eventData.position, eventData.pressEventCamera, out Vector2 local)) { return; }
         Dropped?.Invoke(this, local);
+    }
+
+    // 필드 로컬 좌표가 이 칩(저장된 자리, 끌리는 중이면 끌기 전 자리) 위인가. 다른 칩을 여기 놓으면 자리를 바꾼다(10-26 슬롯 교체)
+    public bool Covers(Vector2 fieldLocal)
+    {
+        var field = rect.parent as RectTransform;
+        if (field == null) { return false; }
+        Vector2 center = AnchorLocal(field);
+        Vector2 half = rect.rect.size * 0.5f;
+        return Mathf.Abs(fieldLocal.x - center.x) <= half.x && Mathf.Abs(fieldLocal.y - center.y) <= half.y;
     }
 
     // 앵커(0~1)가 가리키는 점의 필드 로컬 좌표. anchoredPosition은 이 점 기준 오프셋이다

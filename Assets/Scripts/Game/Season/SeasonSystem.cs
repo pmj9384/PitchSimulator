@@ -465,7 +465,49 @@ public class SeasonSystem : ISaveLoad
         GameDataManager.Instance.PlayerAccountData.AddCoins(ScoutRules.CoinsFor(myResult, SeasonState.MyTeamId));
     }
 
-    // 배치(스펙 §8, 10-08): 전술 화면 필드에서 칩을 끌어 놓은 편성 자리. 규칙은 SeasonState가 정한다
+    // ── 슬롯 격자(10-25~26). 규칙(역할군·GK 슬롯·없는 id)은 SeasonState가 정하고 여기는 앞뒤만
+
+    public void SetFormations(string attackFormationId, string defenseFormationId)
+    {
+        ThrowIfReporting();
+        State.SetFormations(attackFormationId, defenseFormationId, FormationTemplateRepository.All);
+        CommitMyTactics();
+    }
+
+    // 전술판에서 칩을 다른 칩 위에 놓았을 때. 바꿀 수 있는지는 PitchView가 CanSwapLineupSlots로 먼저 본다
+    public void SwapLineupSlots(int playerA, int playerB, bool defending)
+    {
+        ThrowIfReporting();
+        State.SwapLineupSlots(playerA, playerB, defending, FormationTemplateRepository.All);
+        CommitMyTactics();
+    }
+
+    public void SetDefenseRole(int playerId, string defenseRoleId)
+    {
+        ThrowIfReporting();
+        State.SetDefenseRole(playerId, defenseRoleId, DefenseRoleRepository.All);
+        CommitMyTactics();
+    }
+
+    // 저장 전술 칸(TacticLibrary.SlotName). 지금 세팅을 그 칸에 뜬다. 같은 칸은 덮어쓴다(확인은 화면이 두 번 누르기로)
+    public void SaveTacticSlot(int slotIndex)
+    {
+        ThrowIfReporting();
+        Library.Put(State.SnapshotTactic(TacticLibrary.SlotName(slotIndex)));
+        SaveLoadSystem.Instance.Save();
+    }
+
+    // 칸의 전술을 입힌다. 빈 칸이면 아무 일도 없다(화면이 버튼을 꺼 두지만 조용히 틀리지 않게)
+    public void LoadTacticSlot(int slotIndex)
+    {
+        ThrowIfReporting();
+        SavedTactic tactic = Library.Find(TacticLibrary.SlotName(slotIndex));
+        if (tactic == null) { return; }
+        State.ApplyTactic(tactic, FormationTemplateRepository.All, DefenseRoleRepository.All, TeamTacticsRepository.All);
+        CommitMyTactics();
+    }
+
+    // 배치(스펙 §8, 10-08): 전술 화면 필드에서 칩을 끌어 놓은 편성 자리. 규칙은 SeasonState가 정한다. 10-26 전술판이 격자로 바뀌어 호출처가 없다(④에서 접음)
     public void MoveLineupSlot(int playerId, bool defending, float x, float z)
     {
         ThrowIfReporting();

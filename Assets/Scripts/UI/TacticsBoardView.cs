@@ -1,14 +1,15 @@
 using UnityEngine;
 
-// 전술 화면 전체: 위 탭 [팀 전술][개인 전술][스쿼드] + 왼쪽 패널 + 오른쪽 필드(선발 11명). FM·EA FC·FC 온라인 전술 화면 구조를 따랐다(09-30 유저 지시).
+// 전술 화면 전체: 위 탭 [팀 전술][개인 전술][스쿼드][포메이션] + 왼쪽 패널 + 오른쪽 필드(선발 11명). FM·EA FC·FC 온라인 전술 화면 구조를 따랐다(09-30 유저 지시).
 // [팀 전술](10-21, 목업 4번 보드)은 오른쪽이 필드가 아니라 서드 표라 그 탭에서만 필드를 숨긴다. 844×390 가로 폰에 입구·표·필드 세 열이 안 들어간다.
-// [스쿼드](10-19)는 벤치 ↔ 선발 교체와 방출. 필드에서 고른 선발이 교체 대상이다
+// [스쿼드](10-19)는 벤치 ↔ 선발 교체와 방출. 필드에서 고른 선발이 교체 대상이다.
+// [포메이션](10-26 슬롯 격자 ②)은 공격·수비 포메이션 고르기와 저장 전술 5칸. 고르면 필드 격자가 그 모양으로 바뀐다
 // 로비 전술 화면(TacticsScreen)이 쓴다. 10-13까지는 경기 직전 세팅 화면도 같은 프리팹을 썼는데, 세팅을 로비 매치데이 허브로 모으며(스펙 §2-1) 그 화면을 뺐다.
 // 여기의 몫은 조각을 잇는 것뿐이다: 세 패널과 필드는 서로를 모른다. 전술이나 개인 지시가 바뀌면 필드를 다시 그리라고 전하고,
 // 필드에서 선수를 고르면 개인 전술 패널을 그 선수로 바꾸고 그 탭을 연다
 public class TacticsBoardView : MonoBehaviour
 {
-    private const int TeamTab = 0;   // tabs의 순서: 0 = 팀 전술, 1 = 개인 전술, 2 = 스쿼드
+    private const int TeamTab = 0;   // tabs의 순서: 0 = 팀 전술, 1 = 개인 전술, 2 = 스쿼드, 3 = 포메이션
     private const int PlayerTab = 1;
     private const int SquadTab = 2;
 
@@ -16,6 +17,7 @@ public class TacticsBoardView : MonoBehaviour
     [SerializeField] private TeamTacticsPanel teamPanel;
     [SerializeField] private PlayerTacticsPanel playerPanel;
     [SerializeField] private SquadPanel squadPanel;
+    [SerializeField] private FormationPanel formationPanel;
     [SerializeField] private PitchView pitch;
 
     private bool initialized;
@@ -32,9 +34,12 @@ public class TacticsBoardView : MonoBehaviour
             playerPanel.Changed += OnTacticsChanged;
             squadPanel.Changed += OnTacticsChanged;
             squadPanel.StarterSwapped += OnStarterSwapped;
+            formationPanel.Changed += OnFormationChanged;
             pitch.PlayerSelected += OnPlayerSelected;
+            pitch.Changed += OnSlotsSwapped;
         }
         teamPanel.Refresh();
+        formationPanel.Refresh();
         ShowPitch(tabs.SelectedIndex);
         pitch.Refresh();
         if (pitch.SelectedPlayerId != PitchView.NoPlayer) { playerPanel.Show(pitch.SelectedPlayerId); }
@@ -45,6 +50,20 @@ public class TacticsBoardView : MonoBehaviour
     private void OnTacticsChanged()
     {
         pitch.Refresh();
+    }
+
+    // 포메이션·저장 전술을 입히면 격자(필드), 팀 전술 카드(팀 전술 패널), 고른 선수의 역할 표시(개인 전술 패널)가 다 달라질 수 있다
+    private void OnFormationChanged()
+    {
+        pitch.Refresh();
+        teamPanel.Refresh();
+        if (pitch.SelectedPlayerId != PitchView.NoPlayer) { playerPanel.Show(pitch.SelectedPlayerId); }
+    }
+
+    // 필드에서 슬롯을 바꾸면 포메이션 패널의 전환 거리 머리글이 달라진다
+    private void OnSlotsSwapped()
+    {
+        formationPanel.Refresh();
     }
 
     // 코드로 탭을 고를 때(Select)는 TabGroup이 알리지 않는다. 지금은 필드를 눌러 개인 탭으로 가는 길뿐이라 필드가 이미 보이는 상태다
