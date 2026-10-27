@@ -3,26 +3,32 @@ using System.Collections.Generic;
 using Game.Core.Data;
 using Game.Core.League;
 using UnityEngine;
+using UnityEngine.UI;
 
-// 전술 화면의 필드(09-30, FM·EA FC 전술 화면이 화면 절반을 필드로 쓰는 것을 따름). 내 11명을 칩으로 세운다.
+// 전술 화면의 필드(09-30, FM·EA FC 전술 화면이 화면 절반 넘게를 필드로 쓰는 것을 따름). 내 11명을 칩으로 세운다.
 // 공격할 때 / 수비할 때 탭은 각각 공격 포메이션·수비 포메이션의 격자다(10-26 슬롯 격자 ②, FM26 In/Out of Possession 모양 2장).
 // 칩은 미터 좌표가 아니라 격자(FormationGrid)에 선다: 10-08~25의 미터 그리기는 22m 폭 칩이 라인 간격 12~17m에 겹쳤다(10-25 유저 Play). 그래서 슬라이더·다이얼로 칩이 움직이는 표시도 없다(FM 격자와 같다).
-// 칩을 누르면 그 선수를 고른다(09-30 개인 전술). 칩을 다른 칩 위에 놓으면 둘의 슬롯을 바꾼다(공격 탭 = 공격 슬롯, 수비 탭 = 수비 슬롯). 못 바꾸면(역할군·GK 슬롯) 잠깐 빨갛게.
-// 10-08 자유 배치(끌어 놓은 자리를 미터로 저장)는 접었고 코어의 판정·저장 코드도 10-27 ④에서 지웠다
+// 10-27 ③b 조작은 탭만: 칩을 누르면 그 선수(가 선 슬롯)를 고르고, 같은 칩을 다시 누르거나 필드 빈 곳을 누르면 선택을 푼다. 교체는 자리 패널의 후보 목록이 한다(끌기는 뺐다).
+// 칩 글자: 공격 탭 = 공격 슬롯의 자리 + 슬롯 변형(선수의 자연 변형이 아니다, 10-27 슬롯 중심), 수비 탭 = 수비 슬롯의 자리 + 수비 역할.
+// 어긋남 "!" = SeasonState.WarningsOf(적성·역할군·전환 거리)가 None이 아닐 때. 자리 패널 경고와 같은 판정 한 곳
 public class PitchView : MonoBehaviour
 {
     private const int DefendPhase = 1;   // phaseTabs: 0 = 공격할 때, 1 = 수비할 때
-    public const int NoPlayer = -1;
+    public const int NoPlayer = SeasonState.NoPlayerId;
 
     [SerializeField] private PitchChip[] chips;   // 11개 고정(FormationTemplate.SlotCount). chips[i] = Lineup[i]
     [SerializeField] private TabGroup phaseTabs;
+    [SerializeField] private Button fieldButton;  // 필드 바탕. 빈 곳을 누르면 선택을 푼다(명단으로 돌아감)
 
-    // 칩을 눌러 선수를 고를 때(playerId). 전술 화면(TacticsBoardView)이 개인 전술 패널을 그 선수로 바꾼다
+    // 칩을 눌러 선수를 고를 때(playerId). 전술 화면(TacticsBoardView)이 자리 패널을 그 선수의 슬롯으로 바꾼다
     public event Action<int> PlayerSelected;
-    // 슬롯 교체 뒤. 포메이션 패널(전환 거리 머리글)이 듣는다
-    public event Action Changed;
+    // 빈 곳을 눌러 선택을 풀 때. 전술 화면이 명단을 보인다
+    public event Action Deselected;
+    // 공격/수비 탭을 바꿀 때. 자리 패널이 변형 쪽/수비 역할 쪽을 바꿔 보인다
+    public event Action PhaseChanged;
 
     public int SelectedPlayerId { get; private set; } = NoPlayer;
+    public bool Defending => phaseTabs.SelectedIndex == DefendPhase;
 
     private bool initialized;
 
@@ -47,83 +53,67 @@ public class PitchView : MonoBehaviour
         }
         phaseTabs.Initialize();
         phaseTabs.Selected += OnPhaseSelected;
+        fieldButton.onClick.AddListener(OnFieldClicked);
         for (int i = 0; i < chips.Length; i++)
         {
             chips[i].Initialize();
             chips[i].Clicked += OnChipClicked;
-            chips[i].Dropped += OnChipDropped;
         }
     }
 
-    // 놓은 자리에 다른 칩이 있으면 둘의 슬롯을 바꾼다. 빈 곳이면 제자리로. 성공이든 거부든 칩은 저장된 자리에 다시 선다
-    private void OnChipDropped(PitchChip chip, Vector2 local)
-    {
-        PitchChip target = ChipUnder(local, chip);
-        if (target != null) { TrySwap(chip, target); }
-        PlaceChips();
-    }
-
-    private PitchChip ChipUnder(Vector2 local, PitchChip except)
-    {
-        for (int i = 0; i < chips.Length; i++)
-        {
-            if (chips[i] == except || !chips[i].gameObject.activeSelf) { continue; }
-            if (chips[i].Covers(local)) { return chips[i]; }
-        }
-        return null;
-    }
-
-    private void TrySwap(PitchChip dragged, PitchChip target)
-    {
-        SeasonState state = State;
-        int a = state.Lineup[Array.IndexOf(chips, dragged)].PlayerId;
-        int b = state.Lineup[Array.IndexOf(chips, target)].PlayerId;
-        bool defending = Defending();
-        if (!state.CanSwapLineupSlots(a, b, defending, FormationTemplateRepository.All))
-        {
-            dragged.FlashRejected();
-            target.FlashRejected();
-            return;
-        }
-        GameDataManager.Instance.Season.SwapLineupSlots(a, b, defending);
-        Changed?.Invoke();
-    }
-
-    // 고른 선수가 라인업에 없으면(화면을 처음 열 때, 시즌이 바뀌어 선수 id가 달라졌을 때) 첫 선수를 고른다
+    // 고른 선수가 라인업에 없으면(시즌이 바뀌어 선수 id가 달라졌을 때) 선택을 푼다. 화면을 처음 열 때도 고른 선수 없음 = 명단부터
     private void KeepSelectionInLineup()
     {
+        if (SelectedPlayerId == NoPlayer) { return; }
         IReadOnlyList<LineupEntry> lineup = State.Lineup;
         for (int i = 0; i < lineup.Count; i++)
         {
             if (lineup[i].PlayerId == SelectedPlayerId) { return; }
         }
-        SelectedPlayerId = lineup.Count > 0 ? lineup[0].PlayerId : NoPlayer;
+        SelectedPlayerId = NoPlayer;
     }
 
-    // 코드가 고를 때(스쿼드 패널에서 교체로 들어온 선수). 알림은 안 쏜다: 부른 쪽이 이미 안다
+    // 코드가 고를 때(명단에서 선발을 눌렀을 때, 교체로 들어온 선수). 알림은 안 쏜다: 부른 쪽이 이미 안다
     public void Select(int playerId)
     {
         SelectedPlayerId = playerId;
-        KeepSelectionInLineup();   // 라인업 밖 id면 첫 선수로(Refresh와 같은 규칙)
+        KeepSelectionInLineup();
         PlaceChips();
     }
 
+    public void ClearSelection()
+    {
+        SelectedPlayerId = NoPlayer;
+        PlaceChips();
+    }
+
+    // 같은 칩을 다시 누르면 선택 해제(명단으로)
     private void OnChipClicked(PitchChip chip)
     {
         int index = Array.IndexOf(chips, chip);
-        SelectedPlayerId = State.Lineup[index].PlayerId;
+        int playerId = State.Lineup[index].PlayerId;
+        if (playerId == SelectedPlayerId)
+        {
+            ClearSelection();
+            Deselected?.Invoke();
+            return;
+        }
+        SelectedPlayerId = playerId;
         PlaceChips();
         PlayerSelected?.Invoke(SelectedPlayerId);
+    }
+
+    private void OnFieldClicked()
+    {
+        if (SelectedPlayerId == NoPlayer) { return; }
+        ClearSelection();
+        Deselected?.Invoke();
     }
 
     private void OnPhaseSelected(int _)
     {
         PlaceChips();
-    }
-
-    private bool Defending()
-    {
-        return phaseTabs.SelectedIndex == DefendPhase;
+        PhaseChanged?.Invoke();
     }
 
     // 탭의 포메이션 격자를 깔고, 각 선수를 자기 슬롯 칸에 세운다
@@ -131,8 +121,11 @@ public class PitchView : MonoBehaviour
     {
         SeasonState state = State;
         IReadOnlyList<LineupEntry> lineup = state.Lineup;
-        bool defending = Defending();
-        FormationTemplate template = FormationRules.Find(FormationTemplateRepository.All, defending ? state.DefenseFormationId : state.AttackFormationId);
+        IReadOnlyList<FormationTemplate> formations = FormationTemplateRepository.All;
+        bool defending = Defending;
+        FormationTemplate attack = FormationRules.Find(formations, state.AttackFormationId);
+        FormationTemplate defense = FormationRules.Find(formations, state.DefenseFormationId);
+        FormationTemplate template = defending ? defense : attack;
         (float u, float v)[] grid = FormationGrid.Layout(template, defending);
 
         for (int i = 0; i < chips.Length; i++)
@@ -142,17 +135,21 @@ public class PitchView : MonoBehaviour
             if (!hasPlayer) { continue; }
 
             LineupEntry entry = lineup[i];
-            PlayerStats stats = state.FindRosterPlayer(entry.PlayerId).Stats;
             (float u, float v) cell = grid[(defending ? entry.DefenseSlot : entry.AttackSlot) - 1];
-            string roleLabel = stats.RoleId;
-            string nameLabel = stats.DisplayName;
+            string roleLabel;
+            string nameLabel;
             if (defending)
             {
-                // 수비 탭은 선수의 공격 변형이 아니라 수비 모양의 자리와 수비 역할을 보인다(FM26 공격 역할 1 + 수비 역할 1, 10-27 유저 Play 지적)
-                roleLabel = FormationRules.SlotOf(template, entry.DefenseSlot).RoleId;
+                roleLabel = FormationRules.SlotOf(defense, entry.DefenseSlot).RoleId;
                 nameLabel = DefenseRoleRepository.Get(state.Slots.DefenseRoleOf(entry.DefenseSlot)).DisplayName;
             }
-            chips[i].Show(roleLabel, nameLabel, new Vector2(cell.u, cell.v), entry.PlayerId == SelectedPlayerId);
+            else
+            {
+                roleLabel = FormationRules.SlotOf(attack, entry.AttackSlot).RoleId;
+                nameLabel = state.SlotVariantOf(entry.AttackSlot, PlayerTableRepository.All).DisplayName;
+            }
+            bool warn = state.WarningsOf(entry.PlayerId, formations, PlayerTableRepository.All) != LineupWarning.None;
+            chips[i].Show(roleLabel, nameLabel, new Vector2(cell.u, cell.v), entry.PlayerId == SelectedPlayerId, warn);
         }
     }
 }

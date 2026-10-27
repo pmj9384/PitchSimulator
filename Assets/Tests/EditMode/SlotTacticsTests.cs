@@ -291,4 +291,32 @@ public class SlotTacticsTests
         Assert.Throws<System.InvalidOperationException>(() => good.SetVariant(FormationRules.SlotOf(f442, 2), "cb_centreback", table), "FB 슬롯에 CB 변형");
         Assert.Throws<System.InvalidOperationException>(() => good.SetInstruction(FormationRules.SlotOf(f442, 3), PlayerDial.ShotBias, 1), "CB 자리에 슛 성향");
     }
+
+    [Test]
+    public void 어긋남_판정은_적성_역할군_전환_거리_셋을_플래그로_돌려주고_슬롯_변형_조회는_표에서_읽는다()
+    {
+        // 10-27 ③b: 칩의 "!"와 자리 패널 경고가 같은 한 판정(SeasonState.WarningsOf)을 읽는다(리뷰 🟡: UI 두 곳에 따로 적혀 있었다)
+        SeasonState state = NewState();
+        int striker = state.Lineup[9].PlayerId;
+        Assert.AreEqual(LineupWarning.None, state.WarningsOf(striker, formations, table), "새 시즌 4-4-2는 전원 어긋남 없음");
+        Assert.AreEqual(state.FindRosterPlayer(striker).Stats.VariantId, state.SlotVariantOf(state.Lineup[9].AttackSlot, table).VariantId);
+
+        state.SetSlotVariant(state.Lineup[9].AttackSlot, "st_advanced", formations, table);
+        Assert.AreEqual(LineupWarning.Aptitude, state.WarningsOf(striker, formations, table), "슬롯 변형 ≠ 자연 변형");
+        Assert.AreEqual("st_advanced", state.SlotVariantOf(state.Lineup[9].AttackSlot, table).VariantId);
+
+        state.SetFormations("4-3-3", "5-3-2", formations, table);   // 4-4-2 W 한 명이 미드 칸에 어긋나 선다(ReseatSlots 3단계)
+        int mismatched = 0;
+        foreach (LineupEntry e in state.Lineup)
+        {
+            if ((state.WarningsOf(e.PlayerId, formations, table) & LineupWarning.RoleGroup) != 0) { mismatched++; }
+        }
+        Assert.AreEqual(1, mismatched, "역할군 어긋남은 포메이션 전환으로 생긴 한 명");
+        foreach (LineupEntry e in state.Lineup)
+        {
+            bool flagged = (state.WarningsOf(e.PlayerId, formations, table) & LineupWarning.FarTransition) != 0;
+            Assert.AreEqual(FormationRules.IsFarTransition(state.TransitionDistanceOf(e.PlayerId)), flagged, $"전환 거리 플래그는 IsFarTransition과 같은 문턱(선수 {e.PlayerId})");
+        }
+        Assert.Throws<System.InvalidOperationException>(() => state.WarningsOf(999, formations, table), "라인업에 없는 선수");
+    }
 }

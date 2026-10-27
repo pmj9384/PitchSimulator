@@ -47,6 +47,16 @@ namespace Game.Core.League
         }
     }
 
+    // 선발 한 명의 어긋남 종류(SeasonState.WarningsOf). 막지 않는다
+    [Flags]
+    public enum LineupWarning
+    {
+        None = 0,
+        Aptitude = 1,        // 슬롯 변형 ≠ 선수 자연 변형 → 다이얼이 중간값(LineupComposer)
+        RoleGroup = 2,       // 선수 자리 군 ≠ 공격 슬롯 자리 군(ReseatSlots 3단계로 어긋나 선 선수)
+        FarTransition = 4,   // 공격 자리 ↔ 수비 자리 15m 초과(MatchTuning.FormationTransitionWarnMeters)
+    }
+
     // 라인업 한 자리: 로스터 선수 id + 공격 포메이션 슬롯·수비 포메이션 슬롯(10-25 슬롯 격자) + 자리 2쌍(공격 시/수비 시).
     // 자리 2쌍은 포메이션·슬롯에서 파생한 캐시(SetFormations·SwapLineupSlots가 다시 채운다). 10-08 자유 배치는 10-27 ④에서 지웠다.
     // 수비 역할·공격 변형·지시는 여기 없다: 슬롯 번호의 것이라 SlotTactics가 든다(10-27. 선수 항목에 두면 칩을 바꿀 때 역할이 선수를 따라갔다)
@@ -81,6 +91,7 @@ namespace Game.Core.League
     public sealed class SeasonState
     {
         public const int MyTeamId = 0;
+        public const int NoPlayerId = -1;   // "고른 선수 없음"(전술판 선택·명단). 선수 id는 0부터라 겹치지 않는다
         public const string DefaultPresetId = "balanced";   // 09-26 세이브엔 프리셋이 없다 → 균형
         public const string DefaultFormationId = "4-4-2";   // 10-25 전 세이브·새 시즌의 공수 포메이션. StageComposition 기본 11명의 순서가 이 템플릿 슬롯 순서와 같다
 
@@ -480,7 +491,7 @@ namespace Game.Core.League
             lineup[b] = defending ? eb.WithDefense(slotA, xb, zb) : eb.WithAttack(slotA, xb, zb);
         }
 
-        // 전술판이 끌어 놓기 전에 묻는다(안 되면 칩을 빨갛게). Swap과 같은 판정 한 곳
+        // 전술판 자리 패널이 교체 후보 목록을 만들 때 묻는다(10-27 ③b). Swap과 같은 판정 한 곳
         public bool CanSwapLineupSlots(int playerA, int playerB, bool defending, IReadOnlyList<FormationTemplate> formations)
         {
             return SwapBlocker(playerA, playerB, defending, formations) == null;
@@ -536,6 +547,29 @@ namespace Game.Core.League
             if (tactic.CustomTactics != null) { SetMyTactics(tactic.CustomTactics, presets); }
         }
 
+        // 공격 슬롯에 설정된 변형(PlayerTable 행). 경기 조립(MyLineup)과 전술판(칩 글자·자리 패널)이 같은 조회를 쓴다. 표에 없으면 던진다(로드 때 SanitizeSlots가 고쳐 두므로 닿지 않는다)
+        public PlayerStats SlotVariantOf(int attackSlot, IReadOnlyList<PlayerStats> table)
+        {
+            string variantId = slots.AttackVariantOf(attackSlot);
+            PlayerStats? variant = PlayerTableLookup.FindVariant(table, variantId);
+            if (variant == null) { throw new InvalidOperationException($"[SeasonState] 공격 슬롯 {attackSlot}의 변형 {variantId}가 PlayerTable에 없다"); }
+            return variant;
+        }
+
+        // 선발 한 명의 어긋남(막지 않고 표시만, 스펙 §4-2·§8 10-27). 칩의 "!"와 자리 패널 경고가 이 한 판정을 읽는다:
+        // 적성(슬롯 변형 ≠ 자연 변형) · 역할군(선수 자리 군 ≠ 공격 슬롯 자리 군, 포메이션 전환 재착석으로 생김) · 전환 거리(공수 자리 15m 초과)
+        public LineupWarning WarningsOf(int playerId, IReadOnlyList<FormationTemplate> formations, IReadOnlyList<PlayerStats> table)
+        {
+            LineupEntry e = lineup[LineupIndexOf(playerId)];
+            PlayerStats player = FindRosterPlayer(playerId).Stats;
+            FormationSlot attackSlot = FormationRules.SlotOf(AttackTemplate(formations), e.AttackSlot);
+            LineupWarning warnings = LineupWarning.None;
+            if (!LineupComposer.IsNatural(player, SlotVariantOf(e.AttackSlot, table))) { warnings |= LineupWarning.Aptitude; }
+            if (!RoleGroups.SameGroup(player.RoleId, attackSlot.RoleId)) { warnings |= LineupWarning.RoleGroup; }
+            if (FormationRules.IsFarTransition(TransitionDistanceOf(playerId))) { warnings |= LineupWarning.FarTransition; }
+            return warnings;
+        }
+
         // 선발의 공격 자리·수비 자리 거리. 전술판 경고(FormationRules.IsFarTransition)의 재료
         public float TransitionDistanceOf(int playerId)
         {
@@ -572,9 +606,7 @@ namespace Game.Core.League
             {
                 LineupEntry e = lineup[i];
                 RosterPlayer player = FindRosterPlayer(e.PlayerId);
-                string variantId = slots.AttackVariantOf(e.AttackSlot);
-                PlayerStats? variant = PlayerTableLookup.FindVariant(table, variantId);
-                if (variant == null) { throw new InvalidOperationException($"[SeasonState] 공격 슬롯 {e.AttackSlot}의 변형 {variantId}가 PlayerTable에 없다"); }
+                PlayerStats variant = SlotVariantOf(e.AttackSlot, table);
                 DefenseRole? role = defenseRoles == null ? null : DefenseRoleParser.Find(defenseRoles, slots.DefenseRoleOf(e.DefenseSlot));
                 PlayerStats stats = LineupComposer.Compose(player.Stats, variant, slots.InstructionsOf(e.AttackSlot), role, table);
                 result.Add(new LineupSlot(stats, e.AttackX, e.AttackZ, e.DefendX, e.DefendZ, player.Portrait));

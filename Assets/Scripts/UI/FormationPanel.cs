@@ -6,7 +6,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-// 포메이션 패널(10-26 슬롯 격자 ②, FM26 In/Out of Possession 모양 2장). 전술 화면(TacticsBoardView)의 왼쪽, [포메이션] 탭.
+// 포메이션 패널(10-26 슬롯 격자 ②, FM26 In/Out of Possession 모양 2장). 전술 화면(TacticsBoardView)의 모달 2개([포메이션]·[저장 전술])의 내용을 한 컴포넌트가 든다(10-27 ③b).
 // ①공격할 때 모양 6개 중 하나 ②수비할 때 모양 6개 중 하나(★ = 공격 모양에서 평균 이동이 짧은 추천 3, FM26 어시스턴트 추천에 해당)
 // ③저장 전술 5칸(TacticLibrary.SlotName): [불러오기]는 그 칸의 공수 모양·슬롯별 수비 역할·팀 전술을 입히고, [저장]은 지금 세팅을 그 칸에 뜬다. 찬 칸에 저장은 두 번 눌러 확정(스쿼드 방출과 같은 꼴).
 // 규칙(없는 id 거부, 추천 순위, 칸 상한)은 전부 코어(SeasonState·FormationRules·TacticLibrary), 여기는 화면과 입력만. 값이 바뀌면 Changed만 쏜다
@@ -35,7 +35,7 @@ public class FormationPanel : MonoBehaviour
     [SerializeField] private Button[] saveButtons;
     [SerializeField] private TMP_Text[] saveLabels;     // "저장" → 찬 칸은 한 번 누르면 "덮어쓰기?"
 
-    // 포메이션이나 저장 전술을 입힌 뒤. 필드(격자)·팀 전술 패널·개인 전술 패널이 다시 그리려고 듣는다
+    // 포메이션이나 저장 전술을 입힌 뒤. 필드(격자)·팀 전술 패널·자리 패널이 다시 그리려고 듣는다
     public event Action Changed;
 
     private int pendingOverwrite = NoSlot;   // 두 번 눌러 확정할 저장 칸
