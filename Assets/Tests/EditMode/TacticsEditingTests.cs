@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using Game.Core.League;
 using Game.Core.Tactics;
 using NUnit.Framework;
 
@@ -124,7 +125,7 @@ public class TacticsEditingTests
     }
 
     [Test]
-    public void 수비_라인은_같음_검증_복사_세이브에_들어가고_옛_세이브는_표준이다()
+    public void 수비_라인은_같음_검증_복사_세이브에_들어가고_세이브_DTO_초기값은_표준이다()
     {
         TeamTactics a = Card("balanced");
         TeamTactics b = TacticsEditing.Copy(a);
@@ -134,9 +135,9 @@ public class TacticsEditingTests
         b.DefenseLine = 3;
         Assert.Throws<InvalidOperationException>(() => TacticsEditing.Validate(b));
 
-        var saved = Game.Core.League.SeasonSave.TacticsValues.From(a);
+        var saved = SeasonSave.TacticsValues.From(a);
         Assert.AreEqual(1, saved.defenseLine);
-        var old = new Game.Core.League.SeasonSave.TacticsValues { passStyle = (int[])a.PassStyle.Clone(), passRisk = (int[])a.PassRisk.Clone(), tempo = (int[])a.Tempo.Clone(), width = (int[])a.Width.Clone(), pressStart = (int[])a.PressStart.Clone() };
-        Assert.AreEqual(1, old.ToTactics("balanced").DefenseLine, "10-27 전 세이브엔 필드가 없어 초기값 표준");
+        var old = new SeasonSave.TacticsValues { passStyle = (int[])a.PassStyle.Clone(), passRisk = (int[])a.PassRisk.Clone(), tempo = (int[])a.Tempo.Clone(), width = (int[])a.Width.Clone(), pressStart = (int[])a.PressStart.Clone() };
+        Assert.AreEqual(1, old.ToTactics("balanced").DefenseLine, "DTO 초기값이 표준. 옛 세이브(필드 없음)는 Json.NET이 기본 생성자 뒤 있는 필드만 채우므로 같은 값(SaveLoadSystem 설정은 Formatting뿐). Json 경로 자체는 테스트 어셈블리가 Newtonsoft를 참조하지 않아 여기선 안 거친다");
     }
 }

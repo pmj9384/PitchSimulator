@@ -60,7 +60,7 @@ namespace Game.Core.Match
         // GK가 지키는 라인 x = 수비 시 자리의 x. 시뮬의 닿음 판정(KeeperCanReachShot)과 트리의 이동(MoveToShotLine)이 이 한 함수를 써서 같은 점을 본다(10-25)
         public static float KeeperLineX(float defendHomeX, float defendHomeZ, int attackSign, float lineHeight)
         {
-            return DefendHome(defendHomeX, defendHomeZ, attackSign, lineHeight, TeamLineOffset(0, goalkeeper: true)).x;
+            return DefendHome(defendHomeX, defendHomeZ, attackSign, lineHeight, 0f).x;   // GK엔 팀 수비 라인 오프셋이 없다(TeamLineOffset이 GK면 0을 주는 것과 같은 점)
         }
 
         // 공 지향 슬라이드 두 가지(09-21 유저 "자리가 완전 고정은 아닌 것 같다"). 공 좌표 기준이라 팀 부호가 필요 없다. 결과는 필드 안으로 클램프.

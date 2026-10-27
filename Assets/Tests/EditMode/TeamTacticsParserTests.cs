@@ -52,8 +52,8 @@ public class TeamTacticsParserTests
         Assert.AreEqual(2, pressing.CounterPress);
         Assert.AreEqual(2, pressing.DefenseLine, "압박 축구는 라인을 높게");
         Assert.AreEqual(0, counter.DefenseLine, "역습 축구는 깊게");
-        Assert.AreEqual(1, list[0].DefenseLine);
-        Assert.AreEqual(1, list[1].DefenseLine);
+        Assert.AreEqual(1, list[0].DefenseLine, "빌드업은 표준");
+        Assert.AreEqual(1, list[1].DefenseLine, "균형은 표준");
     }
 
     [Test]
