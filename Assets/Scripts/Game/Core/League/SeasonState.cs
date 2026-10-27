@@ -8,19 +8,19 @@ using Game.Core.Tactics;
 
 namespace Game.Core.League
 {
-    // 내 선수 개체(스펙 §11): 라인업은 빌드·다이얼을 인라인하지 않고 이 개체를 id로 가리킨다. 스카우트 영입이 로스터에 개체를 더하는 일이 되게
+    // 내 선수 개체(스펙 §11): 라인업은 빌드·다이얼을 인라인하지 않고 이 개체를 id로 가리킨다. 스카우트 영입이 로스터에 개체를 더하는 일이 되게.
+    // 10-27 슬롯 중심: 선수는 빌드·자연 변형·★·초상만 든다. 역할·개인 지시는 자리(SlotTactics)의 것이다
     public sealed class RosterPlayer
     {
         public int PlayerId { get; }
-        public PlayerStats Stats { get; }   // 능력치(빌드) + 역할 값(다이얼). 개인 지시는 여기 안 들어 있다
-        public IReadOnlyList<int> Instructions => instructions;   // 개인 지시: 역할 값 기준 오프셋, PlayerDial 순서. 전부 0이면 역할 값 그대로
+        public PlayerStats Stats { get; }   // 능력치(빌드) + 자연 변형(데려올 때 들고 온 역할의 다이얼). 경기 값은 LineupComposer가 슬롯 설정과 합친다
         public int Stars { get; }   // 조합 특이성(ScoutRules.Stars). 기본 로스터는 1, 영입 선수는 판정 때 값. 방출 코인의 재료(스펙 §4-5 10-19)
         public int Portrait { get; } // 초상 번호(PortraitRules, 1~VariantCount). 영입 선수는 후보 때 본 얼굴, 기본 로스터·옛 세이브는 playerId로(10-21)
 
-        private readonly int[] instructions;
+        public string NaturalVariantId => Stats.VariantId;   // 적성의 기준(LineupComposer.IsNatural)
 
         // portrait를 안 주면(None) playerId로 정한다. 영입·복사 경로는 반드시 넘긴다 — 빠뜨리면 그 선수 얼굴이 바뀐다(PortraitTests가 잡는다)
-        public RosterPlayer(int playerId, PlayerStats stats, int[]? instructions = null, int stars = SquadRules.DefaultStars, int portrait = PortraitRules.None)
+        public RosterPlayer(int playerId, PlayerStats stats, int stars = SquadRules.DefaultStars, int portrait = PortraitRules.None)
         {
             if (stars < ScoutRules.MinStars || stars > ScoutRules.MaxStars) { throw new ArgumentOutOfRangeException(nameof(stars), $"[RosterPlayer] ★ {stars}"); }
             if (portrait != PortraitRules.None && !PortraitRules.IsValid(portrait)) { throw new ArgumentOutOfRangeException(nameof(portrait), $"[RosterPlayer] 초상 {portrait}"); }
@@ -28,43 +28,8 @@ namespace Game.Core.League
             Stats = stats;
             Stars = stars;
             Portrait = portrait == PortraitRules.None ? PortraitRules.Of(playerId) : portrait;
-            this.instructions = instructions == null ? new int[PlayerInstructions.DialCount] : (int[])instructions.Clone();
-            PlayerInstructions.Validate(this.instructions, stats);
         }
 
-        public bool HasInstructions
-        {
-            get
-            {
-                for (int i = 0; i < instructions.Length; i++)
-                {
-                    if (instructions[i] != 0) { return true; }
-                }
-                return false;
-            }
-        }
-
-        // 경기에 들어가는 값: 역할 값에 개인 지시를 얹은 것
-        public PlayerStats EffectiveStats()
-        {
-            return PlayerInstructions.Apply(Stats, instructions);
-        }
-
-        public int[] CopyInstructions()
-        {
-            return (int[])instructions.Clone();
-        }
-
-        // 불변 객체라 "하나만 바꾼 복사본"으로 고친다. 필드가 늘어도 호출부가 빠뜨릴 자리가 없게(10-19 리뷰: 생성자를 손으로 다시 부르다 ★을 빠뜨렸다)
-        public RosterPlayer WithStats(PlayerStats stats)
-        {
-            return new RosterPlayer(PlayerId, stats, instructions, Stars, Portrait);
-        }
-
-        public RosterPlayer WithInstructions(int[]? next)
-        {
-            return new RosterPlayer(PlayerId, Stats, next, Stars, Portrait);
-        }
     }
 
     // 스카우트 시도 기록: 어느 팀의 몇 번째 선수를 노렸고 됐나. 재시도 보정(같은 선수 횟수)과 후보 교체(성공한 자리만, ScoutPool)의 재료
@@ -82,35 +47,33 @@ namespace Game.Core.League
         }
     }
 
-    // 라인업 한 자리: 로스터 선수 id + 공격 포메이션 슬롯·수비 포메이션 슬롯·수비 역할(10-25 슬롯 격자) + 자리 2쌍(공격 시/수비 시).
-    // 자리 2쌍은 포메이션·슬롯에서 파생한 캐시(SetFormations·SwapLineupSlots가 다시 채운다). 10-08 자유 배치(끌어 놓은 좌표 저장)는 10-27 ④에서 지웠다
+    // 라인업 한 자리: 로스터 선수 id + 공격 포메이션 슬롯·수비 포메이션 슬롯(10-25 슬롯 격자) + 자리 2쌍(공격 시/수비 시).
+    // 자리 2쌍은 포메이션·슬롯에서 파생한 캐시(SetFormations·SwapLineupSlots가 다시 채운다). 10-08 자유 배치는 10-27 ④에서 지웠다.
+    // 수비 역할·공격 변형·지시는 여기 없다: 슬롯 번호의 것이라 SlotTactics가 든다(10-27. 선수 항목에 두면 칩을 바꿀 때 역할이 선수를 따라갔다)
     public readonly struct LineupEntry
     {
         public readonly int PlayerId;
         public readonly int AttackSlot;        // 공격 포메이션의 슬롯 1~11
         public readonly int DefenseSlot;       // 수비 포메이션의 슬롯 1~11
-        public readonly string DefenseRoleId;  // DefenseRoles.csv id
         public readonly float AttackX;
         public readonly float AttackZ;
         public readonly float DefendX;
         public readonly float DefendZ;
 
-        public LineupEntry(int playerId, int attackSlot, int defenseSlot, string defenseRoleId, float attackX, float attackZ, float defendX, float defendZ)
+        public LineupEntry(int playerId, int attackSlot, int defenseSlot, float attackX, float attackZ, float defendX, float defendZ)
         {
             PlayerId = playerId;
             AttackSlot = attackSlot;
             DefenseSlot = defenseSlot;
-            DefenseRoleId = string.IsNullOrEmpty(defenseRoleId) ? DefenseRole.DefaultId : defenseRoleId;
             AttackX = attackX;
             AttackZ = attackZ;
             DefendX = defendX;
             DefendZ = defendZ;
         }
 
-        public LineupEntry WithPlayer(int playerId) { return new LineupEntry(playerId, AttackSlot, DefenseSlot, DefenseRoleId, AttackX, AttackZ, DefendX, DefendZ); }
-        public LineupEntry WithAttack(int slot, float x, float z) { return new LineupEntry(PlayerId, slot, DefenseSlot, DefenseRoleId, x, z, DefendX, DefendZ); }
-        public LineupEntry WithDefense(int slot, float x, float z) { return new LineupEntry(PlayerId, AttackSlot, slot, DefenseRoleId, AttackX, AttackZ, x, z); }
-        public LineupEntry WithDefenseRole(string roleId) { return new LineupEntry(PlayerId, AttackSlot, DefenseSlot, roleId, AttackX, AttackZ, DefendX, DefendZ); }
+        public LineupEntry WithPlayer(int playerId) { return new LineupEntry(playerId, AttackSlot, DefenseSlot, AttackX, AttackZ, DefendX, DefendZ); }
+        public LineupEntry WithAttack(int slot, float x, float z) { return new LineupEntry(PlayerId, slot, DefenseSlot, x, z, DefendX, DefendZ); }
+        public LineupEntry WithDefense(int slot, float x, float z) { return new LineupEntry(PlayerId, AttackSlot, slot, AttackX, AttackZ, x, z); }
     }
 
     // 시즌 상태(스펙 §11 세이브 항목 그대로). 순수 C#: 엔진·파일을 모른다. 세이브 DTO(SeasonSave)와 왕복한다.
@@ -139,15 +102,17 @@ namespace Game.Core.League
         public IReadOnlyList<PlayoffResult> PlayoffResults => playoff;   // 승강전 결과. 정규 시즌 뒤에만 쌓인다. 옛 세이브는 비어 있음
         public IReadOnlyList<RosterPlayer> Roster => roster;
         public IReadOnlyList<LineupEntry> Lineup => lineup;
+        public SlotTactics Slots => slots;   // 읽기용. 바꾸는 건 SetSlotVariant·SetSlotInstruction·SetDefenseRole(포메이션 자리로 가려야 해서)
 
         private readonly List<MatchResult> results;
         private readonly List<PlayoffResult> playoff = new List<PlayoffResult>();
         private readonly List<ScoutTarget> scoutTargets = new List<ScoutTarget>();
         private readonly List<RosterPlayer> roster;
         private readonly List<LineupEntry> lineup;
+        private SlotTactics slots;
 
         public SeasonState(int tier, int seasonSeed, int generatorVersion, List<RosterPlayer> roster, List<LineupEntry> lineup,
-            List<MatchResult> results, int roundsPlayed, int scoutAttempts, string? myPresetId = null, TeamTactics? myCustomTactics = null)
+            List<MatchResult> results, int roundsPlayed, int scoutAttempts, string? myPresetId = null, TeamTactics? myCustomTactics = null, SlotTactics? slots = null)
         {
             MyPresetId = string.IsNullOrEmpty(myPresetId) ? DefaultPresetId : myPresetId!;
             if (myCustomTactics != null) { TacticsEditing.Validate(myCustomTactics); }
@@ -161,6 +126,7 @@ namespace Game.Core.League
             RoundsPlayed = roundsPlayed;
             ScoutAttempts = scoutAttempts;
             ValidateLineup();
+            this.slots = slots ?? SlotTactics.FromStarters(roster, lineup);   // 안 주면 선 선수의 변형이 슬롯 변형(새 시즌·10-27 전 세이브)
         }
 
         // 새 시즌: 내 로스터 11명은 편성 행(StageComposition의 player 쪽)에서 기본 변형으로 만든다. 선수 id는 0부터.
@@ -174,7 +140,7 @@ namespace Game.Core.League
             {
                 LineupSlot s = slots[i];
                 roster.Add(new RosterPlayer(i, s.Stats));
-                lineup.Add(new LineupEntry(i, i + 1, i + 1, DefenseRole.DefaultId, s.AttackX, s.AttackZ, s.DefendX, s.DefendZ));   // 편성 행 순서 = 4-4-2 슬롯 순서
+                lineup.Add(new LineupEntry(i, i + 1, i + 1, s.AttackX, s.AttackZ, s.DefendX, s.DefendZ));   // 편성 행 순서 = 4-4-2 슬롯 순서
             }
             return new SeasonState(tier, seasonSeed, TeamGenerator.Version, roster, lineup, new List<MatchResult>(), 0, 0, presetId);
         }
@@ -231,66 +197,70 @@ namespace Game.Core.League
             return SeasonRunner.FindPreset(presets, MyPresetId).DisplayName;
         }
 
-        // ── 개인 전술(09-30, 전술 화면에서 필드의 선수 칩을 눌러 정한다)
-        // 역할 변경: 같은 자리의 노출된 변형만. 지시 값(다이얼)은 새 역할 것으로, 능력치(빌드)는 그대로 둔다(스펙 축: 강화 없음, 목업 "스탯은 전술 창에 없다").
-        // 개인 지시는 역할 기준 오프셋이라 역할을 바꾸면 지운다(팀 전술에서 카드를 고르면 바꾼 값이 지워지는 것과 같은 규칙)
-        public void SetPlayerRole(int playerId, string variantId, IReadOnlyList<PlayerStats> table)
+        // ── 자리 설정(10-27 슬롯 중심. 09-30 개인 전술을 대체): 전술 화면에서 칩을 눌러 고른 **슬롯**의 공격 변형·지시·수비 역할을 정한다. 선수는 안 바뀐다
+        // 공격 변형: 그 슬롯 자리의 노출된 변형만(SlotTactics.SetVariant). 지시는 새 역할 것으로 지워진다
+        public void SetSlotVariant(int attackSlot, string variantId, IReadOnlyList<FormationTemplate> formations, IReadOnlyList<PlayerStats> table)
         {
-            int index = RosterIndex(playerId);
-            PlayerStats current = roster[index].Stats;
-            PlayerStats? variant = PlayerTableLookup.FindVariant(table, variantId);
-            if (variant == null) { throw new InvalidOperationException($"[SeasonState] PlayerTable에 없는 역할: {variantId}"); }
-            if (!PlayerTableLookup.IsAssignable(variant, current.RoleId))
-            {
-                throw new InvalidOperationException($"[SeasonState] 선수 {playerId}({current.RoleId})에게 줄 수 없는 역할: {variantId}(자리 {variant.RoleId}, 노출 {variant.Exposed})");
-            }
-            ApplyRole(index, variant);
+            slots.SetVariant(FormationRules.SlotOf(AttackTemplate(formations), attackSlot), variantId, table);
         }
 
-        // 역할을 바꾸고 개인 지시를 지운다. 받아도 되는지는 부르는 쪽이 정한다(새로 고를 땐 노출까지, 이월은 같은 자리만)
-        private void ApplyRole(int index, PlayerStats variant)
+        // 지시 한 칸. 범위 밖·그 자리에 해당 없는 다이얼이면 던지고 아무것도 안 바뀐다
+        public void SetSlotInstruction(int attackSlot, PlayerDial dial, int offset, IReadOnlyList<FormationTemplate> formations)
         {
-            PlayerStats next = variant.Clone();
-            CopyBuild(roster[index].Stats, next);
-            roster[index] = roster[index].WithStats(next).WithInstructions(null);   // 지시는 역할 기준 오프셋이라 역할이 바뀌면 지운다
+            slots.SetInstruction(FormationRules.SlotOf(AttackTemplate(formations), attackSlot), dial, offset);
         }
 
-        // 개인 지시 한 칸. 범위 밖·해당 없는 다이얼이면 던지고 아무것도 안 바뀐다(RosterPlayer 생성자가 검증)
-        public void SetPlayerInstruction(int playerId, PlayerDial dial, int offset)
+        public void ClearSlotInstructions(int attackSlot)
         {
-            int index = RosterIndex(playerId);
-            int[] next = roster[index].CopyInstructions();
-            next[(int)dial] = offset;
-            roster[index] = roster[index].WithInstructions(next);
+            slots.ClearInstructions(attackSlot);
         }
 
-        public void ClearPlayerInstructions(int playerId)
+        // 수비 슬롯의 수비 역할. 없는 id면 던진다(잘못된 id가 세이브에 들어가면 경기 조립 때에야 터진다)
+        public void SetDefenseRole(int defenseSlot, string defenseRoleId, IReadOnlyList<DefenseRole> roles)
         {
-            int index = RosterIndex(playerId);
-            roster[index] = roster[index].WithInstructions(null);
+            slots.SetDefenseRole(defenseSlot, defenseRoleId, roles);
         }
 
-        // 새 시즌의 로스터는 기본 편성에서 다시 만들어진다(SeasonFactory). 이전 시즌 선발을 **슬롯 번호**로 옮겨 온다: 새 선발 i ← 이전 라인업 슬롯 i에 서 있던 선수의 역할·개인 지시·★·자리 2쌍.
+        // 로드 뒤 한 번: 세이브·이행에서 온 슬롯 설정을 표와 자리에 맞게 고친다(SlotTactics.Sanitize). 고친 문장을 돌려준다(호출처가 경고로 알림)
+        public List<string> SanitizeSlots(IReadOnlyList<FormationTemplate> formations, IReadOnlyList<PlayerStats> table, IReadOnlyList<DefenseRole> roles)
+        {
+            return slots.Sanitize(AttackTemplate(formations), table, roles);
+        }
+
+        // 다음 시즌: 슬롯 설정을 그대로 이어 간다. 호출처가 같은 공수 포메이션 id로 SetFormations를 먼저 불러 자리가 같다
+        public void AdoptSlotTactics(SlotTactics previous)
+        {
+            slots = previous.Clone();
+        }
+
+        private FormationTemplate AttackTemplate(IReadOnlyList<FormationTemplate> formations)
+        {
+            return FormationRules.Find(formations, AttackFormationId);
+        }
+
+        // 새 시즌의 로스터는 기본 편성에서 다시 만들어진다(SeasonFactory). 이전 시즌 선발을 **슬롯 번호**로 옮겨 온다: 새 선발 i ← 이전 라인업 슬롯 i에 서 있던 선수의 자연 변형·★·초상·자리 2쌍.
         // 선수 id가 아니라 슬롯인 이유(10-19 스쿼드): 선발에 영입 선수(id ≥ 11)가 설 수 있어 id = 슬롯이 더는 성립하지 않는다.
-        // 공수 포메이션 id는 여기서 안 옮긴다: 호출처(SeasonSystem.StartNextSeason)가 이전 id로 SetFormations를 먼저 부른 뒤 이 메서드를 부른다(10-25 리뷰 🔴: 좌표만 이월하면 id와 어긋난다).
-        // 이전 역할이 표에서 사라졌거나 자리가 다르면 그 슬롯은 기본 역할로 둔다. 잠긴 역할은 옮긴다(업데이트로 잠겨도 쓰던 것은 남는다, PlayerTableLookup.IsSamePosition 주석).
-        // 배치(자리 2쌍)는 필드 규칙이 부와 무관해 그대로 유효하다. 벤치는 AdoptBench
+        // 공수 포메이션 id와 슬롯 설정은 여기서 안 옮긴다: 호출처(SeasonSystem.StartNextSeason)가 이전 id로 SetFormations → AdoptSlotTactics를 부른다(10-25 리뷰 🔴: 좌표만 이월하면 id와 어긋난다).
+        // 이전 변형이 표에서 사라졌거나 자리가 다르면 그 슬롯은 기본 변형으로 둔다. 잠긴 변형은 옮긴다(업데이트로 잠겨도 쓰던 것은 남는다, PlayerTableLookup.IsSamePosition 주석). 벤치는 AdoptBench
         public void AdoptStarters(IReadOnlyList<RosterPlayer> previousRoster, IReadOnlyList<LineupEntry> previousLineup, IReadOnlyList<PlayerStats> table)
         {
-            int slots = Math.Min(lineup.Count, previousLineup.Count);
-            for (int slot = 0; slot < slots; slot++)
+            int count = Math.Min(lineup.Count, previousLineup.Count);
+            for (int slot = 0; slot < count; slot++)
             {
                 LineupEntry previousEntry = previousLineup[slot];
                 RosterPlayer? previous = FindOrNull(previousRoster, previousEntry.PlayerId);
                 if (previous == null) { continue; }
                 int index = RosterIndex(lineup[slot].PlayerId);
-                lineup[slot] = previousEntry.WithPlayer(lineup[slot].PlayerId);   // 슬롯·수비 역할·자리 2쌍 전부 이월
+                lineup[slot] = previousEntry.WithPlayer(lineup[slot].PlayerId);   // 슬롯·자리 2쌍 이월
 
-                PlayerStats? variant = PlayerTableLookup.FindVariant(table, previous.Stats.VariantId);
-                if (variant == null) { continue; }
-                if (!PlayerTableLookup.IsSamePosition(variant, roster[index].Stats.RoleId)) { continue; }
-                ApplyRole(index, variant);
-                roster[index] = new RosterPlayer(roster[index].PlayerId, roster[index].Stats, previous.CopyInstructions(), previous.Stars, previous.Portrait);
+                PlayerStats? variant = PlayerTableLookup.FindVariant(table, previous.NaturalVariantId);
+                PlayerStats stats = roster[index].Stats;
+                if (variant != null && PlayerTableLookup.IsSamePosition(variant, stats.RoleId))
+                {
+                    stats = BuildScaler.Copy(variant);
+                    BuildScaler.CopyBuild(roster[index].Stats, stats);   // 빌드는 새 부의 기본값, 변형(다이얼·이름)은 이전 선수 것
+                }
+                roster[index] = new RosterPlayer(roster[index].PlayerId, stats, previous.Stars, previous.Portrait);
             }
         }
 
@@ -310,19 +280,6 @@ namespace Game.Core.League
                 if (lineup[i].PlayerId == playerId) { return i; }
             }
             return -1;
-        }
-
-        private static void CopyBuild(PlayerStats from, PlayerStats to)
-        {
-            to.Speed = from.Speed;
-            to.Stamina = from.Stamina;
-            to.Pass = from.Pass;
-            to.Shot = from.Shot;
-            to.Tackle = from.Tackle;
-            to.Positioning = from.Positioning;
-            to.Reflexes = from.Reflexes;
-            to.Handling = from.Handling;
-            to.Diving = from.Diving;
         }
 
         private int RosterIndex(int playerId)
@@ -413,7 +370,7 @@ namespace Game.Core.League
             return false;
         }
 
-        // 영입 = 벤치에 추가. 대상의 역할(변형)·다이얼을 가져오고 빌드는 내 총점(300)으로 재분배한다(강화 아님). 벤치가 차 있으면 던진다(화면이 먼저 막는다)
+        // 영입 = 벤치에 추가. 대상의 자연 변형(역할 다이얼)을 가져오고 빌드는 내 총점(300)으로 재분배한다(강화 아님). 벤치가 차 있으면 던진다(화면이 먼저 막는다)
         // portrait = 후보 때 보여 준 얼굴(PortraitRules.Of(팀, 번호)). 새 playerId로 다시 정하면 영입 순간 얼굴이 바뀐다
         public RosterPlayer AddToBench(PlayerStats scouted, int stars, int portrait)
         {
@@ -421,7 +378,7 @@ namespace Game.Core.League
             if (!FitsLineupRole(scouted)) { throw new InvalidOperationException($"[SeasonState] {scouted.RoleId} 자리가 내 라인업에 없다"); }
             PlayerStats incoming = BuildScaler.Copy(scouted);
             incoming = BuildScaler.Scale(incoming, PlayerStats.TotalPoints);
-            var player = new RosterPlayer(NextPlayerId(), incoming, null, stars, portrait);
+            var player = new RosterPlayer(NextPlayerId(), incoming, stars, portrait);
             roster.Add(player);
             return player;
         }
@@ -436,7 +393,7 @@ namespace Game.Core.League
             return released;
         }
 
-        // 선발 교체: 같은 자리(roleId)의 벤치 선수와 자리를 바꾼다. 자리 2쌍·편성 좌표는 슬롯에 남고 선수만 바뀐다. 개인 지시는 선수를 따라간다
+        // 선발 교체: 같은 자리(roleId)의 벤치 선수와 자리를 바꾼다. 자리 2쌍·편성 좌표·슬롯 설정(변형·지시·수비 역할)은 슬롯에 남고 선수만 바뀐다(10-27)
         public void SwapStarter(int starterId, int benchId)
         {
             int slot = IndexOfLineup(starterId);
@@ -457,7 +414,7 @@ namespace Game.Core.League
                 if (variant == null) { continue; }
                 if (!SquadRules.BenchHasRoom(BenchCount)) { return; }
                 if (!FitsLineupRole(variant)) { continue; }
-                roster.Add(new RosterPlayer(NextPlayerId(), BuildScaler.Copy(variant), null, previousBench[i].Stars, previousBench[i].Portrait));
+                roster.Add(new RosterPlayer(NextPlayerId(), BuildScaler.Copy(variant), previousBench[i].Stars, previousBench[i].Portrait));
             }
         }
 
@@ -473,9 +430,11 @@ namespace Game.Core.League
 
         // ── 슬롯 격자(10-25, FM26 공수 모양 2장). 좌표는 템플릿에서 파생해 LineupEntry에 캐시한다
 
-        // 공격·수비 포메이션을 고른다. 선수를 새 템플릿의 역할군이 맞는 슬롯에 다시 앉히고(FormationRules.ReseatSlots) 자리 2쌍을 그 슬롯 값으로 채운다. 없는 id면 던지고 아무것도 안 바뀐다
-        public void SetFormations(string attackFormationId, string defenseFormationId, IReadOnlyList<FormationTemplate> formations)
+        // 공격·수비 포메이션을 고른다. 선수를 새 템플릿의 역할군이 맞는 슬롯에 다시 앉히고(FormationRules.ReseatSlots) 자리 2쌍을 그 슬롯 값으로 채운다. 없는 id면 던지고 아무것도 안 바뀐다.
+        // 슬롯 설정은 자리가 바뀐 공격 슬롯만 기본 변형으로 돌아간다(SlotTactics.ResetAttackFor). 그래서 PlayerTable이 필요하다
+        public void SetFormations(string attackFormationId, string defenseFormationId, IReadOnlyList<FormationTemplate> formations, IReadOnlyList<PlayerStats> table)
         {
+            FormationTemplate previousAttack = AttackTemplate(formations);
             FormationTemplate attack = FormationRules.Find(formations, attackFormationId);
             FormationTemplate defense = FormationRules.Find(formations, defenseFormationId);
             var roleIds = new List<string>(lineup.Count);
@@ -492,6 +451,7 @@ namespace Game.Core.League
 
             AttackFormationId = attack.Id;
             DefenseFormationId = defense.Id;
+            slots.ResetAttackFor(previousAttack, attack, table);
             for (int i = 0; i < lineup.Count; i++)
             {
                 (float ax, float az) = FormationRules.Position(attack, newAttackSlots[i], defending: false);
@@ -555,44 +515,23 @@ namespace Game.Core.League
             return $"[SeasonState] GK 슬롯은 GK 슬롯과만 바꿀 수 있다 ({slotA.Slot} ↔ {slotB.Slot})";
         }
 
-        // 선발 한 명의 수비 역할. 없는 id면 던진다(잘못된 id가 세이브에 들어가면 경기 조립 때에야 터진다)
-        public void SetDefenseRole(int playerId, string defenseRoleId, IReadOnlyList<DefenseRole> roles)
-        {
-            if (DefenseRoleParser.Find(roles, defenseRoleId) == null) { throw new InvalidOperationException($"[SeasonState] 없는 수비 역할 id {defenseRoleId}"); }
-            int index = LineupIndexOf(playerId);
-            lineup[index] = lineup[index].WithDefenseRole(defenseRoleId);
-        }
+        // ── 저장 전술(10-25). 한 장 = 공수 포메이션 + 슬롯 설정(공격 변형·지시·수비 역할) + 팀 전술. 선수 배정은 안 담는다(SavedTactic 주석)
 
-        // ── 저장 전술(10-25). 한 장 = 공수 포메이션 + 수비 슬롯별 역할 + 팀 전술. 선수 배정은 안 담는다(SavedTactic 주석)
-
-        // 지금 세팅을 한 장으로 뜬다. 수비 역할은 선수가 아니라 그 선수가 선 수비 슬롯에 붙인다
         public SavedTactic SnapshotTactic(string name)
         {
-            var roles = new string[FormationTemplate.SlotCount];
-            for (int i = 0; i < roles.Length; i++) { roles[i] = DefenseRole.DefaultId; }
-            for (int i = 0; i < lineup.Count; i++)
-            {
-                roles[lineup[i].DefenseSlot - 1] = lineup[i].DefenseRoleId;
-            }
-            return new SavedTactic(name, AttackFormationId, DefenseFormationId, roles, MyPresetId, MyCustomTactics);
+            return new SavedTactic(name, AttackFormationId, DefenseFormationId, slots, MyPresetId, MyCustomTactics);
         }
 
-        // 저장 전술을 입힌다: 포메이션 2장(선수는 역할군 맞는 슬롯에 다시 앉음) → 각 선발이 선 수비 슬롯의 역할 → 팀 전술(카드, 바꾼 값). 선수 배정은 그대로.
-        // id 셋을 먼저 전부 확인한 뒤 바꾼다(10-26 리뷰 🟡): 중간에 던지면 포메이션만 바뀐 반쪽 상태가 남는다. 옛 세이브의 전술이 표에서 사라진 id를 들고 있을 때 닿는 경로
-        public void ApplyTactic(SavedTactic tactic, IReadOnlyList<FormationTemplate> formations, IReadOnlyList<DefenseRole> roles, IReadOnlyList<TeamTactics> presets)
+        // 저장 전술을 입힌다: 포메이션 2장(선수는 역할군 맞는 슬롯에 다시 앉음) → 슬롯 설정 통째로 → 팀 전술(카드, 바꾼 값). 선수 배정은 그대로.
+        // id를 먼저 전부 확인한 뒤 바꾼다(10-26 리뷰 🟡): 중간에 던지면 포메이션만 바뀐 반쪽 상태가 남는다. 옛 세이브의 전술이 표에서 사라진 id를 들고 있을 때 닿는 경로
+        public void ApplyTactic(SavedTactic tactic, IReadOnlyList<FormationTemplate> formations, IReadOnlyList<DefenseRole> roles, IReadOnlyList<TeamTactics> presets, IReadOnlyList<PlayerStats> table)
         {
-            FormationRules.Find(formations, tactic.AttackFormationId);
+            FormationTemplate attack = FormationRules.Find(formations, tactic.AttackFormationId);
             FormationRules.Find(formations, tactic.DefenseFormationId);
             SeasonRunner.FindPreset(presets, tactic.PresetId);
-            for (int slot = 1; slot <= FormationTemplate.SlotCount; slot++)
-            {
-                if (DefenseRoleParser.Find(roles, tactic.DefenseRoleOf(slot)) == null) { throw new InvalidOperationException($"[SeasonState] 저장 전술 {tactic.Name}의 수비 역할 id {tactic.DefenseRoleOf(slot)}가 표에 없다"); }
-            }
-            SetFormations(tactic.AttackFormationId, tactic.DefenseFormationId, formations);
-            for (int i = 0; i < lineup.Count; i++)
-            {
-                SetDefenseRole(lineup[i].PlayerId, tactic.DefenseRoleOf(lineup[i].DefenseSlot), roles);
-            }
+            tactic.Slots.Validate(attack, table, roles);
+            SetFormations(tactic.AttackFormationId, tactic.DefenseFormationId, formations, table);
+            slots = tactic.Slots.Clone();
             SetMyPreset(tactic.PresetId, presets);
             if (tactic.CustomTactics != null) { SetMyTactics(tactic.CustomTactics, presets); }
         }
@@ -624,25 +563,23 @@ namespace Game.Core.League
             throw new InvalidOperationException($"[SeasonState] 로스터에 없는 선수 id {playerId}");
         }
 
-        public IReadOnlyList<LineupSlot> MyLineup()
+        // 경기 조립 재료(10-27 슬롯 중심): 선수(빌드·자연 변형) + 그 선수가 선 공격 슬롯의 변형·지시 + 수비 슬롯의 수비 역할 → LineupComposer 한 곳.
+        // 수비 역할 표를 안 주면(러너·옛 테스트) 역할 배율은 안 얹는다
+        public IReadOnlyList<LineupSlot> MyLineup(IReadOnlyList<PlayerStats> table, IReadOnlyList<DefenseRole>? defenseRoles)
         {
-            return MyLineup(null);
-        }
-
-        // 경기 조립 재료. 수비 역할 표를 주면 압박 거리·라인 높이·이탈 반경을 그 역할로 덮는다(없으면 역할 값 + 개인 지시 그대로 = 기본 역할과 같다)
-        public IReadOnlyList<LineupSlot> MyLineup(IReadOnlyList<DefenseRole>? defenseRoles)
-        {
-            var slots = new List<LineupSlot>(lineup.Count);
+            var result = new List<LineupSlot>(lineup.Count);
             for (int i = 0; i < lineup.Count; i++)
             {
                 LineupEntry e = lineup[i];
                 RosterPlayer player = FindRosterPlayer(e.PlayerId);
-                PlayerStats stats = player.EffectiveStats();   // 역할 값 + 개인 지시
-                DefenseRole? role = defenseRoles == null ? null : DefenseRoleParser.Find(defenseRoles, e.DefenseRoleId);
-                if (role != null) { stats = role.Apply(stats); }
-                slots.Add(new LineupSlot(stats, e.AttackX, e.AttackZ, e.DefendX, e.DefendZ, player.Portrait));
+                string variantId = slots.AttackVariantOf(e.AttackSlot);
+                PlayerStats? variant = PlayerTableLookup.FindVariant(table, variantId);
+                if (variant == null) { throw new InvalidOperationException($"[SeasonState] 공격 슬롯 {e.AttackSlot}의 변형 {variantId}가 PlayerTable에 없다"); }
+                DefenseRole? role = defenseRoles == null ? null : DefenseRoleParser.Find(defenseRoles, slots.DefenseRoleOf(e.DefenseSlot));
+                PlayerStats stats = LineupComposer.Compose(player.Stats, variant, slots.InstructionsOf(e.AttackSlot), role, table);
+                result.Add(new LineupSlot(stats, e.AttackX, e.AttackZ, e.DefendX, e.DefendZ, player.Portrait));
             }
-            return slots;
+            return result;
         }
 
         public LeagueTable Table(int teamCount)
@@ -658,12 +595,21 @@ namespace Game.Core.League
             for (int i = 0; i < lineup.Count; i++) { FindRosterPlayer(lineup[i].PlayerId); }
         }
 
-        // ── 세이브 왕복. 로스터 선수는 variantId + 빌드 9개만 저장(다이얼은 PlayerTable에서 다시 읽는다. 스카우트가 빌드를 바꾸는 날을 위해 빌드는 저장)
+        // 10-27 전 세이브 이행: 공격 슬롯 i ← 그 슬롯에 선 선수의 변형(생성자가 FromStarters로 이미 채움)과 개인 지시(10칸 → 9칸), 수비 슬롯 j ← 라인업 항목의 수비 역할.
+        // 벤치 선수의 지시는 버린다(슬롯이 없다). 자리가 어긋난 변형·해당 없는 지시는 SeasonSystem.Load가 SanitizeSlots로 고친다. 이행은 SlotTacticsTests가 잠근다
+        private static SlotTactics LegacySlots(SeasonSave save, IReadOnlyList<LineupEntry> lineup)
+        {
+            SlotTacticsSave legacy = SlotTactics.FromStartersSave(save, lineup);
+            return SlotTactics.FromSave(legacy);
+        }
+
+        // ── 세이브 왕복. 로스터 선수는 variantId + 빌드 9개만 저장(다이얼은 PlayerTable에서 다시 읽는다. 스카우트가 빌드를 바꾸는 날을 위해 빌드는 저장). 슬롯 설정은 slotTactics
         public SeasonSave ToSave()
         {
             var save = new SeasonSave { tier = Tier, seasonSeed = SeasonSeed, generatorVersion = GeneratorVersion, roundsPlayed = RoundsPlayed, scoutAttempts = ScoutAttempts, myPresetId = MyPresetId, playoff = new List<SeasonSave.PlayoffEntry>() };
             save.attackFormation = AttackFormationId;
             save.defenseFormation = DefenseFormationId;
+            save.slotTactics = slots.ToSave();
             if (MyCustomTactics != null) { save.myTactics = SeasonSave.TacticsValues.From(MyCustomTactics); }
             save.scoutExtra = ScoutExtraAttempts;
             if (LastReadout != null) { save.lastReadout = SeasonSave.ReadoutEntry.From(LastReadout); }
@@ -687,7 +633,6 @@ namespace Game.Core.League
                 {
                     playerId = roster[i].PlayerId, variantId = s.VariantId,
                     build = new[] { s.Speed, s.Stamina, s.Pass, s.Shot, s.Tackle, s.Positioning, s.Reflexes, s.Handling, s.Diving },
-                    instructions = roster[i].HasInstructions ? roster[i].CopyInstructions() : null,
                     stars = roster[i].Stars,
                     portrait = roster[i].Portrait,
                 });
@@ -695,7 +640,7 @@ namespace Game.Core.League
             for (int i = 0; i < lineup.Count; i++)
             {
                 LineupEntry e = lineup[i];
-                save.lineup.Add(new SeasonSave.Slot { playerId = e.PlayerId, attackSlot = e.AttackSlot, defenseSlot = e.DefenseSlot, defenseRole = e.DefenseRoleId, attackX = e.AttackX, attackZ = e.AttackZ, defendX = e.DefendX, defendZ = e.DefendZ });
+                save.lineup.Add(new SeasonSave.Slot { playerId = e.PlayerId, attackSlot = e.AttackSlot, defenseSlot = e.DefenseSlot, attackX = e.AttackX, attackZ = e.AttackZ, defendX = e.DefendX, defendZ = e.DefendZ });
             }
             return save;
         }
@@ -724,7 +669,7 @@ namespace Game.Core.League
                 copy.Diving = p.build[8];
                 if (copy.BuildTotal != PlayerStats.TotalPoints) { throw new InvalidOperationException($"[SeasonState] 선수 {p.playerId} 빌드 합계가 {PlayerStats.TotalPoints}가 아니다({copy.BuildTotal}). 내 선수는 총점 고정(스펙 축: 강화 없음)"); }
                 int stars = p.stars == 0 ? SquadRules.DefaultStars : p.stars;   // 옛 세이브(10-19 전)엔 없어 0 = 기본 로스터
-                roster.Add(new RosterPlayer(p.playerId, copy, p.instructions, stars, p.portrait));   // 지시 칸 수·범위·★·초상 범위는 생성자가 검증한다. 초상 0(10-21 전)은 playerId로
+                roster.Add(new RosterPlayer(p.playerId, copy, stars, p.portrait));   // ★·초상 범위는 생성자가 검증한다. 초상 0(10-21 전)은 playerId로
             }
             var lineup = new List<LineupEntry>(save.lineup.Count);
             for (int i = 0; i < save.lineup.Count; i++)
@@ -734,7 +679,7 @@ namespace Game.Core.League
                 int attackSlot = s.attackSlot == 0 ? i + 1 : s.attackSlot;
                 int defenseSlot = s.defenseSlot == 0 ? i + 1 : s.defenseSlot;
                 if (attackSlot < 1 || attackSlot > FormationTemplate.SlotCount || defenseSlot < 1 || defenseSlot > FormationTemplate.SlotCount) { throw new InvalidOperationException($"[SeasonState] 선수 {s.playerId} 슬롯이 범위 밖이다({attackSlot}, {defenseSlot})"); }
-                lineup.Add(new LineupEntry(s.playerId, attackSlot, defenseSlot, s.defenseRole ?? DefenseRole.DefaultId, s.attackX, s.attackZ, s.defendX, s.defendZ));
+                lineup.Add(new LineupEntry(s.playerId, attackSlot, defenseSlot, s.attackX, s.attackZ, s.defendX, s.defendZ));
             }
             var results = new List<MatchResult>(save.results.Count);
             for (int i = 0; i < save.results.Count; i++)
@@ -747,6 +692,7 @@ namespace Game.Core.League
             state.ScoutExtraAttempts = save.scoutExtra;
             state.AttackFormationId = string.IsNullOrEmpty(save.attackFormation) ? DefaultFormationId : save.attackFormation!;     // 옛 세이브(10-25 전)엔 없어 4-4-2
             state.DefenseFormationId = string.IsNullOrEmpty(save.defenseFormation) ? DefaultFormationId : save.defenseFormation!;
+            state.slots = save.slotTactics != null ? SlotTactics.FromSave(save.slotTactics) : LegacySlots(save, state.lineup);   // 10-27 전 세이브는 선수의 변형·지시와 자리의 수비 역할을 슬롯으로 옮긴다(1회 이행)
             if (save.lastReadout != null) { state.LastReadout = save.lastReadout.ToSummaryOrNull(); }   // 옛 세이브(10-15 전)엔 없어 null = 아직 치른 경기 없음
             if (save.scoutTargets != null)   // 옛 세이브(10-12 전)엔 없어 null
             {
@@ -785,6 +731,7 @@ namespace Game.Core.League
         public ReadoutEntry? lastReadout;   // 지난 내 경기 실측 요약(10-15). 옛 세이브엔 없어 null
         public string? attackFormation;      // 10-25 슬롯 격자. 옛 세이브엔 없어 null → 4-4-2
         public string? defenseFormation;
+        public SlotTacticsSave? slotTactics;   // 10-27 슬롯 설정(공격 변형·지시·수비 역할). 옛 세이브엔 없어 null → 선수의 변형·지시, 라인업의 수비 역할로 1회 이행
 
         // 실측 요약. 서드 배열 3칸·설정 3칸·횟수 3개. 길이·범위는 TacticsReadoutSummary 생성자가 본다
         [Serializable] public sealed class ReadoutEntry
@@ -856,9 +803,9 @@ namespace Game.Core.League
         public sealed class Player
         {
             public int playerId;
-            public string variantId = string.Empty;   // 역할. 전술 화면에서 같은 자리 안에서 바꾼다
+            public string variantId = string.Empty;   // 자연 변형(데려올 때 들고 온 역할). 10-27부터 전술 화면이 바꾸는 건 슬롯 변형(slotTactics)이다
             public int[] build = Array.Empty<int>();
-            public int[]? instructions;               // 개인 지시 오프셋(PlayerDial 순서). 지시가 없으면 null, 옛 세이브에도 없어 null → 역할 값 그대로
+            public int[]? instructions;               // 10-27 전: 선수 개인 지시(10칸). 이제 쓰지 않고 옛 세이브 이행 때만 읽는다(slotTactics로)
             public int stars;                         // 10-19 추가. 옛 세이브엔 없어 0 → 기본 1
             public int portrait;                      // 10-21 추가. 초상 번호(PortraitRules). 옛 세이브엔 없어 0 → playerId로
         }
@@ -871,7 +818,7 @@ namespace Game.Core.League
             public float defendZ;
             public int attackSlot;          // 10-25 슬롯 격자. 옛 세이브엔 없어 0 → 라인업 순서(i+1)
             public int defenseSlot;
-            public string? defenseRole;     // 옛 세이브엔 없어 null → 기본 역할
+            public string? defenseRole;     // 10-27 전: 라인업 항목의 수비 역할. 이제 쓰지 않고 옛 세이브 이행 때만 읽는다(slotTactics로)
         }
 
         // 바꾼 팀 전술 값. 이름·설명은 기준 카드에서 다시 읽으므로 판정에 쓰는 값만 저장한다

@@ -77,17 +77,20 @@ public class PortraitTests
     }
 
     [Test]
-    public void 역할_변경_지시_설정_해제_이월을_거쳐도_초상은_남는다()
+    public void 선발_교체_슬롯_설정_이월을_거쳐도_초상은_남는다()
     {
+        // 10-27 슬롯 중심: 역할·지시는 슬롯 것이라 선수 객체를 다시 만들지 않는다. 선수를 다시 만드는 경로는 선발 교체와 이월뿐
         SeasonState state = SeasonState.NewSeason(4, 42, myRows, table);
         RosterPlayer recruit = state.AddToBench(OpponentPlayer("ST"), 3, portrait: 9);
         int id = recruit.PlayerId;
-        state.SetPlayerInstruction(id, PlayerDial.PushUp, 1);
+        int starterSt = -1;
+        foreach (LineupEntry e in state.Lineup)
+        {
+            if (state.FindRosterPlayer(e.PlayerId).Stats.RoleId == "ST") { starterSt = e.PlayerId; }
+        }
+        state.SwapStarter(starterSt, id);
         Assert.AreEqual(9, state.FindRosterPlayer(id).Portrait);
-        state.ClearPlayerInstructions(id);
-        Assert.AreEqual(9, state.FindRosterPlayer(id).Portrait);
-        List<PlayerStats> others = PlayerTableLookup.ExposedVariants(table, "ST");
-        state.SetPlayerRole(id, others[0].VariantId == recruit.Stats.VariantId ? others[1].VariantId : others[0].VariantId, table);
+        state.SwapStarter(id, starterSt);
         Assert.AreEqual(9, state.FindRosterPlayer(id).Portrait);
 
         SeasonState next = SeasonState.NewSeason(4, 43, myRows, table);

@@ -4,7 +4,8 @@ using Game.Core.Tactics;
 using NUnit.Framework;
 
 // 개인 지시(09-30, 스펙 §4-2 개인 전술·전술-기획 3-2)의 순수 판정: 역할 값 기준 5단(−2~+2) 오프셋.
-// 팀 슬라이더(카드 기준 오프셋)와 같은 구조다. 값 하나를 직접 고르지 않고 "역할보다 더/덜"을 고른다
+// 팀 슬라이더(카드 기준 오프셋)와 같은 구조다. 값 하나를 직접 고르지 않고 "역할보다 더/덜"을 고른다.
+// 10-27 슬롯 중심: 지시는 자리(슬롯)의 것이라 Apply는 던지지 않고 잘라내며, 자리별 보이는 다이얼 표(AppliesTo)와 옛 10칸 이행(FromLegacy)이 있다
 public class PlayerInstructionsTests
 {
     private static PlayerStats Winger()
@@ -64,30 +65,61 @@ public class PlayerInstructionsTests
     {
         PlayerStats role = Winger();
         Assert.AreEqual(1f, PlayerInstructions.Apply(role, Offsets(PlayerDial.Dribble, 2)).Dribble, 1e-4f, "드리블 성향 0.9 + 0.3은 1에서 자른다");
-        Assert.AreEqual(0f, PlayerInstructions.Apply(role, Offsets(PlayerDial.LineHeight, -2)).LineHeight, 1e-4f, "0 아래로 안 내려간다");
+        PlayerStats shortPress = Winger();
+        shortPress.PressRange = 2f;
+        Assert.AreEqual(0f, PlayerInstructions.Apply(shortPress, Offsets(PlayerDial.PressRange, -2)).PressRange, 1e-4f, "2 − 4는 0에서 자른다");
         Assert.AreEqual(0.9f, role.Dribble, "역할 값 원본은 그대로");
     }
 
     [Test]
     public void 칸_수가_다르거나_범위_밖이면_거부한다()
     {
-        Assert.Throws<InvalidOperationException>(() => PlayerInstructions.Validate(new int[3], Winger()));
-        Assert.Throws<InvalidOperationException>(() => PlayerInstructions.Validate(Offsets(PlayerDial.PushUp, 3), Winger()));
-        Assert.DoesNotThrow(() => PlayerInstructions.Validate(Offsets(PlayerDial.PushUp, -2), Winger()));
+        Assert.Throws<InvalidOperationException>(() => PlayerInstructions.Validate(new int[3], "W"));
+        Assert.Throws<InvalidOperationException>(() => PlayerInstructions.Validate(Offsets(PlayerDial.PushUp, 3), "W"));
+        Assert.DoesNotThrow(() => PlayerInstructions.Validate(Offsets(PlayerDial.PushUp, -2), "W"));
+        Assert.Throws<InvalidOperationException>(() => PlayerInstructions.Apply(Winger(), new int[3]), "Apply도 칸 수는 본다");
+        Assert.AreEqual(35f, PlayerInstructions.Apply(Winger(), Offsets(PlayerDial.PushUp, 7)).PushUp, 1e-4f, "Apply는 범위 밖을 +2로 잘라 쓴다(슬롯 지시가 다른 선수에게 얹힐 때 던지지 않는다)");
     }
 
     [Test]
     public void 골키퍼는_출격_반경만_필드_선수는_그것만_빼고_지시할_수_있다()
     {
-        Assert.IsTrue(PlayerInstructions.AppliesTo(PlayerDial.GkRushRadius, Keeper()));
-        Assert.IsFalse(PlayerInstructions.AppliesTo(PlayerDial.PushUp, Keeper()));
-        Assert.IsTrue(PlayerInstructions.AppliesTo(PlayerDial.PushUp, Winger()));
-        Assert.IsFalse(PlayerInstructions.AppliesTo(PlayerDial.GkRushRadius, Winger()));
+        Assert.IsTrue(PlayerInstructions.AppliesTo(PlayerDial.GkRushRadius, "GK"));
+        Assert.IsFalse(PlayerInstructions.AppliesTo(PlayerDial.PushUp, "GK"));
+        Assert.IsTrue(PlayerInstructions.AppliesTo(PlayerDial.PushUp, "W"));
+        Assert.IsFalse(PlayerInstructions.AppliesTo(PlayerDial.GkRushRadius, "W"));
 
-        Assert.Throws<InvalidOperationException>(() => PlayerInstructions.Validate(Offsets(PlayerDial.PushUp, 1), Keeper()));
+        Assert.Throws<InvalidOperationException>(() => PlayerInstructions.Validate(Offsets(PlayerDial.PushUp, 1), "GK"));
+        Assert.AreEqual(12f, PlayerInstructions.Apply(Keeper(), Offsets(PlayerDial.PushUp, 2)).GkRushRadius, 1e-4f, "해당 없는 다이얼은 Apply가 무시한다");
         Assert.AreEqual(14f, PlayerInstructions.Apply(Keeper(), Offsets(PlayerDial.GkRushRadius, 1)).GkRushRadius, 1e-4f, "출격 반경 한 칸 2m");
         PlayerStats sweeper = Keeper();
         sweeper.GkRushRadius = 16f;
         Assert.AreEqual(16.5f, PlayerInstructions.Apply(sweeper, Offsets(PlayerDial.GkRushRadius, 1)).GkRushRadius, 1e-4f, "16 + 2는 박스 깊이(16.5m)에서 자른다");
+    }
+
+    [Test]
+    public void 수비수는_슛_드리블_볼끌기가_없고_CB는_측면_쏠림도_없다()
+    {
+        // 레퍼런스 7절 (b): FM은 목록 하나에서 자리에 안 맞는 항목을 숨긴다. 값은 추정
+        Assert.IsFalse(PlayerInstructions.AppliesTo(PlayerDial.ShotBias, "CB"));
+        Assert.IsFalse(PlayerInstructions.AppliesTo(PlayerDial.Dribble, "FB"));
+        Assert.IsFalse(PlayerInstructions.AppliesTo(PlayerDial.HoldUp, "CB"));
+        Assert.IsFalse(PlayerInstructions.AppliesTo(PlayerDial.Width, "CB"), "CB는 커버 자리라 측면 쏠림 없음");
+        Assert.IsTrue(PlayerInstructions.AppliesTo(PlayerDial.Width, "FB"));
+        Assert.IsTrue(PlayerInstructions.AppliesTo(PlayerDial.PressRange, "CB"));
+        Assert.IsTrue(PlayerInstructions.AppliesTo(PlayerDial.ShotBias, "CM"));
+        Assert.IsTrue(PlayerInstructions.AppliesTo(PlayerDial.HoldUp, "ST"));
+        Assert.Throws<InvalidOperationException>(() => PlayerInstructions.Validate(Offsets(PlayerDial.ShotBias, 1), "CB"));
+    }
+
+    [Test]
+    public void 옛_10칸_지시는_라인_높이_칸을_버리고_9칸이_된다()
+    {
+        int[] legacy = { 1, 2, -1, 2, -2, 1, 0, 1, -1, 2 };   // 3번 칸(라인 높이 +2)을 버린다
+        CollectionAssert.AreEqual(new[] { 1, 2, -1, -2, 1, 0, 1, -1, 2 }, PlayerInstructions.FromLegacy(legacy));
+        CollectionAssert.AreEqual(new int[PlayerInstructions.DialCount], PlayerInstructions.FromLegacy(null), "없으면 0");
+        int[] current = Offsets(PlayerDial.HoldUp, 1);
+        CollectionAssert.AreEqual(current, PlayerInstructions.FromLegacy(current), "이미 9칸이면 그대로");
+        Assert.Throws<InvalidOperationException>(() => PlayerInstructions.FromLegacy(new int[4]));
     }
 }

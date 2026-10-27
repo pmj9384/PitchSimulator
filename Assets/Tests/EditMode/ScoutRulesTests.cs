@@ -122,6 +122,12 @@ public class ScoutRulesTests
         shot.VariantId = "st_test_shot";
         shot.ShotBias = baseline.ShotBias + PlayerInstructions.StepOf(PlayerDial.ShotBias) * 2f;   // 음수 칸(−0.05)도 절댓값으로 센다
         Assert.AreEqual(2f, ScoutRules.DialDistanceCells(shot, baseline), 0.001f);
+
+        // 10-27: 개인 지시 다이얼에서 라인 높이를 뺐지만 ★ 거리는 라인 높이를 그대로 센다. 스위퍼 키퍼(라인 높이 8·출격 16.5)는 6.25칸 = ★3이어야 한다(리뷰 🟡: 빼면 ★2로 떨어진다)
+        PlayerStats sweeper = PlayerTableLookup.FindVariant(table, "gk_sweeper");
+        PlayerStats keeper = TeamGenerator.DefaultVariant(table, "GK");
+        Assert.AreEqual(8f / ScoutRules.LineHeightStep + 4.5f / 2f + 0.2f / 0.1f, ScoutRules.DialDistanceCells(sweeper, keeper), 0.001f, "라인 높이 2칸 + 출격 반경 2.25칸 + 패스 리스크 2칸 = 6.25");
+        Assert.AreEqual(3, ScoutRules.Stars(sweeper, samePos, Tier(3), 3, table), "스위퍼 키퍼 ★3");
     }
 
     [Test]
@@ -214,7 +220,6 @@ public class ScoutRulesTests
         Assert.AreEqual(target.VariantId, added.Stats.VariantId, "역할(변형)을 가져온다");
         Assert.AreEqual(300, added.Stats.BuildTotal, "빌드는 내 총점으로");
         Assert.AreEqual(3, added.Stars, "판정 때의 ★을 적는다");
-        Assert.IsFalse(added.HasInstructions);
         Assert.AreEqual(260, target.BuildTotal, "상대 선수 객체는 안 바뀐다");
         Assert.AreEqual(11, state.Lineup.Count, "선발 11은 그대로");
 
@@ -248,7 +253,6 @@ public class ScoutRulesTests
         Assert.AreEqual(added.Stats.VariantId, carried.Stats.VariantId, "역할(변형)은 이어 간다");
         Assert.AreEqual(2, carried.Stars, "★도 이어 간다");
         Assert.AreEqual(defaultVariant.Speed, carried.Stats.Speed, "빌드는 그 역할의 기본값");
-        Assert.IsFalse(carried.HasInstructions);
     }
 
     [Test]

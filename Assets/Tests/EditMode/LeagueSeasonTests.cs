@@ -311,7 +311,7 @@ public class LeagueSeasonTests
             Assert.AreEqual(state.Lineup[i].PlayerId, back.Lineup[i].PlayerId);
             Assert.AreEqual(state.Lineup[i].DefendX, back.Lineup[i].DefendX, 1e-4f);
         }
-        Assert.AreEqual(11, back.MyLineup().Count);
+        Assert.AreEqual(11, back.MyLineup(table, null).Count);
     }
 
     [Test]

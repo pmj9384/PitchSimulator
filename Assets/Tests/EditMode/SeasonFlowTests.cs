@@ -28,6 +28,16 @@ public class SeasonFlowTests
         myRows = StageCompositionParser.Parse(File.ReadAllText("Assets/Resources/Tables/StageComposition.csv")).FindAll(r => r.Stage == 1 && r.Team == 0);
     }
 
+    private static int AttackSlotOf(SeasonState state, int playerId)
+    {
+        foreach (LineupEntry e in state.Lineup)
+        {
+            if (e.PlayerId == playerId) { return e.AttackSlot; }
+        }
+        Assert.Fail($"라인업에 없는 선수 {playerId}");
+        return -1;
+    }
+
     private static TierRule Tier(int tier)
     {
         return tiers.Find(t => t.Tier == tier);
@@ -65,10 +75,10 @@ public class SeasonFlowTests
         int sawAway = 0;
         for (int round = 0; round < tier.Matches; round++)
         {
-            MatchSetup setup = SeasonRunner.SetupMyMatch(state, opponents, schedule, presets, round);
+            MatchSetup setup = SeasonRunner.SetupMyMatch(state, opponents, schedule, presets, round, table);
             Assert.AreEqual(11, setup.Team0.Count, "팀 0 = 내 라인업");
             Assert.AreEqual(11, setup.Team1.Count, "팀 1 = 상대");
-            Assert.AreEqual(state.MyLineup()[0].Stats.VariantId, setup.Team0[0].Stats.VariantId);
+            Assert.AreEqual(state.MyLineup(table, null)[0].Stats.VariantId, setup.Team0[0].Stats.VariantId);
             Assert.AreEqual("balanced", setup.Tactics0.PresetId, "새 시즌 기본 프리셋");
             Assert.AreEqual(SeasonRunner.MatchSeed(5, setup.Fixture), setup.Seed);
             Assert.Less(KeeperX(setup.Team0), 0f, "나는 항상 -X 진영에서 시작");
@@ -111,7 +121,7 @@ public class SeasonFlowTests
         for (int round = 0; round < tier.Matches; round++)
         {
             Assert.IsFalse(SeasonProgress.IsOver(state, tier), $"라운드 {round} 전엔 안 끝남");
-            MatchSetup setup = SeasonRunner.SetupMyMatch(state, opponents, schedule, presets, round);
+            MatchSetup setup = SeasonRunner.SetupMyMatch(state, opponents, schedule, presets, round, table);
             SeasonRunner.PlayRound(state, opponents, schedule, presets, setup.ResultFor(2, 0));   // 내가 다 이긴 걸로
         }
 
@@ -129,7 +139,7 @@ public class SeasonFlowTests
         List<Fixture> schedule = SeasonSchedule.RoundRobin(tier.Teams);
         for (int round = 0; round < tier.Matches; round++)
         {
-            MatchSetup setup = SeasonRunner.SetupMyMatch(state, opponents, schedule, presets, round);
+            MatchSetup setup = SeasonRunner.SetupMyMatch(state, opponents, schedule, presets, round, table);
             SeasonRunner.PlayRound(state, opponents, schedule, presets, setup.ResultFor(0, 3));
         }
         Assert.AreEqual(4, SeasonProgress.NextTier(state, tier));
@@ -189,7 +199,7 @@ public class SeasonFlowTests
         SeasonState played = SeasonState.NewSeason(4, 7, myRows, table);
         List<GeneratedTeam> opponents = TeamGenerator.Generate(7, tier, table, formations, names);
         List<Fixture> schedule = SeasonSchedule.RoundRobin(tier.Teams);
-        MatchResult myResult = SeasonRunner.SetupMyMatch(computed, opponents, schedule, presets, 0).ResultFor(1, 0);
+        MatchResult myResult = SeasonRunner.SetupMyMatch(computed, opponents, schedule, presets, 0, table).ResultFor(1, 0);
 
         List<MatchResult> results = SeasonRunner.ComputeRound(computed.RoundsPlayed, computed.SeasonSeed, opponents, schedule, presets, myResult);
         Assert.AreEqual(0, computed.RoundsPlayed, "계산만 하고 라운드를 넘기지 않는다");
@@ -236,9 +246,9 @@ public class SeasonFlowTests
         List<GeneratedTeam> opponents = TeamGenerator.Generate(5, tier, table, formations, names);
         List<Fixture> schedule = SeasonSchedule.RoundRobin(tier.Teams);
 
-        MatchSetup before = SeasonRunner.SetupMyMatch(state, opponents, schedule, presets, 0);
+        MatchSetup before = SeasonRunner.SetupMyMatch(state, opponents, schedule, presets, 0, table);
         state.SetMyPreset("pressing", presets);
-        MatchSetup after = SeasonRunner.SetupMyMatch(state, opponents, schedule, presets, 0);
+        MatchSetup after = SeasonRunner.SetupMyMatch(state, opponents, schedule, presets, 0, table);
 
         Assert.AreEqual("balanced", before.Tactics0.PresetId);
         Assert.AreEqual("pressing", after.Tactics0.PresetId);
@@ -260,7 +270,7 @@ public class SeasonFlowTests
         TeamTactics balanced = SeasonRunner.FindPreset(presets, "balanced");
         TeamTactics edited = TacticsEditing.ApplySlider(balanced, balanced, TacticSlider.Speed, 1);
         state.SetMyTactics(edited, presets);
-        MatchSetup setup = SeasonRunner.SetupMyMatch(state, opponents, schedule, presets, 0);
+        MatchSetup setup = SeasonRunner.SetupMyMatch(state, opponents, schedule, presets, 0, table);
         CollectionAssert.AreEqual(new[] { 1, 2, 2 }, setup.Tactics0.Tempo, "표로 바꾼 속도가 경기에");
         Assert.AreEqual("balanced", state.MyPresetId, "기준 카드는 그대로");
 
@@ -354,30 +364,34 @@ public class SeasonFlowTests
     }
 
     [Test]
-    public void 역할을_바꾸면_지시_값은_새_역할_것이고_능력치는_그대로며_개인_지시는_지워진다()
+    public void 슬롯_역할을_바꾸면_경기_값은_새_역할_것이고_선수_빌드는_그대로며_슬롯_지시는_지워진다()
     {
+        // 10-27 슬롯 중심: 역할·지시는 선수가 아니라 공격 슬롯의 것. 선수 객체(자연 변형·빌드)는 안 바뀐다
         SeasonState state = SeasonState.NewSeason(4, 42, myRows, table);
         int striker = FirstPlayerOfRole(state, "ST");
+        int slot = AttackSlotOf(state, striker);
         PlayerStats before = state.FindRosterPlayer(striker).Stats;
-        state.SetPlayerInstruction(striker, PlayerDial.PressRange, 2);
+        state.SetSlotInstruction(slot, PlayerDial.PressRange, 2, formations);
 
-        state.SetPlayerRole(striker, "st_advanced", table);
+        state.SetSlotVariant(slot, "st_advanced", formations, table);
 
-        RosterPlayer after = state.FindRosterPlayer(striker);
         PlayerStats advanced = PlayerTableLookup.FindVariant(table, "st_advanced")!;
-        Assert.AreEqual("st_advanced", after.Stats.VariantId);
-        Assert.AreEqual(advanced.HoldUp, after.Stats.HoldUp, "지시 값은 새 역할 것");
-        Assert.AreEqual(before.Shot, after.Stats.Shot, "능력치는 그대로(스탯은 전술 창에서 안 바뀐다)");
-        Assert.AreEqual(before.Speed, after.Stats.Speed);
-        Assert.IsFalse(after.HasInstructions, "개인 지시는 역할 기준이라 역할을 바꾸면 지워진다");
+        Assert.AreEqual("st_advanced", state.Slots.AttackVariantOf(slot));
+        Assert.AreEqual(before.VariantId, state.FindRosterPlayer(striker).Stats.VariantId, "선수의 자연 변형은 그대로");
+        Assert.IsFalse(state.Slots.HasInstructions(slot), "슬롯 지시는 역할 기준이라 역할을 바꾸면 지워진다");
+        LineupSlot composed = state.MyLineup(table, null)[striker];
+        Assert.AreEqual(before.Shot, composed.Stats.Shot, "능력치는 선수 것 그대로(스탯은 전술 창에서 안 바뀐다)");
+        Assert.AreEqual(before.Speed, composed.Stats.Speed);
+        PlayerStats baseline = TeamGenerator.DefaultVariant(table, "ST");
+        Assert.AreEqual((advanced.HoldUp + baseline.HoldUp) * 0.5f, composed.Stats.HoldUp, 1e-4f, "자연 변형이 아니면 다이얼은 기본 변형과의 중간값(적성)");
     }
 
     [Test]
     public void 다른_자리_역할과_없는_역할과_잠긴_역할은_거부한다()
     {
         SeasonState state = SeasonState.NewSeason(4, 42, myRows, table);
-        int striker = FirstPlayerOfRole(state, "ST");
-        string original = state.FindRosterPlayer(striker).Stats.VariantId;
+        int slot = AttackSlotOf(state, FirstPlayerOfRole(state, "ST"));
+        string original = state.Slots.AttackVariantOf(slot);
 
         var withLocked = new List<PlayerStats>(table);
         PlayerStats locked = BuildScaler.Copy(PlayerTableLookup.FindVariant(table, "st_poacher")!);
@@ -385,74 +399,82 @@ public class SeasonFlowTests
         locked.Exposed = false;
         withLocked.Add(locked);
 
-        Assert.Throws<System.InvalidOperationException>(() => state.SetPlayerRole(striker, "cb_centreback", table), "다른 자리");
-        Assert.Throws<System.InvalidOperationException>(() => state.SetPlayerRole(striker, "no_such_role", table), "없는 역할");
-        Assert.Throws<System.InvalidOperationException>(() => state.SetPlayerRole(striker, "st_locked_test", withLocked), "잠긴 역할");
-        Assert.AreEqual(original, state.FindRosterPlayer(striker).Stats.VariantId, "거부하면 아무것도 안 바뀐다");
+        Assert.Throws<System.InvalidOperationException>(() => state.SetSlotVariant(slot, "cb_centreback", formations, table), "다른 자리");
+        Assert.Throws<System.InvalidOperationException>(() => state.SetSlotVariant(slot, "no_such_role", formations, table), "없는 역할");
+        Assert.Throws<System.InvalidOperationException>(() => state.SetSlotVariant(slot, "st_locked_test", formations, withLocked), "잠긴 역할");
+        Assert.AreEqual(original, state.Slots.AttackVariantOf(slot), "거부하면 아무것도 안 바뀐다");
     }
 
     [Test]
-    public void 개인_지시는_경기에_들어가고_세이브를_왕복하며_시드는_그대로다()
+    public void 슬롯_지시는_경기에_들어가고_세이브를_왕복하며_시드는_그대로다()
     {
         TierRule tier = Tier(4);
         SeasonState state = SeasonState.NewSeason(4, 5, myRows, table);
         List<GeneratedTeam> opponents = TeamGenerator.Generate(5, tier, table, formations, names);
         List<Fixture> schedule = SeasonSchedule.RoundRobin(tier.Teams);
         int striker = FirstPlayerOfRole(state, "ST");
+        int slot = AttackSlotOf(state, striker);
         float rolePress = state.FindRosterPlayer(striker).Stats.PressRange;
-        MatchSetup before = SeasonRunner.SetupMyMatch(state, opponents, schedule, presets, 0);
+        MatchSetup before = SeasonRunner.SetupMyMatch(state, opponents, schedule, presets, 0, table);
 
-        state.SetPlayerInstruction(striker, PlayerDial.PressRange, 2);
-        MatchSetup after = SeasonRunner.SetupMyMatch(state, opponents, schedule, presets, 0);
+        state.SetSlotInstruction(slot, PlayerDial.PressRange, 2, formations);
+        MatchSetup after = SeasonRunner.SetupMyMatch(state, opponents, schedule, presets, 0, table);
 
         Assert.AreEqual(rolePress + 4f, after.Team0[striker].Stats.PressRange, 1e-4f, "경기 재료에는 지시가 반영된 값");
-        Assert.AreEqual(rolePress, state.FindRosterPlayer(striker).Stats.PressRange, "로스터의 역할 값은 그대로(지시는 따로 든다)");
+        Assert.AreEqual(rolePress, state.FindRosterPlayer(striker).Stats.PressRange, "로스터의 역할 값은 그대로(지시는 슬롯이 든다)");
         Assert.AreEqual(before.Seed, after.Seed);
 
         SeasonSave save = state.ToSave();
-        Assert.IsNull(save.roster[0].instructions, "지시가 없는 선수는 저장하지 않는다(09-27 세이브와 같은 모양)");
+        Assert.IsNull(save.roster[0].instructions, "선수에는 지시를 저장하지 않는다(10-27 슬롯 중심)");
+        Assert.IsNotNull(save.slotTactics);
         SeasonState loaded = SeasonState.FromSave(save, table);
-        Assert.AreEqual(2, loaded.FindRosterPlayer(striker).Instructions[(int)PlayerDial.PressRange]);
-        Assert.AreEqual(rolePress + 4f, loaded.MyLineup()[striker].Stats.PressRange, 1e-4f);
+        Assert.AreEqual(2, loaded.Slots.InstructionsOf(slot)[(int)PlayerDial.PressRange]);
+        Assert.AreEqual(rolePress + 4f, loaded.MyLineup(table, null)[striker].Stats.PressRange, 1e-4f);
     }
 
     [Test]
-    public void 범위_밖_개인_지시나_골키퍼의_필드_지시는_거부하고_세이브에서도_거부한다()
+    public void 범위_밖_슬롯_지시나_골키퍼_자리의_필드_지시는_거부하고_세이브에서는_잘라낸다()
     {
         SeasonState state = SeasonState.NewSeason(4, 42, myRows, table);
         int striker = FirstPlayerOfRole(state, "ST");
-        int keeper = FirstPlayerOfRole(state, "GK");
-        Assert.Throws<System.InvalidOperationException>(() => state.SetPlayerInstruction(striker, PlayerDial.PushUp, 3));
-        Assert.Throws<System.InvalidOperationException>(() => state.SetPlayerInstruction(keeper, PlayerDial.PushUp, 1));
-        Assert.Throws<System.InvalidOperationException>(() => state.SetPlayerInstruction(99, PlayerDial.PushUp, 1), "없는 선수");
+        int stSlot = AttackSlotOf(state, striker);
+        int gkSlot = AttackSlotOf(state, FirstPlayerOfRole(state, "GK"));
+        Assert.Throws<System.InvalidOperationException>(() => state.SetSlotInstruction(stSlot, PlayerDial.PushUp, 3, formations));
+        Assert.Throws<System.InvalidOperationException>(() => state.SetSlotInstruction(gkSlot, PlayerDial.PushUp, 1, formations));
+        Assert.Throws<System.ArgumentOutOfRangeException>(() => state.SetSlotInstruction(99, PlayerDial.PushUp, 1, formations), "없는 슬롯");
 
-        state.SetPlayerInstruction(striker, PlayerDial.PushUp, 1);
+        state.SetSlotInstruction(stSlot, PlayerDial.PushUp, 1, formations);
         SeasonSave save = state.ToSave();
-        save.roster[striker].instructions![(int)PlayerDial.PushUp] = 7;
-        Assert.Throws<System.InvalidOperationException>(() => SeasonState.FromSave(save, table));
+        save.slotTactics!.instructions[stSlot - 1][(int)PlayerDial.PushUp] = 7;
+        SeasonState loaded = SeasonState.FromSave(save, table);
+        float rolePushUp = state.FindRosterPlayer(striker).Stats.PushUp;
+        Assert.AreEqual(rolePushUp + 10f, loaded.MyLineup(table, null)[striker].Stats.PushUp, 1e-4f, "세이브의 범위 밖 지시는 +2로 잘라 쓴다(던져서 시즌을 잃지 않는다)");
     }
 
     [Test]
-    public void 새_시즌은_이전_시즌의_역할과_개인_지시를_이어받는다()
+    public void 새_시즌은_이전_시즌의_자연_변형과_슬롯_설정을_이어받는다()
     {
-        // 새 시즌의 로스터는 기본 편성에서 다시 만든다. 그대로 두면 승격하자마자 개인 전술이 풀린다
+        // 새 시즌의 로스터는 기본 편성에서 다시 만든다. 그대로 두면 승격하자마자 세팅이 풀린다. 슬롯 설정은 AdoptSlotTactics, 선수는 AdoptStarters(SeasonSystem.StartNextSeason 순서)
         SeasonState previous = SeasonState.NewSeason(4, 42, myRows, table);
         int striker = FirstPlayerOfRole(previous, "ST");
-        previous.SetPlayerRole(striker, "st_advanced", table);
-        previous.SetPlayerInstruction(striker, PlayerDial.HoldUp, -1);
+        int slot = AttackSlotOf(previous, striker);
+        previous.SetSlotVariant(slot, "st_advanced", formations, table);
+        previous.SetSlotInstruction(slot, PlayerDial.HoldUp, -1, formations);
 
         SeasonState next = SeasonState.NewSeason(3, 43, myRows, table);
+        next.SetFormations(previous.AttackFormationId, previous.DefenseFormationId, formations, table);
+        next.AdoptSlotTactics(previous.Slots);
         next.AdoptStarters(previous.Roster, previous.Lineup, table);
 
-        RosterPlayer carried = next.FindRosterPlayer(striker);
-        Assert.AreEqual("st_advanced", carried.Stats.VariantId);
-        Assert.AreEqual(-1, carried.Instructions[(int)PlayerDial.HoldUp]);
+        Assert.AreEqual("st_advanced", next.Slots.AttackVariantOf(slot));
+        Assert.AreEqual(-1, next.Slots.InstructionsOf(slot)[(int)PlayerDial.HoldUp]);
+        Assert.AreEqual(previous.FindRosterPlayer(striker).Stats.VariantId, next.FindRosterPlayer(striker).Stats.VariantId, "선수의 자연 변형도");
     }
 
     [Test]
-    public void 업데이트로_잠긴_역할을_쓰던_선수는_새_시즌에도_그_역할과_개인_지시를_지킨다()
+    public void 업데이트로_잠긴_역할을_쓰던_슬롯은_새_시즌에도_그_역할을_지킨다()
     {
-        // 10-08: 타깃맨·폴스 9를 잠갔다. 잠그기 전 세이브의 선수가 새 시즌에서 포처로 조용히 돌아가면 "내 타깃맨이 사라졌다"가 된다(FM·FC는 준 것을 지운 적 없다)
+        // 10-08: 타깃맨·폴스 9를 잠갔다. 잠그기 전 세이브의 슬롯이 새 시즌에서 포처로 조용히 돌아가면 "내 타깃맨이 사라졌다"가 된다(FM·FC는 준 것을 지운 적 없다)
         var tableWhenExposed = new List<PlayerStats>();
         foreach (PlayerStats row in table)
         {
@@ -462,19 +484,21 @@ public class SeasonFlowTests
         }
         SeasonState previous = SeasonState.NewSeason(4, 42, myRows, tableWhenExposed);
         int striker = FirstPlayerOfRole(previous, "ST");
-        previous.SetPlayerRole(striker, "st_targetman", tableWhenExposed);
-        previous.SetPlayerInstruction(striker, PlayerDial.HoldUp, 2);
+        int slot = AttackSlotOf(previous, striker);
+        previous.SetSlotVariant(slot, "st_targetman", formations, tableWhenExposed);
+        previous.SetSlotInstruction(slot, PlayerDial.HoldUp, 2, formations);
 
         SeasonState next = SeasonState.NewSeason(3, 43, myRows, table);
+        next.SetFormations(previous.AttackFormationId, previous.DefenseFormationId, formations, table);
+        next.AdoptSlotTactics(previous.Slots);
         next.AdoptStarters(previous.Roster, previous.Lineup, table);
 
-        RosterPlayer carried = next.FindRosterPlayer(striker);
-        Assert.AreEqual("st_targetman", carried.Stats.VariantId, "잠겨도 쓰던 역할은 남는다");
-        Assert.AreEqual(2, carried.Instructions[(int)PlayerDial.HoldUp]);
-        Assert.Throws<System.InvalidOperationException>(() => next.SetPlayerRole(striker, "st_targetman", table), "새로 고르는 건 여전히 막힌다");
+        Assert.AreEqual("st_targetman", next.Slots.AttackVariantOf(slot), "잠겨도 쓰던 역할은 남는다");
+        Assert.AreEqual(2, next.Slots.InstructionsOf(slot)[(int)PlayerDial.HoldUp]);
+        Assert.DoesNotThrow(() => next.MyLineup(table, null), "잠긴 변형도 경기 조립이 된다");
+        next.SetSlotVariant(slot, "st_poacher", formations, table);
+        Assert.Throws<System.InvalidOperationException>(() => next.SetSlotVariant(slot, "st_targetman", formations, table), "새로 고르는 건 여전히 막힌다");
     }
-
-    // 다음 시즌으로 바꾼 전술을 이어 가는 것(SeasonSystem.StartNextSeason)은 여기서 못 잠근다: SeasonSystem이 SaveLoadSystem 싱글턴에 묶여 EditMode에서 못 만든다
 
     [Test]
     public void 세이브가_없거나_생성기_버전이_다르면_새_시즌이_필요하다()

@@ -5,7 +5,7 @@ using Game.Core.League;
 using Game.Core.Tactics;
 using NUnit.Framework;
 
-// 스쿼드(스펙 §4-5 「10-19 스쿼드」): ①벤치는 7까지, 차면 던진다 ②방출은 벤치만, 선발은 던진다, 코인 = ★ × 30 ③선발 교체는 같은 자리만, 자리 2쌍은 슬롯에 남고 개인 지시는 선수를 따라간다
+// 스쿼드(스펙 §4-5 「10-19 스쿼드」): ①벤치는 7까지, 차면 던진다 ②방출은 벤치만, 선발은 던진다, 코인 = ★ × 30 ③선발 교체는 같은 자리만, 자리 2쌍·슬롯 설정(변형·지시·수비 역할)은 슬롯에 남는다(10-27 슬롯 중심)
 // ④옛 세이브(★ 없음)는 벤치 빔·★1 ⑤다음 시즌 벤치 이월은 벤치 상한을 넘기지 않는다
 public class SquadRulesTests
 {
@@ -44,6 +44,16 @@ public class SquadRulesTests
             if (state.FindRosterPlayer(id).Stats.RoleId == roleId) { return id; }
         }
         Assert.Fail($"내 선발에 {roleId}가 없다");
+        return -1;
+    }
+
+    private static int AttackSlotOf(SeasonState state, int playerId)
+    {
+        foreach (LineupEntry e in state.Lineup)
+        {
+            if (e.PlayerId == playerId) { return e.AttackSlot; }
+        }
+        Assert.Fail($"라인업에 없는 선수 {playerId}");
         return -1;
     }
 
@@ -88,13 +98,14 @@ public class SquadRulesTests
     }
 
     [Test]
-    public void 선발_교체는_같은_자리만_되고_자리_2쌍은_슬롯에_남고_개인_지시는_선수를_따라간다()
+    public void 선발_교체는_같은_자리만_되고_자리_2쌍과_슬롯_설정은_슬롯에_남는다()
     {
         SeasonState state = SeasonState.NewSeason(4, 42, myRows, table);
         RosterPlayer benchSt = state.AddToBench(OpponentPlayer("ST"), 1, portrait: 1);
         int starterSt = MyStarterOf(state, "ST");
         int starterGk = MyStarterOf(state, "GK");
-        state.SetPlayerInstruction(starterSt, PlayerDial.PushUp, 1);
+        int attackSlot = AttackSlotOf(state, starterSt);
+        state.SetSlotInstruction(attackSlot, PlayerDial.PushUp, 1, formations);
         int slot = -1;
         for (int i = 0; i < state.Lineup.Count; i++) { if (state.Lineup[i].PlayerId == starterSt) { slot = i; } }
         LineupEntry before = state.Lineup[slot];
@@ -107,10 +118,9 @@ public class SquadRulesTests
         Assert.AreEqual(before.DefendZ, state.Lineup[slot].DefendZ);
         Assert.IsTrue(state.IsStarter(benchSt.PlayerId));
         Assert.IsFalse(state.IsStarter(starterSt), "내려간 선수는 벤치");
-        Assert.IsTrue(state.FindRosterPlayer(starterSt).HasInstructions, "개인 지시는 선수를 따라간다");
-        Assert.IsFalse(state.FindRosterPlayer(benchSt.PlayerId).HasInstructions);
+        Assert.AreEqual(1, state.Slots.InstructionsOf(attackSlot)[(int)PlayerDial.PushUp], "슬롯 지시는 자리에 남아 새 선수에게 얹힌다(10-27)");
         Assert.AreEqual(1, state.BenchCount);
-        Assert.AreEqual(11, state.MyLineup().Count, "경기에 들어가는 라인업은 여전히 11");
+        Assert.AreEqual(11, state.MyLineup(table, null).Count, "경기에 들어가는 라인업은 여전히 11");
 
         Assert.Throws<System.InvalidOperationException>(() => state.SwapStarter(starterSt, benchSt.PlayerId), "벤치 선수를 선발 자리에 넣는 방향만 된다");
     }
@@ -136,17 +146,21 @@ public class SquadRulesTests
     }
 
     [Test]
-    public void 역할_변경과_개인_지시_설정_해제를_거쳐도_별은_남는다()
+    public void 선발_교체와_이월을_거쳐도_별은_남는다()
     {
-        // 10-19 리뷰 🔴: RosterPlayer를 손으로 다시 만들던 4곳이 ★을 빠뜨려 1로 떨어졌다
+        // 10-19 리뷰 🔴: RosterPlayer를 손으로 다시 만들던 4곳이 ★을 빠뜨려 1로 떨어졌다. 10-27부터 선수를 다시 만드는 경로는 이월(AdoptStarters·AdoptBench)뿐
         SeasonState state = SeasonState.NewSeason(4, 42, myRows, table);
         RosterPlayer added = state.AddToBench(OpponentPlayer("ST"), 3, portrait: 1);
-        state.SetPlayerInstruction(added.PlayerId, PlayerDial.PushUp, 1);
-        Assert.AreEqual(3, state.FindRosterPlayer(added.PlayerId).Stars, "지시 설정 뒤");
-        state.ClearPlayerInstructions(added.PlayerId);
-        Assert.AreEqual(3, state.FindRosterPlayer(added.PlayerId).Stars, "지시 해제 뒤");
-        state.SetPlayerRole(added.PlayerId, "st_advanced", table);
-        Assert.AreEqual(3, state.FindRosterPlayer(added.PlayerId).Stars, "역할 변경 뒤");
+        int starterSt = MyStarterOf(state, "ST");
+        state.SwapStarter(starterSt, added.PlayerId);
+        Assert.AreEqual(3, state.FindRosterPlayer(added.PlayerId).Stars, "선발 교체 뒤");
+
+        SeasonState next = SeasonState.NewSeason(3, 43, myRows, table);
+        next.AdoptStarters(state.Roster, state.Lineup, table);
+        next.AdoptBench(state.Bench(), table);
+        int slot = -1;
+        for (int i = 0; i < state.Lineup.Count; i++) { if (state.Lineup[i].PlayerId == added.PlayerId) { slot = i; } }
+        Assert.AreEqual(3, next.FindRosterPlayer(next.Lineup[slot].PlayerId).Stars, "이월 뒤");
     }
 
     [Test]
@@ -169,7 +183,6 @@ public class SquadRulesTests
         int slot = -1;
         for (int i = 0; i < previous.Lineup.Count; i++) { if (previous.Lineup[i].PlayerId == starterSt) { slot = i; } }
         previous.SwapStarter(starterSt, recruit.PlayerId);
-        previous.SetPlayerInstruction(recruit.PlayerId, PlayerDial.PushUp, 1);
         int otherSt2 = MyStarterOf(previous, "ST");   // 4-4-2 투톱의 나머지 한 명
         if (otherSt2 == recruit.PlayerId) { otherSt2 = SecondStarterOf(previous, "ST"); }
         previous.SwapLineupSlots(recruit.PlayerId, otherSt2, defending: false, formations);   // 슬롯을 바꿔 둬야 이월이 번호를 옮기는지 잠긴다(10-27 리뷰 🟡)
@@ -182,7 +195,6 @@ public class SquadRulesTests
         RosterPlayer carried = next.FindRosterPlayer(next.Lineup[slot].PlayerId);
         Assert.AreEqual(otherSt.VariantId, carried.Stats.VariantId, "그 슬롯의 역할은 영입 선수 것");
         Assert.AreEqual(4, carried.Stars, "★도 따라온다");
-        Assert.AreEqual(1, carried.Instructions[(int)PlayerDial.PushUp], "개인 지시도");
         Assert.AreEqual(attackSlot, next.Lineup[slot].AttackSlot, "공격 슬롯도 슬롯 기준");
         Assert.AreEqual(1, next.BenchCount, "내려간 기본 선수 한 명만 벤치로");
         Assert.AreEqual(1, next.Bench()[0].Stars);
