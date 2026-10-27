@@ -482,7 +482,7 @@ public class SeasonSystem : ISaveLoad
         CommitMyTactics();
     }
 
-    // 전술판에서 칩을 다른 칩 위에 놓았을 때. 바꿀 수 있는지는 PitchView가 CanSwapLineupSlots로 먼저 본다
+    // 전술판 자리 패널의 후보 목록에서 선발을 골랐을 때(10-27 ③b). 후보는 SlotPanel이 CanSwapLineupSlots로 미리 거른다
     public void SwapLineupSlots(int playerA, int playerB, bool defending)
     {
         ThrowIfReporting();

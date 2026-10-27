@@ -2,20 +2,19 @@ using System;
 using System.Collections.Generic;
 using Game.Core.Data;
 using Game.Core.League;
-using Game.Core.Tactics;
 using UnityEngine;
 using UnityEngine.UI;
 
 // 전술 화면의 필드(09-30, FM·EA FC 전술 화면이 화면 절반 넘게를 필드로 쓰는 것을 따름). 내 11명을 칩으로 세운다.
 // 공격할 때 / 수비할 때 탭은 각각 공격 포메이션·수비 포메이션의 격자다(10-26 슬롯 격자 ②, FM26 In/Out of Possession 모양 2장).
 // 칩은 미터 좌표가 아니라 격자(FormationGrid)에 선다: 10-08~25의 미터 그리기는 22m 폭 칩이 라인 간격 12~17m에 겹쳤다(10-25 유저 Play). 그래서 슬라이더·다이얼로 칩이 움직이는 표시도 없다(FM 격자와 같다).
-// 10-27 ③b 조작은 탭만: 칩을 누르면 그 선수(가 선 슬롯)를 고르고, 필드 빈 곳을 누르면 선택을 푼다. 교체는 자리 패널의 후보 목록이 한다(끌기는 뺐다).
+// 10-27 ③b 조작은 탭만: 칩을 누르면 그 선수(가 선 슬롯)를 고르고, 같은 칩을 다시 누르거나 필드 빈 곳을 누르면 선택을 푼다. 교체는 자리 패널의 후보 목록이 한다(끌기는 뺐다).
 // 칩 글자: 공격 탭 = 공격 슬롯의 자리 + 슬롯 변형(선수의 자연 변형이 아니다, 10-27 슬롯 중심), 수비 탭 = 수비 슬롯의 자리 + 수비 역할.
-// 어긋남 "!" = 적성(슬롯 변형 ≠ 자연 변형)·역할군(슬롯 자리 ≠ 선수 자리 군)·전환 거리 15m. 판정은 코어(LineupComposer·RoleGroups·FormationRules), 여기는 비추기만
+// 어긋남 "!" = SeasonState.WarningsOf(적성·역할군·전환 거리)가 None이 아닐 때. 자리 패널 경고와 같은 판정 한 곳
 public class PitchView : MonoBehaviour
 {
     private const int DefendPhase = 1;   // phaseTabs: 0 = 공격할 때, 1 = 수비할 때
-    public const int NoPlayer = -1;
+    public const int NoPlayer = SeasonState.NoPlayerId;
 
     [SerializeField] private PitchChip[] chips;   // 11개 고정(FormationTemplate.SlotCount). chips[i] = Lineup[i]
     [SerializeField] private TabGroup phaseTabs;
@@ -88,10 +87,18 @@ public class PitchView : MonoBehaviour
         PlaceChips();
     }
 
+    // 같은 칩을 다시 누르면 선택 해제(명단으로)
     private void OnChipClicked(PitchChip chip)
     {
         int index = Array.IndexOf(chips, chip);
-        SelectedPlayerId = State.Lineup[index].PlayerId;
+        int playerId = State.Lineup[index].PlayerId;
+        if (playerId == SelectedPlayerId)
+        {
+            ClearSelection();
+            Deselected?.Invoke();
+            return;
+        }
+        SelectedPlayerId = playerId;
         PlaceChips();
         PlayerSelected?.Invoke(SelectedPlayerId);
     }
@@ -128,10 +135,7 @@ public class PitchView : MonoBehaviour
             if (!hasPlayer) { continue; }
 
             LineupEntry entry = lineup[i];
-            PlayerStats player = state.FindRosterPlayer(entry.PlayerId).Stats;
             (float u, float v) cell = grid[(defending ? entry.DefenseSlot : entry.AttackSlot) - 1];
-            FormationSlot attackSlot = FormationRules.SlotOf(attack, entry.AttackSlot);
-            PlayerStats variant = SlotVariant(state, entry.AttackSlot);
             string roleLabel;
             string nameLabel;
             if (defending)
@@ -141,27 +145,11 @@ public class PitchView : MonoBehaviour
             }
             else
             {
-                roleLabel = attackSlot.RoleId;
-                nameLabel = variant.DisplayName;
+                roleLabel = FormationRules.SlotOf(attack, entry.AttackSlot).RoleId;
+                nameLabel = state.SlotVariantOf(entry.AttackSlot, PlayerTableRepository.All).DisplayName;
             }
-            bool warn = IsMismatched(state, entry, player, attackSlot, variant);
+            bool warn = state.WarningsOf(entry.PlayerId, formations, PlayerTableRepository.All) != LineupWarning.None;
             chips[i].Show(roleLabel, nameLabel, new Vector2(cell.u, cell.v), entry.PlayerId == SelectedPlayerId, warn);
         }
-    }
-
-    // 자리 패널의 경고 한 줄과 같은 판정(SlotPanel.WarningLine). 셋 중 하나라도 걸리면 칩에 "!"
-    public static bool IsMismatched(SeasonState state, LineupEntry entry, PlayerStats player, FormationSlot attackSlot, PlayerStats variant)
-    {
-        if (!LineupComposer.IsNatural(player, variant)) { return true; }
-        if (!RoleGroups.SameGroup(player.RoleId, attackSlot.RoleId)) { return true; }
-        return FormationRules.IsFarTransition(state.TransitionDistanceOf(entry.PlayerId));
-    }
-
-    public static PlayerStats SlotVariant(SeasonState state, int attackSlot)
-    {
-        string variantId = state.Slots.AttackVariantOf(attackSlot);
-        PlayerStats variant = PlayerTableLookup.FindVariant(PlayerTableRepository.All, variantId);
-        if (variant == null) { throw new InvalidOperationException($"[PitchView] PlayerTable에 없는 변형 {variantId}"); }
-        return variant;
     }
 }

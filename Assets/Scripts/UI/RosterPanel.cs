@@ -20,7 +20,6 @@ public class RosterPanel : MonoBehaviour
     [SerializeField] private Image[] starterIcons;
     [SerializeField] private TMP_Text[] starterLabels;     // "ST 포처 ★"
     [SerializeField] private Button[] starterButtons;
-    [SerializeField] private Image[] starterBackgrounds;   // 고른 선수만 강조색
     [Header("벤치 열 (SquadRules.MaxBench개, 쓰는 만큼만 켠다)")]
     [SerializeField] private GameObject[] benchRoots;
     [SerializeField] private Image[] benchIcons;
@@ -32,26 +31,25 @@ public class RosterPanel : MonoBehaviour
     public event Action<int> StarterSelected; // 선발 행을 눌렀을 때 그 선수 id
 
     private readonly List<RosterPlayer> bench = new List<RosterPlayer>();   // 벤치 행 번호 → 선수
-    private int selectedId = PitchView.NoPlayer;
     private int pendingRelease = NoRow;   // 두 번 눌러 확정할 벤치 행
     private bool initialized;
+    private bool wired;   // 프리팹 배열이 코어 상수와 맞을 때만 그린다
 
     private static SeasonSystem Season => GameDataManager.Instance.Season;
 
-    // 화면을 열 때·선택이 바뀔 때·세팅이 바뀔 때 부른다
-    public void Show(int selectedPlayerId)
+    // 화면을 열 때·명단으로 돌아올 때·세팅이 바뀔 때 부른다. 명단은 고른 선수가 없을 때만 보이므로 선택 상태를 받지 않는다
+    public void Show()
     {
         EnsureInitialized();
-        selectedId = selectedPlayerId;
         pendingRelease = NoRow;
-        Render();
+        if (wired) { Render(); }
     }
 
     private void EnsureInitialized()
     {
         if (initialized) { return; }
         initialized = true;
-        if (!SameLength(FormationTemplate.SlotCount, starterRoots, starterIcons, starterLabels, starterButtons, starterBackgrounds))
+        if (!SameLength(FormationTemplate.SlotCount, starterRoots, starterIcons, starterLabels, starterButtons))
         {
             Debug.LogError($"[RosterPanel] 선발 행 {starterRoots.Length}개 ≠ 슬롯 {FormationTemplate.SlotCount}. 프리팹 배선을 확인한다");
             return;
@@ -61,6 +59,7 @@ public class RosterPanel : MonoBehaviour
             Debug.LogError($"[RosterPanel] 벤치 행 {benchRoots.Length}개 ≠ 벤치 {SquadRules.MaxBench}명. 프리팹 배선을 확인한다");
             return;
         }
+        wired = true;
         for (int i = 0; i < starterButtons.Length; i++)
         {
             int index = i;   // 클로저가 루프 변수 대신 이 행 번호를 잡게 한다
@@ -87,10 +86,8 @@ public class RosterPanel : MonoBehaviour
     {
         IReadOnlyList<LineupEntry> lineup = Season.State.Lineup;
         if (index >= lineup.Count) { return; }
-        selectedId = lineup[index].PlayerId;
         pendingRelease = NoRow;
-        Render();
-        StarterSelected?.Invoke(selectedId);
+        StarterSelected?.Invoke(lineup[index].PlayerId);
     }
 
     // 첫 탭은 확인 요청, 같은 행을 다시 누르면 방출
@@ -127,7 +124,6 @@ public class RosterPanel : MonoBehaviour
             RosterPlayer player = state.FindRosterPlayer(lineup[i].PlayerId);
             ShowPortrait(starterIcons[i], player);
             starterLabels[i].text = Line(player);
-            starterBackgrounds[i].color = player.PlayerId == selectedId ? TacticsColors.Highlight : TacticsColors.Unselected;
         }
         for (int i = 0; i < benchRoots.Length; i++)
         {

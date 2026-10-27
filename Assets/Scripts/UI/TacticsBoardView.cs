@@ -61,7 +61,7 @@ public class TacticsBoardView : MonoBehaviour
         rosterPanel.gameObject.SetActive(!hasSelection);
         slotPanel.gameObject.SetActive(hasSelection);
         if (hasSelection) { slotPanel.Show(pitch.SelectedPlayerId, pitch.Defending); }
-        else { rosterPanel.Show(PitchView.NoPlayer); }
+        else { rosterPanel.Show(); }
     }
 
     private void ShowRoster()

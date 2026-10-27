@@ -35,7 +35,7 @@ public class FormationPanel : MonoBehaviour
     [SerializeField] private Button[] saveButtons;
     [SerializeField] private TMP_Text[] saveLabels;     // "저장" → 찬 칸은 한 번 누르면 "덮어쓰기?"
 
-    // 포메이션이나 저장 전술을 입힌 뒤. 필드(격자)·팀 전술 패널·개인 전술 패널이 다시 그리려고 듣는다
+    // 포메이션이나 저장 전술을 입힌 뒤. 필드(격자)·팀 전술 패널·자리 패널이 다시 그리려고 듣는다
     public event Action Changed;
 
     private int pendingOverwrite = NoSlot;   // 두 번 눌러 확정할 저장 칸

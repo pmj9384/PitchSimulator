@@ -8,10 +8,10 @@ using UnityEngine;
 using UnityEngine.UI;
 
 // 자리 패널(10-27 ③b, 스펙 §4-2·§8. 09-30 개인 전술 패널을 슬롯 중심으로 다시 짬). 전술 화면 왼쪽, 필드에서 칩을 골랐을 때 보인다.
-// 위: 슬롯 번호·자리 + 선 선수(자연 포지션·자연 변형·★) + [교체] + 경고 한 줄(적성·역할군·전환 거리).
-// 아래는 셋 중 하나: 공격 탭이면 ①공격 역할 변형(그 자리의 노출된 변형) + ②개인 지시 다이얼(자리별 해당 칸만), 수비 탭이면 수비 역할 5종, [교체]를 누르면 같은 군 후보 목록(벤치는 같은 자리, 선발은 역할군이 맞는 슬롯).
+// 위: 슬롯 번호·자리 + 선 선수(자연 포지션·자연 변형·★) + [교체] + 경고(SeasonState.WarningsOf: 적성·역할군·전환 거리. 칩의 "!"와 같은 판정).
+// 아래는 셋 중 하나: 공격 탭이면 ①공격 역할 변형(그 자리의 노출된 변형) + ②개인 지시 다이얼(자리별 해당 칸만), 수비 탭이면 수비 역할 5종, [교체]를 누르면 후보 목록(선발은 슬롯을 맞바꿀 수 있는 선수 먼저, 벤치는 선 선수와 같은 자리).
 // 역할·지시는 자리(슬롯)의 것이라 선수를 바꿔도 그대로다(FM26·EA FC). 규칙은 전부 코어(SeasonState·SlotTactics·PlayerInstructions·FormationRules), 여기는 화면과 입력만.
-// 이 패널은 필드도 다른 패널도 모른다. 설정이 바뀌면 Changed, 선수가 바뀌면 LineupChanged(고를 선수 id)만 쏜다
+// 이 패널은 필드도 다른 패널도 모른다(코어와 저장소만). 설정이 바뀌면 Changed, 선수가 바뀌면 LineupChanged(고를 선수 id)만 쏜다
 public class SlotPanel : MonoBehaviour
 {
     private static readonly Color SelectedColor = TacticsColors.Highlight;
@@ -28,7 +28,7 @@ public class SlotPanel : MonoBehaviour
     [SerializeField] private TMP_Text titleText;        // "슬롯 10 · ST"
     [SerializeField] private TMP_Text playerText;       // "ST 포처 ★"
     [SerializeField] private Button swapButton;         // [교체] → 후보 목록
-    [SerializeField] private TMP_Text warningText;      // 경고 한 줄. 없으면 숨김
+    [SerializeField] private TMP_Text warningText;      // 경고(사유별 한 줄, 최대 3줄). 없으면 숨김
 
     [Header("공격 탭: ① 역할 변형 (그 자리의 노출된 변형)")]
     [SerializeField] private GameObject attackRoot;
@@ -48,7 +48,7 @@ public class SlotPanel : MonoBehaviour
     [SerializeField] private TMP_Text[] defenseLabels;
     [SerializeField] private TMP_Text defenseDescription;
 
-    [Header("교체 후보 (같은 군)")]
+    [Header("교체 후보 (선발 먼저, 벤치는 같은 자리)")]
     [SerializeField] private GameObject candidateRoot;
     [SerializeField] private Button[] candidateButtons;
     [SerializeField] private TMP_Text[] candidateLabels;
@@ -63,7 +63,7 @@ public class SlotPanel : MonoBehaviour
     private readonly List<PlayerStats> roles = new List<PlayerStats>();
     private readonly List<int> candidateIds = new List<int>();
     private readonly List<bool> candidateIsBench = new List<bool>();
-    private int playerId = PitchView.NoPlayer;   // 필드에서 고른 선수. 그 선수가 선 슬롯을 다룬다
+    private int playerId = SeasonState.NoPlayerId;   // 필드에서 고른 선수. 그 선수가 선 슬롯을 다룬다
     private bool defending;
     private Mode mode = Mode.Attack;
     private bool initialized;
@@ -143,22 +143,13 @@ public class SlotPanel : MonoBehaviour
     private void OnCandidateClicked(int index)
     {
         if (index >= candidateIds.Count) { return; }
-        int other = candidateIds[index];
-        int nextSelected;
-        if (candidateIsBench[index])
-        {
-            Season.SwapStarter(playerId, other);
-            nextSelected = other;
-        }
-        else
-        {
-            Season.SwapLineupSlots(playerId, other, defending);
-            nextSelected = other;
-        }
-        playerId = nextSelected;
+        int other = candidateIds[index];   // 벤치 교체든 슬롯 맞바꾸기든 "그 자리에 새로 선 선수"는 other
+        if (candidateIsBench[index]) { Season.SwapStarter(playerId, other); }
+        else { Season.SwapLineupSlots(playerId, other, defending); }
+        playerId = other;
         mode = defending ? Mode.Defense : Mode.Attack;
         Render();
-        LineupChanged?.Invoke(nextSelected);
+        LineupChanged?.Invoke(other);
     }
 
     private void OnRoleClicked(int index)
@@ -211,11 +202,11 @@ public class SlotPanel : MonoBehaviour
         RosterPlayer player = state.FindRosterPlayer(playerId);
         FormationSlot attackSlot = FormationRules.SlotOf(AttackTemplate(state), entry.AttackSlot);
         FormationSlot shownSlot = defending ? FormationRules.SlotOf(DefenseTemplate(state), entry.DefenseSlot) : attackSlot;
-        PlayerStats variant = PitchView.SlotVariant(state, entry.AttackSlot);
+        PlayerStats variant = state.SlotVariantOf(entry.AttackSlot, PlayerTableRepository.All);
 
         titleText.text = $"슬롯 {shownSlot.Slot} · {shownSlot.RoleId}{(defending ? " (수비)" : " (공격)")}";
         playerText.text = $"{player.Stats.RoleId} {player.Stats.DisplayName} {new string('★', player.Stars)}";
-        ShowWarning(state, entry, player.Stats, attackSlot, variant);
+        ShowWarning(state, entry, player.Stats, attackSlot);
 
         attackRoot.SetActive(mode == Mode.Attack);
         defenseRoot.SetActive(mode == Mode.Defense);
@@ -230,22 +221,22 @@ public class SlotPanel : MonoBehaviour
             case Mode.Defense:
                 ShowDefenseRoles(state.Slots.DefenseRoleOf(entry.DefenseSlot));
                 break;
-            default:
+            case Mode.Candidates:
                 ShowCandidates(state, player.Stats, entry);
                 break;
         }
     }
 
-    // 셋 다 막지 않는다(FM26 "둘 나란히" 경고처럼 표시만). 칩의 "!"(PitchView.IsMismatched)와 같은 판정
-    private void ShowWarning(SeasonState state, LineupEntry entry, PlayerStats player, FormationSlot attackSlot, PlayerStats variant)
+    // 셋 다 막지 않는다(FM26 "둘 나란히" 경고처럼 표시만). 판정은 SeasonState.WarningsOf 한 곳, 여기는 사유를 문장으로
+    private void ShowWarning(SeasonState state, LineupEntry entry, PlayerStats player, FormationSlot attackSlot)
     {
-        var reasons = new List<string>();
-        if (!LineupComposer.IsNatural(player, variant)) { reasons.Add($"적성: 자연 변형은 {player.DisplayName}(다이얼 절반만)"); }
-        if (!RoleGroups.SameGroup(player.RoleId, attackSlot.RoleId)) { reasons.Add($"역할군: {player.RoleId} 선수가 {attackSlot.RoleId} 자리"); }
-        float distance = state.TransitionDistanceOf(entry.PlayerId);
-        if (FormationRules.IsFarTransition(distance)) { reasons.Add($"공수 자리 {distance:0}m(전환에 늦음)"); }
-        warningText.gameObject.SetActive(reasons.Count > 0);
-        warningText.text = string.Join(" · ", reasons);
+        LineupWarning warnings = state.WarningsOf(entry.PlayerId, Formations, PlayerTableRepository.All);
+        var lines = new List<string>();
+        if ((warnings & LineupWarning.Aptitude) != 0) { lines.Add($"적성: 자연 변형은 {player.DisplayName}(다이얼 절반만)"); }
+        if ((warnings & LineupWarning.RoleGroup) != 0) { lines.Add($"역할군: {player.RoleId} 선수가 {attackSlot.RoleId} 자리"); }
+        if ((warnings & LineupWarning.FarTransition) != 0) { lines.Add($"공수 자리 {state.TransitionDistanceOf(entry.PlayerId):0}m(전환에 늦음)"); }
+        warningText.gameObject.SetActive(lines.Count > 0);
+        warningText.text = string.Join("\n", lines);
     }
 
     private void ShowRoles(FormationSlot slot, PlayerStats current)
@@ -298,20 +289,12 @@ public class SlotPanel : MonoBehaviour
         }
     }
 
-    // 벤치 = 선 선수와 같은 자리(SeasonState.SwapStarter 규칙), 선발 = 이 탭에서 슬롯을 맞바꿀 수 있는 선수(CanSwapLineupSlots)
+    // 선발 먼저 = 이 탭에서 슬롯을 맞바꿀 수 있는 선수(CanSwapLineupSlots. 수비 탭은 GK 빼고 전원이라 버튼 10개가 꼭 필요하다), 그다음 벤치 = 선 선수와 같은 자리(SeasonState.SwapStarter 규칙)
     private void ShowCandidates(SeasonState state, PlayerStats starter, LineupEntry entry)
     {
         candidateIds.Clear();
         candidateIsBench.Clear();
         var labels = new List<string>();
-        List<RosterPlayer> bench = state.Bench();
-        for (int i = 0; i < bench.Count; i++)
-        {
-            if (!PlayerTableLookup.IsSamePosition(bench[i].Stats, starter.RoleId)) { continue; }
-            candidateIds.Add(bench[i].PlayerId);
-            candidateIsBench.Add(true);
-            labels.Add($"{bench[i].Stats.RoleId} {bench[i].Stats.DisplayName} {new string('★', bench[i].Stars)} (벤치)");
-        }
         IReadOnlyList<LineupEntry> lineup = state.Lineup;
         for (int i = 0; i < lineup.Count; i++)
         {
@@ -324,6 +307,14 @@ public class SlotPanel : MonoBehaviour
             candidateIsBench.Add(false);
             labels.Add($"{stats.RoleId} {stats.DisplayName} (슬롯 {slot})");
         }
+        List<RosterPlayer> bench = state.Bench();
+        for (int i = 0; i < bench.Count; i++)
+        {
+            if (!PlayerTableLookup.IsSamePosition(bench[i].Stats, starter.RoleId)) { continue; }
+            candidateIds.Add(bench[i].PlayerId);
+            candidateIsBench.Add(true);
+            labels.Add($"{bench[i].Stats.RoleId} {bench[i].Stats.DisplayName} {new string('★', bench[i].Stars)} (벤치)");
+        }
 
         for (int i = 0; i < candidateButtons.Length; i++)
         {
@@ -332,9 +323,9 @@ public class SlotPanel : MonoBehaviour
             if (used) { candidateLabels[i].text = labels[i]; }
         }
         int hidden = labels.Count - candidateButtons.Length;
-        if (labels.Count == 0) { candidateHint.text = "같은 군 후보가 없다"; }
-        else if (hidden > 0) { candidateHint.text = $"{hidden}명 더 있음(명단에서 방출해 줄인다)"; }
-        else { candidateHint.text = defending ? "수비 슬롯을 맞바꾼다(벤치는 같은 자리만)" : "공격 슬롯을 맞바꾼다(같은 역할군)"; }
+        if (labels.Count == 0) { candidateHint.text = "바꿀 수 있는 선수가 없다"; }
+        else if (hidden > 0) { candidateHint.text = $"{hidden}명 더 있음"; }
+        else { candidateHint.text = defending ? "수비 슬롯을 맞바꾼다(벤치는 같은 자리만)" : "공격 슬롯을 맞바꾼다(같은 역할군, 벤치는 같은 자리)"; }
     }
     #endregion
 
@@ -360,6 +351,6 @@ public class SlotPanel : MonoBehaviour
 
     private PlayerStats CurrentVariant()
     {
-        return PitchView.SlotVariant(Season.State, Entry().AttackSlot);
+        return Season.State.SlotVariantOf(Entry().AttackSlot, PlayerTableRepository.All);
     }
 }
