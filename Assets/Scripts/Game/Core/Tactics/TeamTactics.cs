@@ -7,7 +7,7 @@ namespace Game.Core.Tactics
     // 팀 전술 1세트(스타일 카드 1장 = 이 값 전부). 11명 공통 기본값이고 개인 다이얼이 덮어쓴다.
     // 값은 전부 0·1·2의 3단(짧게·직접·롱볼 / 안전·균형·모험 / 느리게·표준·빠르게 / 좁게·표준·넓게 / 안 감·표준·적극).
     // 서드별 배열 5개 + 서드 무관 4개. 판정 함수는 공이 있는 서드로 값을 꺼낼 뿐이라 항목당 1개일 때와 구조가 같다.
-    // 라인 높이·간격·수비 폭은 항목이 아니다. 수비 시 자리(바둑알)에서 읽는다.
+    // 간격·수비 폭은 항목이 아니다. 수비 시 자리(수비 포메이션)에서 읽는다. 수비 라인 높이는 10-27에 팀 항목으로 넣었다(FM Out of Possession의 Defensive Line).
     // struct가 아니라 class인 이유: CsvHelper가 리플렉션으로 채운다.
     public class TeamTactics
     {
@@ -31,6 +31,7 @@ namespace Game.Core.Tactics
         public int CounterPress { get; set; }   // 역압박 성향: 안 함·상황 봐서·적극 → 뺏긴 순간 우리 뒤 수비 수 문턱
         public int GkDistribution { get; set; } // GK 배급: 짧게·섞어·길게
         public int Mentality { get; set; }      // 전진 정도: 수비적·균형·공격적 → 공격 시 자리 X 오프셋 배율(슬라이더 ①)
+        public int DefenseLine { get; set; } = 1;   // 수비 라인 높이: 깊게·표준·높게 → 수비 시 자리 X 오프셋(필드 선수만, GK 제외). 10-27, FM Defensive Line. 옛 세이브엔 없어 표준
 
         // 역습 판정 문턱: 공보다 상대 골 쪽에 있는 상대 필드 플레이어가 이 수 이하면 역습. -1 = 안 함
         public int CounterThreshold

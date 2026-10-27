@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace Game.Core.Tactics
 {
-    // 슬라이더 3개. 각자 맡은 칸이 있다(목업 힌트 그대로): 앞으로 = 전진 정도 + 폭 + 패스 리스크, 빨리 = 속도, 압박 = 압박 시작
+    // 슬라이더 3개. 각자 맡은 칸이 있다(목업 힌트 그대로): 앞으로 = 전진 정도 + 수비 라인 높이(10-27, FM 멘탈리티가 수비 라인도 같이 올림) + 폭 + 패스 리스크, 빨리 = 속도, 압박 = 압박 시작
     public enum TacticSlider { Forward, Speed, Press }
 
     // 팀 전술 설정창의 순수 판정. 입구 3단 = 카드 → 슬라이더 → 세부 표(스펙 §4-2, 목업 "전술 지도와 설정창" 탭 2).
@@ -25,6 +25,7 @@ namespace Game.Core.Tactics
             {
                 case TacticSlider.Forward:
                     t.Mentality = Shift(card.Mentality, offset);
+                    t.DefenseLine = Shift(card.DefenseLine, offset);
                     ShiftFrom(card.Width, t.Width, offset);
                     ShiftFrom(card.PassRisk, t.PassRisk, offset);
                     break;
@@ -77,7 +78,8 @@ namespace Game.Core.Tactics
             if (a.Counter != b.Counter) { return false; }
             if (a.CounterPress != b.CounterPress) { return false; }
             if (a.GkDistribution != b.GkDistribution) { return false; }
-            return a.Mentality == b.Mentality;
+            if (a.Mentality != b.Mentality) { return false; }
+            return a.DefenseLine == b.DefenseLine;
         }
 
         // 세이브·표 입력 검증. 파서(TeamTacticsParser)와 같은 범위(0~2)와 서드 3칸
@@ -92,6 +94,7 @@ namespace Game.Core.Tactics
             CheckLevel(t.CounterPress, "counterPress");
             CheckLevel(t.GkDistribution, "gkDistribution");
             CheckLevel(t.Mentality, "mentality");
+            CheckLevel(t.DefenseLine, "defenseLine");
         }
 
         public static TeamTactics Copy(TeamTactics src)
@@ -110,6 +113,7 @@ namespace Game.Core.Tactics
                 CounterPress = src.CounterPress,
                 GkDistribution = src.GkDistribution,
                 Mentality = src.Mentality,
+                DefenseLine = src.DefenseLine,
             };
         }
 

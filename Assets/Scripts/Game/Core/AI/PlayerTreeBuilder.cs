@@ -342,7 +342,8 @@ namespace Game.Core.AI
 
         private static void MoveToDefendHome(IPlayerContext ctx)
         {
-            (float x, float z) home = PositionRules.DefendHome(ctx.DefendHomeX, ctx.DefendHomeZ, ctx.AttackSign, ctx.Stats.LineHeight);
+            float teamLine = PositionRules.TeamLineOffset(ctx.Tactics.DefenseLine, ctx.IsGoalkeeper);
+            (float x, float z) home = PositionRules.DefendHome(ctx.DefendHomeX, ctx.DefendHomeZ, ctx.AttackSign, ctx.Stats.LineHeight, teamLine);
             (float x, float z) slid = PositionRules.SlideDefend(home.x, home.z, ctx.BallX, ctx.BallZ, ctx.IsGoalkeeper);
             ctx.MoveToward(slid.x, slid.z);
         }

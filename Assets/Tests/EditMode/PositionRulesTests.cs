@@ -72,14 +72,23 @@ public class PositionRulesTests
     }
 
     [Test]
-    public void 수비_시_자리는_배치에서_라인_높이만큼_앞으로_선다()
+    public void 수비_시_자리는_배치에서_개인_라인_높이와_팀_수비_라인만큼_앞으로_서고_GK는_팀_수비_라인을_안_따른다()
     {
-        (float x, float z) home = PositionRules.DefendHome(baseX: -36f, baseZ: 7f, attackSign: +1, lineHeight: 6f);
+        (float x, float z) home = PositionRules.DefendHome(baseX: -36f, baseZ: 7f, attackSign: +1, lineHeight: 6f, teamLineOffset: 0f);
         Assert.AreEqual(-36f + 6f * MatchTuning.PositionDialScale, home.x, 1e-4f, "라인 높이 6 × 0.3 = 1.8");
         Assert.AreEqual(7f, home.z, 1e-4f);
 
-        home = PositionRules.DefendHome(36f, 7f, -1, lineHeight: 6f);
+        home = PositionRules.DefendHome(36f, 7f, -1, lineHeight: 6f, teamLineOffset: 0f);
         Assert.AreEqual(36f - 6f * MatchTuning.PositionDialScale, home.x, 1e-4f, "팀 1은 -X가 앞");
+
+        // 10-27 팀 수비 라인 높이(FM Defensive Line): 깊게 −5 · 표준 0 · 높게 +5 [가정]. 필드 선수만, GK는 0(GK 라인은 슛 대응 기준)
+        Assert.AreEqual(-5f, PositionRules.TeamLineOffset(0, goalkeeper: false), 1e-4f);
+        Assert.AreEqual(5f, PositionRules.TeamLineOffset(2, goalkeeper: false), 1e-4f);
+        Assert.AreEqual(0f, PositionRules.TeamLineOffset(2, goalkeeper: true), 1e-4f, "GK는 팀 수비 라인을 안 따른다");
+        home = PositionRules.DefendHome(-36f, 7f, +1, 6f, PositionRules.TeamLineOffset(2, goalkeeper: false));
+        Assert.AreEqual(-36f + 1.8f + 5f, home.x, 1e-4f, "높게면 5m 더 앞");
+        home = PositionRules.DefendHome(36f, 7f, -1, 6f, PositionRules.TeamLineOffset(0, goalkeeper: false));
+        Assert.AreEqual(36f - 1.8f + 5f, home.x, 1e-4f, "팀 1 깊게면 +X 쪽으로 5m 물러남");
     }
 
     // 공 지향 슬라이드(10-25 격자): 공격 가로만 (공 z − 자리 z) × 계수 수축, 수비 가로·세로는 공 좌표 × 계수 평행이동.
@@ -154,7 +163,7 @@ public class PositionRulesTests
     public void GK_라인_x는_수비_시_자리의_x와_같다()
     {
         // 시뮬의 닿음 판정과 트리의 이동이 같은 함수를 쓴다(10-25). 라인 높이 6 × 0.3 = 1.8 앞
-        Assert.AreEqual(PositionRules.DefendHome(-48f, 0f, +1, 6f).x, PositionRules.KeeperLineX(-48f, 0f, +1, 6f), 1e-4f);
+        Assert.AreEqual(PositionRules.DefendHome(-48f, 0f, +1, 6f, 0f).x, PositionRules.KeeperLineX(-48f, 0f, +1, 6f), 1e-4f, "GK 라인은 팀 수비 라인과 무관");
         Assert.AreEqual(48f - 6f * MatchTuning.PositionDialScale, PositionRules.KeeperLineX(48f, 0f, -1, 6f), 1e-4f, "팀 1은 -X가 앞");
     }
 

@@ -5,7 +5,7 @@ using Game.Core.Tactics;
 using NUnit.Framework;
 
 // 팀 전술 설정창(09-30, 스펙 §4-2·목업 "전술 지도와 설정창" 탭 2)의 순수 판정: 카드 → 슬라이더(카드 기준 오프셋) → 세부 표.
-// 기준 카드 balanced(TacticPresets.csv): 패스 방식 0/1/1 · 리스크 0/1/2 · 속도 0/1/2 · 폭 2/1/1 · 압박 시작 2/1/0 · 역습 1 · 역압박 1 · GK 1 · 전진 1
+// 기준 카드 balanced(TacticPresets.csv): 패스 방식 0/1/1 · 리스크 0/1/2 · 속도 0/1/2 · 폭 2/1/1 · 압박 시작 2/1/0 · 역습 1 · 역압박 1 · GK 1 · 전진 1 · 수비 라인 1
 public class TacticsEditingTests
 {
     private static List<TeamTactics> presets;
@@ -22,11 +22,14 @@ public class TacticsEditingTests
     }
 
     [Test]
-    public void 슬라이더_앞으로는_전진_폭_패스_리스크를_함께_옮기고_0에서_자른다()
+    public void 슬라이더_앞으로는_전진_수비_라인_폭_패스_리스크를_함께_옮기고_0에서_자른다()
     {
         TeamTactics card = Card("balanced");
         TeamTactics t = TacticsEditing.ApplySlider(card, card, TacticSlider.Forward, -1);
         Assert.AreEqual(0, t.Mentality);
+        Assert.AreEqual(0, t.DefenseLine, "수비 라인도 같이 내려간다(10-27, FM 멘탈리티)");
+        Assert.AreEqual(2, TacticsEditing.ApplySlider(card, card, TacticSlider.Forward, 1).DefenseLine);
+        Assert.AreEqual(0, TacticsEditing.ApplySlider(Card("counter"), Card("counter"), TacticSlider.Forward, -1).DefenseLine, "역습 카드는 이미 깊게라 0에서 자른다");
         CollectionAssert.AreEqual(new[] { 1, 0, 0 }, t.Width, "폭 2/1/1 − 1");
         CollectionAssert.AreEqual(new[] { 0, 0, 1 }, t.PassRisk, "리스크 0/1/2 − 1, 0 아래는 0");
         CollectionAssert.AreEqual(new[] { 0, 1, 2 }, t.Tempo, "속도는 안 움직인다");
@@ -118,5 +121,22 @@ public class TacticsEditingTests
         copy.PassStyle[0] = card.PassStyle[0] == 0 ? 1 : 0;
         Assert.AreNotEqual(copy.PassStyle[0], card.PassStyle[0]);
         Assert.AreEqual(card.PresetId, copy.PresetId);
+    }
+
+    [Test]
+    public void 수비_라인은_같음_검증_복사_세이브에_들어가고_옛_세이브는_표준이다()
+    {
+        TeamTactics a = Card("balanced");
+        TeamTactics b = TacticsEditing.Copy(a);
+        Assert.AreEqual(a.DefenseLine, b.DefenseLine, "복사");
+        b.DefenseLine = 2;
+        Assert.IsFalse(TacticsEditing.SameValues(a, b), "수비 라인만 달라도 다른 값");
+        b.DefenseLine = 3;
+        Assert.Throws<InvalidOperationException>(() => TacticsEditing.Validate(b));
+
+        var saved = Game.Core.League.SeasonSave.TacticsValues.From(a);
+        Assert.AreEqual(1, saved.defenseLine);
+        var old = new Game.Core.League.SeasonSave.TacticsValues { passStyle = (int[])a.PassStyle.Clone(), passRisk = (int[])a.PassRisk.Clone(), tempo = (int[])a.Tempo.Clone(), width = (int[])a.Width.Clone(), pressStart = (int[])a.PressStart.Clone() };
+        Assert.AreEqual(1, old.ToTactics("balanced").DefenseLine, "10-27 전 세이브엔 필드가 없어 초기값 표준");
     }
 }

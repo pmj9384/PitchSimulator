@@ -834,6 +834,7 @@ namespace Game.Core.League
             public int counterPress;
             public int gkDistribution;
             public int mentality;
+            public int defenseLine = 1;   // 10-27 추가. 옛 세이브엔 없어 초기값 표준(Json.NET은 없는 필드를 초기값으로 둔다)
 
             public static TacticsValues From(TeamTactics t)
             {
@@ -848,6 +849,7 @@ namespace Game.Core.League
                     counterPress = t.CounterPress,
                     gkDistribution = t.GkDistribution,
                     mentality = t.Mentality,
+                    defenseLine = t.DefenseLine,
                 };
             }
 
@@ -865,6 +867,7 @@ namespace Game.Core.League
                     CounterPress = counterPress,
                     GkDistribution = gkDistribution,
                     Mentality = mentality,
+                    DefenseLine = defenseLine,
                 };
             }
         }
