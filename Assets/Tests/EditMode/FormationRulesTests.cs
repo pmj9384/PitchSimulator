@@ -330,10 +330,10 @@ public class FormationRulesTests
         Assert.IsTrue(library.Remove("전술0"));
         Assert.IsFalse(library.Remove("없는 이름"));
 
-        TacticLibrary back = TacticLibrary.FromSave(library.ToSave(), Formations(), Table());
+        TacticLibrary back = TacticLibrary.FromSave(library.ToSave(), Formations(), Table(), Roles());
         Assert.AreEqual(library.All.Count, back.All.Count);
         Assert.AreEqual("4-3-3", back.Find("전술2").AttackFormationId);
-        Assert.AreEqual(0, TacticLibrary.FromSave(null, Formations(), Table()).All.Count, "옛 세이브(없음)는 빈 목록");
+        Assert.AreEqual(0, TacticLibrary.FromSave(null, Formations(), Table(), Roles()).All.Count, "옛 세이브(없음)는 빈 목록");
     }
 
     [Test]

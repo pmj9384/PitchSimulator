@@ -86,10 +86,12 @@ namespace Game.Core.League
             return !tier.Rebuild;
         }
 
-        // 기본 변형과의 다이얼 거리를 개인 지시 칸 단위로 합산한다(단위가 다른 다이얼을 같은 자로 재기 위해 PlayerInstructions.Step으로 나눈다)
+        public const float LineHeightStep = 4f;   // 라인 높이 한 칸(m). 10-27에 개인 지시 다이얼에서 라인 높이를 뺐지만 ★ 거리는 그대로 센다(스위퍼 키퍼 ★3이 ★2로 떨어지지 않게). 값은 옛 다이얼 Step과 같다
+
+        // 기본 변형과의 다이얼 거리를 개인 지시 칸 단위로 합산한다(단위가 다른 다이얼을 같은 자로 재기 위해 PlayerInstructions.Step으로 나눈다). 라인 높이는 위 상수로
         public static float DialDistanceCells(PlayerStats a, PlayerStats b)
         {
-            float cells = 0f;
+            float cells = Math.Abs(a.LineHeight - b.LineHeight) / LineHeightStep;
             for (int i = 0; i < PlayerInstructions.DialCount; i++)
             {
                 var dial = (PlayerDial)i;

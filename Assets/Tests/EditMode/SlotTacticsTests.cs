@@ -156,7 +156,7 @@ public class SlotTacticsTests
 
         var library = new TacticLibrary();
         library.Put(tactic);
-        TacticLibrary back = TacticLibrary.FromSave(library.ToSave(), formations, table);
+        TacticLibrary back = TacticLibrary.FromSave(library.ToSave(), formations, table, roles);
         Assert.IsTrue(back.Find("전술 1")!.Slots.SameAs(state.Slots), "저장 전술 목록 세이브 왕복");
 
         SeasonState loaded = SeasonState.FromSave(state.ToSave(), table);
@@ -167,39 +167,86 @@ public class SlotTacticsTests
     [Test]
     public void 옛_세이브의_선수_지시와_라인업_수비_역할은_슬롯으로_옮겨지고_경기_입력이_같다()
     {
-        // 10-27 전: 선수에 instructions 10칸(라인 높이 포함), 라인업 항목에 defenseRole. 이행 뒤 경기 입력 = 손으로 조립한 "변형 + 지시 9칸 + 수비 역할"
+        // 10-27 전: 선수에 instructions 10칸(라인 높이 포함), 라인업 항목에 defenseRole. 옛 PlayerDial 순서 = 전진·측면·압박·라인높이·슛·패스길이·패스리스크·드리블·볼끌기·출격
         SeasonState state = NewState();
         SeasonSave old = state.ToSave();
         old.slotTactics = null;
         int striker = state.Lineup[9].PlayerId;
         int attackSlot = state.Lineup[9].AttackSlot;
         int defenseSlot = state.Lineup[9].DefenseSlot;
-        int[] legacy = new int[PlayerInstructions.LegacyDialCount];
-        legacy[2] = 2;    // 압박 거리 +2
-        legacy[3] = -2;   // 라인 높이(버려진다)
-        legacy[8] = 1;    // 볼 끌기 +1
+        int[] legacy = { 0, 0, 2, -2, 1, 0, 0, 0, 1, 0 };   // 압박 +2, 라인 높이 −2(버려진다), 슛 성향 +1, 볼 끌기 +1
+        int cm = state.Lineup[6].PlayerId;
+        int cmSlot = state.Lineup[6].AttackSlot;
+        int[] nineCells = PlayerInstructions.Empty();
+        nineCells[(int)PlayerDial.PassRisk] = -1;
+        RosterPlayer benchSt = state.AddToBench(PlayerTableLookup.FindVariant(table, "st_advanced")!, 1, portrait: 1);
+        old = state.ToSave();
+        old.slotTactics = null;
         for (int i = 0; i < old.roster.Count; i++)
         {
             if (old.roster[i].playerId == striker) { old.roster[i].instructions = legacy; }
+            if (old.roster[i].playerId == cm) { old.roster[i].instructions = nineCells; }
+            if (old.roster[i].playerId == benchSt.PlayerId) { old.roster[i].instructions = new[] { 2, 2, 2, 2, 2, 2, 2, 2, 2, 2 }; }
         }
         old.lineup[9].defenseRole = "pressing";
 
         SeasonState migrated = SeasonState.FromSave(old, table);
 
         Assert.AreEqual(state.FindRosterPlayer(striker).Stats.VariantId, migrated.Slots.AttackVariantOf(attackSlot), "변형은 선 선수 것");
-        CollectionAssert.AreEqual(PlayerInstructions.FromLegacy(legacy), migrated.Slots.InstructionsOf(attackSlot), "지시는 10칸 → 9칸");
+        IReadOnlyList<int> moved = migrated.Slots.InstructionsOf(attackSlot);
+        Assert.AreEqual(9, moved.Count);
+        Assert.AreEqual(2, moved[(int)PlayerDial.PressRange], "압박 거리 칸은 자리가 그대로");
+        Assert.AreEqual(1, moved[(int)PlayerDial.ShotBias], "라인 높이 칸이 사라져 슛 성향이 한 칸 당겨진다(값이 새지 않음)");
+        Assert.AreEqual(1, moved[(int)PlayerDial.HoldUp], "볼 끌기도 한 칸 당겨진다");
+        Assert.AreEqual(0, moved[(int)PlayerDial.PassLength]);
+        Assert.AreEqual(0, moved[(int)PlayerDial.GkRushRadius]);
+        Assert.AreEqual(-1, migrated.Slots.InstructionsOf(cmSlot)[(int)PlayerDial.PassRisk], "이미 9칸이면 그대로");
         Assert.AreEqual("pressing", migrated.Slots.DefenseRoleOf(defenseSlot));
+        for (int slot = 1; slot <= SlotTactics.SlotCount; slot++)
+        {
+            if (slot == attackSlot || slot == cmSlot) { continue; }
+            Assert.IsFalse(migrated.Slots.HasInstructions(slot), $"지시가 null인 선수의 슬롯 {slot}은 0. 벤치 선수의 지시는 슬롯이 없어 버린다");
+        }
 
+        // 경기 입력 = 변형(선수 빌드) + 지시 9칸 + 수비 역할. 리터럴로 조립한다(구현 함수로 기대값을 만들면 동어반복)
         PlayerStats variant = PlayerTableLookup.FindVariant(table, migrated.Slots.AttackVariantOf(attackSlot))!;
-        PlayerStats expected = BuildScaler.Copy(variant);
-        BuildScaler.CopyBuild(state.FindRosterPlayer(striker).Stats, expected);
-        expected = PlayerInstructions.Apply(expected, PlayerInstructions.FromLegacy(legacy));
-        expected = DefenseRoleParser.Find(roles, "pressing")!.Apply(expected);
+        DefenseRole pressing = DefenseRoleParser.Find(roles, "pressing")!;
         LineupSlot composed = migrated.MyLineup(table, roles)[9];
-        Assert.AreEqual(expected.PressRange, composed.Stats.PressRange, 1e-4f, "압박 거리 = (역할 + 2칸) × 1.5");
-        Assert.AreEqual(expected.HoldUp, composed.Stats.HoldUp, 1e-4f);
-        Assert.AreEqual(expected.LineHeight, composed.Stats.LineHeight, 1e-4f, "라인 높이는 수비 역할만 반영");
-        Assert.AreEqual(expected.Shot, composed.Stats.Shot);
+        Assert.AreEqual((variant.PressRange + 2f * 2f) * pressing.PressRangeScale, composed.Stats.PressRange, 1e-4f, "(역할 + 2칸 × 2m) × 1.5");
+        Assert.AreEqual(variant.ShotBias - 0.05f, composed.Stats.ShotBias, 1e-4f, "슛 성향 +1칸 = −0.05");
+        Assert.AreEqual(variant.HoldUp + 0.15f, composed.Stats.HoldUp, 1e-4f, "볼 끌기 +1칸 = +0.15");
+        Assert.AreEqual(System.Math.Max(0f, variant.LineHeight + pressing.LineHeightOffset), composed.Stats.LineHeight, 1e-4f, "라인 높이는 수비 역할만(옛 −2칸은 버려짐)");
+        Assert.AreEqual(state.FindRosterPlayer(striker).Stats.Shot, composed.Stats.Shot, "빌드는 선수 것");
+    }
+
+    [Test]
+    public void 로드_뒤_고치기는_자리가_어긋난_변형_사라진_변형_해당_없는_지시_없는_수비_역할을_기본값으로_돌린다()
+    {
+        // 10-27 리뷰 🟡: 4-3-3에서 군이 어긋나 선 선수의 변형이 이행되면 슬롯 자리와 다른 변형이 들어가 저장 전술·역할 목록이 던졌다. 로드에서 던지면 시즌을 잃으니 고치고 알린다
+        FormationTemplate f442 = FormationRules.Find(formations, "4-4-2");
+        SlotTacticsSave bad = SlotTactics.Default(f442, table).ToSave();
+        bad.attackVariants[5] = "st_poacher";      // 슬롯 6은 W. 자리가 다르다
+        bad.attackVariants[9] = "st_vanished";     // 표에 없음
+        bad.instructions[2][(int)PlayerDial.ShotBias] = 2;   // 슬롯 3은 CB: 슛 성향은 해당 없음
+        bad.instructions[2][(int)PlayerDial.PressRange] = 7;  // 범위 밖
+        bad.defenseRoles[0] = "ghost";
+        SlotTactics slots = SlotTactics.FromSave(bad);
+
+        List<string> fixes = slots.Sanitize(f442, table, roles);
+
+        Assert.AreEqual(4, fixes.Count, string.Join(" / ", fixes));
+        Assert.AreEqual(TeamGenerator.DefaultVariant(table, "W").VariantId, slots.AttackVariantOf(6));
+        Assert.AreEqual(TeamGenerator.DefaultVariant(table, "ST").VariantId, slots.AttackVariantOf(10));
+        Assert.AreEqual(0, slots.InstructionsOf(3)[(int)PlayerDial.ShotBias], "해당 없는 칸은 0");
+        Assert.AreEqual(2, slots.InstructionsOf(3)[(int)PlayerDial.PressRange], "범위 밖은 +2로");
+        Assert.AreEqual(DefenseRole.DefaultId, slots.DefenseRoleOf(1));
+        Assert.DoesNotThrow(() => slots.Validate(f442, table, roles), "고친 뒤엔 검증을 통과한다");
+        Assert.AreEqual(0, slots.Sanitize(f442, table, roles).Count, "두 번째는 고칠 게 없다");
+
+        SeasonState state = NewState();
+        Assert.AreEqual(0, state.SanitizeSlots(formations, table, roles).Count, "새 시즌은 고칠 게 없다");
+        state.SetFormations(state.AttackFormationId, state.DefenseFormationId, formations, table);
+        Assert.IsTrue(state.Slots.SameAs(NewState().Slots), "같은 id로 다시 골라도 슬롯 설정은 그대로(옛 세이브 좌표 변환 경로)");
     }
 
     [Test]
@@ -210,7 +257,7 @@ public class SlotTacticsTests
         for (int i = 0; i < SlotTactics.SlotCount; i++) { entry.defenseRoles.Add(i == 4 ? "screening" : DefenseRole.DefaultId); }
         save.tactics.Add(entry);
 
-        TacticLibrary library = TacticLibrary.FromSave(save, formations, table);
+        TacticLibrary library = TacticLibrary.FromSave(save, formations, table, roles);
         SavedTactic tactic = library.Find("옛 전술")!;
         FormationTemplate f433 = FormationRules.Find(formations, "4-3-3");
         Assert.AreEqual("screening", tactic.Slots.DefenseRoleOf(5));

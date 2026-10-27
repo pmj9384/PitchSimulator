@@ -112,7 +112,7 @@ namespace Game.Core.League
 
         // 옛 세이브(10-25 전)엔 없어 null → 빈 목록. 한 장이 깨져 있으면 그 장만 버리지 않고 던진다(SeasonSystem.Load와 같은 정책: 크게 알리고 기본값).
         // 10-27 전 항목(슬롯 설정 없이 수비 역할 11칸만)은 공격 변형을 공격 템플릿의 기본 변형으로 채운다. 그래서 포메이션 표·PlayerTable이 필요하다
-        public static TacticLibrary FromSave(TacticLibrarySave? save, IReadOnlyList<FormationTemplate> formations, IReadOnlyList<PlayerStats> table)
+        public static TacticLibrary FromSave(TacticLibrarySave? save, IReadOnlyList<FormationTemplate> formations, IReadOnlyList<PlayerStats> table, IReadOnlyList<DefenseRole> roles)
         {
             var library = new TacticLibrary();
             if (save == null) { return library; }
@@ -121,6 +121,7 @@ namespace Game.Core.League
                 TacticLibrarySave.Entry e = save.tactics[i];
                 TeamTactics? custom = e.tactics == null ? null : e.tactics.ToTactics(e.presetId ?? SeasonState.DefaultPresetId);
                 SlotTactics slots = SlotsOf(e, formations, table);
+                slots.Sanitize(FormationRules.Find(formations, e.attackFormation ?? string.Empty), table, roles);   // 표에서 사라진 id는 기본값으로(로드에서 던지지 않는다). 입힐 때는 Validate가 다시 본다
                 library.Put(new SavedTactic(e.name ?? string.Empty, e.attackFormation ?? string.Empty, e.defenseFormation ?? string.Empty,
                     slots, e.presetId ?? SeasonState.DefaultPresetId, custom));
             }

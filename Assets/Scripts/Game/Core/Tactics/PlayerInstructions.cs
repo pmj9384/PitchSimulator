@@ -6,7 +6,7 @@ using Game.Core.Placement;
 namespace Game.Core.Tactics
 {
     // 개인 지시로 고칠 수 있는 다이얼. 판정에 실제로 쓰이는 것만 있다(자리 이탈 반경은 판정이 없어 뺐다. 스펙 §4-2 "판정 없는 슬라이더는 뺀다").
-    // 순서가 곧 세이브의 칸 순서다(SeasonSave.SlotTacticsEntry.instructions). 중간에 끼워 넣지 않고 끝에 붙인다.
+    // 순서가 곧 세이브의 칸 순서다(SlotTacticsSave.instructions). 중간에 끼워 넣지 않고 끝에 붙인다.
     // 10-27: 라인 높이 다이얼을 뺐다. 수비 역할(DefenseRoles.csv lineHeightOffset)이 같은 값을 정해 두 곳이 됐다(스펙 §4-2). 옛 세이브의 10칸은 FromLegacy가 3번 칸을 버린다
     public enum PlayerDial
     {
@@ -99,6 +99,19 @@ namespace Game.Core.Tactics
                 default:
                     return true;
             }
+        }
+
+        // 세이브·이행에서 온 지시를 그 자리에 맞게 다듬는다: 범위 밖은 잘라내고 해당 없는 칸은 0. Apply가 무시하는 값이 남아 있으면 나중에 다른 칸을 만질 때 Validate가 던진다(10-27 리뷰 🟡)
+        public static int[] Normalize(IReadOnlyList<int> offsets, string slotRoleId)
+        {
+            if (offsets == null || offsets.Count != DialCount) { throw new InvalidOperationException($"[PlayerInstructions] 개인 지시는 {DialCount}칸이어야 한다"); }
+            int[] next = Empty();
+            for (int i = 0; i < DialCount; i++)
+            {
+                if (!AppliesTo((PlayerDial)i, slotRoleId)) { continue; }
+                next[i] = Math.Clamp(offsets[i], OffsetMin, OffsetMax);
+            }
+            return next;
         }
 
         // 10-27 전 세이브의 10칸(라인 높이 포함)을 9칸으로. 이미 9칸이면 그대로, null이면 0

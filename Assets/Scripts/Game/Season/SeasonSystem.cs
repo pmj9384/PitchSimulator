@@ -46,7 +46,7 @@ public class SeasonSystem : ISaveLoad
     {
         try
         {
-            Library = TacticLibrary.FromSave(save, FormationTemplateRepository.All, PlayerTableRepository.All);
+            Library = TacticLibrary.FromSave(save, FormationTemplateRepository.All, PlayerTableRepository.All, DefenseRoleRepository.All);
         }
         catch (Exception e)
         {
@@ -77,6 +77,8 @@ public class SeasonSystem : ISaveLoad
                 // 10-25 전 세이브: 자유 배치로 옮긴 좌표를 버리고 4-4-2 템플릿 슬롯 값으로 1회 바꾼다(10-27 ④, 스펙 §8). 슬롯 번호는 FromSave가 라인업 순서로 흡수했다
                 state.SetFormations(state.AttackFormationId, state.DefenseFormationId, FormationTemplateRepository.All, PlayerTableRepository.All);
             }
+            List<string> fixes = state.SanitizeSlots(FormationTemplateRepository.All, PlayerTableRepository.All, DefenseRoleRepository.All);   // 표에서 사라진 변형·자리가 어긋난 변형·해당 없는 지시를 고친다(10-27)
+            for (int i = 0; i < fixes.Count; i++) { Debug.LogWarning($"[Season] 세이브의 슬롯 설정을 고쳤다: {fixes[i]}"); }
             Adopt(state);
         }
         catch (Exception e)

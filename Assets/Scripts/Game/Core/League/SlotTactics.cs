@@ -43,13 +43,7 @@ namespace Game.Core.League
             var slots = new SlotTactics();
             for (int i = 0; i < lineup.Count; i++)
             {
-                RosterPlayer? player = null;
-                for (int r = 0; r < roster.Count; r++)
-                {
-                    if (roster[r].PlayerId == lineup[i].PlayerId) { player = roster[r]; }
-                }
-                if (player == null) { throw new InvalidOperationException($"[SlotTactics] 로스터에 없는 선수 id {lineup[i].PlayerId}"); }
-                slots.attackVariants[lineup[i].AttackSlot - 1] = player.Stats.VariantId;
+                slots.attackVariants[lineup[i].AttackSlot - 1] = FindPlayer(roster, lineup[i].PlayerId).Stats.VariantId;
             }
             for (int i = 0; i < SlotCount; i++)
             {
@@ -70,18 +64,31 @@ namespace Game.Core.League
             }
             for (int i = 0; i < lineup.Count; i++)
             {
-                SeasonSave.Player? player = null;
-                for (int r = 0; r < save.roster.Count; r++)
-                {
-                    if (save.roster[r].playerId == lineup[i].PlayerId) { player = save.roster[r]; }
-                }
-                if (player == null) { throw new InvalidOperationException($"[SlotTactics] 세이브 로스터에 없는 선수 id {lineup[i].PlayerId}"); }
+                SeasonSave.Player player = FindSavedPlayer(save, lineup[i].PlayerId);
                 result.attackVariants[lineup[i].AttackSlot - 1] = player.variantId;
                 result.instructions[lineup[i].AttackSlot - 1] = PlayerInstructions.FromLegacy(player.instructions);
                 string? role = save.lineup[i].defenseRole;
                 result.defenseRoles[lineup[i].DefenseSlot - 1] = string.IsNullOrEmpty(role) ? DefenseRole.DefaultId : role!;
             }
             return result;
+        }
+
+        private static RosterPlayer FindPlayer(IReadOnlyList<RosterPlayer> roster, int playerId)
+        {
+            for (int i = 0; i < roster.Count; i++)
+            {
+                if (roster[i].PlayerId == playerId) { return roster[i]; }
+            }
+            throw new InvalidOperationException($"[SlotTactics] 로스터에 없는 선수 id {playerId}");
+        }
+
+        private static SeasonSave.Player FindSavedPlayer(SeasonSave save, int playerId)
+        {
+            for (int i = 0; i < save.roster.Count; i++)
+            {
+                if (save.roster[i].playerId == playerId) { return save.roster[i]; }
+            }
+            throw new InvalidOperationException($"[SlotTactics] 세이브 로스터에 없는 선수 id {playerId}");
         }
 
         public string AttackVariantOf(int attackSlot)
@@ -150,12 +157,58 @@ namespace Game.Core.League
         // 수비 역할 5종은 자리와 무관한 성향이라 수비 포메이션이 바뀌어도 그대로 둔다
         public void ResetAttackFor(FormationTemplate previousAttack, FormationTemplate nextAttack, IReadOnlyList<PlayerStats> table)
         {
+            var defaults = new string?[SlotCount];   // 먼저 전부 구한다: 표에 없는 자리로 중간에 던지면 반쪽만 바뀐 채 남는다(10-27 리뷰 🟢)
             for (int i = 0; i < SlotCount; i++)
             {
                 if (string.Equals(previousAttack.Slots[i].RoleId, nextAttack.Slots[i].RoleId, StringComparison.OrdinalIgnoreCase)) { continue; }
-                attackVariants[i] = TeamGenerator.DefaultVariant(table, nextAttack.Slots[i].RoleId).VariantId;
+                defaults[i] = TeamGenerator.DefaultVariant(table, nextAttack.Slots[i].RoleId).VariantId;
+            }
+            for (int i = 0; i < SlotCount; i++)
+            {
+                if (defaults[i] == null) { continue; }
+                attackVariants[i] = defaults[i]!;
                 instructions[i] = PlayerInstructions.Empty();
             }
+        }
+
+        // 세이브·이행에서 온 설정을 표와 자리에 맞게 고친다(로드 때 한 번, SeasonSystem.Load·TacticLibrary.FromSave). 고친 내용을 문장으로 돌려줘 호출처가 알린다.
+        // 표에서 사라진 변형·자리가 어긋난 변형(4-3-3에서 군이 어긋나 선 선수의 변형이 이행된 경우) → 그 자리 기본 변형·지시 0 / 지시는 범위·해당 여부로 정규화 / 없는 수비 역할 → 기본.
+        // 던지지 않는 이유: 로드에서 던지면 시즌 전체를 잃는다(SeasonSystem.Load 정책). Validate(저장 전술 입히기)는 던진다: 그건 유저가 고른 한 장이라 거부하면 된다
+        public List<string> Sanitize(FormationTemplate attack, IReadOnlyList<PlayerStats> table, IReadOnlyList<DefenseRole> roles)
+        {
+            var fixes = new List<string>();
+            for (int i = 0; i < SlotCount; i++)
+            {
+                FormationSlot slot = attack.Slots[i];
+                PlayerStats? variant = PlayerTableLookup.FindVariant(table, attackVariants[i]);
+                if (variant == null || !PlayerTableLookup.IsSamePosition(variant, slot.RoleId))
+                {
+                    string fallback = TeamGenerator.DefaultVariant(table, slot.RoleId).VariantId;
+                    fixes.Add($"공격 슬롯 {slot.Slot}({slot.RoleId})의 변형 {attackVariants[i]} → {fallback}");
+                    attackVariants[i] = fallback;
+                    instructions[i] = PlayerInstructions.Empty();
+                    continue;
+                }
+                int[] normalized = PlayerInstructions.Normalize(instructions[i], slot.RoleId);
+                if (!SameOffsets(normalized, instructions[i])) { fixes.Add($"공격 슬롯 {slot.Slot}({slot.RoleId})의 지시를 자리에 맞게 다듬음"); }
+                instructions[i] = normalized;
+            }
+            for (int i = 0; i < SlotCount; i++)
+            {
+                if (DefenseRoleParser.Find(roles, defenseRoles[i]) != null) { continue; }
+                fixes.Add($"수비 슬롯 {i + 1}의 수비 역할 {defenseRoles[i]} → {DefenseRole.DefaultId}");
+                defenseRoles[i] = DefenseRole.DefaultId;
+            }
+            return fixes;
+        }
+
+        private static bool SameOffsets(int[] a, int[] b)
+        {
+            for (int i = 0; i < a.Length; i++)
+            {
+                if (a[i] != b[i]) { return false; }
+            }
+            return true;
         }
 
         // 저장 전술을 입히거나 로드할 때: 변형이 표에 있고 공격 템플릿의 자리와 맞는지, 지시가 범위 안인지, 수비 역할이 표에 있는지. 하나라도 틀리면 던진다
@@ -184,6 +237,7 @@ namespace Game.Core.League
             return copy;
         }
 
+        // 테스트 전용(왕복·입히기 단언). 프로덕션 호출처 없음
         public bool SameAs(SlotTactics other)
         {
             for (int i = 0; i < SlotCount; i++)
@@ -210,7 +264,7 @@ namespace Game.Core.League
             return save;
         }
 
-        // 칸 수만 본다. id·범위 검증은 Validate(포메이션·표가 필요해서 호출처가 한다)
+        // 칸 수만 본다. id·자리·범위는 로드 뒤 Sanitize(고침)나 입히기 전 Validate(거부)가 본다(포메이션·표가 필요해서 호출처가 한다)
         public static SlotTactics FromSave(SlotTacticsSave save)
         {
             if (save.attackVariants.Count != SlotCount || save.instructions.Count != SlotCount || save.defenseRoles.Count != SlotCount)

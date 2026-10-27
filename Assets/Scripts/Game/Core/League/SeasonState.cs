@@ -30,11 +30,6 @@ namespace Game.Core.League
             Portrait = portrait == PortraitRules.None ? PortraitRules.Of(playerId) : portrait;
         }
 
-        // 불변 객체라 "하나만 바꾼 복사본"으로 고친다. 필드가 늘어도 호출부가 빠뜨릴 자리가 없게(10-19 리뷰: 생성자를 손으로 다시 부르다 ★을 빠뜨렸다)
-        public RosterPlayer WithStats(PlayerStats stats)
-        {
-            return new RosterPlayer(PlayerId, stats, Stars, Portrait);
-        }
     }
 
     // 스카우트 시도 기록: 어느 팀의 몇 번째 선수를 노렸고 됐나. 재시도 보정(같은 선수 횟수)과 후보 교체(성공한 자리만, ScoutPool)의 재료
@@ -224,6 +219,12 @@ namespace Game.Core.League
         public void SetDefenseRole(int defenseSlot, string defenseRoleId, IReadOnlyList<DefenseRole> roles)
         {
             slots.SetDefenseRole(defenseSlot, defenseRoleId, roles);
+        }
+
+        // 로드 뒤 한 번: 세이브·이행에서 온 슬롯 설정을 표와 자리에 맞게 고친다(SlotTactics.Sanitize). 고친 문장을 돌려준다(호출처가 경고로 알림)
+        public List<string> SanitizeSlots(IReadOnlyList<FormationTemplate> formations, IReadOnlyList<PlayerStats> table, IReadOnlyList<DefenseRole> roles)
+        {
+            return slots.Sanitize(AttackTemplate(formations), table, roles);
         }
 
         // 다음 시즌: 슬롯 설정을 그대로 이어 간다. 호출처가 같은 공수 포메이션 id로 SetFormations를 먼저 불러 자리가 같다
@@ -595,7 +596,7 @@ namespace Game.Core.League
         }
 
         // 10-27 전 세이브 이행: 공격 슬롯 i ← 그 슬롯에 선 선수의 변형(생성자가 FromStarters로 이미 채움)과 개인 지시(10칸 → 9칸), 수비 슬롯 j ← 라인업 항목의 수비 역할.
-        // 벤치 선수의 지시는 버린다(슬롯이 없다). 이행 전후 경기 입력이 같은지는 FormationRulesTests가 잠근다
+        // 벤치 선수의 지시는 버린다(슬롯이 없다). 자리가 어긋난 변형·해당 없는 지시는 SeasonSystem.Load가 SanitizeSlots로 고친다. 이행은 SlotTacticsTests가 잠근다
         private static SlotTactics LegacySlots(SeasonSave save, IReadOnlyList<LineupEntry> lineup)
         {
             SlotTacticsSave legacy = SlotTactics.FromStartersSave(save, lineup);
@@ -802,7 +803,7 @@ namespace Game.Core.League
         public sealed class Player
         {
             public int playerId;
-            public string variantId = string.Empty;   // 역할. 전술 화면에서 같은 자리 안에서 바꾼다
+            public string variantId = string.Empty;   // 자연 변형(데려올 때 들고 온 역할). 10-27부터 전술 화면이 바꾸는 건 슬롯 변형(slotTactics)이다
             public int[] build = Array.Empty<int>();
             public int[]? instructions;               // 10-27 전: 선수 개인 지시(10칸). 이제 쓰지 않고 옛 세이브 이행 때만 읽는다(slotTactics로)
             public int stars;                         // 10-19 추가. 옛 세이브엔 없어 0 → 기본 1
