@@ -144,7 +144,15 @@ public class PitchView : MonoBehaviour
             LineupEntry entry = lineup[i];
             PlayerStats stats = state.FindRosterPlayer(entry.PlayerId).Stats;
             (float u, float v) cell = grid[(defending ? entry.DefenseSlot : entry.AttackSlot) - 1];
-            chips[i].Show(stats.RoleId, stats.DisplayName, new Vector2(cell.u, cell.v), entry.PlayerId == SelectedPlayerId);
+            string roleLabel = stats.RoleId;
+            string nameLabel = stats.DisplayName;
+            if (defending)
+            {
+                // 수비 탭은 선수의 공격 변형이 아니라 수비 모양의 자리와 수비 역할을 보인다(FM26 공격 역할 1 + 수비 역할 1, 10-27 유저 Play 지적)
+                roleLabel = FormationRules.SlotOf(template, entry.DefenseSlot).RoleId;
+                nameLabel = DefenseRoleRepository.Get(entry.DefenseRoleId).DisplayName;
+            }
+            chips[i].Show(roleLabel, nameLabel, new Vector2(cell.u, cell.v), entry.PlayerId == SelectedPlayerId);
         }
     }
 }
