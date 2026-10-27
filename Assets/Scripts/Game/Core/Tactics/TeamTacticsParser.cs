@@ -76,6 +76,7 @@ namespace Game.Core.Tactics
                 CounterPress = Level(r.CounterPress, "counterPress", line),
                 GkDistribution = Level(r.GkDistribution, "gkDistribution", line),
                 Mentality = Level(r.Mentality, "mentality", line),
+                DefenseLine = Level(r.DefenseLine, "defenseLine", line),
             };
             return t;
         }
@@ -106,6 +107,7 @@ namespace Game.Core.Tactics
             public int WidthOwn { get; set; } public int WidthMid { get; set; } public int WidthOpp { get; set; }
             public int PressStartOwn { get; set; } public int PressStartMid { get; set; } public int PressStartOpp { get; set; }
             public int Counter { get; set; } public int CounterPress { get; set; } public int GkDistribution { get; set; } public int Mentality { get; set; }
+            public int DefenseLine { get; set; }
         }
 
         private sealed class RowMap : ClassMap<Row>
@@ -134,6 +136,7 @@ namespace Game.Core.Tactics
                 Map(r => r.CounterPress).Name("counterPress");
                 Map(r => r.GkDistribution).Name("gkDistribution");
                 Map(r => r.Mentality).Name("mentality");
+                Map(r => r.DefenseLine).Name("defenseLine");
             }
         }
     }

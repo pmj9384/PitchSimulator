@@ -39,6 +39,7 @@ public class TeamTacticsPanel : MonoBehaviour
     [SerializeField] private TacticLevelSelector counter;
     [SerializeField] private TacticLevelSelector counterPress;
     [SerializeField] private TacticLevelSelector gkDistribution;
+    [SerializeField] private TacticLevelSelector defenseLine;   // 수비 라인 높이(10-27). 프리팹 배선은 ③b 모달 3구역에서. 그때까지 null이면 건너뛴다
 
     // 전술 값이 바뀔 때마다. 필드(PitchView)가 자리를 다시 그리려고 듣는다
     public event Action Changed;
@@ -105,6 +106,7 @@ public class TeamTacticsPanel : MonoBehaviour
         counter.SetLabels(TacticLevelNames.Counter);
         counterPress.SetLabels(TacticLevelNames.CounterPress);
         gkDistribution.SetLabels(TacticLevelNames.GkDistribution);
+        if (defenseLine != null) { defenseLine.SetLabels(TacticLevelNames.DefenseLine); }
     }
 
     private static void SetRowLabels(TacticLevelSelector[] row, string[] names)
@@ -201,6 +203,7 @@ public class TeamTacticsPanel : MonoBehaviour
         counter.SetLevel(tactics.Counter);
         counterPress.SetLevel(tactics.CounterPress);
         gkDistribution.SetLevel(tactics.GkDistribution);
+        if (defenseLine != null) { defenseLine.SetLevel(tactics.DefenseLine); }
         ShowCard(baseIndex);
         ShowDiff(tactics, presets[baseIndex]);
         ShowLoad(tactics);
@@ -217,6 +220,7 @@ public class TeamTacticsPanel : MonoBehaviour
         counter.SetDiffersFromCard(card.Counter != tactics.Counter);
         counterPress.SetDiffersFromCard(card.CounterPress != tactics.CounterPress);
         gkDistribution.SetDiffersFromCard(card.GkDistribution != tactics.GkDistribution);
+        if (defenseLine != null) { defenseLine.SetDiffersFromCard(card.DefenseLine != tactics.DefenseLine); }
     }
 
     // 체력 부담: 지금 값(압박 시작·전진 정도)에 해당하는 실측 표 칸을 막대로. 압박을 올리면 그 자리에서 막대가 찬다
@@ -260,6 +264,7 @@ public class TeamTacticsPanel : MonoBehaviour
         tactics.Counter = counter.Level;
         tactics.CounterPress = counterPress.Level;
         tactics.GkDistribution = gkDistribution.Level;
+        if (defenseLine != null) { tactics.DefenseLine = defenseLine.Level; }
         return tactics;
     }
 
@@ -274,6 +279,7 @@ public class TeamTacticsPanel : MonoBehaviour
         allSelectors.Add(counter);
         allSelectors.Add(counterPress);
         allSelectors.Add(gkDistribution);
+        if (defenseLine != null) { allSelectors.Add(defenseLine); }
     }
 
     private static void SetThirds(TacticLevelSelector[] row, int[] values)

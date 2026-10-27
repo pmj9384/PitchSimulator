@@ -293,6 +293,26 @@ public class PlayerTreeTests
     }
 
     [Test]
+    public void 수비_자리는_팀_수비_라인_높이를_더하고_GK는_안_더한다()
+    {
+        // 10-27 ③c: 트리가 ctx.Tactics.DefenseLine과 IsGoalkeeper를 PositionRules.TeamLineOffset에 넘기는 배선. 순수 함수 테스트만으론 배선을 빼도 통과한다(리뷰 🟡)
+        var standard = new Fake { PlayerId = 2, BallPhase = BallPhase.Owned, BallOwnerTeam = 1, X = -36f, BallX = 10f, BallZ = 0f, DefendHomeX = -36f, DefendHomeZ = 7f, PressRank = int.MaxValue };
+        var high = new Fake { PlayerId = 2, BallPhase = BallPhase.Owned, BallOwnerTeam = 1, X = -36f, BallX = 10f, BallZ = 0f, DefendHomeX = -36f, DefendHomeZ = 7f, PressRank = int.MaxValue };
+        high.Tactics.DefenseLine = 2;
+        Tree.Tick(standard);
+        Tree.Tick(high);
+        Assert.AreEqual("move", high.Did);
+        Assert.AreEqual(standard.MoveX + MatchTuning.DefenseLineOffset[2], high.MoveX, 1e-4f, "높게면 필드 선수는 +5m 앞");
+
+        var gkStandard = new Fake { PlayerId = 0, IsGoalkeeper = true, BallPhase = BallPhase.Owned, BallOwnerTeam = 1, X = -48f, BallX = 10f, BallZ = 0f, DefendHomeX = -48f, DefendHomeZ = 0f, PressRank = int.MaxValue };
+        var gkHigh = new Fake { PlayerId = 0, IsGoalkeeper = true, BallPhase = BallPhase.Owned, BallOwnerTeam = 1, X = -48f, BallX = 10f, BallZ = 0f, DefendHomeX = -48f, DefendHomeZ = 0f, PressRank = int.MaxValue };
+        gkHigh.Tactics.DefenseLine = 2;
+        Tree.Tick(gkStandard);
+        Tree.Tick(gkHigh);
+        Assert.AreEqual(gkStandard.MoveX, gkHigh.MoveX, 1e-4f, "GK는 팀 수비 라인을 안 따른다(GK 라인은 슛 대응 기준)");
+    }
+
+    [Test]
     public void 압박_거리_안이어도_팀_안_순위가_상한_밖이면_수비_자리로_간다()
     {
         // 09-23 뭉침: 인원 제한이 없으면 압박 거리 안 4~6명이 동시에 공으로 갔다. 순위 1(두 번째)은 상한 1 밖이라 자리로

@@ -44,16 +44,23 @@ namespace Game.Core.Match
             return Offset(baseX, baseZ, dx, dz);
         }
 
-        // 상대 소유 때 서는 자리. 배치(수비 시 자리)에서 개인 라인 높이 × 다이얼 배율만큼 앞으로. 라인 간격 자체는 편성 posX2가 정한다(스펙 §6)
-        public static (float x, float z) DefendHome(float baseX, float baseZ, int attackSign, float lineHeight)
+        // 상대 소유 때 서는 자리. 배치(수비 시 자리)에서 개인 라인 높이 × 다이얼 배율 + 팀 수비 라인 오프셋(TeamLineOffset)만큼 앞으로. 라인 간격 자체는 편성 posX2가 정한다(스펙 §6)
+        public static (float x, float z) DefendHome(float baseX, float baseZ, int attackSign, float lineHeight, float teamLineOffset)
         {
-            return Offset(baseX, baseZ, lineHeight * MatchTuning.PositionDialScale * attackSign, 0f);
+            return Offset(baseX, baseZ, (lineHeight * MatchTuning.PositionDialScale + teamLineOffset) * attackSign, 0f);
+        }
+
+        // 팀 수비 라인 높이(TeamTactics.DefenseLine)가 수비 자리에 더하는 m. GK는 0: GK 라인(KeeperLineX)은 슛 대응의 기준이라 팀 항목으로 움직이지 않는다(10-27)
+        public static float TeamLineOffset(int defenseLine, bool goalkeeper)
+        {
+            if (goalkeeper) { return 0f; }
+            return MatchTuning.DefenseLineOffset[defenseLine];
         }
 
         // GK가 지키는 라인 x = 수비 시 자리의 x. 시뮬의 닿음 판정(KeeperCanReachShot)과 트리의 이동(MoveToShotLine)이 이 한 함수를 써서 같은 점을 본다(10-25)
         public static float KeeperLineX(float defendHomeX, float defendHomeZ, int attackSign, float lineHeight)
         {
-            return DefendHome(defendHomeX, defendHomeZ, attackSign, lineHeight).x;
+            return DefendHome(defendHomeX, defendHomeZ, attackSign, lineHeight, 0f).x;   // GK엔 팀 수비 라인 오프셋이 없다(TeamLineOffset이 GK면 0을 주는 것과 같은 점)
         }
 
         // 공 지향 슬라이드 두 가지(09-21 유저 "자리가 완전 고정은 아닌 것 같다"). 공 좌표 기준이라 팀 부호가 필요 없다. 결과는 필드 안으로 클램프.
