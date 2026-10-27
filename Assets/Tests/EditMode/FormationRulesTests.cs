@@ -80,14 +80,6 @@ public class FormationRulesTests
     }
 
     [Test]
-    public void 가장_가까운_슬롯은_좌표에서_거리가_최소인_번호다()
-    {
-        FormationTemplate f442 = FormationRules.Find(Formations(), "4-4-2");
-        Assert.AreEqual(2, FormationRules.NearestSlot(f442, defending: false, -33f, -20f), "FB 자리 근처");
-        Assert.AreEqual(10, FormationRules.NearestSlot(f442, defending: true, -12f, -7f), "수비 모양의 ST");
-    }
-
-    [Test]
     public void 수비_역할_표는_기본_역할을_포함하고_다이얼_3개만_덮는다()
     {
         List<DefenseRole> roles = Roles();
@@ -181,6 +173,9 @@ public class FormationRulesTests
         Assert.AreEqual(5, next.Lineup[1].AttackSlot, "바꿔 둔 슬롯도 이월");
         FormationTemplate f433 = FormationRules.Find(formations, "4-3-3");
         Assert.AreEqual(FormationRules.Position(f433, 5, false), (next.Lineup[1].AttackX, next.Lineup[1].AttackZ), "좌표가 id·슬롯과 맞는다");
+        FormationTemplate f532 = FormationRules.Find(formations, "5-3-2");
+        Assert.AreEqual(previous.Lineup[1].DefenseSlot, next.Lineup[1].DefenseSlot, "수비 슬롯도 이월");
+        Assert.AreEqual(FormationRules.Position(f532, next.Lineup[1].DefenseSlot, true), (next.Lineup[1].DefendX, next.Lineup[1].DefendZ), "수비 좌표도 id·슬롯과 맞는다");
     }
 
     [Test]
@@ -373,5 +368,12 @@ public class FormationRulesTests
         Assert.AreEqual("4-4-2", back.DefenseFormationId);
         Assert.AreEqual(7, back.Lineup[6].AttackSlot, "순서 i+1");
         Assert.AreEqual(DefenseRole.DefaultId, back.Lineup[6].DefenseRoleId);
+
+        // 10-27 ④: SeasonSystem.Load가 옛 세이브에 하는 1회 변환. 자유 배치로 옮겨 둔 좌표가 템플릿 슬롯 값으로 돌아온다
+        List<FormationTemplate> formations = Formations();
+        back.SetFormations(back.AttackFormationId, back.DefenseFormationId, formations);
+        (float x, float z) expected = FormationRules.Position(FormationRules.Find(formations, "4-4-2"), 7, defending: false);
+        Assert.AreEqual(expected.x, back.Lineup[6].AttackX, 0.001f, "좌표는 템플릿 슬롯 값");
+        Assert.AreEqual(expected.z, back.Lineup[6].AttackZ, 0.001f);
     }
 }

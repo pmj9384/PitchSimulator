@@ -32,7 +32,7 @@
 - **템플릿 출신** — `Scripts/Core`(매니저 허브·세이브·풀·로딩), `Scripts/OutGame`, `Scripts/UISystem`, `Scripts/Data`, `Editor/`.
   고치면 **템플릿에도 역이식할지** 판단한다(기준: "프로젝트가 달라도 하는 일이 같은가")
 - **WarTableSimulator에서 옮겨 올 것**(장르 무관, 스펙 12절 표) — BT 엔진(`BehaviorNode`·`CompositeNodes`·`IUnitContext`), `TargetSelector`,
-  `PlacementRules`·`FieldBounds`·`PlacementManager`·`PlacementInput`·`PlacementPanel`, `StageComposition` 파서·리포지토리·`StageManager`,
+  `FieldBounds`(`PlacementRules`·`PlacementManager`·`PlacementInput`·`PlacementPanel`은 10-27 슬롯 격자로 대체해 삭제·이식 안 함), `StageComposition` 파서·리포지토리·`StageManager`,
   `UnitManager`(명부·풀)·`BattleManager` 틱 구조·`HudManager` 골격, CSV 관례·테스트 틀. 옮길 때 이름을 이 게임 말로 바꾼다(Unit→Player, Battle→Match)
 - **게임 코드** — 공·소유·패스·슛(`MatchRules`), 선수 트리, 스코어·시간 UI, 선수 세팅 화면. 템플릿에 안 올라간다
   `Scripts/OutGame/Screens/`의 `LobbyScreen`·`MatchdayScreen`·`MatchdayLines`·`ScoutScreen`도 게임 코드다(10-15). 폴더가 템플릿 출신이라도 로비 내용은 이 게임 것이라 역이식하지 않는다
@@ -102,7 +102,7 @@ unity command screenshot --view game --result-only # Play 중 화면, path에 PN
 
 MonoBehaviour 의존 없는 판정은 순수 C#(`Game.Core` asmdef, `noEngineReferences`)으로 뺀다.
 
-- **EditMode 대상**: 공 소유 판정(가장 가까운 선수·타이브레이크), 패스 가로채기, 슛 성공 확률(거리·각도), GK 슛 대응(닿음 판정·골 조준 간격·포스트 밖 밀기·반응 지연, 10-23~25), 압박 1순위 최소 재임(10-23), 세팅 배치 판정(내 진영 절반·간격. 11명·GK 1은 선발 슬롯이 고정이라 늘 참. 로스터는 벤치 7까지 가변)·스쿼드 규칙(벤치 상한·같은 자리 교체·방출 코인·슬롯 기준 이월)·승강전 판정(계획·합산·승부차기), 파서 전건 대조
+- **EditMode 대상**: 공 소유 판정(가장 가까운 선수·타이브레이크), 패스 가로채기, 슛 성공 확률(거리·각도), GK 슛 대응(닿음 판정·골 조준 간격·포스트 밖 밀기·반응 지연, 10-23~25), 압박 1순위 최소 재임(10-23), 슬롯 격자 판정(역할군·GK 슬롯 보호·전환 거리 경고·포메이션 전환 재착석·격자 비겹침, 10-25~27. 자유 배치 판정은 10-27 ④에서 지움. 11명·GK 1은 선발 슬롯이 고정이라 늘 참. 로스터는 벤치 7까지 가변)·스쿼드 규칙(벤치 상한·같은 자리 교체·방출 코인·슬롯 기준 이월)·승강전 판정(계획·합산·승부차기), 파서 전건 대조
 - **PlayMode·수동**: 트리 흐름, 이동, 카메라. 노드 안 판단은 `MatchRules` 순수 함수로 빼고 노드는 얇은 어댑터
 
 ## 레퍼런스 스킬

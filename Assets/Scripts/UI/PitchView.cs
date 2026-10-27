@@ -8,7 +8,7 @@ using UnityEngine;
 // 공격할 때 / 수비할 때 탭은 각각 공격 포메이션·수비 포메이션의 격자다(10-26 슬롯 격자 ②, FM26 In/Out of Possession 모양 2장).
 // 칩은 미터 좌표가 아니라 격자(FormationGrid)에 선다: 10-08~25의 미터 그리기는 22m 폭 칩이 라인 간격 12~17m에 겹쳤다(10-25 유저 Play). 그래서 슬라이더·다이얼로 칩이 움직이는 표시도 없다(FM 격자와 같다).
 // 칩을 누르면 그 선수를 고른다(09-30 개인 전술). 칩을 다른 칩 위에 놓으면 둘의 슬롯을 바꾼다(공격 탭 = 공격 슬롯, 수비 탭 = 수비 슬롯). 못 바꾸면(역할군·GK 슬롯) 잠깐 빨갛게.
-// 10-08 자유 배치(끌어 놓은 자리를 미터로 저장)는 접었다. 코어의 MoveLineupSlot·PlacementRules는 ④에서 지운다
+// 10-08 자유 배치(끌어 놓은 자리를 미터로 저장)는 접었고 코어의 판정·저장 코드도 10-27 ④에서 지웠다
 public class PitchView : MonoBehaviour
 {
     private const int DefendPhase = 1;   // phaseTabs: 0 = 공격할 때, 1 = 수비할 때
