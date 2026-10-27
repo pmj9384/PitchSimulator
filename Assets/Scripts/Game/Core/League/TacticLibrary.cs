@@ -6,7 +6,7 @@ using Game.Core.Tactics;
 namespace Game.Core.League
 {
     // 저장 전술 한 장(10-25 슬롯 격자, 유저 "전술을 내가 만들고 저장해 둘 수 있어야지"). FM의 전술 파일과 같은 구성: 자리·규칙만 담고 선수 배정은 담지 않는다.
-    // 선수는 시즌마다 바뀌어도 "압박 4-3-3"은 그대로 꺼내 쓸 수 있어야 해서다. 수비 역할은 선수가 아니라 **수비 슬롯 번호**에 붙인다(같은 이유)
+    // 선수는 시즌마다 바뀌어도 "압박 4-3-3"은 그대로 꺼내 쓸 수 있어야 해서다. 슬롯 층(SlotTactics: 공격 변형·지시·수비 역할)은 선수가 아니라 **슬롯 번호**에 붙인다(10-27 슬롯 중심)
     public sealed class SavedTactic
     {
         public const int NameMaxLength = 12;   // [가정] 전술판의 탭 한 칸에 들어가는 길이
@@ -14,28 +14,27 @@ namespace Game.Core.League
         public string Name { get; }
         public string AttackFormationId { get; }
         public string DefenseFormationId { get; }
-        public IReadOnlyList<string> DefenseRoleBySlot { get; }   // 길이 11, [슬롯 - 1] = DefenseRoles.csv id
+        public SlotTactics Slots { get; }                          // 슬롯 11칸 × (공격 변형 · 지시 · 수비 역할). 복사본
         public string PresetId { get; }                            // 팀 전술 기준 카드
         public TeamTactics? CustomTactics { get; }                 // 카드에서 바꾼 값. null = 카드 값 그대로
 
-        public SavedTactic(string name, string attackFormationId, string defenseFormationId, IReadOnlyList<string> defenseRoleBySlot, string presetId, TeamTactics? customTactics)
+        public SavedTactic(string name, string attackFormationId, string defenseFormationId, SlotTactics slots, string presetId, TeamTactics? customTactics)
         {
             if (string.IsNullOrWhiteSpace(name)) { throw new ArgumentException("[SavedTactic] 이름이 비었다"); }
             if (name.Length > NameMaxLength) { throw new ArgumentException($"[SavedTactic] 이름은 {NameMaxLength}자까지 ({name})"); }
             if (string.IsNullOrEmpty(attackFormationId) || string.IsNullOrEmpty(defenseFormationId)) { throw new ArgumentException($"[SavedTactic] {name}: 포메이션 id가 비었다"); }
-            if (defenseRoleBySlot.Count != FormationTemplate.SlotCount) { throw new ArgumentException($"[SavedTactic] {name}: 수비 역할은 슬롯 수 {FormationTemplate.SlotCount}칸 ({defenseRoleBySlot.Count})"); }
             if (string.IsNullOrEmpty(presetId)) { throw new ArgumentException($"[SavedTactic] {name}: 팀 전술 카드 id가 비었다"); }
             Name = name.Trim();
             AttackFormationId = attackFormationId;
             DefenseFormationId = defenseFormationId;
-            DefenseRoleBySlot = new List<string>(defenseRoleBySlot);
+            Slots = slots.Clone();
             PresetId = presetId;
             CustomTactics = customTactics == null ? null : TacticsEditing.Copy(customTactics);
         }
 
         public string DefenseRoleOf(int defenseSlot)
         {
-            return DefenseRoleBySlot[defenseSlot - 1];
+            return Slots.DefenseRoleOf(defenseSlot);
         }
 
         // 화면에 적는 팀 전술 이름. 바꾼 값이 있어도 기준 카드 이름(SeasonState.MyCardName과 같은 규칙)
@@ -103,7 +102,7 @@ namespace Game.Core.League
                 var entry = new TacticLibrarySave.Entry
                 {
                     name = t.Name, attackFormation = t.AttackFormationId, defenseFormation = t.DefenseFormationId,
-                    defenseRoles = new List<string>(t.DefenseRoleBySlot), presetId = t.PresetId,
+                    slots = t.Slots.ToSave(), presetId = t.PresetId,
                 };
                 if (t.CustomTactics != null) { entry.tactics = SeasonSave.TacticsValues.From(t.CustomTactics); }
                 save.tactics.Add(entry);
@@ -111,8 +110,9 @@ namespace Game.Core.League
             return save;
         }
 
-        // 옛 세이브(10-25 전)엔 없어 null → 빈 목록. 한 장이 깨져 있으면 그 장만 버리지 않고 던진다(SeasonSystem.Load와 같은 정책: 크게 알리고 기본값)
-        public static TacticLibrary FromSave(TacticLibrarySave? save)
+        // 옛 세이브(10-25 전)엔 없어 null → 빈 목록. 한 장이 깨져 있으면 그 장만 버리지 않고 던진다(SeasonSystem.Load와 같은 정책: 크게 알리고 기본값).
+        // 10-27 전 항목(슬롯 설정 없이 수비 역할 11칸만)은 공격 변형을 공격 템플릿의 기본 변형으로 채운다. 그래서 포메이션 표·PlayerTable이 필요하다
+        public static TacticLibrary FromSave(TacticLibrarySave? save, IReadOnlyList<FormationTemplate> formations, IReadOnlyList<PlayerStats> table)
         {
             var library = new TacticLibrary();
             if (save == null) { return library; }
@@ -120,10 +120,23 @@ namespace Game.Core.League
             {
                 TacticLibrarySave.Entry e = save.tactics[i];
                 TeamTactics? custom = e.tactics == null ? null : e.tactics.ToTactics(e.presetId ?? SeasonState.DefaultPresetId);
+                SlotTactics slots = SlotsOf(e, formations, table);
                 library.Put(new SavedTactic(e.name ?? string.Empty, e.attackFormation ?? string.Empty, e.defenseFormation ?? string.Empty,
-                    e.defenseRoles ?? new List<string>(), e.presetId ?? SeasonState.DefaultPresetId, custom));
+                    slots, e.presetId ?? SeasonState.DefaultPresetId, custom));
             }
             return library;
+        }
+
+        private static SlotTactics SlotsOf(TacticLibrarySave.Entry e, IReadOnlyList<FormationTemplate> formations, IReadOnlyList<PlayerStats> table)
+        {
+            if (e.slots != null) { return SlotTactics.FromSave(e.slots); }
+            FormationTemplate attack = FormationRules.Find(formations, e.attackFormation ?? string.Empty);
+            SlotTactics slots = SlotTactics.Default(attack, table);
+            if (e.defenseRoles == null) { return slots; }
+            if (e.defenseRoles.Count != SlotTactics.SlotCount) { throw new InvalidOperationException($"[TacticLibrary] {e.name}: 수비 역할은 슬롯 수 {SlotTactics.SlotCount}칸 ({e.defenseRoles.Count})"); }
+            var save = slots.ToSave();
+            save.defenseRoles = new List<string>(e.defenseRoles);
+            return SlotTactics.FromSave(save);
         }
     }
 
@@ -139,7 +152,8 @@ namespace Game.Core.League
             public string? name;
             public string? attackFormation;
             public string? defenseFormation;
-            public List<string>? defenseRoles;
+            public List<string>? defenseRoles;   // 10-27 전: 수비 슬롯별 역할만. 이후엔 slots에 들어 있다
+            public SlotTacticsSave? slots;        // 10-27 슬롯 설정(공격 변형·지시·수비 역할)
             public string? presetId;
             public SeasonSave.TacticsValues? tactics;   // 카드 값 그대로면 null
         }

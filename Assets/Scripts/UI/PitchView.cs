@@ -150,7 +150,7 @@ public class PitchView : MonoBehaviour
             {
                 // 수비 탭은 선수의 공격 변형이 아니라 수비 모양의 자리와 수비 역할을 보인다(FM26 공격 역할 1 + 수비 역할 1, 10-27 유저 Play 지적)
                 roleLabel = FormationRules.SlotOf(template, entry.DefenseSlot).RoleId;
-                nameLabel = DefenseRoleRepository.Get(entry.DefenseRoleId).DisplayName;
+                nameLabel = DefenseRoleRepository.Get(state.Slots.DefenseRoleOf(entry.DefenseSlot)).DisplayName;
             }
             chips[i].Show(roleLabel, nameLabel, new Vector2(cell.u, cell.v), entry.PlayerId == SelectedPlayerId);
         }

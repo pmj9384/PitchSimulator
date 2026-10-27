@@ -214,7 +214,6 @@ public class ScoutRulesTests
         Assert.AreEqual(target.VariantId, added.Stats.VariantId, "역할(변형)을 가져온다");
         Assert.AreEqual(300, added.Stats.BuildTotal, "빌드는 내 총점으로");
         Assert.AreEqual(3, added.Stars, "판정 때의 ★을 적는다");
-        Assert.IsFalse(added.HasInstructions);
         Assert.AreEqual(260, target.BuildTotal, "상대 선수 객체는 안 바뀐다");
         Assert.AreEqual(11, state.Lineup.Count, "선발 11은 그대로");
 
@@ -248,7 +247,6 @@ public class ScoutRulesTests
         Assert.AreEqual(added.Stats.VariantId, carried.Stats.VariantId, "역할(변형)은 이어 간다");
         Assert.AreEqual(2, carried.Stars, "★도 이어 간다");
         Assert.AreEqual(defaultVariant.Speed, carried.Stats.Speed, "빌드는 그 역할의 기본값");
-        Assert.IsFalse(carried.HasInstructions);
     }
 
     [Test]

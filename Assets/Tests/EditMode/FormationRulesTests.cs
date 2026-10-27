@@ -7,7 +7,8 @@ using Game.Core.Match;
 using Game.Core.Tactics;
 using NUnit.Framework;
 
-// 슬롯 격자 판정(10-25, FM26 공수 모양 2장): 슬롯 자리 파생 · 역할군 · 전환 거리와 경고 · 수비 포메이션 추천 순위 · 가장 가까운 슬롯 · 시즌 상태의 포메이션 선택·슬롯 교체·수비 역할·세이브 왕복
+// 슬롯 격자 판정(10-25, FM26 공수 모양 2장): 슬롯 자리 파생 · 역할군 · 전환 거리와 경고 · 수비 포메이션 추천 순위 · 시즌 상태의 포메이션 선택·슬롯 교체·수비 역할·세이브 왕복.
+// 10-27 슬롯 중심(수비 역할·변형·지시가 슬롯 번호에 붙음)의 상세는 SlotTacticsTests
 public class FormationRulesTests
 {
     private static List<FormationTemplate> Formations()
@@ -25,10 +26,14 @@ public class FormationRulesTests
         return StageCompositionParser.Parse(File.ReadAllText("Assets/Resources/Tables/StageComposition.csv")).FindAll(r => r.Stage == 1 && r.Team == 0);
     }
 
+    private static List<PlayerStats> Table()
+    {
+        return PlayerTableParser.Parse(File.ReadAllText("Assets/Resources/Tables/PlayerTable.csv"));
+    }
+
     private static SeasonState NewState()
     {
-        List<PlayerStats> table = PlayerTableParser.Parse(File.ReadAllText("Assets/Resources/Tables/PlayerTable.csv"));
-        return SeasonState.NewSeason(4, 42, StageRows(), table);
+        return SeasonState.NewSeason(4, 42, StageRows(), Table());
     }
 
     [Test]
@@ -105,7 +110,7 @@ public class FormationRulesTests
         {
             Assert.AreEqual(i + 1, state.Lineup[i].AttackSlot);
             Assert.AreEqual(i + 1, state.Lineup[i].DefenseSlot);
-            Assert.AreEqual(DefenseRole.DefaultId, state.Lineup[i].DefenseRoleId);
+            Assert.AreEqual(DefenseRole.DefaultId, state.Slots.DefenseRoleOf(i + 1));
         }
     }
 
@@ -114,7 +119,7 @@ public class FormationRulesTests
     {
         SeasonState state = NewState();
         List<FormationTemplate> formations = Formations();
-        state.SetFormations("4-3-3", "5-3-2", formations);
+        state.SetFormations("4-3-3", "5-3-2", formations, Table());
         Assert.AreEqual("4-3-3", state.AttackFormationId);
         Assert.AreEqual("5-3-2", state.DefenseFormationId);
         FormationTemplate f433 = FormationRules.Find(formations, "4-3-3");
@@ -122,7 +127,7 @@ public class FormationRulesTests
         LineupEntry slot6 = state.Lineup[5];
         Assert.AreEqual(FormationRules.Position(f433, 6, false), (slot6.AttackX, slot6.AttackZ), "공격 자리 = 4-3-3 슬롯 6");
         Assert.AreEqual(FormationRules.Position(f532, 6, true), (slot6.DefendX, slot6.DefendZ), "수비 자리 = 5-3-2 슬롯 6");
-        Assert.Throws<System.InvalidOperationException>(() => state.SetFormations("9-9-9", "4-4-2", formations));
+        Assert.Throws<System.InvalidOperationException>(() => state.SetFormations("9-9-9", "4-4-2", formations, Table()));
         Assert.AreEqual("4-3-3", state.AttackFormationId, "실패하면 안 바뀐다");
     }
 
@@ -162,11 +167,11 @@ public class FormationRulesTests
         SeasonState previous = NewState();
         List<FormationTemplate> formations = Formations();
         List<PlayerStats> table = PlayerTableParser.Parse(File.ReadAllText("Assets/Resources/Tables/PlayerTable.csv"));
-        previous.SetFormations("4-3-3", "5-3-2", formations);
+        previous.SetFormations("4-3-3", "5-3-2", formations, Table());
         previous.SwapLineupSlots(previous.Lineup[1].PlayerId, previous.Lineup[4].PlayerId, defending: false, formations);
 
         SeasonState next = SeasonState.NewSeason(3, 43, StageRows(), table);
-        next.SetFormations(previous.AttackFormationId, previous.DefenseFormationId, formations);   // SeasonSystem.StartNextSeason의 순서 그대로
+        next.SetFormations(previous.AttackFormationId, previous.DefenseFormationId, formations, Table());   // SeasonSystem.StartNextSeason의 순서 그대로
         next.AdoptStarters(previous.Roster, previous.Lineup, table);
         Assert.AreEqual("4-3-3", next.AttackFormationId);
         Assert.AreEqual("5-3-2", next.DefenseFormationId);
@@ -185,23 +190,24 @@ public class FormationRulesTests
         List<FormationTemplate> formations = Formations();
         List<DefenseRole> roles = Roles();
         List<TeamTactics> presets = TeamTacticsParser.Parse(File.ReadAllText("Assets/Resources/Tables/TacticPresets.csv"));
-        state.SetFormations("4-3-3", "5-3-2", formations);
-        state.SetDefenseRole(state.Lineup[6].PlayerId, "pressing", roles);   // 수비 슬롯 7
+        state.SetFormations("4-3-3", "5-3-2", formations, Table());
+        int defenseSlot = state.Lineup[6].DefenseSlot;
+        state.SetDefenseRole(defenseSlot, "pressing", roles);
         state.SetMyPreset("pressing", presets);
         SavedTactic tactic = state.SnapshotTactic("압박 433");
         Assert.AreEqual("4-3-3", tactic.AttackFormationId);
-        Assert.AreEqual("pressing", tactic.DefenseRoleOf(7), "역할은 선수가 아니라 수비 슬롯에 붙는다");
+        Assert.AreEqual("pressing", tactic.DefenseRoleOf(defenseSlot), "역할은 선수가 아니라 수비 슬롯에 붙는다");
         Assert.AreEqual(DefenseRole.DefaultId, tactic.DefenseRoleOf(1));
         Assert.IsNull(tactic.CustomTactics, "카드 값 그대로면 바꾼 값 없음");
 
         SeasonState other = NewState();
         int keeperId = other.Lineup[0].PlayerId;
-        other.ApplyTactic(tactic, formations, roles, presets);
+        other.ApplyTactic(tactic, formations, roles, presets, Table());
         Assert.AreEqual("5-3-2", other.DefenseFormationId);
-        Assert.AreEqual("pressing", other.Lineup[6].DefenseRoleId, "슬롯 7에 선 선수가 압박 역할을 받는다");
+        Assert.AreEqual("pressing", other.Slots.DefenseRoleOf(defenseSlot), "그 수비 슬롯이 압박 역할을 받는다");
         Assert.AreEqual("pressing", other.MyPresetId);
         Assert.AreEqual(keeperId, other.Lineup[0].PlayerId, "선수 배정은 안 바뀐다");
-        Assert.Throws<System.ArgumentException>(() => new SavedTactic("", "4-4-2", "4-4-2", tactic.DefenseRoleBySlot, "balanced", null), "이름 없음");
+        Assert.Throws<System.ArgumentException>(() => new SavedTactic("", "4-4-2", "4-4-2", tactic.Slots, "balanced", null), "이름 없음");
     }
 
     // 전술판 칩 크기(80×50px)를 필드 그림(약 424×342px)으로 나눈 값. 이보다 가까우면 칩이 겹친다. 프리팹 치수를 바꾸면 같이 바꾼다
@@ -267,7 +273,7 @@ public class FormationRulesTests
         CollectionAssert.AreEqual(slots, FormationRules.ReseatSlots(roles, slots, f442), "같은 모양이면 그대로");
 
         SeasonState state = NewState();
-        state.SetFormations("4-3-3", "4-3-3", formations);
+        state.SetFormations("4-3-3", "4-3-3", formations, Table());
         for (int i = 0; i < state.Lineup.Count; i++)
         {
             LineupEntry e = state.Lineup[i];
@@ -282,10 +288,10 @@ public class FormationRulesTests
         List<FormationTemplate> formations = Formations();
         List<DefenseRole> roles = Roles();
         List<TeamTactics> presets = TeamTacticsParser.Parse(File.ReadAllText("Assets/Resources/Tables/TacticPresets.csv"));
-        var badRoles = new List<string>();
-        for (int i = 0; i < FormationTemplate.SlotCount; i++) { badRoles.Add(i == 6 ? "ghost" : DefenseRole.DefaultId); }
-        var tactic = new SavedTactic("깨진 전술", "4-3-3", "5-3-2", badRoles, "balanced", null);
-        Assert.Throws<System.InvalidOperationException>(() => state.ApplyTactic(tactic, formations, roles, presets));
+        SlotTacticsSave bad = SlotTactics.Default(FormationRules.Find(formations, "4-3-3"), Table()).ToSave();
+        bad.defenseRoles[6] = "ghost";
+        var tactic = new SavedTactic("깨진 전술", "4-3-3", "5-3-2", SlotTactics.FromSave(bad), "balanced", null);
+        Assert.Throws<System.InvalidOperationException>(() => state.ApplyTactic(tactic, formations, roles, presets, Table()));
         Assert.AreEqual("4-4-2", state.AttackFormationId, "포메이션도 안 바뀐다(반쪽 적용 없음)");
     }
 
@@ -317,36 +323,36 @@ public class FormationRulesTests
         }
         Assert.AreEqual(TacticLibrary.MaxCount, library.All.Count);
         Assert.Throws<System.InvalidOperationException>(() => library.Put(state.SnapshotTactic("여섯째")), "꽉 차면 던진다(화면이 먼저 막는다)");
-        state.SetFormations("4-3-3", "4-4-2", Formations());
+        state.SetFormations("4-3-3", "4-4-2", Formations(), Table());
         library.Put(state.SnapshotTactic("전술2"));
         Assert.AreEqual(TacticLibrary.MaxCount, library.All.Count, "같은 이름은 덮어쓴다");
         Assert.AreEqual("4-3-3", library.All[2].AttackFormationId, "그 자리에");
         Assert.IsTrue(library.Remove("전술0"));
         Assert.IsFalse(library.Remove("없는 이름"));
 
-        TacticLibrary back = TacticLibrary.FromSave(library.ToSave());
+        TacticLibrary back = TacticLibrary.FromSave(library.ToSave(), Formations(), Table());
         Assert.AreEqual(library.All.Count, back.All.Count);
         Assert.AreEqual("4-3-3", back.Find("전술2").AttackFormationId);
-        Assert.AreEqual(0, TacticLibrary.FromSave(null).All.Count, "옛 세이브(없음)는 빈 목록");
+        Assert.AreEqual(0, TacticLibrary.FromSave(null, Formations(), Table()).All.Count, "옛 세이브(없음)는 빈 목록");
     }
 
     [Test]
-    public void 수비_역할은_선발마다_고르고_경기_재료의_수비_다이얼을_덮으며_세이브를_왕복한다()
+    public void 수비_역할은_수비_슬롯마다_고르고_경기_재료의_수비_다이얼을_덮으며_세이브를_왕복한다()
     {
         SeasonState state = NewState();
         List<DefenseRole> roles = Roles();
-        List<PlayerStats> table = PlayerTableParser.Parse(File.ReadAllText("Assets/Resources/Tables/PlayerTable.csv"));
-        int cm = state.Lineup[6].PlayerId;
-        float basePress = state.MyLineup()[6].Stats.PressRange;
-        state.SetDefenseRole(cm, "pressing", roles);
-        Assert.AreEqual(basePress * 1.5f, state.MyLineup(roles)[6].Stats.PressRange, 1e-4f, "압박 역할이면 압박 거리 ×1.5");
-        Assert.AreEqual(basePress, state.MyLineup()[6].Stats.PressRange, 1e-4f, "표를 안 주면 역할 값 그대로");
-        Assert.Throws<System.InvalidOperationException>(() => state.SetDefenseRole(cm, "nope", roles));
+        List<PlayerStats> table = Table();
+        int cmSlot = state.Lineup[6].DefenseSlot;
+        float basePress = state.MyLineup(table, null)[6].Stats.PressRange;
+        state.SetDefenseRole(cmSlot, "pressing", roles);
+        Assert.AreEqual(basePress * 1.5f, state.MyLineup(table, roles)[6].Stats.PressRange, 1e-4f, "압박 역할이면 압박 거리 ×1.5");
+        Assert.AreEqual(basePress, state.MyLineup(table, null)[6].Stats.PressRange, 1e-4f, "표를 안 주면 역할 값 그대로");
+        Assert.Throws<System.InvalidOperationException>(() => state.SetDefenseRole(cmSlot, "nope", roles));
 
-        state.SetFormations("4-3-3", "4-4-2", Formations());
+        state.SetFormations("4-3-3", "4-4-2", Formations(), Table());
         SeasonState back = SeasonState.FromSave(state.ToSave(), table);
         Assert.AreEqual("4-3-3", back.AttackFormationId);
-        Assert.AreEqual("pressing", back.Lineup[6].DefenseRoleId);
+        Assert.AreEqual("pressing", back.Slots.DefenseRoleOf(cmSlot));
         Assert.AreEqual(state.Lineup[6].AttackX, back.Lineup[6].AttackX, 1e-4f);
     }
 
@@ -367,11 +373,11 @@ public class FormationRulesTests
         SeasonState back = SeasonState.FromSave(old, table);
         Assert.AreEqual("4-4-2", back.DefenseFormationId);
         Assert.AreEqual(7, back.Lineup[6].AttackSlot, "순서 i+1");
-        Assert.AreEqual(DefenseRole.DefaultId, back.Lineup[6].DefenseRoleId);
+        Assert.AreEqual(DefenseRole.DefaultId, back.Slots.DefenseRoleOf(7));
 
         // 10-27 ④: SeasonSystem.Load가 옛 세이브에 하는 1회 변환. 자유 배치로 옮겨 둔 좌표가 템플릿 슬롯 값으로 돌아온다
         List<FormationTemplate> formations = Formations();
-        back.SetFormations(back.AttackFormationId, back.DefenseFormationId, formations);
+        back.SetFormations(back.AttackFormationId, back.DefenseFormationId, formations, Table());
         (float x, float z) expected = FormationRules.Position(FormationRules.Find(formations, "4-4-2"), 7, defending: false);
         Assert.AreEqual(expected.x, back.Lineup[6].AttackX, 0.001f, "좌표는 템플릿 슬롯 값");
         Assert.AreEqual(expected.z, back.Lineup[6].AttackZ, 0.001f);
