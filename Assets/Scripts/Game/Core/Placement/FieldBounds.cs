@@ -2,7 +2,7 @@ namespace Game.Core.Placement
 {
     // 필드 치수와 진영 축의 한 곳에서 정의(스펙 §3: FIFA 표준 105m × 68m, 중앙 원점).
     // 진영 축은 X다. 팀0(플레이어)은 x<0에서 시작해 +X 골을 노리고, 팀1(상대)은 그 반대.
-    // 축을 바꾸려면 이 파일의 두 상수와 PositionRules·PressRules·PassRules의 축 판정을 같이 바꾼다. 자유 배치 판정(PlacementRules)은 10-27 슬롯 격자로 접으며 지웠다.
+    // 축을 바꾸려면 이 파일의 두 상수와 PositionRules·PressRules·PassRules의 축 판정을 같이 바꾼다.
     public static class FieldBounds
     {
         public const float HalfLength = 52.5f;   // 진영 축(X) 방향 절반

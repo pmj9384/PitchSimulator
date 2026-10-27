@@ -120,24 +120,6 @@ namespace Game.Core.League
             return 0;
         }
 
-        // 좌표에 가장 가까운 슬롯(옛 세이브의 자유 배치 좌표를 슬롯으로 흡수할 때, 끌어놓기를 슬롯에 붙일 때). 동률은 번호 작은 쪽
-        public static int NearestSlot(FormationTemplate template, bool defending, float x, float z)
-        {
-            int best = 1;
-            float bestSqr = float.MaxValue;
-            for (int slot = 1; slot <= FormationTemplate.SlotCount; slot++)
-            {
-                (float sx, float sz) = Position(template, slot, defending);
-                float sqr = (sx - x) * (sx - x) + (sz - z) * (sz - z);
-                if (sqr < bestSqr)
-                {
-                    bestSqr = sqr;
-                    best = slot;
-                }
-            }
-            return best;
-        }
-
         private static int CompareByDistanceThenOrder((float distance, int order, FormationTemplate template) a, (float distance, int order, FormationTemplate template) b)
         {
             int byDistance = a.distance.CompareTo(b.distance);
