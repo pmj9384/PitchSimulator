@@ -474,30 +474,6 @@ public class SeasonFlowTests
         Assert.Throws<System.InvalidOperationException>(() => next.SetPlayerRole(striker, "st_targetman", table), "새로 고르는 건 여전히 막힌다");
     }
 
-    [Test]
-    public void 새_시즌은_이전_시즌에_끌어_둔_배치를_이어받는다()
-    {
-        // 10-13 재검증 R2: 전술·역할·지시는 이월되는데 유일한 레버인 배치만 기본으로 돌아갔다
-        SeasonState previous = SeasonState.NewSeason(4, 42, myRows, table);
-        int striker = FirstPlayerOfRole(previous, "ST");
-        previous.MoveLineupSlot(striker, defending: false, -30f, 20f);
-        previous.MoveLineupSlot(striker, defending: true, -45f, -10f);
-
-        SeasonState next = SeasonState.NewSeason(3, 43, myRows, table);
-        next.AdoptStarters(previous.Roster, previous.Lineup, table);
-
-        LineupEntry carried = default;
-        foreach (LineupEntry e in next.Lineup)
-        {
-            if (e.PlayerId == striker) { carried = e; }
-        }
-        Assert.AreEqual(-30f, carried.AttackX);
-        Assert.AreEqual(20f, carried.AttackZ);
-        Assert.AreEqual(-45f, carried.DefendX);
-        Assert.AreEqual(-10f, carried.DefendZ);
-        Assert.AreEqual(previous.Lineup.Count, next.Lineup.Count, "자리 수는 그대로");
-    }
-
     // 다음 시즌으로 바꾼 전술을 이어 가는 것(SeasonSystem.StartNextSeason)은 여기서 못 잠근다: SeasonSystem이 SaveLoadSystem 싱글턴에 묶여 EditMode에서 못 만든다
 
     [Test]

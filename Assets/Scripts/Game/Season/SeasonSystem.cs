@@ -71,7 +71,13 @@ public class SeasonSystem : ISaveLoad
         }
         try
         {
-            Adopt(SeasonState.FromSave(save, PlayerTableRepository.All));
+            SeasonState state = SeasonState.FromSave(save, PlayerTableRepository.All);
+            if (save.attackFormation == null)
+            {
+                // 10-25 전 세이브: 자유 배치로 옮긴 좌표를 버리고 4-4-2 템플릿 슬롯 값으로 1회 바꾼다(10-27 ④, 스펙 §8). 슬롯 번호는 FromSave가 라인업 순서로 흡수했다
+                state.SetFormations(state.AttackFormationId, state.DefenseFormationId, FormationTemplateRepository.All);
+            }
+            Adopt(state);
         }
         catch (Exception e)
         {
@@ -504,14 +510,6 @@ public class SeasonSystem : ISaveLoad
         SavedTactic tactic = Library.Find(TacticLibrary.SlotName(slotIndex));
         if (tactic == null) { return; }
         State.ApplyTactic(tactic, FormationTemplateRepository.All, DefenseRoleRepository.All, TeamTacticsRepository.All);
-        CommitMyTactics();
-    }
-
-    // 배치(스펙 §8, 10-08): 전술 화면 필드에서 칩을 끌어 놓은 편성 자리. 규칙은 SeasonState가 정한다. 10-26 전술판이 격자로 바뀌어 호출처가 없다(④에서 접음)
-    public void MoveLineupSlot(int playerId, bool defending, float x, float z)
-    {
-        ThrowIfReporting();
-        State.MoveLineupSlot(playerId, defending, x, z);
         CommitMyTactics();
     }
 

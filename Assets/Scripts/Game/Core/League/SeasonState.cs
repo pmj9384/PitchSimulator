@@ -83,7 +83,7 @@ namespace Game.Core.League
     }
 
     // 라인업 한 자리: 로스터 선수 id + 공격 포메이션 슬롯·수비 포메이션 슬롯·수비 역할(10-25 슬롯 격자) + 자리 2쌍(공격 시/수비 시).
-    // 자리 2쌍은 포메이션·슬롯에서 파생한 값(SetFormations·SwapLineupSlots가 다시 채운다). 10-08 자유 배치(MoveLineupSlot)가 남아 있는 동안은 직접 쓴 좌표이기도 하다
+    // 자리 2쌍은 포메이션·슬롯에서 파생한 캐시(SetFormations·SwapLineupSlots가 다시 채운다). 10-08 자유 배치(끌어 놓은 좌표 저장)는 10-27 ④에서 지웠다
     public readonly struct LineupEntry
     {
         public readonly int PlayerId;
@@ -471,18 +471,6 @@ namespace Game.Core.League
             return next;
         }
 
-        // 배치(스펙 §8, 10-08): 라인업 한 선수의 편성 자리(공격 시 또는 수비 시)를 옮긴다. 내 진영 절반 안·다른 선수와 최소 간격은 PlacementRules가 판정하고,
-        // 안 되면 던지고 아무것도 안 바뀐다(UI는 먼저 Evaluate로 물어 보고 되돌린다). 값은 편성 좌표(전진 정도·개인 다이얼을 얹기 전)다
-        public void MoveLineupSlot(int playerId, bool defending, float x, float z)
-        {
-            int index = LineupIndexOf(playerId);
-            PlacementVerdict verdict = EvaluateLineupSlot(playerId, defending, x, z);
-            if (verdict != PlacementVerdict.Ok) { throw new InvalidOperationException($"[SeasonState] 선수 {playerId}를 ({x:0.0}, {z:0.0})에 둘 수 없다: {verdict}"); }
-
-            LineupEntry e = lineup[index];
-            lineup[index] = defending ? e.WithDefense(e.DefenseSlot, x, z) : e.WithAttack(e.AttackSlot, x, z);
-        }
-
         // ── 슬롯 격자(10-25, FM26 공수 모양 2장). 좌표는 템플릿에서 파생해 LineupEntry에 캐시한다
 
         // 공격·수비 포메이션을 고른다. 선수를 새 템플릿의 역할군이 맞는 슬롯에 다시 앉히고(FormationRules.ReseatSlots) 자리 2쌍을 그 슬롯 값으로 채운다. 없는 id면 던지고 아무것도 안 바뀐다
@@ -618,18 +606,6 @@ namespace Game.Core.League
             return (float)Math.Sqrt(dx * dx + dz * dz);
         }
 
-        public PlacementVerdict EvaluateLineupSlot(int playerId, bool defending, float x, float z)
-        {
-            var occupied = new List<(float X, float Z)>(lineup.Count - 1);
-            for (int i = 0; i < lineup.Count; i++)
-            {
-                LineupEntry e = lineup[i];
-                if (e.PlayerId == playerId) { continue; }
-                occupied.Add(defending ? (e.DefendX, e.DefendZ) : (e.AttackX, e.AttackZ));
-            }
-            return PlacementRules.Evaluate(x, z, MyTeamId, occupied, FieldBounds.MinSpacing);
-        }
-
         private int LineupIndexOf(int playerId)
         {
             for (int i = 0; i < lineup.Count; i++)
@@ -754,7 +730,7 @@ namespace Game.Core.League
             for (int i = 0; i < save.lineup.Count; i++)
             {
                 SeasonSave.Slot s = save.lineup[i];
-                // 10-25 전 세이브엔 슬롯이 없다(0). 그때 라인업 순서 = 4-4-2 슬롯 순서였으니 i+1로 흡수하고 좌표는 저장된 값을 그대로 쓴다(자유 배치로 옮긴 자리도 남는다)
+                // 10-25 전 세이브엔 슬롯이 없다(0). 그때 라인업 순서 = 4-4-2 슬롯 순서였으니 i+1로 흡수한다. 좌표는 일단 저장값을 두고 SeasonSystem.Load가 템플릿 값으로 1회 바꾼다(10-27 ④: 자유 배치로 옮긴 자리는 버린다)
                 int attackSlot = s.attackSlot == 0 ? i + 1 : s.attackSlot;
                 int defenseSlot = s.defenseSlot == 0 ? i + 1 : s.defenseSlot;
                 if (attackSlot < 1 || attackSlot > FormationTemplate.SlotCount || defenseSlot < 1 || defenseSlot > FormationTemplate.SlotCount) { throw new InvalidOperationException($"[SeasonState] 선수 {s.playerId} 슬롯이 범위 밖이다({attackSlot}, {defenseSlot})"); }

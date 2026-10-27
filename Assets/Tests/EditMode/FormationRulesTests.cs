@@ -373,5 +373,12 @@ public class FormationRulesTests
         Assert.AreEqual("4-4-2", back.DefenseFormationId);
         Assert.AreEqual(7, back.Lineup[6].AttackSlot, "순서 i+1");
         Assert.AreEqual(DefenseRole.DefaultId, back.Lineup[6].DefenseRoleId);
+
+        // 10-27 ④: SeasonSystem.Load가 옛 세이브에 하는 1회 변환. 자유 배치로 옮겨 둔 좌표가 템플릿 슬롯 값으로 돌아온다
+        List<FormationTemplate> formations = Formations();
+        back.SetFormations(back.AttackFormationId, back.DefenseFormationId, formations);
+        (float x, float z) expected = FormationRules.Position(FormationRules.Find(formations, "4-4-2"), 7, defending: false);
+        Assert.AreEqual(expected.x, back.Lineup[6].AttackX, 0.001f, "좌표는 템플릿 슬롯 값");
+        Assert.AreEqual(expected.z, back.Lineup[6].AttackZ, 0.001f);
     }
 }

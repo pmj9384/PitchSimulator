@@ -158,7 +158,7 @@ public class SquadRulesTests
         for (int i = 0; i < previous.Lineup.Count; i++) { if (previous.Lineup[i].PlayerId == starterSt) { slot = i; } }
         previous.SwapStarter(starterSt, recruit.PlayerId);
         previous.SetPlayerInstruction(recruit.PlayerId, PlayerDial.PushUp, 1);
-        previous.MoveLineupSlot(recruit.PlayerId, defending: false, -30f, 20f);
+        int attackSlot = previous.Lineup[slot].AttackSlot;
 
         SeasonState next = SeasonState.NewSeason(3, 43, myRows, table);
         next.AdoptStarters(previous.Roster, previous.Lineup, table);
@@ -168,7 +168,7 @@ public class SquadRulesTests
         Assert.AreEqual(otherSt.VariantId, carried.Stats.VariantId, "그 슬롯의 역할은 영입 선수 것");
         Assert.AreEqual(4, carried.Stars, "★도 따라온다");
         Assert.AreEqual(1, carried.Instructions[(int)PlayerDial.PushUp], "개인 지시도");
-        Assert.AreEqual(-30f, next.Lineup[slot].AttackX, "배치도 슬롯 기준");
+        Assert.AreEqual(attackSlot, next.Lineup[slot].AttackSlot, "공격 슬롯도 슬롯 기준");
         Assert.AreEqual(1, next.BenchCount, "내려간 기본 선수 한 명만 벤치로");
         Assert.AreEqual(1, next.Bench()[0].Stars);
         Assert.AreEqual(12, next.Roster.Count);
