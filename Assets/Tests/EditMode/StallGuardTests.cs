@@ -55,7 +55,12 @@ public class StallGuardTests
             int shapeOwned = 0, shapeWide = 0; var shapeByRole = new Dictionary<string, int>();
             for (int tick = 0; tick < Ticks; tick++)
             {
+                bool wasSecondHalf = sim.IsSecondHalf;
                 sim.Tick(MatchTuning.FixedStep);
+                if (!wasSecondHalf && sim.IsSecondHalf)
+                {
+                    owners.Clear();   // 후반 킥오프는 새 흐름이다(슛 뒤 비우기와 같은 이유). 10-29: 시드 14가 E로 걸렸는데 러너 trace 14 75 95로 보니 전반 끝 ST#20↔#21 전진 패스(82.8~87.7초)와 후반 킥오프 ST↔ST(89.0초~)를 이어 센 것이었다. 공은 그동안 20m 전진했다
+                }
                 if (sim.Ball.Phase == BallPhase.Owned)
                 {
                     shapeOwned++;
