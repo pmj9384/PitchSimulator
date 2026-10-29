@@ -24,7 +24,7 @@ namespace Game.Core.Tactics
             {
                 line++;
                 if (!ids.Add(r.DefenseRoleId)) { throw new FormatException($"DefenseRoles {line}행: id 중복 ({r.DefenseRoleId})"); }
-                roles.Add(new DefenseRole(r.DefenseRoleId, r.DisplayName, r.Description, r.PressRangeScale, r.LineHeightOffset, r.RoamRadiusScale));
+                roles.Add(new DefenseRole(r.DefenseRoleId, r.DisplayName, r.Description, r.PressRangeScale, r.LineHeightOffset));
             }
             if (!ids.Contains(DefenseRole.DefaultId)) { throw new FormatException($"DefenseRoles: 기본 역할 '{DefenseRole.DefaultId}' 행이 없다"); }
             return roles;
@@ -46,7 +46,6 @@ namespace Game.Core.Tactics
             public string Description { get; set; } = string.Empty;
             public float PressRangeScale { get; set; }
             public float LineHeightOffset { get; set; }
-            public float RoamRadiusScale { get; set; }
         }
 
         private sealed class RowMap : ClassMap<Row>
@@ -58,7 +57,6 @@ namespace Game.Core.Tactics
                 Map(r => r.Description).Name("description");
                 Map(r => r.PressRangeScale).Name("pressRangeScale");
                 Map(r => r.LineHeightOffset).Name("lineHeightOffset");
-                Map(r => r.RoamRadiusScale).Name("roamRadiusScale");
             }
         }
     }
