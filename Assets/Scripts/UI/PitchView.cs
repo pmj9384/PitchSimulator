@@ -2,33 +2,32 @@ using System;
 using System.Collections.Generic;
 using Game.Core.Data;
 using Game.Core.League;
-using Game.Core.Match;
-using Game.Core.Placement;
-using Game.Core.Tactics;
 using UnityEngine;
+using UnityEngine.UI;
 
-// 전술 화면의 필드(09-30, FM·EA FC 전술 화면이 화면 절반을 필드로 쓰는 것을 따름). 내 11명을 칩으로 세운다.
-// 공격할 때 / 수비할 때 자리를 토글로 본다(스펙 §4-3 자리 2쌍). 자리는 경기가 쓰는 식 그대로 계산한다(PositionRules.AttackHome·DefendHome):
-// 편성 자리 + 팀 전진 정도 + 개인 전진 폭·측면 쏠림·라인 높이. 그래서 "얼마나 앞으로" 슬라이더나 폭을 바꾸면 칩이 같이 움직인다(읽히는 전술).
-// 공 위치에 따라 달라지는 값은 공이 필드 한가운데 있을 때로 고정해 보여 준다: 서드별 폭은 중원 값, 공 지향 슬라이드는 공 (0, 0)으로 부른다.
-// 공격 가로 슬라이드는 공이 중앙이어도 자리를 안으로 당기므로(편성 자리 = 가장 벌어진 모양, 10-25) 안 부르면 공격할 때 탭이 경기보다 넓게 보인다. 수비할 때는 공 (0, 0)이면 0이다.
-// 칩을 누르면 그 선수를 고른다(09-30 개인 전술: 고른 선수의 역할·개인 지시를 옆 패널이 보여 준다). 자리는 개인 지시까지 얹은 값으로 그린다.
-// 배치(10-08, 스펙 §8 10-08 구현 설계): 칩을 끌어 놓으면 그 자리에서 전진·폭·개인 다이얼 오프셋을 빼 편성 자리로 저장한다. 공격할 때/수비할 때 탭이 "같은 선수를 두 번 놓는" 토글이다.
-// 내 진영 절반 밖이거나 다른 칩과 1.2m 안이면 칩을 원래 자리로 되돌리고 잠깐 빨갛게 한다
+// 전술 화면의 필드(09-30, FM·EA FC 전술 화면이 화면 절반 넘게를 필드로 쓰는 것을 따름). 내 11명을 칩으로 세운다.
+// 공격할 때 / 수비할 때 탭은 각각 공격 포메이션·수비 포메이션의 격자다(10-26 슬롯 격자 ②, FM26 In/Out of Possession 모양 2장).
+// 칩은 미터 좌표가 아니라 격자(FormationGrid)에 선다: 10-08~25의 미터 그리기는 22m 폭 칩이 라인 간격 12~17m에 겹쳤다(10-25 유저 Play). 그래서 슬라이더·다이얼로 칩이 움직이는 표시도 없다(FM 격자와 같다).
+// 10-27 ③b 조작은 탭만: 칩을 누르면 그 선수(가 선 슬롯)를 고르고, 같은 칩을 다시 누르거나 필드 빈 곳을 누르면 선택을 푼다. 교체는 자리 패널의 후보 목록이 한다(끌기는 뺐다).
+// 칩 글자: 공격 탭 = 공격 슬롯의 자리 + 슬롯 변형(선수의 자연 변형이 아니다, 10-27 슬롯 중심), 수비 탭 = 수비 슬롯의 자리 + 수비 역할.
+// 어긋남 "!" = SeasonState.WarningsOf(적성·역할군·전환 거리)가 None이 아닐 때. 자리 패널 경고와 같은 판정 한 곳
 public class PitchView : MonoBehaviour
 {
-    private const int AttackPhase = 0;
-    private const int DefendPhase = 1;
-    private const int MyAttackSign = +1;   // 내 팀은 시뮬 팀 0(+X 공격). 필드 그림은 우리 골이 왼쪽
-    public const int NoPlayer = -1;
+    public const int NoPlayer = SeasonState.NoPlayerId;
 
-    [SerializeField] private PitchChip[] chips;   // 11개 고정(FormationTemplate.SlotCount)
-    [SerializeField] private TabGroup phaseTabs;  // 0 = 공격할 때, 1 = 수비할 때
+    [SerializeField] private PitchChip[] chips;   // 11개 고정(FormationTemplate.SlotCount). chips[i] = Lineup[i]
+    [SerializeField] private TabGroup phaseTabs;
+    [SerializeField] private Button fieldButton;  // 필드 바탕. 빈 곳을 누르면 선택을 푼다(명단으로 돌아감)
 
-    // 칩을 눌러 선수를 고를 때(playerId). 전술 화면(TacticsBoardView)이 개인 전술 패널을 그 선수로 바꾼다
+    // 칩을 눌러 선수를 고를 때(playerId). 전술 화면(TacticsBoardView)이 자리 패널을 그 선수의 슬롯으로 바꾼다
     public event Action<int> PlayerSelected;
+    // 빈 곳을 눌러 선택을 풀 때. 전술 화면이 명단을 보인다
+    public event Action Deselected;
+    // 공격/수비 탭을 바꿀 때. 자리 패널이 변형 쪽/수비 역할 쪽을 바꿔 보인다
+    public event Action PhaseChanged;
 
     public int SelectedPlayerId { get; private set; } = NoPlayer;
+    public bool Defending => phaseTabs.SelectedIndex == PitchPhase.Defend;   // 탭 순서는 PitchPhase 한 곳
 
     private bool initialized;
 
@@ -53,135 +52,80 @@ public class PitchView : MonoBehaviour
         }
         phaseTabs.Initialize();
         phaseTabs.Selected += OnPhaseSelected;
+        fieldButton.onClick.AddListener(OnFieldClicked);
         for (int i = 0; i < chips.Length; i++)
         {
             chips[i].Initialize();
             chips[i].Clicked += OnChipClicked;
-            chips[i].Dropped += OnChipDropped;
         }
     }
 
-    // 칩을 놓은 자리(필드 로컬 좌표) → 필드 좌표 → 편성 자리 → 판정 → 저장. 안 되면 되돌린다.
-    // 편성 자리는 "놓은 자리 − (보이는 자리 − 편성 자리)"인데 측면 쏠림이 편성 z의 부호를 따라서(PositionRules.AttackHome), z = 0 선을 건너 놓으면 한 번에 안 풀린다.
-    // 그래서 몇 번 되풀이해 다시 그린 자리가 놓은 자리와 같아질 때까지 맞추고, 끝내 안 맞으면(필드 밖으로 잘린 경우) 거부한다
-    private void OnChipDropped(PitchChip chip, Vector2 local)
-    {
-        try
-        {
-            TryMoveChip(chip, local);
-        }
-        finally
-        {
-            PlaceChips();   // 성공이든 거부든 예외든 칩은 저장된 자리에 선다
-        }
-    }
-
-    private void TryMoveChip(PitchChip chip, Vector2 local)
-    {
-        int index = Array.IndexOf(chips, chip);
-        SeasonState state = State;
-        LineupEntry entry = state.Lineup[index];
-        bool defending = phaseTabs.SelectedIndex == DefendPhase;
-
-        var field = chip.transform.parent as RectTransform;
-        if (field == null) { return; }
-        (float x, float z) dropped = FromLocal(field, local);
-        if (!TryResolveBase(state, entry, defending, dropped, out (float x, float z) basePos))
-        {
-            chip.FlashRejected();
-            return;
-        }
-
-        PlacementVerdict verdict = state.EvaluateLineupSlot(entry.PlayerId, defending, basePos.x, basePos.z);
-        if (verdict != PlacementVerdict.Ok)
-        {
-            chip.FlashRejected();
-            return;
-        }
-        GameDataManager.Instance.Season.MoveLineupSlot(entry.PlayerId, defending, basePos.x, basePos.z);
-    }
-
-    // 공격 가로 슬라이드가 자리를 (1 − k)배로 줄여 되풀이마다 오차가 k배(0.2)로만 준다. 10m 옮기면 3회는 0.08m가 남아 허용치를 넘어 거부됐다(10-25). 12회면 사실상 0
-    private const int ResolveIterations = 12;
-    private const float ResolveTolerance = 0.05f;   // m. 이 안이면 "놓은 자리에 선다"로 본다
-
-    private static bool TryResolveBase(SeasonState state, LineupEntry entry, bool defending, (float x, float z) dropped, out (float x, float z) basePos)
-    {
-        PlayerStats stats = state.FindRosterPlayer(entry.PlayerId).EffectiveStats();
-        TeamTactics tactics = state.MyTactics(TeamTacticsRepository.All);
-        float bx = defending ? entry.DefendX : entry.AttackX;
-        float bz = defending ? entry.DefendZ : entry.AttackZ;
-        for (int i = 0; i < ResolveIterations; i++)
-        {
-            (float x, float z) shown = Home(bx, bz, stats, tactics, defending);
-            (bx, bz) = FieldBounds.BaseFromShown(dropped.x, dropped.z, shown.x, shown.z, bx, bz);
-        }
-        basePos = (bx, bz);
-        (float x, float z) check = Home(bx, bz, stats, tactics, defending);
-        float dx = check.x - dropped.x;
-        float dz = check.z - dropped.z;
-        return dx * dx + dz * dz <= ResolveTolerance * ResolveTolerance;
-    }
-
-    // 경기가 서는 자리와 같은 식: 공격 시/수비 시 자리 + 공 (0, 0) 기준 공 지향 슬라이드(공격할 때만 가로 수축이 걸린다)
-    private static (float x, float z) Home(float baseX, float baseZ, PlayerStats stats, TeamTactics tactics, bool defending)
-    {
-        if (defending)
-        {
-            (float x, float z) defendHome = PositionRules.DefendHome(baseX, baseZ, MyAttackSign, stats.LineHeight);
-            return PositionRules.SlideDefend(defendHome.x, defendHome.z, 0f, 0f, stats.IsKeeper);
-        }
-        (float x, float z) attackHome = PositionRules.AttackHome(baseX, baseZ, MyAttackSign, tactics.Mentality, stats.PushUp, tactics.Width[(int)Third.Middle], stats.Width);
-        return PositionRules.SlideAttack(attackHome.x, attackHome.z, 0f, 0f, stats.IsKeeper);
-    }
-
-    // 필드 그림 로컬 좌표 → 필드 좌표(ToAnchor의 역. 변환식은 FieldBounds가 들고 테스트가 왕복을 잠근다)
-    private static (float x, float z) FromLocal(RectTransform field, Vector2 local)
-    {
-        Rect r = field.rect;
-        float u = (local.x - r.xMin) / r.width;
-        float v = (local.y - r.yMin) / r.height;
-        return FieldBounds.FromUnit(u, v);
-    }
-
-    // 고른 선수가 라인업에 없으면(화면을 처음 열 때, 시즌이 바뀌어 선수 id가 달라졌을 때) 첫 선수를 고른다
+    // 고른 선수가 라인업에 없으면(시즌이 바뀌어 선수 id가 달라졌을 때) 선택을 푼다. 화면을 처음 열 때도 고른 선수 없음 = 명단부터
     private void KeepSelectionInLineup()
     {
+        if (SelectedPlayerId == NoPlayer) { return; }
         IReadOnlyList<LineupEntry> lineup = State.Lineup;
         for (int i = 0; i < lineup.Count; i++)
         {
             if (lineup[i].PlayerId == SelectedPlayerId) { return; }
         }
-        SelectedPlayerId = lineup.Count > 0 ? lineup[0].PlayerId : NoPlayer;
+        SelectedPlayerId = NoPlayer;
     }
 
-    // 코드가 고를 때(스쿼드 패널에서 교체로 들어온 선수). 알림은 안 쏜다: 부른 쪽이 이미 안다
+    // 코드가 고를 때(명단에서 선발을 눌렀을 때, 교체로 들어온 선수). 알림은 안 쏜다: 부른 쪽이 이미 안다
     public void Select(int playerId)
     {
         SelectedPlayerId = playerId;
-        KeepSelectionInLineup();   // 라인업 밖 id면 첫 선수로(Refresh와 같은 규칙)
+        KeepSelectionInLineup();
         PlaceChips();
     }
 
+    public void ClearSelection()
+    {
+        SelectedPlayerId = NoPlayer;
+        PlaceChips();
+    }
+
+    // 같은 칩을 다시 누르면 선택 해제(명단으로)
     private void OnChipClicked(PitchChip chip)
     {
         int index = Array.IndexOf(chips, chip);
-        SelectedPlayerId = State.Lineup[index].PlayerId;
+        int playerId = State.Lineup[index].PlayerId;
+        if (playerId == SelectedPlayerId)
+        {
+            ClearSelection();
+            Deselected?.Invoke();
+            return;
+        }
+        SelectedPlayerId = playerId;
         PlaceChips();
         PlayerSelected?.Invoke(SelectedPlayerId);
+    }
+
+    private void OnFieldClicked()
+    {
+        if (SelectedPlayerId == NoPlayer) { return; }
+        ClearSelection();
+        Deselected?.Invoke();
     }
 
     private void OnPhaseSelected(int _)
     {
         PlaceChips();
+        PhaseChanged?.Invoke();
     }
 
+    // 탭의 포메이션 격자를 깔고, 각 선수를 자기 슬롯 칸에 세운다
     private void PlaceChips()
     {
         SeasonState state = State;
-        TeamTactics tactics = state.MyTactics(TeamTacticsRepository.All);
         IReadOnlyList<LineupEntry> lineup = state.Lineup;
-        bool defending = phaseTabs.SelectedIndex == DefendPhase;
+        IReadOnlyList<FormationTemplate> formations = FormationTemplateRepository.All;
+        bool defending = Defending;
+        FormationTemplate attack = FormationRules.Find(formations, state.AttackFormationId);
+        FormationTemplate defense = FormationRules.Find(formations, state.DefenseFormationId);
+        FormationTemplate template = defending ? defense : attack;
+        (float u, float v)[] grid = FormationGrid.Layout(template, defending);
 
         for (int i = 0; i < chips.Length; i++)
         {
@@ -190,18 +134,21 @@ public class PitchView : MonoBehaviour
             if (!hasPlayer) { continue; }
 
             LineupEntry entry = lineup[i];
-            PlayerStats stats = state.FindRosterPlayer(entry.PlayerId).EffectiveStats();   // 역할 값 + 개인 지시. 경기에 들어가는 값과 같다
-            float baseX = defending ? entry.DefendX : entry.AttackX;
-            float baseZ = defending ? entry.DefendZ : entry.AttackZ;
-            (float x, float z) home = Home(baseX, baseZ, stats, tactics, defending);
-            chips[i].Show(stats.RoleId, stats.DisplayName, ToAnchor(home.x, home.z), entry.PlayerId == SelectedPlayerId);
+            (float u, float v) cell = grid[(defending ? entry.DefenseSlot : entry.AttackSlot) - 1];
+            string roleLabel;
+            string nameLabel;
+            if (defending)
+            {
+                roleLabel = FormationRules.SlotOf(defense, entry.DefenseSlot).RoleId;
+                nameLabel = DefenseRoleRepository.Get(state.Slots.DefenseRoleOf(entry.DefenseSlot)).DisplayName;
+            }
+            else
+            {
+                roleLabel = FormationRules.SlotOf(attack, entry.AttackSlot).RoleId;
+                nameLabel = state.SlotVariantOf(entry.AttackSlot, PlayerTableRepository.All).DisplayName;
+            }
+            bool warn = state.WarningsOf(entry.PlayerId, formations, PlayerTableRepository.All) != LineupWarning.None;
+            chips[i].Show(roleLabel, nameLabel, new Vector2(cell.u, cell.v), entry.PlayerId == SelectedPlayerId, warn);
         }
-    }
-
-    // 필드 좌표(중앙 원점, +X가 상대 골, 105 × 68m) → 필드 그림 안 0~1
-    private static Vector2 ToAnchor(float x, float z)
-    {
-        (float u, float v) unit = FieldBounds.ToUnit(x, z);
-        return new Vector2(unit.u, unit.v);
     }
 }

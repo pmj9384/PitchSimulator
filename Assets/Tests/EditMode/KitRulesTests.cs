@@ -68,7 +68,7 @@ public class KitRulesTests
         TierRule tier = tiers.Find(t => t.Tier == 4);
         List<GeneratedTeam> opponents = TeamGenerator.Generate(42, tier, table, formations, names);
         List<Fixture> schedule = SeasonSchedule.RoundRobin(tier.Teams);
-        MatchSetup setup = SeasonRunner.SetupMyMatch(state, opponents, schedule, presets, 0);
+        MatchSetup setup = SeasonRunner.SetupMyMatch(state, opponents, schedule, presets, 0, table);
 
         Assert.AreEqual(KitRules.MyKit, setup.Kit0);
         int opponentId = setup.Fixture.HomeTeamId == SeasonState.MyTeamId ? setup.Fixture.AwayTeamId : setup.Fixture.HomeTeamId;

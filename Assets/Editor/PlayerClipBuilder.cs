@@ -193,22 +193,37 @@ public static class PlayerClipBuilder
         };
     }
 
-    // GK 다이빙(side +1 = 오른쪽, -1 = 왼쪽. Forward 축 음수 = 오른쪽으로 기울기): 반응 시작 순간 틀어서 옆으로 8m/s로 가는 0.5초 동안
-    // 엉덩이 루트(Body)째 70° 눕히고 0.55m 내려 몸이 수평이 되게, 두 팔은 그쪽 위로, 발은 정강이를 따라 떠오른다(다리가 몸을 따라 뒤로 끌린다).
-    // 상체만 45° 기울인 1판은 "옆으로 기운 사람"이라 애매했다(10-23 유저). 각도·높이는 출처 없는 눈대중 [가정]
+    // GK 다이빙(side +1 = 오른쪽, -1 = 왼쪽. Forward 축 음수 = 오른쪽으로 기울기). 10-25 2판: 10-23 1판은 포즈 2개(기울기 → 눕기)라 "뛰어드는" 느낌이 없었다(유저).
+    // 스포츠 과학 단계(실험/2026-10-25-GK-다이빙-애니-조사.md: 준비 무릎 굽힘 → 옆 스텝·반대 다리 밀기 → 이륙 0.2초 → 공중 수평·팔 뻗음 → 옆구리 착지, 전체 약 1초)를
+    // 5포즈로. 수평 자세 시각·클립 길이는 PlayerController 상수를 그대로 쓴다(뷰가 공 도착 시각에 수평 시점을 맞춘다). 각도·높이는 출처 없는 눈대중 [가정]
     private static List<Pose> DivePoses(float side)
     {
         string nearArm = side > 0f ? UpperArmR : UpperArmL;
         string farArm = side > 0f ? UpperArmL : UpperArmR;
+        string nearLowerArm = side > 0f ? LowerArmR : LowerArmL;
+        string farLowerArm = side > 0f ? LowerArmL : LowerArmR;
+        string nearUpperLeg = side > 0f ? UpperLegR : UpperLegL;
+        string nearLowerLeg = side > 0f ? LowerLegR : LowerLegL;
+        string farUpperLeg = side > 0f ? UpperLegL : UpperLegR;
+        string farLowerLeg = side > 0f ? LowerLegL : LowerLegR;
         return new List<Pose>
         {
             new Pose(0f),
-            new Pose(0.12f).Add(Body, Axis.Forward, -25f * side).Add(Abdomen, Axis.Forward, -15f * side).Add(nearArm, Axis.Forward, 100f * side).Add(farArm, Axis.Forward, 60f * side).Drop(0.15f),
-            new Pose(0.32f).Add(Body, Axis.Forward, -70f * side).Add(Abdomen, Axis.Forward, -10f * side).Add(Head, Axis.Forward, 15f * side)
-                .Add(nearArm, Axis.Forward, 160f * side).Add(farArm, Axis.Forward, 110f * side).Drop(0.55f),
-            new Pose(0.55f).Add(Body, Axis.Forward, -70f * side).Add(Abdomen, Axis.Forward, -10f * side).Add(Head, Axis.Forward, 15f * side)
-                .Add(nearArm, Axis.Forward, 160f * side).Add(farArm, Axis.Forward, 110f * side).Drop(0.55f),
-            new Pose(0.85f),
+            // 준비: 무릎을 굽혀 몸을 낮추고 상체를 조금 숙인다
+            new Pose(0.08f).Add(UpperLegL, Axis.Right, -30f).Add(UpperLegR, Axis.Right, -30f).Add(LowerLegL, Axis.Right, 55f).Add(LowerLegR, Axis.Right, 55f)
+                .Add(Abdomen, Axis.Right, -15f).Add(nearArm, Axis.Forward, 40f * side).Add(farArm, Axis.Forward, 20f * side).Drop(0.15f),
+            // 옆 스텝·밀기: 공 쪽 다리는 굽혀 디디고 반대 다리는 펴서 밀며 몸통이 기운다
+            new Pose(0.18f).Add(Body, Axis.Forward, -30f * side).Add(Abdomen, Axis.Forward, -10f * side)
+                .Add(nearUpperLeg, Axis.Right, -20f).Add(nearLowerLeg, Axis.Right, 40f).Add(farUpperLeg, Axis.Right, 10f).Add(farLowerLeg, Axis.Right, 0f)
+                .Add(nearArm, Axis.Forward, 110f * side).Add(farArm, Axis.Forward, 70f * side).Drop(0.20f),
+            // 공중: 몸이 수평, 두 팔을 공 쪽으로 완전히 뻗고 다리는 곧게
+            new Pose(PlayerController.DiveHorizontalSeconds).Add(Body, Axis.Forward, -80f * side).Add(Abdomen, Axis.Forward, -10f * side).Add(Head, Axis.Forward, 15f * side)
+                .Add(nearArm, Axis.Forward, 165f * side).Add(farArm, Axis.Forward, 115f * side).Add(nearLowerArm, Axis.Right, 0f).Add(farLowerArm, Axis.Right, 0f).Drop(0.55f),
+            // 착지: 옆구리가 닿고 팔을 접으며 무릎을 굽힌다
+            new Pose(0.58f).Add(Body, Axis.Forward, -88f * side).Add(Abdomen, Axis.Forward, -5f * side).Add(Head, Axis.Forward, 10f * side)
+                .Add(nearArm, Axis.Forward, 120f * side).Add(farArm, Axis.Forward, 90f * side).Add(nearLowerArm, Axis.Right, -70f).Add(farLowerArm, Axis.Right, -70f)
+                .Add(UpperLegL, Axis.Right, -25f).Add(UpperLegR, Axis.Right, -25f).Add(LowerLegL, Axis.Right, 45f).Add(LowerLegR, Axis.Right, 45f).Drop(0.50f),   // 0.60이면 접은 손이 땅 아래(y −0.04, 에디터 샘플)
+            new Pose(PlayerController.DiveSeconds),
         };
     }
 
@@ -339,6 +354,8 @@ public static class PlayerClipBuilder
         EnsureParameter(controller, "Parry", AnimatorControllerParameterType.Trigger);
         EnsureParameter(controller, "DiveLeft", AnimatorControllerParameterType.Trigger);
         EnsureParameter(controller, "DiveRight", AnimatorControllerParameterType.Trigger);
+        EnsureParameter(controller, "DiveSpeed", AnimatorControllerParameterType.Float);   // 다이빙 재생 배율. 공이 GK 라인에 닿는 시각에 수평 자세(0.32초)가 오도록 뷰가 넣는다(10-25)
+        SetFloatDefault(controller, "DiveSpeed", 1f);   // 기본 0이면 SetFloat 전에 다이빙 상태에 들어갈 때 재생이 멈춘다
         EnsureParameter(controller, "Celebrate", AnimatorControllerParameterType.Bool);
 
         AnimatorStateMachine machine = controller.layers[0].stateMachine;
@@ -347,18 +364,21 @@ public static class PlayerClipBuilder
         OneShot(machine, idle, "Shoot", shoot);
         OneShot(machine, idle, "Catch", catchClip);
         OneShot(machine, idle, "Parry", parry);
-        OneShot(machine, idle, "DiveLeft", diveLeft);
-        OneShot(machine, idle, "DiveRight", diveRight);
+        OneShot(machine, idle, "DiveLeft", diveLeft, "DiveSpeed");
+        OneShot(machine, idle, "DiveRight", diveRight, "DiveSpeed");
         Held(machine, idle, "Celebrate", celebrate);
         EditorUtility.SetDirty(controller);
     }
 
     // 트리거 한 번에 끝까지 재생하고 Idle로. Any State에서 들어오고 자기 자신으로는 재진입 안 함
-    private static void OneShot(AnimatorStateMachine machine, AnimatorState idle, string name, AnimationClip clip)
+    // speedParameter: 주면 그 float 파라미터가 재생 배율을 곱한다(다이빙: 공 도착 시각에 맞춤). 없으면 1배
+    private static void OneShot(AnimatorStateMachine machine, AnimatorState idle, string name, AnimationClip clip, string speedParameter = null)
     {
         AnimatorState state = FindOrAddState(machine, name);
         state.motion = clip;
         state.speed = 1f;
+        state.speedParameterActive = !string.IsNullOrEmpty(speedParameter);
+        state.speedParameter = speedParameter ?? string.Empty;
         ClearTransitions(machine, state);
 
         AnimatorStateTransition enter = machine.AddAnyStateTransition(state);
@@ -419,6 +439,17 @@ public static class PlayerClipBuilder
             if (parameters[i].name == name) { return; }
         }
         controller.AddParameter(name, type);
+    }
+
+    private static void SetFloatDefault(AnimatorController controller, string name, float value)
+    {
+        AnimatorControllerParameter[] parameters = controller.parameters;
+        for (int i = 0; i < parameters.Length; i++)
+        {
+            if (parameters[i].name != name) { continue; }
+            parameters[i].defaultFloat = value;
+        }
+        controller.parameters = parameters;   // 배열 복사본이라 다시 넣어야 저장된다
     }
 
     private static AnimatorState FindState(AnimatorStateMachine machine, string name)

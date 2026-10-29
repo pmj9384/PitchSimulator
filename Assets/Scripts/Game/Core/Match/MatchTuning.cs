@@ -23,6 +23,7 @@ namespace Game.Core.Match
         // ── 전술 판정. 전부 밸런스 값: 자동 대전 러너로 조정한다
         public const float ThirdBoundary = 17.5f;                              // 필드 105m를 3등분한 경계. 우리 진영 ≤ −17.5 < 중원 < 17.5 ≤ 상대 진영
         public static readonly float[] MentalityOffset = { -5f, 0f, 5f };      // 전진 정도(수비적·균형·공격적) → 공격 시 자리 X 오프셋(m)
+        public static readonly float[] DefenseLineOffset = { -5f, 0f, 5f };    // 수비 라인 높이(깊게·표준·높게) → 수비 시 자리 X 오프셋(m), 필드 선수만. [가정] 전진 정도와 대칭. 10-27 FM Defensive Line. 기본 라인 자체가 현실보다 약 15m 낮은 문제(장부 F3)는 이 레버와 별개
         public const float LateralScoreScale = 0.005f;                          // 리시버 점수의 측면 가중: |z| 1m당(× 폭 배율). 09-18 0.02는 라인 위 윙어에게 +0.62(전진 12m 상당)라 어디서든 윙어가 최고점, 10경기 소유 시간의 31%가 터치라인 9m 안(86% W). 0.005면 +0.16(전진 3m)
         public const float TouchlineMargin = 3f;                                // 자리 계산의 Z 클램프 여유(m). 필드 가장자리 0.5m로 두면 공 쪽 윙어가 슬라이드로 라인 밖까지 밀려 라인 위(z 33.5)에 붙어 빌드업했다
         public const float WideZoneZ = 25f;                                     // 형태 지표: |z|가 이 이상이면 "측면 구역"(터치라인 9m 안). 러너 CSV·감시 테스트가 소유 시간의 측면 비율을 잰다. 09-26 터치라인 빌드업(31%)을 정지 탐지·리뷰가 못 잡아 넣음
@@ -103,6 +104,9 @@ namespace Game.Core.Match
         public const float GoalAimKeeperMargin = 0.5f;   // 그 간격에 더하는 여유(m). [가정] 화면에서 GK 몸이 공을 안 뚫는 최소
         public const float KeeperLineMinFraction = 0.2f; // 슈터 → 골라인 경로에서 GK 라인 비율의 하한. 슈터가 라인에 붙은 슛은 교차점을 경로 20% 지점으로 본다(÷비율 폭주 방지, 10-25) [가정]
         public const int KeeperReactionTicks = 10;       // GK가 슛에 반응해 라인 교차점으로 움직이기 시작하는 지연(0.2초). [가정] 사람 단순 반응 시간 0.2~0.25초. 골로 정해진 슛엔 ×2(못 막을 슛을 "늦게 반응한" 모양으로)
+        public const float GoalAimPostInset = 0.3f;      // 골로 정해진 슛의 조준점이 포스트 안쪽으로 두는 여유(m). 포스트에 맞는 모양을 피한다 [가정]
+        public const float KeeperHoldAfterCatchSeconds = 2f;   // GK가 슛을 잡은 뒤 배급까지 들고 있는 시간. FIFA 규칙은 6초 안(Law 12). 바로 차면 "잡자마자 패스"가 어색했다(10-25 유저 Play) [가정 2초]
+        public const float FormationTransitionWarnMeters = 15f;   // 선수의 공격 자리·수비 자리 거리가 이보다 멀면 전술판이 경고(FM26 "둘 나란히" 경고처럼 막지 않음). 4-4-2 공수 차이 5m, 4-4-2↔4-3-3 대응 최대 15m쯤 [가정]
         public const float ShotWideMargin = 0.5f;        // 노골로 정해졌는데 GK가 못 닿을 유효 슛을 포스트 밖으로 미는 거리(m). 골대 안으로 들어가는 노골을 없앤다(10-23 유저 "안 들어가면 골대 안으로 가면 안 된다"). [가정] 출처 없음, 화면에서 확실히 밖으로 보이는 값
         public const float ShotResolveLogitBonus = 0.8f; // 슛 확정 확률에만 더하는 로짓(판정 WantsShot은 안 본다). 10-23 인게임 경로 계측: 슛이 현실의 절반(5.9/팀)이라 골 1.44·0:0 22%였다. 0.6 → 0.8은 GK 슛 대응·조준 반폭·압박 재임을 넣은 뒤 격자(최종 4부 20시즌 골 2.13·0:0 9%·무 27%). [가정] 임시 레버
                                                          // 문턱을 낮추면 나쁜 자리에서 일찍 쏴 골이 줄고(0.88), 확정만 올리면 슛 수 그대로 골 2.17·0:0 6%(+0.3 1.76 / +0.9 2.70). 유저 "중간점".

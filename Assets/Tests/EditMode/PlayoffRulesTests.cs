@@ -165,10 +165,10 @@ public class PlayoffRulesTests
     public void 키커는_GK를_빼고_슛_높은_순_5명이다()
     {
         SeasonState state = SeasonState.NewSeason(4, 42, myRows, table);
-        List<int> shots = PlayoffRules.TopShooters(state.MyLineup(), 5);
+        List<int> shots = PlayoffRules.TopShooters(state.MyLineup(table, null), 5);
         Assert.AreEqual(5, shots.Count);
         for (int i = 1; i < shots.Count; i++) { Assert.GreaterOrEqual(shots[i - 1], shots[i]); }
-        Assert.Greater(PlayoffRules.KeeperHandling(state.MyLineup()), 0);
+        Assert.Greater(PlayoffRules.KeeperHandling(state.MyLineup(table, null)), 0);
     }
 
     [Test]
@@ -220,7 +220,7 @@ public class PlayoffRulesTests
         Assert.AreEqual(2, plan.SemifinalOpponentId, "3위 팀");
 
         // 단판 PO: 2위(나) 홈, 1:1 → 나
-        MatchSetup semi = SeasonRunner.SetupPlayoffMatch(state, tier, plan, PlayoffStage.Semifinal, opponents, null, presets);
+        MatchSetup semi = SeasonRunner.SetupPlayoffMatch(state, tier, plan, PlayoffStage.Semifinal, opponents, null, presets, table);
         Assert.IsTrue(semi.MyTeamIsHome);
         Assert.AreEqual(tier.Matches, semi.Fixture.Round, "라운드 번호는 정규 뒤에 이어 붙는다");
         state.AddPlayoffResult(SeasonRunner.ResolvePlayoff(semi, PlayoffStage.Semifinal, semi.ResultFor(1, 1), null));
@@ -231,11 +231,11 @@ public class PlayoffRulesTests
         Assert.GreaterOrEqual(foreign.TeamId, PlayoffRules.ForeignTeamIdBase);
         StringAssert.Contains("(3부)", foreign.Name);
 
-        MatchSetup legOne = SeasonRunner.SetupPlayoffMatch(state, tier, plan, PlayoffStage.LegOne, opponents, foreign, presets);
+        MatchSetup legOne = SeasonRunner.SetupPlayoffMatch(state, tier, plan, PlayoffStage.LegOne, opponents, foreign, presets, table);
         Assert.IsTrue(legOne.MyTeamIsHome, "도전자는 1차전 홈");
         state.AddPlayoffResult(SeasonRunner.ResolvePlayoff(legOne, PlayoffStage.LegOne, legOne.ResultFor(2, 1), null));
 
-        MatchSetup legTwo = SeasonRunner.SetupPlayoffMatch(state, tier, plan, PlayoffStage.LegTwo, opponents, foreign, presets);
+        MatchSetup legTwo = SeasonRunner.SetupPlayoffMatch(state, tier, plan, PlayoffStage.LegTwo, opponents, foreign, presets, table);
         Assert.IsFalse(legTwo.MyTeamIsHome, "2차전 원정");
         Assert.AreNotEqual(legOne.Seed, legTwo.Seed);
         PlayoffResult last = SeasonRunner.ResolvePlayoff(legTwo, PlayoffStage.LegTwo, legTwo.ResultFor(1, 2), state.PlayoffResults[1]);
@@ -283,10 +283,10 @@ public class PlayoffRulesTests
 
         GeneratedTeam foreign = SeasonRunner.ForeignTeam(43, Tier(4), plan.Role, table, formations, names, presets);
         StringAssert.Contains("(4부)", foreign.Name);
-        MatchSetup legOne = SeasonRunner.SetupPlayoffMatch(state, tier, plan, PlayoffStage.LegOne, opponents, foreign, presets);
+        MatchSetup legOne = SeasonRunner.SetupPlayoffMatch(state, tier, plan, PlayoffStage.LegOne, opponents, foreign, presets, table);
         Assert.IsFalse(legOne.MyTeamIsHome, "수성은 1차전 원정");
         state.AddPlayoffResult(SeasonRunner.ResolvePlayoff(legOne, PlayoffStage.LegOne, legOne.ResultFor(0, 1), null));
-        MatchSetup legTwo = SeasonRunner.SetupPlayoffMatch(state, tier, plan, PlayoffStage.LegTwo, opponents, foreign, presets);
+        MatchSetup legTwo = SeasonRunner.SetupPlayoffMatch(state, tier, plan, PlayoffStage.LegTwo, opponents, foreign, presets, table);
         Assert.IsTrue(legTwo.MyTeamIsHome, "2차전 홈");
         state.AddPlayoffResult(SeasonRunner.ResolvePlayoff(legTwo, PlayoffStage.LegTwo, legTwo.ResultFor(0, 2), state.PlayoffResults[0]));
 

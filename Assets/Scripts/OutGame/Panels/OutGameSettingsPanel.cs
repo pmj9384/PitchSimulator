@@ -1,53 +1,93 @@
-using TMPro;
 using UnityEngine;
-using UnityEngine.UI;
 
+// 아웃게임 설정창(2026-10-29 UI 키트 표준안). 프리팹이 둘이고 스크립트는 하나다(Assets/Prefabs/UI/Settings).
+// - 가로형(RPG·스포츠): 왼쪽 세로 탭 3개(소리 / 화면 / 기타), 소리는 슬라이더
+// - 세로형(캐주얼): 탭 없는 카드 한 장, 소리는 켜기/끄기 스위치
+// 소리 컨트롤은 슬라이더(bgmRow)와 스위치(bgmSwitch) 중 프리팹에 배선된 쪽을 쓴다. 화면만 다르고 하는 일은 같아서 클래스를 나누지 않았다.
+// 바꾸면 바로 적용되고 저장은 세이브 시스템이 한다(적용 버튼 없음, Game Accessibility Guidelines "모든 설정 저장").
+// 닫기는 PopupFrame(딤·X)과 UIManager(뒤로가기). 값의 SSOT는 SoundManager·FrameRateSetting·VibrationSetting, 여기는 화면과 입력만
 public class OutGameSettingsPanel : UIPopup
 {
-    [SerializeField] private Slider bgmSlider;
-    [SerializeField] private Slider sfxSlider;
-    [SerializeField] private Button closeButton;
+    private const float SwitchOnVolume = 1f;      // 스위치로 켤 때 볼륨. 세로형은 세기 조절이 없다
+    private const float AudibleMin = 0.01f;       // 이보다 작으면 꺼진 것으로 본다(SoundManager가 0 대신 0.0001을 저장한다)
 
-    // 순서는 FrameRateSetting.Options와 짝을 이룬다. 라벨을 코드가 찍으므로 순서가 어긋나면
-    // 토글에 다른 숫자가 뜬다 — 암묵 계약을 눈으로 잡을 수 있게 한 것.
-    // ToggleGroup(allowSwitchOff=false)이 "정확히 하나 선택"을 강제하므로 선택 표시를 직접 그리지 않는다
-    [SerializeField] private Toggle[] frameRateToggles;
+    [Header("소리: 슬라이더(가로형) 또는 스위치(세로형), 배선된 쪽만")]
+    [SerializeField] private SliderRow bgmRow;
+    [SerializeField] private SliderRow sfxRow;
+    [SerializeField] private ToggleSwitch bgmSwitch;
+    [SerializeField] private ToggleSwitch sfxSwitch;
+
+    [Header("화면")]
+    [SerializeField] private SegmentedControl frameRate;   // 칸 순서 = FrameRateSetting.Options
+
+    [Header("기타")]
+    [SerializeField] private ToggleSwitch vibration;
 
     private void Awake()
     {
-        closeButton.onClick.AddListener(Hide);
-        bgmSlider.onValueChanged.AddListener(v => SoundManager.Instance.SetBgmVolume(v));
-        sfxSlider.onValueChanged.AddListener(v => SoundManager.Instance.SetSfxVolume(v));
-
-        var options = FrameRateSetting.Options;
-        for (int i = 0; i < frameRateToggles.Length && i < options.Length; i++)
-        {
-            int fps = options[i];   // 클로저가 루프 변수를 잡지 않도록 복사
-            var label = frameRateToggles[i].GetComponentInChildren<TMP_Text>();
-            if (label != null) { label.text = fps.ToString(); }
-
-            frameRateToggles[i].onValueChanged.AddListener(on =>
-            {
-                if (on) { FrameRateSetting.Set(fps); }   // 꺼지는 쪽은 무시 — 그룹이 곧바로 다른 하나를 켠다
-            });
-        }
+        if (bgmRow != null) { bgmRow.ValueChanged += OnBgmChanged; }
+        if (sfxRow != null) { sfxRow.ValueChanged += OnSfxChanged; }
+        if (bgmSwitch != null) { bgmSwitch.Changed += OnBgmSwitched; }
+        if (sfxSwitch != null) { sfxSwitch.Changed += OnSfxSwitched; }
+        frameRate.SetLabels(FrameRateLabels());
+        frameRate.Selected += OnFrameRateSelected;
+        vibration.Changed += OnVibrationChanged;
     }
 
     public override void Show()
     {
-        bgmSlider.SetValueWithoutNotify(SoundManager.Instance.BgmVolume);
-        sfxSlider.SetValueWithoutNotify(SoundManager.Instance.SfxVolume);
-        SyncFrameRateToggles();
+        float bgm = SoundManager.Instance.BgmVolume;
+        float sfx = SoundManager.Instance.SfxVolume;
+        if (bgmRow != null) { bgmRow.SetValueWithoutNotify(bgm); }
+        if (sfxRow != null) { sfxRow.SetValueWithoutNotify(sfx); }
+        if (bgmSwitch != null) { bgmSwitch.SetWithoutNotify(bgm >= AudibleMin); }
+        if (sfxSwitch != null) { sfxSwitch.SetWithoutNotify(sfx >= AudibleMin); }
+        frameRate.SetSelectedWithoutNotify(CurrentFrameRateIndex());
+        vibration.SetWithoutNotify(VibrationSetting.On);
         base.Show();
     }
 
-    // 창을 열 때 현재 상한에 해당하는 토글만 켠다. Notify를 태우면 Set이 다시 불려 불필요한 저장이 생긴다
-    private void SyncFrameRateToggles()
+    private void OnBgmChanged(float value)
     {
-        var options = FrameRateSetting.Options;
-        for (int i = 0; i < frameRateToggles.Length && i < options.Length; i++)
-        {
-            frameRateToggles[i].SetIsOnWithoutNotify(options[i] == FrameRateSetting.Current);
-        }
+        SoundManager.Instance.SetBgmVolume(value);
+    }
+
+    private void OnSfxChanged(float value)
+    {
+        SoundManager.Instance.SetSfxVolume(value);
+    }
+
+    private void OnBgmSwitched(bool on)
+    {
+        SoundManager.Instance.SetBgmVolume(on ? SwitchOnVolume : 0f);
+    }
+
+    private void OnSfxSwitched(bool on)
+    {
+        SoundManager.Instance.SetSfxVolume(on ? SwitchOnVolume : 0f);
+    }
+
+    private void OnFrameRateSelected(int index)
+    {
+        FrameRateSetting.Set(FrameRateSetting.Options[index]);
+    }
+
+    private void OnVibrationChanged(bool on)
+    {
+        VibrationSetting.Set(on);
+        VibrationSetting.Vibrate();   // 켰을 때 한 번 울려 확인시킨다
+    }
+
+    private static int CurrentFrameRateIndex()
+    {
+        return System.Array.IndexOf(FrameRateSetting.Options, FrameRateSetting.Current);
+    }
+
+    private static string[] FrameRateLabels()
+    {
+        int[] options = FrameRateSetting.Options;
+        var names = new string[options.Length];
+        for (int i = 0; i < options.Length; i++) { names[i] = options[i].ToString(); }
+        return names;
     }
 }

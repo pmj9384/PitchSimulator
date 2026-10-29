@@ -325,12 +325,10 @@ namespace Game.Core.AI
             ctx.MoveToward(aim.x, aim.z);
         }
 
+        // 서는 자리(홈 + 슬라이드)는 PositionRules.AttackStand 한 곳. 전술판 미니 피치가 같은 함수로 미리 보인다(10-29 ③d)
         private static void MoveToAttackHome(IPlayerContext ctx)
         {
-            int third = Third(ctx);
-            (float x, float z) home = PositionRules.AttackHome(ctx.AttackHomeX, ctx.AttackHomeZ, ctx.AttackSign,
-                ctx.Tactics.Mentality, ctx.Stats.PushUp, ctx.Tactics.Width[third], ctx.Stats.Width);
-            (float x, float z) slid = PositionRules.SlideAttack(home.x, home.z, ctx.BallX, ctx.BallZ, ctx.IsGoalkeeper);
+            (float x, float z) slid = PositionRules.AttackStand(ctx.AttackHomeX, ctx.AttackHomeZ, ctx.AttackSign, ctx.Tactics, ctx.Stats, ctx.BallX, ctx.BallZ, ctx.IsGoalkeeper);
             float x = slid.x;
             if (ctx.BallOwnerTeam == ctx.Team && !ctx.OwnsBall && !ctx.IsGoalkeeper)
             {
@@ -342,8 +340,7 @@ namespace Game.Core.AI
 
         private static void MoveToDefendHome(IPlayerContext ctx)
         {
-            (float x, float z) home = PositionRules.DefendHome(ctx.DefendHomeX, ctx.DefendHomeZ, ctx.AttackSign, ctx.Stats.LineHeight);
-            (float x, float z) slid = PositionRules.SlideDefend(home.x, home.z, ctx.BallX, ctx.BallZ, ctx.IsGoalkeeper);
+            (float x, float z) slid = PositionRules.DefendStand(ctx.DefendHomeX, ctx.DefendHomeZ, ctx.AttackSign, ctx.Tactics, ctx.Stats, ctx.BallX, ctx.BallZ, ctx.IsGoalkeeper);
             ctx.MoveToward(slid.x, slid.z);
         }
 
@@ -355,8 +352,8 @@ namespace Game.Core.AI
         // GK: 수비 자리 x(라인)를 지키며 공이 그 라인을 지나는 z(시뮬이 IncomingShotTargetZ로 준다)로. 시뮬의 닿음 판정(KeeperCanReachShot)도 이 점까지의 거리·시간을 본다
         private static void MoveToShotLine(IPlayerContext ctx)
         {
-            (float x, float z) home = PositionRules.DefendHome(ctx.DefendHomeX, ctx.DefendHomeZ, ctx.AttackSign, ctx.Stats.LineHeight);
-            ctx.MoveToward(home.x, ctx.IncomingShotTargetZ);
+            float lineX = PositionRules.KeeperLineX(ctx.DefendHomeX, ctx.DefendHomeZ, ctx.AttackSign, ctx.Stats.LineHeight);
+            ctx.MoveToward(lineX, ctx.IncomingShotTargetZ);
         }
 
         // GK: 우리 팀 전원 중 최근접이고 출격 가능할 때. 필드 플레이어: 시뮬이 정한 우리 팀 추격자일 때(팀별 최근접 + 히스테리시스, 09-28 F1b). 상대 팀은 보지 않는다(팀마다 1명)

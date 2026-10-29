@@ -103,6 +103,20 @@ namespace Game.Core.League
             return src.Clone();   // 필드를 하나씩 나열하던 것을 PlayerStats.Clone으로 모았다(다이얼을 더할 때 빠뜨릴 자리가 둘이 되지 않게)
         }
 
+        // 빌드 9개만 복사(다이얼·문자열은 그대로). 슬롯 변형에 선수 빌드를 얹을 때(LineupComposer)와 역할 이월이 쓴다
+        public static void CopyBuild(PlayerStats from, PlayerStats to)
+        {
+            to.Speed = from.Speed;
+            to.Stamina = from.Stamina;
+            to.Pass = from.Pass;
+            to.Shot = from.Shot;
+            to.Tackle = from.Tackle;
+            to.Positioning = from.Positioning;
+            to.Reflexes = from.Reflexes;
+            to.Handling = from.Handling;
+            to.Diving = from.Diving;
+        }
+
         private static int Round(float v)
         {
             return (int)Math.Round(v, MidpointRounding.AwayFromZero);

@@ -8,8 +8,8 @@ using NUnit.Framework;
 public class TeamTacticsParserTests
 {
     private const string Header =
-        "presetId,displayName,description,passStyleOwn,passStyleMid,passStyleOpp,passRiskOwn,passRiskMid,passRiskOpp,tempoOwn,tempoMid,tempoOpp,widthOwn,widthMid,widthOpp,pressStartOwn,pressStartMid,pressStartOpp,counter,counterPress,gkDistribution,mentality";
-    private const string Row = "t,테스트,설명,0,1,2,0,1,2,0,1,2,2,1,0,1,1,0,2,1,0,1";
+        "presetId,displayName,description,passStyleOwn,passStyleMid,passStyleOpp,passRiskOwn,passRiskMid,passRiskOpp,tempoOwn,tempoMid,tempoOpp,widthOwn,widthMid,widthOpp,pressStartOwn,pressStartMid,pressStartOpp,counter,counterPress,gkDistribution,mentality,defenseLine";
+    private const string Row = "t,테스트,설명,0,1,2,0,1,2,0,1,2,2,1,0,1,1,0,2,1,0,1,2";
 
     [Test]
     public void 서드별_열_3개가_배열로_접힌다()
@@ -27,6 +27,7 @@ public class TeamTacticsParserTests
         Assert.AreEqual(1, t.CounterPress);
         Assert.AreEqual(0, t.GkDistribution);
         Assert.AreEqual(1, t.Mentality);
+        Assert.AreEqual(2, t.DefenseLine, "수비 라인 높이(10-27)");
         Assert.AreEqual(2, t.PassStyle[(int)Third.Opponent], "Third enum이 배열 인덱스");
     }
 
@@ -49,6 +50,10 @@ public class TeamTacticsParserTests
         TeamTactics pressing = list[3];
         Assert.AreEqual(2, pressing.PressStart[(int)Third.Opponent], "압박 축구는 상대 진영부터 달려든다");
         Assert.AreEqual(2, pressing.CounterPress);
+        Assert.AreEqual(2, pressing.DefenseLine, "압박 축구는 라인을 높게");
+        Assert.AreEqual(0, counter.DefenseLine, "역습 축구는 깊게");
+        Assert.AreEqual(1, list[0].DefenseLine, "빌드업은 표준");
+        Assert.AreEqual(1, list[1].DefenseLine, "균형은 표준");
     }
 
     [Test]
@@ -59,9 +64,10 @@ public class TeamTacticsParserTests
         Assert.AreEqual(4, new TeamTactics { Counter = 2 }.CounterThreshold, "적극 = 4명 이하");
     }
 
-    [TestCase("t,,,3,1,2,0,1,2,0,1,2,2,1,0,1,1,0,2,1,0,1", "passStyleOwn")]
-    [TestCase("t,,,0,1,2,0,1,2,0,1,2,2,1,0,1,1,0,-1,1,0,1", "counter")]
-    [TestCase(",,,0,1,2,0,1,2,0,1,2,2,1,0,1,1,0,2,1,0,1", "presetId")]
+    [TestCase("t,,,3,1,2,0,1,2,0,1,2,2,1,0,1,1,0,2,1,0,1,1", "passStyleOwn")]
+    [TestCase("t,,,0,1,2,0,1,2,0,1,2,2,1,0,1,1,0,-1,1,0,1,1", "counter")]
+    [TestCase(",,,0,1,2,0,1,2,0,1,2,2,1,0,1,1,0,2,1,0,1,1", "presetId")]
+    [TestCase("t,,,0,1,2,0,1,2,0,1,2,2,1,0,1,1,0,2,1,0,1,3", "defenseLine")]
     public void 정의역_밖이면_필드명과_행번호를_알려준다(string badRow, string field)
     {
         var ex = Assert.Throws<FormatException>(() => TeamTacticsParser.Parse(Header + "\n" + badRow + "\n"));

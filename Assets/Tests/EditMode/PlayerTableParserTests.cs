@@ -60,7 +60,7 @@ public class PlayerTableParserTests
     [Test]
     public void 같은_자리의_노출된_역할만_표_순서대로_고른다()
     {
-        // 전술 화면의 역할 목록(09-30). 잠긴 역할과 다른 자리는 빠진다. SeasonState.SetPlayerRole이 받는 역할과 같은 집합이어야 한다
+        // 전술 화면의 역할 목록(09-30). 잠긴 역할과 다른 자리는 빠진다. SeasonState.SetSlotVariant가 받는 역할과 같은 집합이어야 한다
         List<PlayerStats> roles = PlayerTableParser.Parse(File.ReadAllText("Assets/Resources/Tables/PlayerTable.csv"));
         List<PlayerStats> keepers = PlayerTableLookup.ExposedVariants(roles, "GK");
         Assert.AreEqual(2, keepers.Count);

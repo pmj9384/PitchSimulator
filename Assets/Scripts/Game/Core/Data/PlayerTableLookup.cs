@@ -17,7 +17,7 @@ namespace Game.Core.Data
         }
 
         // 그 자리의 선수에게 새로 줄 수 있는 역할인가: 같은 자리이고 노출된 역할. 전술 화면의 역할 목록(ExposedVariants)과
-        // 역할 변경(SeasonState.SetPlayerRole)이 이 조건 하나를 같이 쓴다. 목록에 보이는 역할과 실제로 받아 주는 역할이 갈리지 않게
+        // 슬롯 역할 변경(SlotTactics.SetVariant)이 이 조건 하나를 같이 쓴다. 목록에 보이는 역할과 실제로 받아 주는 역할이 갈리지 않게
         public static bool IsAssignable(PlayerStats variant, string roleId)
         {
             if (!variant.Exposed) { return false; }

@@ -21,6 +21,7 @@ public class SeasonSystem : ISaveLoad
     public const string MyTeamName = "내 팀";
 
     public SeasonState State { get; private set; }
+    public TacticLibrary Library { get; private set; } = new TacticLibrary();   // 저장 전술(10-25). LoadLibrary가 세이브로 바꿔 끼운다
     public TierRule Tier { get; private set; }
     public IReadOnlyList<GeneratedTeam> Opponents { get; private set; }
     public GeneratedTeam ScoutUpperTeam { get; private set; }   // 스카우트 후보 풀의 바로 위 부 팀(스펙 §4-5 10-19). 1부는 null. 상대 팀과 같이 시드로 다시 만든다
@@ -37,6 +38,21 @@ public class SeasonSystem : ISaveLoad
     public void Save()
     {
         SaveLoadSystem.Instance.CurrentSaveData.seasonSave = State == null ? null : State.ToSave();
+        SaveLoadSystem.Instance.CurrentSaveData.tacticLibrary = Library.ToSave();
+    }
+
+    // 저장 전술 목록(10-25). 시즌과 별개: 시즌이 끝나거나 새로 시작해도 남는다. 깨진 세이브는 시즌과 같은 정책(알리고 빈 목록)
+    public void LoadLibrary(TacticLibrarySave save)
+    {
+        try
+        {
+            Library = TacticLibrary.FromSave(save, FormationTemplateRepository.All, PlayerTableRepository.All, DefenseRoleRepository.All);
+        }
+        catch (Exception e)
+        {
+            Debug.LogError($"[Season] 저장 전술 세이브 검증 실패, 빈 목록으로 시작한다: {e.Message}");
+            Library = new TacticLibrary();
+        }
     }
 
     // 세이브 없음 → 4부 새 시즌. 시드는 한 번 뽑히면 세이브에 남아 그 뒤로는 결정적이다
@@ -55,7 +71,15 @@ public class SeasonSystem : ISaveLoad
         }
         try
         {
-            Adopt(SeasonState.FromSave(save, PlayerTableRepository.All));
+            SeasonState state = SeasonState.FromSave(save, PlayerTableRepository.All);
+            if (string.IsNullOrEmpty(save.attackFormation))
+            {
+                // 10-25 전 세이브: 자유 배치로 옮긴 좌표를 버리고 4-4-2 템플릿 슬롯 값으로 1회 바꾼다(10-27 ④, 스펙 §8). 슬롯 번호는 FromSave가 라인업 순서로 흡수했다
+                state.SetFormations(state.AttackFormationId, state.DefenseFormationId, FormationTemplateRepository.All, PlayerTableRepository.All);
+            }
+            List<string> fixes = state.SanitizeSlots(FormationTemplateRepository.All, PlayerTableRepository.All, DefenseRoleRepository.All);   // 표에서 사라진 변형·자리가 어긋난 변형·해당 없는 지시를 고친다(10-27)
+            for (int i = 0; i < fixes.Count; i++) { Debug.LogWarning($"[Season] 세이브의 슬롯 설정을 고쳤다: {fixes[i]}"); }
+            Adopt(state);
         }
         catch (Exception e)
         {
@@ -99,7 +123,7 @@ public class SeasonSystem : ISaveLoad
             if (IsOver) { throw new InvalidOperationException($"[Season] {Tier.Tier}부 시즌이 끝났다({State.RoundsPlayed}/{Tier.Matches}). PrepareNextMatch()로 다음 시즌을 연다"); }
             if (currentMatch == null)
             {
-                currentMatch = IsRegularSeasonOver ? SetupPlayoff() : SeasonRunner.SetupMyMatch(State, Opponents, Schedule, TeamTacticsRepository.All, State.RoundsPlayed);
+                currentMatch = IsRegularSeasonOver ? SetupPlayoff() : SeasonRunner.SetupMyMatch(State, Opponents, Schedule, TeamTacticsRepository.All, State.RoundsPlayed, PlayerTableRepository.All, DefenseRoleRepository.All);   // 수비 역할 표는 10-25부터 있었는데 여기서 안 넘겨 경기에 안 먹었다(10-27 발견)
             }
             return currentMatch;
         }
@@ -181,7 +205,7 @@ public class SeasonSystem : ISaveLoad
     {
         PlayoffStage stage = PendingPlayoff;
         GeneratedTeam foreign = stage == PlayoffStage.Semifinal ? null : EnsureForeignTeam();
-        return SeasonRunner.SetupPlayoffMatch(State, Tier, PlayoffPlan, stage, Opponents, foreign, TeamTacticsRepository.All);
+        return SeasonRunner.SetupPlayoffMatch(State, Tier, PlayoffPlan, stage, Opponents, foreign, TeamTacticsRepository.All, PlayerTableRepository.All, DefenseRoleRepository.All);
     }
 
     // 승강전 1·2차전의 다른 부 상대. 세이브에 없고 시드로 만든다. 처음 필요할 때 한 번(경기 차릴 때 또는 일정표가 이름을 읽을 때)
@@ -321,26 +345,26 @@ public class SeasonSystem : ISaveLoad
         CommitMyTactics();
     }
 
-    // 개인 전술: 전술 화면에서 필드의 선수 칩을 눌러 역할과 개인 지시를 정한다. 규칙(같은 자리의 노출된 역할만, 지시 범위)은 SeasonState가 정한다.
-    // 이번 경기 재료에는 내 라인업의 선수 값도 들어 있어서 팀 전술과 같이 비우고 저장한다
-    public void SetPlayerRole(int playerId, string variantId)
+    // 자리 설정(10-27 슬롯 중심): 전술 화면에서 칩을 눌러 고른 **공격 슬롯**의 역할 변형과 지시를 정한다. 선수는 안 바뀐다. 규칙(같은 자리의 노출된 역할만, 지시 범위·해당 여부)은 SeasonState·SlotTactics가 정한다.
+    // 이번 경기 재료에는 내 라인업의 값도 들어 있어서 팀 전술과 같이 비우고 저장한다
+    public void SetSlotVariant(int attackSlot, string variantId)
     {
         ThrowIfReporting();
-        State.SetPlayerRole(playerId, variantId, PlayerTableRepository.All);
+        State.SetSlotVariant(attackSlot, variantId, FormationTemplateRepository.All, PlayerTableRepository.All);
         CommitMyTactics();
     }
 
-    public void SetPlayerInstruction(int playerId, PlayerDial dial, int offset)
+    public void SetSlotInstruction(int attackSlot, PlayerDial dial, int offset)
     {
         ThrowIfReporting();
-        State.SetPlayerInstruction(playerId, dial, offset);
+        State.SetSlotInstruction(attackSlot, dial, offset, FormationTemplateRepository.All);
         CommitMyTactics();
     }
 
-    public void ClearPlayerInstructions(int playerId)
+    public void ClearSlotInstructions(int attackSlot)
     {
         ThrowIfReporting();
-        State.ClearPlayerInstructions(playerId);
+        State.ClearSlotInstructions(attackSlot);
         CommitMyTactics();
     }
 
@@ -449,11 +473,46 @@ public class SeasonSystem : ISaveLoad
         GameDataManager.Instance.PlayerAccountData.AddCoins(ScoutRules.CoinsFor(myResult, SeasonState.MyTeamId));
     }
 
-    // 배치(스펙 §8, 10-08): 전술 화면 필드에서 칩을 끌어 놓은 편성 자리. 규칙은 SeasonState가 정한다
-    public void MoveLineupSlot(int playerId, bool defending, float x, float z)
+    // ── 슬롯 격자(10-25~26). 규칙(역할군·GK 슬롯·없는 id)은 SeasonState가 정하고 여기는 앞뒤만
+
+    public void SetFormations(string attackFormationId, string defenseFormationId)
     {
         ThrowIfReporting();
-        State.MoveLineupSlot(playerId, defending, x, z);
+        State.SetFormations(attackFormationId, defenseFormationId, FormationTemplateRepository.All, PlayerTableRepository.All);
+        CommitMyTactics();
+    }
+
+    // 전술판 자리 패널의 후보 목록에서 선발을 골랐을 때(10-27 ③b). 후보는 SlotPanel이 CanSwapLineupSlots로 미리 거른다
+    public void SwapLineupSlots(int playerA, int playerB, bool defending)
+    {
+        ThrowIfReporting();
+        State.SwapLineupSlots(playerA, playerB, defending, FormationTemplateRepository.All);
+        CommitMyTactics();
+    }
+
+    // 수비 슬롯의 수비 역할(10-27: 선수가 아니라 슬롯 번호)
+    public void SetDefenseRole(int defenseSlot, string defenseRoleId)
+    {
+        ThrowIfReporting();
+        State.SetDefenseRole(defenseSlot, defenseRoleId, DefenseRoleRepository.All);
+        CommitMyTactics();
+    }
+
+    // 저장 전술 칸(TacticLibrary.SlotName). 지금 세팅을 그 칸에 뜬다. 같은 칸은 덮어쓴다(확인은 화면이 두 번 누르기로)
+    public void SaveTacticSlot(int slotIndex)
+    {
+        ThrowIfReporting();
+        Library.Put(State.SnapshotTactic(TacticLibrary.SlotName(slotIndex)));
+        SaveLoadSystem.Instance.Save();
+    }
+
+    // 칸의 전술을 입힌다. 빈 칸이면 아무 일도 없다(화면이 버튼을 꺼 두지만 조용히 틀리지 않게)
+    public void LoadTacticSlot(int slotIndex)
+    {
+        ThrowIfReporting();
+        SavedTactic tactic = Library.Find(TacticLibrary.SlotName(slotIndex));
+        if (tactic == null) { return; }
+        State.ApplyTactic(tactic, FormationTemplateRepository.All, DefenseRoleRepository.All, TeamTacticsRepository.All, PlayerTableRepository.All);
         CommitMyTactics();
     }
 
@@ -486,11 +545,16 @@ public class SeasonSystem : ISaveLoad
         Debug.Log($"[Season] {Tier.Tier}부 시즌 종료 → {nextTier}부 새 시즌");
         TeamTactics custom = State.MyCustomTactics;   // 바꾼 전술도 다음 시즌으로 이어 간다. 카드만 넘기면 승격하자마자 세팅이 풀린다
         // 시즌이 끝난 뒤 로비 전술 화면에서 바꾼 값도 끝난 시즌의 State에 들어가 있다가 여기서 읽혀 새 시즌으로 넘어간다(로비 편집 경로가 생기며 처음 도달 가능해진 순서)
-        IReadOnlyList<RosterPlayer> previousRoster = State.Roster;   // 역할·개인 지시도 이어 간다. 새 시즌 로스터는 기본 편성에서 다시 만들어져 그대로 두면 풀린다
-        IReadOnlyList<LineupEntry> previousLineup = State.Lineup;    // 끌어 둔 배치도
+        IReadOnlyList<RosterPlayer> previousRoster = State.Roster;   // 자연 변형·★도 이어 간다. 새 시즌 로스터는 기본 편성에서 다시 만들어져 그대로 두면 풀린다
+        IReadOnlyList<LineupEntry> previousLineup = State.Lineup;    // 슬롯·배치도
+        SlotTactics previousSlots = State.Slots;                     // 슬롯 설정(공격 변형·지시·수비 역할)도(10-27 슬롯 중심)
+        string attackFormation = State.AttackFormationId;            // 공수 포메이션도. 4-4-2로 되돌리면 유저가 짠 전술이 시즌마다 풀린다(10-25 유저 "리셋은 절대 안 되지")
+        string defenseFormation = State.DefenseFormationId;
         List<RosterPlayer> previousBench = State.Bench();            // 벤치는 역할·★만 넘어간다(스펙 §4-5 10-19)
         StartSeason(nextTier, unchecked(State.SeasonSeed + 1), State.MyPresetId);   // 다음 시즌 시드도 결정적(이전 시드 + 1)
         if (custom != null) { State.SetMyTactics(custom, TeamTacticsRepository.All); }
+        State.SetFormations(attackFormation, defenseFormation, FormationTemplateRepository.All, PlayerTableRepository.All);   // AdoptStarters보다 먼저: 슬롯 좌표가 이 id 기준이라서
+        State.AdoptSlotTactics(previousSlots);   // 같은 포메이션이라 자리가 같다
         State.AdoptStarters(previousRoster, previousLineup, PlayerTableRepository.All);   // 슬롯 기준(스펙 §11 10-19)
         State.AdoptBench(previousBench, PlayerTableRepository.All);
         SaveLoadSystem.Instance.Save();

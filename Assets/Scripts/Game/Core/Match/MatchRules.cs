@@ -193,7 +193,7 @@ namespace Game.Core.Match
         public static float AimAwayFromKeeper(float aimZ, float keeperZ, float minGap)
         {
             if (Math.Abs(aimZ - keeperZ) >= minGap) { return aimZ; }
-            float limit = FieldBounds.GoalHalfWidth - 0.3f;
+            float limit = FieldBounds.GoalHalfWidth - MatchTuning.GoalAimPostInset;
             float side = aimZ >= keeperZ ? 1f : -1f;
             float pushed = keeperZ + side * minGap;
             if (Math.Abs(pushed) <= limit) { return pushed; }

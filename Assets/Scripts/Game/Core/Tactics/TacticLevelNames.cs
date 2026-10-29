@@ -12,6 +12,7 @@ namespace Game.Core.Tactics
         public static readonly string[] Counter = { "안 함", "상황 봐서", "적극" };
         public static readonly string[] CounterPress = { "안 함", "상황 봐서", "적극" };
         public static readonly string[] GkDistribution = { "짧게", "섞어", "길게" };
+        public static readonly string[] DefenseLine = { "깊게", "표준", "높게" };   // 수비 라인 높이(10-27)
 
         // 서드 3열. 스펙 §3 "우리 진영 ≤ −17.5 < 중원 < 17.5 ≤ 상대 진영"과 같은 말(10-12 표기 통일: 결과 화면이 "중앙"이라 적던 것)
         public static readonly string[] Thirds = { "우리 진영", "중원", "상대 진영" };

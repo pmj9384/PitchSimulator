@@ -137,7 +137,7 @@ namespace Game.Core.League
         {
             for (int i = 0; i < table.Count; i++)
             {
-                if (table[i].RoleId == roleId) { return table[i]; }
+                if (string.Equals(table[i].RoleId, roleId, StringComparison.OrdinalIgnoreCase)) { return table[i]; }
             }
             throw new InvalidOperationException($"[TeamGenerator] PlayerTable에 역할 {roleId}이 없다");
         }
