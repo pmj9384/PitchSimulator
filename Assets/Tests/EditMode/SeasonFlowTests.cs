@@ -268,14 +268,15 @@ public class SeasonFlowTests
         List<Fixture> schedule = SeasonSchedule.RoundRobin(tier.Teams);
 
         TeamTactics balanced = SeasonRunner.FindPreset(presets, "balanced");
-        TeamTactics edited = TacticsEditing.ApplySlider(balanced, balanced, TacticSlider.Speed, 1);
+        TeamTactics edited = TacticsEditing.ApplyForward(balanced, balanced, 1);
         state.SetMyTactics(edited, presets);
         MatchSetup setup = SeasonRunner.SetupMyMatch(state, opponents, schedule, presets, 0, table);
-        CollectionAssert.AreEqual(new[] { 1, 2, 2 }, setup.Tactics0.Tempo, "표로 바꾼 속도가 경기에");
+        Assert.AreEqual(2, setup.Tactics0.Mentality, "슬라이더로 바꾼 전진 정도가 경기에");
+        CollectionAssert.AreEqual(new[] { 2, 2, 2 }, setup.Tactics0.Width, "폭 2/1/1 + 1");
         Assert.AreEqual("balanced", state.MyPresetId, "기준 카드는 그대로");
 
         SeasonState loaded = SeasonState.FromSave(state.ToSave(), table);
-        CollectionAssert.AreEqual(new[] { 1, 2, 2 }, loaded.MyTactics(presets).Tempo, "세이브 왕복 뒤에도");
+        Assert.AreEqual(2, loaded.MyTactics(presets).Mentality, "세이브 왕복 뒤에도");
     }
 
     [Test]
@@ -287,7 +288,7 @@ public class SeasonFlowTests
         Assert.AreEqual(counterName, state.MyCardName(presets), "바꾼 값이 없을 때");
 
         TeamTactics counter = SeasonRunner.FindPreset(presets, "counter");
-        state.SetMyTactics(TacticsEditing.ApplySlider(counter, counter, TacticSlider.Forward, 1), presets);
+        state.SetMyTactics(TacticsEditing.ApplyForward(counter, counter, 1), presets);
         Assert.AreEqual(counterName, state.MyCardName(presets), "슬라이더로 바꾼 뒤에도 기준 카드 이름");
 
         SeasonState loaded = SeasonState.FromSave(state.ToSave(), table);
@@ -304,7 +305,7 @@ public class SeasonFlowTests
         Assert.IsTrue(TacticsEditing.SameValues(SeasonRunner.FindPreset(presets, "counter"), SeasonState.FromSave(save, table).MyTactics(presets)));
 
         TeamTactics counter = SeasonRunner.FindPreset(presets, "counter");
-        state.SetMyTactics(TacticsEditing.ApplySlider(counter, counter, TacticSlider.Forward, 1), presets);
+        state.SetMyTactics(TacticsEditing.ApplyForward(counter, counter, 1), presets);
         Assert.IsNotNull(state.MyCustomTactics);
         state.SetMyPreset("pressing", presets);
         Assert.IsNull(state.MyCustomTactics, "카드를 고르면 아래 전부가 그 카드 값으로(목업 규칙)");
@@ -316,7 +317,7 @@ public class SeasonFlowTests
     {
         SeasonState state = SeasonState.NewSeason(4, 42, myRows, table);
         TeamTactics balanced = SeasonRunner.FindPreset(presets, "balanced");
-        state.SetMyTactics(TacticsEditing.ApplySlider(balanced, balanced, TacticSlider.Forward, 1), presets);
+        state.SetMyTactics(TacticsEditing.ApplyForward(balanced, balanced, 1), presets);
         SeasonSave save = state.ToSave();
         save.myTactics!.tempo[0] = 5;
         Assert.Throws<System.InvalidOperationException>(() => SeasonState.FromSave(save, table));
@@ -328,9 +329,9 @@ public class SeasonFlowTests
         // 불변식: MyCustomTactics가 있으면 값이 기준 카드와 다르다. 슬라이더를 가운데로 되돌리면 카드 그대로
         SeasonState state = SeasonState.NewSeason(4, 42, myRows, table);
         TeamTactics balanced = SeasonRunner.FindPreset(presets, "balanced");
-        state.SetMyTactics(TacticsEditing.ApplySlider(balanced, balanced, TacticSlider.Speed, 1), presets);
+        state.SetMyTactics(TacticsEditing.ApplyForward(balanced, balanced, 1), presets);
         Assert.IsNotNull(state.MyCustomTactics);
-        state.SetMyTactics(TacticsEditing.ApplySlider(state.MyTactics(presets), balanced, TacticSlider.Speed, 0), presets);
+        state.SetMyTactics(TacticsEditing.ApplyForward(state.MyTactics(presets), balanced, 0), presets);
         Assert.IsNull(state.MyCustomTactics);
     }
 
