@@ -127,7 +127,9 @@ namespace Game.Core.Match
         public const float JogSpeedFraction = 0.6f;     // 자리 잡기 조깅 상한 = 최고 속도 × 이 값. speed 50이면 4.2m/s, 트래킹 속도 구간의 조깅 상한 4m/s(14.4km/h, PMC11534638)와 비슷. [가정] 러너로 오프볼 스프린트 약 80에 맞춘다
         public const float PassSafetyBand = 0.1f;       // 패스 안전 가중의 경계 띠(허용치 ± 이 값에서 1 → 0, PassRules.SafetyWeight). [가정] 출처 없음, 10-25 격자로 확인
         public const float ForwardRunMargin = 1f;       // 아군 소유 중 공격 자리가 이보다 앞이면 전진 런(전력). [가정] 제자리 떨림만 거르는 값
-        public const float LateToPositionMeters = 8f;   // 자리에서 이보다 멀면 조깅 대신 전력 복귀. [가정] 출처 없음, 러너로 맞춘다
+        // 늦음 문턱 이력: 10-29 유저 Play "조깅과 전력 차이가 안 느껴짐". 8m면 5.5m/s 이상 시간의 48%가 늦은 복귀였다(공이 빨리 움직이면 자리도 한 번에 크게 옮겨진다).
+        // 12m면 오프볼 스프린트 108 → 87/판(목표 약 80). 16m·항상 조깅은 ST 쏠림 67~70%
+        public const float LateToPositionMeters = 12f;  // 자리에서 이보다 멀면 조깅 대신 전력 복귀. [가정] 출처 없음
         public const float AccelerationAt50 = 7f;                                  // speed 50 선수의 가속 m/s². Spearman 2018·Shaw 코드의 amax 7. 정지 출발 10m 1.93초(현실 2.04초)
         public const float ReactionTime = SpeedMpsAt50 / (2f * AccelerationAt50);  // 0.5초. 정지한 선수가 가속으로 잃는 거리 = 최고 속도로 이만큼 늦게 출발한 것(MovementRules.ReactionEquivalent).
                                                                                    // 개인 가속은 이 값이 모든 선수에게 같도록 최고 속도에서 유도한다(MovementRules.AccelerationFor)
