@@ -2,7 +2,7 @@ using UnityEngine;
 using UnityEngine.UI;
 
 // 전술 화면 전체(10-27 ③b, 스펙 §8 화면 확정. 근거 실험/2026-10-27-전술화면-UI-레퍼런스.md: 필드 중심 + 옆 패널, 자리 단위와 팀 단위 설정 분리).
-// 오른쪽 = 필드(공격/수비 위상 탭 + 슬롯 칩 11). 필드 위 띠의 버튼 3개([포메이션][저장 전술][팀 전술])는 각각 모달을 연다.
+// 오른쪽 = 필드(공격/수비 위상 탭 + 슬롯 칩 11). 필드 위 띠의 버튼 3개([포메이션][저장 전술][팀 전술])는 각각 모달을 연다. 팀 전술 모달은 오른쪽 열에 미니 피치(TacticsMiniPitch, 10-29)를 품는다.
 // 왼쪽 패널은 두 상태: 아무 칩도 안 골랐으면 명단(RosterPanel), 칩을 골랐으면 그 자리(SlotPanel). 칩 재탭·빈 곳 탭 → 명단.
 // 로비 전술 화면(TacticsScreen)이 쓴다. 여기의 몫은 조각을 잇는 것뿐이다: 패널·필드·모달은 서로를 모른다. 바뀌면 다시 그리라고 전하고, 선택을 패널 상태로 옮긴다
 public class TacticsBoardView : MonoBehaviour
@@ -15,6 +15,7 @@ public class TacticsBoardView : MonoBehaviour
     [Header("모달 3개 (필드 위 띠 버튼 → 열기, 각 모달의 닫기)")]
     [SerializeField] private FormationPanel formationPanel;   // 포메이션 모달과 저장 전술 모달의 내용을 같이 든다
     [SerializeField] private TeamTacticsPanel teamPanel;
+    [SerializeField] private TacticsMiniPitch miniPitch;   // 팀 전술 모달 오른쪽 열. 패널은 필드를 모르니 여기서 잇는다(10-29 ③d)
     [SerializeField] private GameObject formationModal;
     [SerializeField] private GameObject libraryModal;
     [SerializeField] private GameObject teamModal;
@@ -42,6 +43,7 @@ public class TacticsBoardView : MonoBehaviour
             slotPanel.LineupChanged += OnLineupChanged;
             formationPanel.Changed += OnFormationChanged;
             teamPanel.Changed += OnTeamChanged;
+            teamPanel.PhaseSelected += OnTeamPhaseSelected;
             openFormationButton.onClick.AddListener(OpenFormation);
             openLibraryButton.onClick.AddListener(OpenLibrary);
             openTeamButton.onClick.AddListener(OpenTeam);
@@ -113,10 +115,17 @@ public class TacticsBoardView : MonoBehaviour
         ShowSidePanel();
     }
 
-    // 전진 정도·수비 라인·폭이 바뀌어도 격자는 안 움직이지만, 저장 전술 요약(카드 이름)이 달라진다
+    // 전진 정도·수비 라인·폭이 바뀌어도 격자는 안 움직이지만, 저장 전술 요약(카드 이름)과 미니 피치의 자리가 달라진다
     private void OnTeamChanged()
     {
         formationPanel.Refresh();
+        miniPitch.Refresh();
+    }
+
+    // 팀 전술 모달의 국면 탭(공격·전환·수비)을 미니 피치가 따라간다. 패널은 피치를 모르니 여기서 잇는다
+    private void OnTeamPhaseSelected(TeamTacticsPhase phase)
+    {
+        miniPitch.Show(phase);
     }
 
     private void OpenFormation()
@@ -137,6 +146,7 @@ public class TacticsBoardView : MonoBehaviour
     {
         CloseModals();
         teamPanel.Refresh();
+        miniPitch.Show(teamPanel.Phase);
         teamModal.SetActive(true);
     }
 

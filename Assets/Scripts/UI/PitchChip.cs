@@ -10,7 +10,7 @@ public class PitchChip : MonoBehaviour
 {
     private static readonly Color NormalColor = new Color(0.11f, 0.2f, 0.47f, 0.95f);    // 칩 바탕(짙은 파랑)
     private static readonly Color NormalTextColor = Color.white;
-    private static readonly Color SelectedTextColor = new Color(0.13f, 0.13f, 0.13f);    // 강조색 바탕 위에선 짙은 글자
+    private static readonly Color SelectedTextColor = TacticsColors.DarkText;   // 강조색 바탕 위에선 짙은 글자
 
     [SerializeField] private RectTransform rect;
     [SerializeField] private TMP_Text roleText;

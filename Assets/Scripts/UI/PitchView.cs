@@ -13,7 +13,6 @@ using UnityEngine.UI;
 // 어긋남 "!" = SeasonState.WarningsOf(적성·역할군·전환 거리)가 None이 아닐 때. 자리 패널 경고와 같은 판정 한 곳
 public class PitchView : MonoBehaviour
 {
-    private const int DefendPhase = 1;   // phaseTabs: 0 = 공격할 때, 1 = 수비할 때
     public const int NoPlayer = SeasonState.NoPlayerId;
 
     [SerializeField] private PitchChip[] chips;   // 11개 고정(FormationTemplate.SlotCount). chips[i] = Lineup[i]
@@ -28,7 +27,7 @@ public class PitchView : MonoBehaviour
     public event Action PhaseChanged;
 
     public int SelectedPlayerId { get; private set; } = NoPlayer;
-    public bool Defending => phaseTabs.SelectedIndex == DefendPhase;
+    public bool Defending => phaseTabs.SelectedIndex == PitchPhase.Defend;   // 탭 순서는 PitchPhase 한 곳
 
     private bool initialized;
 

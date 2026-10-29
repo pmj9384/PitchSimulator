@@ -7,7 +7,8 @@ using UnityEngine;
 using UnityEngine.UI;
 
 // 포메이션 패널(10-26 슬롯 격자 ②, FM26 In/Out of Possession 모양 2장). 전술 화면(TacticsBoardView)의 모달 2개([포메이션]·[저장 전술])의 내용을 한 컴포넌트가 든다(10-27 ③b).
-// ①공격할 때 모양 6개 중 하나 ②수비할 때 모양 6개 중 하나(★ = 공격 모양에서 평균 이동이 짧은 추천 3, FM26 어시스턴트 추천에 해당)
+// ①공격할 때 모양 6개 중 하나 ②수비할 때 모양 6개 중 하나(★ = 공격 모양에서 평균 이동이 짧은 추천 3, FM26 어시스턴트 추천에 해당).
+// 10-29 ③d-2(유저 "오른쪽에 포메이션 모양을 보여 주고 왼쪽에서 고르게"): 왼쪽은 공격/수비 탭 + 세로 목록, 오른쪽은 지금 고른 모양의 템플릿 자리 11개(PitchDots). 목록을 누르면 바로 입힌다(이 화면의 다른 조절과 같은 즉시 반영, 되돌리기 = 다른 걸 누름)
 // ③저장 전술 5칸(TacticLibrary.SlotName): [불러오기]는 그 칸의 공수 모양·슬롯별 수비 역할·팀 전술을 입히고, [저장]은 지금 세팅을 그 칸에 뜬다. 찬 칸에 저장은 두 번 눌러 확정(스쿼드 방출과 같은 꼴).
 // 규칙(없는 id 거부, 추천 순위, 칸 상한)은 전부 코어(SeasonState·FormationRules·TacticLibrary), 여기는 화면과 입력만. 값이 바뀌면 Changed만 쏜다
 public class FormationPanel : MonoBehaviour
@@ -18,6 +19,8 @@ public class FormationPanel : MonoBehaviour
     private static readonly Color NormalColor = Color.white;
 
     [SerializeField] private TMP_Text headerText;   // "공격 4-3-3 → 수비 5-3-2 · 평균 전환 8.2m"
+    [SerializeField] private TabGroup phaseTabs;    // 공격할 때 / 수비할 때(PitchPhase 순서). contents = 목록 2개
+    [SerializeField] private PitchDots shape;       // 오른쪽: 그 탭에서 고른 포메이션의 템플릿 자리
 
     [Header("① 공격할 때 모양 (FormationTemplates 순서)")]
     [SerializeField] private Button[] attackButtons;
@@ -67,6 +70,8 @@ public class FormationPanel : MonoBehaviour
             Debug.LogError($"[FormationPanel] 저장 칸 {slotLabels.Length}개 ≠ TacticLibrary.MaxCount {TacticLibrary.MaxCount}. 프리팹 배선을 확인한다");
         }
 
+        phaseTabs.Initialize();
+        phaseTabs.Selected += OnPhaseSelected;
         for (int i = 0; i < attackButtons.Length; i++)
         {
             int index = i;   // 클로저가 루프 변수 대신 이 버튼 번호를 잡게 한다
@@ -96,6 +101,11 @@ public class FormationPanel : MonoBehaviour
     }
 
     #region 입력
+    private void OnPhaseSelected(int _)
+    {
+        RenderShape();
+    }
+
     private void OnAttackClicked(int index)
     {
         if (index >= Formations.Count) { return; }
@@ -155,7 +165,24 @@ public class FormationPanel : MonoBehaviour
         headerText.text = $"공격 {attack.Id} → 수비 {defense.Id} · 평균 전환 {FormationRules.MeanTransitionDistance(attack, defense):0.0}m";
         RenderFormationRow(attackImages, attackLabels, state.AttackFormationId, null);
         RenderFormationRow(defenseImages, defenseLabels, state.DefenseFormationId, Recommended(attack));
+        RenderShape();
         RenderSlots();
+    }
+
+    // 오른쪽 모양: 그 탭(공격/수비)에서 지금 고른 포메이션의 템플릿 자리와 슬롯 자리 이름. 편성 자리 그대로라 공·전술과 무관하다(자리 미리보기는 팀 전술 모달의 미니 피치 몫)
+    private void RenderShape()
+    {
+        bool defending = phaseTabs.SelectedIndex == PitchPhase.Defend;
+        SeasonState state = Season.State;
+        FormationTemplate template = FormationRules.Find(Formations, defending ? state.DefenseFormationId : state.AttackFormationId);
+        var positions = new (float x, float z)[FormationTemplate.SlotCount];
+        var names = new string[FormationTemplate.SlotCount];
+        for (int slot = 1; slot <= FormationTemplate.SlotCount; slot++)
+        {
+            positions[slot - 1] = FormationRules.Position(template, slot, defending);
+            names[slot - 1] = FormationRules.SlotOf(template, slot).RoleId;
+        }
+        shape.Show(positions, names);
     }
 
     // recommended = ★를 붙일 id 집합. 공격 줄은 null

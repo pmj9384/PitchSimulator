@@ -5,4 +5,5 @@ public static class TacticsColors
 {
     public static readonly Color Highlight = new Color(1f, 0.835f, 0.31f);          // 고른 것·강조(#FFD54F)
     public static readonly Color Unselected = new Color(0.82f, 0.84f, 0.88f);      // 안 고른 탭·카드. 글자가 짙은 색이라 밝은 회색
+    public static readonly Color DarkText = new Color(0.13f, 0.13f, 0.13f);        // 밝은 바탕(강조색·흰 칸) 위의 글자. 칩·스카우트 행·3단 칸이 같이 쓴다(10-29)
 }

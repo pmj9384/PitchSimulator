@@ -9,7 +9,7 @@ public class ScoutEntryButton : MonoBehaviour
 {
     private static readonly Color SelectedColor = TacticsColors.Highlight;
     private static readonly Color NormalColor = Color.white;
-    private static readonly Color NormalTextColor = new Color(0.13f, 0.13f, 0.13f);
+    private static readonly Color NormalTextColor = TacticsColors.DarkText;
 
     [SerializeField] private Button button;
     [SerializeField] private Image background;
