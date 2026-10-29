@@ -85,7 +85,7 @@ public class FormationRulesTests
     }
 
     [Test]
-    public void 수비_역할_표는_기본_역할을_포함하고_다이얼_3개만_덮는다()
+    public void 수비_역할_표는_기본_역할을_포함하고_다이얼_2개만_덮는다()
     {
         List<DefenseRole> roles = Roles();
         Assert.IsNotNull(DefenseRoleParser.Find(roles, DefenseRole.DefaultId));
@@ -94,10 +94,10 @@ public class FormationRulesTests
         PlayerStats applied = pressing.Apply(stats);
         Assert.AreEqual(15f, applied.PressRange, 1e-4f, "×1.5");
         Assert.AreEqual(7f, applied.LineHeight, 1e-4f, "+3");
-        Assert.AreEqual(7.8f, applied.RoamRadius, 1e-4f, "×1.3");
+        Assert.AreEqual(6f, applied.RoamRadius, 1e-4f, "이탈 반경은 수비 역할이 안 건드린다(10-29 배율 삭제)");
         Assert.AreEqual(15f, applied.PushUp, 1e-4f, "공격 다이얼은 그대로");
         Assert.AreEqual(10f, stats.PressRange, "원본 불변");
-        Assert.Throws<System.FormatException>(() => DefenseRoleParser.Parse("defenseRoleId,displayName,description,pressRangeScale,lineHeightOffset,roamRadiusScale\npressing,압박,,1.5,3,1.3\n"), "기본 역할 없음");
+        Assert.Throws<System.FormatException>(() => DefenseRoleParser.Parse("defenseRoleId,displayName,description,pressRangeScale,lineHeightOffset\npressing,압박,,1.5,3\n"), "기본 역할 없음");
     }
 
     [Test]

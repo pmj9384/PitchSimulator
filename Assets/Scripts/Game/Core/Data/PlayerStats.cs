@@ -39,7 +39,7 @@ namespace Game.Core.Data
         public float PassLength { get; set; }    // 패스 길이: 우선 패스 거리(m)
         public float Width { get; set; }         // 측면 쏠림: 자리 기준 좌우로 얼마나(m)
         public float LineHeight { get; set; }    // 라인 높이: 수비 때 후퇴 한계(m)
-        public float RoamRadius { get; set; }    // 자리 이탈 반경(m). 폴스 9·프리 롤·라움도이터
+        public float RoamRadius { get; set; }    // 자리 이탈 반경(m). 폴스 9·프리 롤·라움도이터. 아직 판정이 없다: ④ 침투 설계에서 "자유 역할이 자리를 떠나 빈 공간을 찾는 규칙"의 입력(10-29 결정)
         public float PassRisk { get; set; }      // 패스 리스크 0~1. 가로채기 허용 임계 개인값
         public float Dribble { get; set; }       // 드리블 성향 0~1. 위협 없을 때 드리블 유지 확률
         public float HoldUp { get; set; }        // 볼 끌기: 소유 뒤 킥까지 대기(초). 타깃맨
