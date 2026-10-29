@@ -1,14 +1,21 @@
 using UnityEngine;
 
-// 아웃게임 설정창(2026-10-29 UI 키트 표준안). 탭 3개 = 소리(배경음·효과음) / 화면(프레임 상한) / 기타(진동).
-// 바꾸면 바로 적용되고 저장은 세이브 체인이 한다(적용 버튼 없음, Game Accessibility Guidelines "모든 설정 저장").
-// 닫기는 PopupFrame(딤·X)과 UIManager(뒤로가기). 게임이 안 쓰는 탭을 빼는 절차는 TabBar 머리 주석. 그 탭의 부품을 지우면 여기 필드와 구독도 같이 지운다.
-// 값의 SSOT는 SoundManager·FrameRateSetting·VibrationSetting, 여기는 화면과 입력만
+// 아웃게임 설정창(2026-10-29 UI 키트 표준안). 프리팹이 둘이고 스크립트는 하나다(Assets/Prefabs/UI/Settings).
+// - 가로형(RPG·스포츠): 왼쪽 세로 탭 3개(소리 / 화면 / 기타), 소리는 슬라이더
+// - 세로형(캐주얼): 탭 없는 카드 한 장, 소리는 켜기/끄기 스위치
+// 소리 컨트롤은 슬라이더(bgmRow)와 스위치(bgmSwitch) 중 프리팹에 배선된 쪽을 쓴다. 화면만 다르고 하는 일은 같아서 클래스를 나누지 않았다.
+// 바꾸면 바로 적용되고 저장은 세이브 시스템이 한다(적용 버튼 없음, Game Accessibility Guidelines "모든 설정 저장").
+// 닫기는 PopupFrame(딤·X)과 UIManager(뒤로가기). 값의 SSOT는 SoundManager·FrameRateSetting·VibrationSetting, 여기는 화면과 입력만
 public class OutGameSettingsPanel : UIPopup
 {
-    [Header("소리")]
+    private const float SwitchOnVolume = 1f;      // 스위치로 켤 때 볼륨. 세로형은 세기 조절이 없다
+    private const float AudibleMin = 0.01f;       // 이보다 작으면 꺼진 것으로 본다(SoundManager가 0 대신 0.0001을 저장한다)
+
+    [Header("소리: 슬라이더(가로형) 또는 스위치(세로형), 배선된 쪽만")]
     [SerializeField] private SliderRow bgmRow;
     [SerializeField] private SliderRow sfxRow;
+    [SerializeField] private ToggleSwitch bgmSwitch;
+    [SerializeField] private ToggleSwitch sfxSwitch;
 
     [Header("화면")]
     [SerializeField] private SegmentedControl frameRate;   // 칸 순서 = FrameRateSetting.Options
@@ -18,8 +25,10 @@ public class OutGameSettingsPanel : UIPopup
 
     private void Awake()
     {
-        bgmRow.ValueChanged += OnBgmChanged;
-        sfxRow.ValueChanged += OnSfxChanged;
+        if (bgmRow != null) { bgmRow.ValueChanged += OnBgmChanged; }
+        if (sfxRow != null) { sfxRow.ValueChanged += OnSfxChanged; }
+        if (bgmSwitch != null) { bgmSwitch.Changed += OnBgmSwitched; }
+        if (sfxSwitch != null) { sfxSwitch.Changed += OnSfxSwitched; }
         frameRate.SetLabels(FrameRateLabels());
         frameRate.Selected += OnFrameRateSelected;
         vibration.Changed += OnVibrationChanged;
@@ -27,8 +36,12 @@ public class OutGameSettingsPanel : UIPopup
 
     public override void Show()
     {
-        bgmRow.SetValueWithoutNotify(SoundManager.Instance.BgmVolume);
-        sfxRow.SetValueWithoutNotify(SoundManager.Instance.SfxVolume);
+        float bgm = SoundManager.Instance.BgmVolume;
+        float sfx = SoundManager.Instance.SfxVolume;
+        if (bgmRow != null) { bgmRow.SetValueWithoutNotify(bgm); }
+        if (sfxRow != null) { sfxRow.SetValueWithoutNotify(sfx); }
+        if (bgmSwitch != null) { bgmSwitch.SetWithoutNotify(bgm >= AudibleMin); }
+        if (sfxSwitch != null) { sfxSwitch.SetWithoutNotify(sfx >= AudibleMin); }
         frameRate.SetSelectedWithoutNotify(CurrentFrameRateIndex());
         vibration.SetWithoutNotify(VibrationSetting.On);
         base.Show();
@@ -42,6 +55,16 @@ public class OutGameSettingsPanel : UIPopup
     private void OnSfxChanged(float value)
     {
         SoundManager.Instance.SetSfxVolume(value);
+    }
+
+    private void OnBgmSwitched(bool on)
+    {
+        SoundManager.Instance.SetBgmVolume(on ? SwitchOnVolume : 0f);
+    }
+
+    private void OnSfxSwitched(bool on)
+    {
+        SoundManager.Instance.SetSfxVolume(on ? SwitchOnVolume : 0f);
     }
 
     private void OnFrameRateSelected(int index)
