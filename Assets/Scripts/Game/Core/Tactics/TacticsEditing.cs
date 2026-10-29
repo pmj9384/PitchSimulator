@@ -3,54 +3,39 @@ using System.Collections.Generic;
 
 namespace Game.Core.Tactics
 {
-    // 슬라이더 3개. 각자 맡은 칸이 있다(목업 힌트 그대로): 앞으로 = 전진 정도 + 수비 라인 높이(10-27, FM 멘탈리티가 수비 라인도 같이 올림) + 폭 + 패스 리스크, 빨리 = 속도, 압박 = 압박 시작
-    public enum TacticSlider { Forward, Speed, Press }
-
-    // 팀 전술 설정창의 순수 판정. 입구 3단 = 카드 → 슬라이더 → 세부 표(스펙 §4-2, 목업 "전술 지도와 설정창" 탭 2).
-    // 슬라이더는 칸 값을 한 값으로 덮지 않고 카드 값에 오프셋을 더한다(09-30 유저 결정): 카드가 가진 서드별 모양(예: 빌드업의 우리 진영 짧게·상대 진영 직접)을 지킨다.
-    // "얼마나 압박"의 "역할별 압박 거리"(목업)는 개인 다이얼이라 개인 전술창 몫
+    // 팀 전술 설정창의 순수 판정. 입구 = 카드 → "앞으로" 슬라이더, 그 뒤 국면 탭(공격·전환·수비)의 칸마다 3칸 슬라이더(스펙 §4-2, 10-29 ③d-2).
+    // "앞으로"는 칸 값을 한 값으로 덮지 않고 카드 값에 오프셋을 더한다(09-30 유저 결정): 카드가 가진 서드별 모양(예: 빌드업의 우리 진영 짧게·상대 진영 직접)을 지킨다.
+    // 빨리(속도)·압박 슬라이더는 10-29에 지웠다: 칸마다 좌우 조절이 생겨 서드 3칸을 한 번에 미는 단축키가 같은 값을 두 곳에서 만지는 중복이 됐다.
+    // 전진 정도(Mentality)만 표에 칸이 없어 슬라이더가 남는다. "얼마나 압박"의 "역할별 압박 거리"(목업)는 개인 다이얼이라 개인 전술창 몫
     public static class TacticsEditing
     {
         public const int SliderMin = -1;
         public const int SliderMax = 1;   // 3칸. 칸 값이 3단(0~2)이라 ±2면 카드 값 1에서 "더"와 "훨씬 더"가 같아져 유저가 "분배가 안 된다"고 느꼈다. 한 칸이 곧 한 단
 
-        // 슬라이더 하나가 자기 담당 칸만 다시 쓴다: 담당 칸 = 기준 카드 값 + 오프셋, 나머지는 지금 값(current) 그대로.
-        // 카드를 전부 복사해 다시 계산하면 슬라이더와 상관없는 칸(패스 방식·전환)과 다른 슬라이더의 칸까지 표에서 바꾼 값이 사라진다
-        public static TeamTactics ApplySlider(TeamTactics current, TeamTactics card, TacticSlider slider, int offset)
+        // "앞으로"가 맡은 칸만 다시 쓴다: 전진 정도 + 수비 라인 높이(10-27, FM 멘탈리티가 수비 라인도 같이 올림) + 폭 + 패스 리스크 = 기준 카드 값 + 오프셋. 나머지는 지금 값(current) 그대로.
+        // 카드를 전부 복사해 다시 계산하면 슬라이더와 상관없는 칸(패스 방식·속도·전환)까지 표에서 바꾼 값이 사라진다
+        public static TeamTactics ApplyForward(TeamTactics current, TeamTactics card, int offset)
         {
             CheckSlider(offset, nameof(offset));
 
             TeamTactics t = Copy(current);
-            switch (slider)
-            {
-                case TacticSlider.Forward:
-                    t.Mentality = Shift(card.Mentality, offset);
-                    t.DefenseLine = Shift(card.DefenseLine, offset);
-                    ShiftFrom(card.Width, t.Width, offset);
-                    ShiftFrom(card.PassRisk, t.PassRisk, offset);
-                    break;
-                case TacticSlider.Speed:
-                    ShiftFrom(card.Tempo, t.Tempo, offset);
-                    break;
-                case TacticSlider.Press:
-                    ShiftFrom(card.PressStart, t.PressStart, offset);
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(slider), slider, "없는 슬라이더");
-            }
+            t.Mentality = Shift(card.Mentality, offset);
+            t.DefenseLine = Shift(card.DefenseLine, offset);
+            ShiftFrom(card.Width, t.Width, offset);
+            ShiftFrom(card.PassRisk, t.PassRisk, offset);
             return t;
         }
 
         // 슬라이더를 offset까지 밀었을 때 실제로 값이 바뀌는 마지막 칸. 카드 값이 이미 끝(0 또는 2)이면 더 밀어도 같은 값이라 화면이 그 자리로 되돌린다
-        public static int EffectiveSliderOffset(TeamTactics card, TacticSlider slider, int offset)
+        public static int EffectiveForwardOffset(TeamTactics card, int offset)
         {
             CheckSlider(offset, nameof(offset));
             int sign = Math.Sign(offset);
             int effective = 0;
             for (int k = sign; k != offset + sign; k += sign)
             {
-                TeamTactics further = ApplySlider(card, card, slider, k);
-                TeamTactics sofar = ApplySlider(card, card, slider, effective);
+                TeamTactics further = ApplyForward(card, card, k);
+                TeamTactics sofar = ApplyForward(card, card, effective);
                 if (SameValues(further, sofar)) { break; }
                 effective = k;
             }

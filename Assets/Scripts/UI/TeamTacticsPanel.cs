@@ -7,14 +7,13 @@ using UnityEngine;
 using UnityEngine.UI;
 
 // 팀 전술 패널(09-30, 스펙 §4-2·§2-1 목업 4번 보드). 전술 화면(TacticsBoardView)의 [팀 전술] 모달(10-27 ③b: 자리 단위 설정과 층위가 달라 탭이 아니라 필드 위 띠의 버튼으로 연다).
-// 왼쪽 좁은 열이 입구, 오른쪽 표가 주인공이다(10-15 유저 승인, 10-21 재배치. 전엔 왼쪽 패널 안에 카드 ◀ ▶와 세부 3탭이 있어 표가 한눈에 안 보였다).
-// 입구 3단: ①카드 4장(2×2. 고르면 표 전체가 그 카드 값) → ②슬라이더 3개(카드 값에 오프셋, TacticsEditing.ApplySlider) → ③표(서드 3행 × 항목 4열 + 압박 시작 1행 + 전환 1행).
-// 슬라이더는 자기 담당 칸만 기준 카드 + 오프셋으로 다시 쓴다(다른 칸에서 표로 바꾼 값은 지킨다). 표를 만지면 그 칸만 바뀐다.
+// 왼쪽 좁은 열이 입구(카드 4 + "앞으로" 슬라이더), 가운데가 국면 탭 3개(공격할 때 / 전환 / 수비할 때, FM26 팀 지시 3판), 오른쪽 미니 피치는 보드가 잇는다(10-29 ③d-2. 그 전의 표 한 장 + 순환 버튼은 유저 Play "버튼이 너무 많다, 공수 UI가 합쳐졌다"로 접음. 스펙 §4-2).
+// 칸은 3칸 슬라이더(TacticLevelSelector). 속도·압박 슬라이더는 칸 좌우 조절과 중복이라 뺐고, 전진 정도만 칸이 없어 슬라이더가 남는다(TacticsEditing.ApplyForward: 카드 값에 오프셋, 자기 칸만 다시 쓴다).
 // 기준 카드와 다른 칸은 바탕색으로 표시한다(어느 입력이 바꿨는지는 세이브에 없어 "다른 칸 전부", 10-21 결정).
 // 카드 아래 체력 부담 막대는 지금 값이 선수를 얼마나 지치게 하는지를 실측 표로 보여 준다(StaminaLoad).
 // 값이 기준 카드와 다르면 "사용자 설정" 버튼이 뜨고, 누르면 카드 값으로 돌아간다. 규칙은 전부 순수 코어(TacticsEditing·SeasonState), 여기는 화면과 입력만.
 // 고른 값은 시즌 한 곳(SeasonSystem.SetMyPreset·SetMyTactics·SetMyTacticsFromTable → SeasonState)이라 로비 전술 화면과 매치데이 허브가 같은 값을 본다.
-// 이 패널은 이번 경기(상대·킥오프)도 필드도 모른다. 값이 바뀌면 Changed만 쏜다
+// 이 패널은 이번 경기(상대·킥오프)도 필드도 모른다. 값이 바뀌면 Changed, 탭이 바뀌면 PhaseSelected만 쏜다
 public class TeamTacticsPanel : MonoBehaviour
 {
     [Header("① 카드 4장 (TacticPresets 순서)")]
@@ -24,25 +23,30 @@ public class TeamTacticsPanel : MonoBehaviour
     [SerializeField] private Button customResetButton;   // "사용자 설정". 값이 기준 카드와 다를 때만 보이고, 누르면 카드 값으로
     [SerializeField] private StaminaLoadGauge loadGauge;  // 체력 부담 막대. 카드 설명 아래
 
-    [Header("② 슬라이더 (카드 기준 −2~+2)")]
+    [Header("② 앞으로 슬라이더 (카드 기준 −1~+1) + 국면 탭")]
     [SerializeField] private Slider forwardSlider;
-    [SerializeField] private Slider speedSlider;
-    [SerializeField] private Slider pressSlider;
+    [SerializeField] private TabGroup phaseTabs;   // 공격할 때 / 전환 / 수비할 때(TeamTacticsPhase 순서). contents = 탭별 칸 묶음 3개
 
-    [Header("③ 표 (서드 3칸: 우리 진영·중원·상대 진영)")]
+    [Header("③ 공격 탭 (서드 3칸: 우리 진영·중원·상대 진영)")]
     [SerializeField] private TMP_Text[] attackRowLabels;   // 행 이름 3개. 글자는 TacticLevelNames.AttackRows
     [SerializeField] private TacticLevelSelector[] passStyle;
     [SerializeField] private TacticLevelSelector[] passRisk;
     [SerializeField] private TacticLevelSelector[] tempo;
     [SerializeField] private TacticLevelSelector[] width;
-    [SerializeField] private TacticLevelSelector[] pressStart;
+
+    [Header("④ 전환 탭 · ⑤ 수비 탭")]
     [SerializeField] private TacticLevelSelector counter;
     [SerializeField] private TacticLevelSelector counterPress;
     [SerializeField] private TacticLevelSelector gkDistribution;
-    [SerializeField] private TacticLevelSelector defenseLine;   // 수비 라인 높이(10-27 ③c, FM Out of Possession의 Defensive Line). 표의 수비 행에 압박 시작 옆
+    [SerializeField] private TacticLevelSelector[] pressStart;
+    [SerializeField] private TacticLevelSelector defenseLine;   // 수비 라인 높이(10-27 ③c, FM Out of Possession의 Defensive Line). 수비 탭에 압박 시작 옆
 
-    // 전술 값이 바뀔 때마다. 필드(PitchView)가 자리를 다시 그리려고 듣는다
+    // 전술 값이 바뀔 때마다. 보드가 미니 피치·저장 전술 요약을 다시 그리려고 듣는다
     public event Action Changed;
+    // 국면 탭을 바꿨을 때. 미니 피치가 공격/수비 자리를 따라가려고 듣는다
+    public event Action<TeamTacticsPhase> PhaseSelected;
+
+    public TeamTacticsPhase Phase => (TeamTacticsPhase)phaseTabs.SelectedIndex;
 
     private IReadOnlyList<TeamTactics> presets;
     private readonly List<TacticLevelSelector> allSelectors = new List<TacticLevelSelector>();
@@ -50,7 +54,7 @@ public class TeamTacticsPanel : MonoBehaviour
 
     private static SeasonSystem Season => GameDataManager.Instance.Season;
 
-    // 화면을 열 때마다 부른다. 시즌이 든 지금 값으로 카드·슬라이더·표를 다시 채운다
+    // 화면을 열 때마다 부른다. 시즌이 든 지금 값으로 카드·슬라이더·칸을 다시 채운다
     public void Refresh()
     {
         EnsureInitialized();
@@ -79,11 +83,9 @@ public class TeamTacticsPanel : MonoBehaviour
         customResetButton.onClick.AddListener(OnResetToCard);
 
         SetSliderRange(forwardSlider);   // 범위의 진실은 코어 상수(프리팹 값이 아니라)
-        SetSliderRange(speedSlider);
-        SetSliderRange(pressSlider);
         forwardSlider.onValueChanged.AddListener(OnForwardChanged);
-        speedSlider.onValueChanged.AddListener(OnSpeedChanged);
-        pressSlider.onValueChanged.AddListener(OnPressChanged);
+        phaseTabs.Initialize();
+        phaseTabs.Selected += OnPhaseSelected;
 
         CollectSelectors();
         for (int i = 0; i < allSelectors.Count; i++)
@@ -120,7 +122,7 @@ public class TeamTacticsPanel : MonoBehaviour
         SelectCard(BaseCardIndex());
     }
 
-    // 카드를 고르면 표 전부가 그 카드 값으로 돌아간다(SeasonState.SetMyPreset이 바꾼 값을 지운다)
+    // 카드를 고르면 칸 전부가 그 카드 값으로 돌아간다(SeasonState.SetMyPreset이 바꾼 값을 지운다)
     private void SelectCard(int index)
     {
         Season.SetMyPreset(presets[index].PresetId);
@@ -129,39 +131,22 @@ public class TeamTacticsPanel : MonoBehaviour
         Changed?.Invoke();
     }
 
-    private void OnForwardChanged(float value)
+    private void OnPhaseSelected(int index)
     {
-        ApplySlider(TacticSlider.Forward, value);
-    }
-
-    private void OnSpeedChanged(float value)
-    {
-        ApplySlider(TacticSlider.Speed, value);
-    }
-
-    private void OnPressChanged(float value)
-    {
-        ApplySlider(TacticSlider.Press, value);
+        PhaseSelected?.Invoke((TeamTacticsPhase)index);
     }
 
     // 카드 값이 이미 끝이면 더 밀어도 같은 값이라 손잡이를 실제로 바뀐 칸까지만 둔다(유저 "더·덜이 분배가 안 된다"). 돌려놓는 건 표시용이라 이벤트를 안 낸다
-    private void ApplySlider(TacticSlider slider, float value)
+    private void OnForwardChanged(float value)
     {
         TeamTactics card = SeasonRunner.FindPreset(presets, Season.State.MyPresetId);
         int offset = Mathf.RoundToInt(value);
-        int effective = TacticsEditing.EffectiveSliderOffset(card, slider, offset);
-        if (effective != offset) { SliderOf(slider).SetValueWithoutNotify(effective); }
-        TeamTactics tactics = TacticsEditing.ApplySlider(Season.State.MyTactics(presets), card, slider, effective);
+        int effective = TacticsEditing.EffectiveForwardOffset(card, offset);
+        if (effective != offset) { forwardSlider.SetValueWithoutNotify(effective); }
+        TeamTactics tactics = TacticsEditing.ApplyForward(Season.State.MyTactics(presets), card, effective);
         Season.SetMyTactics(tactics);
         ShowTactics();
         Changed?.Invoke();
-    }
-
-    private Slider SliderOf(TacticSlider slider)
-    {
-        if (slider == TacticSlider.Forward) { return forwardSlider; }
-        if (slider == TacticSlider.Speed) { return speedSlider; }
-        return pressSlider;
     }
 
     private static void SetSliderRange(Slider slider)
@@ -174,7 +159,7 @@ public class TeamTacticsPanel : MonoBehaviour
     private void OnTableChanged(TacticLevelSelector _)
     {
         Season.SetMyTacticsFromTable(ReadTable());
-        // 표로 맞춘 값이 어떤 카드와 같아지면 그 카드를 고른 것이 된다(SeasonState). 슬라이더는 카드 기준 오프셋이라 가운데로 돌린다
+        // 칸으로 맞춘 값이 어떤 카드와 같아지면 그 카드를 고른 것이 된다(SeasonState). 슬라이더는 카드 기준 오프셋이라 가운데로 돌린다
         if (Season.State.MyCustomTactics == null) { ResetSliders(); }
         ShowTactics();
         Changed?.Invoke();
@@ -186,11 +171,9 @@ public class TeamTacticsPanel : MonoBehaviour
     private void ResetSliders()
     {
         forwardSlider.SetValueWithoutNotify(0f);
-        speedSlider.SetValueWithoutNotify(0f);
-        pressSlider.SetValueWithoutNotify(0f);
     }
 
-    // 시즌이 든 지금 값(바꾼 값 또는 기준 카드)을 카드와 표에 비춘다
+    // 시즌이 든 지금 값(바꾼 값 또는 기준 카드)을 카드와 칸에 비춘다
     private void ShowTactics()
     {
         TeamTactics tactics = Season.State.MyTactics(presets);
@@ -209,7 +192,7 @@ public class TeamTacticsPanel : MonoBehaviour
         ShowLoad(tactics);
     }
 
-    // 기준 카드와 다른 칸에 바탕색. 전진 정도는 표에 없어 "사용자 설정" 버튼만 그것을 알린다
+    // 기준 카드와 다른 칸에 바탕색. 전진 정도는 칸이 없어 "사용자 설정" 버튼만 그것을 알린다
     private void ShowDiff(TeamTactics tactics, TeamTactics card)
     {
         MarkThirds(passStyle, card.PassStyle, tactics.PassStyle);
@@ -252,7 +235,7 @@ public class TeamTacticsPanel : MonoBehaviour
         throw new InvalidOperationException($"[TeamTacticsPanel] TacticPresets에 없는 기준 카드: {baseId}");
     }
 
-    // 표의 값 + 표에 없는 전진 정도(슬라이더 ①이 맡는다, 스펙 §4-2)는 지금 값 그대로
+    // 칸의 값 + 칸에 없는 전진 정도("앞으로" 슬라이더가 맡는다, 스펙 §4-2)는 지금 값 그대로
     private TeamTactics ReadTable()
     {
         TeamTactics tactics = TacticsEditing.Copy(Season.State.MyTactics(presets));
