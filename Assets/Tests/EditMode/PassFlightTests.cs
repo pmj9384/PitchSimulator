@@ -34,7 +34,7 @@ public class PassFlightTests
                 done = true;
                 return NodeState.Success;
             }
-            ctx.MoveToward(ctx.BallX, ctx.BallZ);
+            ctx.ArriveToward(ctx.BallX, ctx.BallZ);
             return NodeState.Success;
         }
     }
@@ -169,8 +169,9 @@ public class PassFlightTests
 
         float shortKick = Kick(5f, out int shortOwner);
         float longKick = Kick(35f, out int longOwner);
-        Assert.Less(shortKick, 12f, "5m(+리드)는 12m/s 아래");
-        Assert.Greater(longKick, shortKick + 5f, "35m(+리드)는 확실히 세게");
+        // 10-25: 입력이 평균 속도(표준 12.2)라 초속 차이는 거리에 비례(a·d/(2v̄)). 5m ≈ 12.4, 35m(+리드) ≈ 14.3
+        Assert.Less(shortKick, MatchTuning.PassAverageSpeed[1] + 1f, "5m(+리드)는 평균 속도 근처");
+        Assert.Greater(longKick, shortKick + 1f, "35m(+리드)는 더 세게");
         Assert.AreEqual(1, shortOwner, "짧은 패스를 리시버가 받음");
         Assert.AreEqual(1, longOwner, "긴 패스도 리시버가 받음(못 미쳐 멈추지 않는다)");
     }
@@ -346,7 +347,7 @@ public class PassFlightTests
         sim.Kickoff();
         sim.Ball = BallRules.Own(sim.Ball, 0, 0f, 0f);
 
-        for (int i = 0; i < 10; i++) { sim.Tick(Dt); }
+        for (int i = 0; i < 30; i++) { sim.Tick(Dt); }   // 0.6초. 정지 출발이라 가속부터(09-29 F2b: 0.2초면 0.14m)
 
         Assert.Greater(first.X, -4.5f, "첫 압박자는 공으로 달린다");
         Assert.AreEqual(-10f, second.X, 0.5f, "두 번째는 수비 자리(스폰 자리 + 슬라이드)에 남는다");
@@ -368,7 +369,7 @@ public class PassFlightTests
         sim.Ball = BallRules.Own(sim.Ball, 0, 0f, 0f);
         first.FrozenTicks = 100;   // 태클 실패 직후 상태
 
-        for (int i = 0; i < 10; i++) { sim.Tick(Dt); }
+        for (int i = 0; i < 30; i++) { sim.Tick(Dt); }   // 0.6초. 정지 출발이라 가속부터(09-29 F2b)
 
         Assert.AreEqual(-5f, first.X, 0.01f, "얼어 있으면 못 움직인다");
         Assert.Greater(second.X, -9.5f, "2순위가 공으로 달린다(얼어 있는 1순위는 순위에서 빠짐)");

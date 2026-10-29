@@ -50,10 +50,26 @@ public class PlayerTreeTests
         public float IncomingShotTargetZ { get; set; }
 
         public string Did = "";
+        public string Gait = "";   // 이동 종류: arrive(감속·최고 속도) / run(전력) / jog(자리 잡기). 10-29 가속 C
         public float MoveX, MoveZ; public int PassedTo = -1; public float PassX, PassZ;
-        public void MoveToward(float x, float z)
+        public void ArriveToward(float x, float z)
         {
             Did = "move";
+            Gait = "arrive";
+            MoveX = x;
+            MoveZ = z;
+        }
+        public void RunToward(float x, float z)   // 트리 테스트는 "어디로 가나"와 이동 종류만 본다(속도 계산은 MovementRules 몫)
+        {
+            Did = "move";
+            Gait = "run";
+            MoveX = x;
+            MoveZ = z;
+        }
+        public void JogToward(float x, float z)   // 자리 잡기(조깅 상한은 MovementRules 몫)
+        {
+            Did = "move";
+            Gait = "jog";
             MoveX = x;
             MoveZ = z;
         }
@@ -275,6 +291,32 @@ public class PlayerTreeTests
         Tree.Tick(cm);
         Assert.AreEqual("move", cm.Did);
         Assert.AreEqual(-5f, cm.MoveX, 1e-4f, "-20 + 0(균형) + 15");
+    }
+
+    [Test]
+    public void 아군_소유에_공격_자리가_앞이면_전진_런이라_조깅이_아니다()
+    {
+        var cm = new Fake { PlayerId = 4, BallPhase = BallPhase.Owned, BallOwnerTeam = 0, X = -30f, AttackHomeX = -20f, AttackHomeZ = 8f };
+        cm.Stats.RoamRadius = 100f;
+        Tree.Tick(cm);
+        Assert.AreEqual("arrive", cm.Gait, "자리 -20이 지금 -30보다 10m 앞");
+    }
+
+    [Test]
+    public void 아군_소유라도_공격_자리가_뒤면_조깅으로_돌아온다()
+    {
+        var cm = new Fake { PlayerId = 4, BallPhase = BallPhase.Owned, BallOwnerTeam = 0, X = -10f, AttackHomeX = -20f, AttackHomeZ = 8f };
+        cm.Stats.RoamRadius = 100f;
+        Tree.Tick(cm);
+        Assert.AreEqual("jog", cm.Gait);
+    }
+
+    [Test]
+    public void 상대_소유에_압박_밖이면_수비_자리로_조깅한다()
+    {
+        var cb = new Fake { PlayerId = 3, BallPhase = BallPhase.Owned, BallOwnerTeam = 1, X = -10f, BallX = 30f, BallZ = 0f, DefendHomeX = -30f, DefendHomeZ = 0f, PressRank = MatchTuning.MaxPressers };   // 압박 순위 밖
+        Tree.Tick(cb);
+        Assert.AreEqual("jog", cb.Gait);
     }
 
     [Test]

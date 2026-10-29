@@ -9,6 +9,14 @@ namespace Game.Core.Match
     // 위치·의도가 전부 여기 있어서 MatchSimulation이 엔진 없이 22명을 굴린다. PlayerController는 이 값을 화면에 비출 뿐이다.
     // 트리는 의도(MoveTarget·WantsShoot·WantsPass)만 남기고 실행은 시뮬이 한다. 그래야 실행 순서가 PlayerId 순으로 고정된다.
     // 스냅샷(공·서드·역습·동료·상대·상대 GK·패스 대상)은 시뮬이 트리 틱 직전에 채운다.
+    // 이동 의도의 종류. 시뮬이 속도 상한과 감속을 여기서 가른다(MatchSimulation.NextMotion)
+    public enum MoveMode
+    {
+        Arrive,   // 그 자리에 서려고 가까워지면 감속. 최고 속도까지(패스 마중·GK 슛 라인·전진 런)
+        Jog,      // 자리 잡기. Arrive + 조깅 상한, 자리에서 많이 늦었으면 전력(MovementRules.PositioningSpeed)
+        Run,      // 멈출 생각 없이 전력(공 쫓기·공 몰기). Simple Soccer(Reynolds)의 Seek·Pursuit
+    }
+
     public sealed class PlayerState : IPlayerContext
     {
         public int PlayerId { get; }
@@ -60,6 +68,7 @@ namespace Game.Core.Match
 
         // ── 의도(시뮬이 읽고 지운다)
         public bool WantsMove { get; private set; }
+        public MoveMode MoveMode { get; private set; } = MoveMode.Arrive;   // 어떻게 가나(09-29 F2b Arrive·Run, 10-29 가속 C Jog)
         public float MoveTargetX { get; private set; }
         public float MoveTargetZ { get; private set; }
         public bool WantsShoot { get; private set; }
@@ -98,9 +107,26 @@ namespace Game.Core.Match
             Stats = stats;
         }
 
-        public void MoveToward(float x, float z)
+        public void ArriveToward(float x, float z)
         {
             WantsMove = true;
+            MoveMode = MoveMode.Arrive;
+            MoveTargetX = x;
+            MoveTargetZ = z;
+        }
+
+        public void RunToward(float x, float z)
+        {
+            WantsMove = true;
+            MoveMode = MoveMode.Run;
+            MoveTargetX = x;
+            MoveTargetZ = z;
+        }
+
+        public void JogToward(float x, float z)
+        {
+            WantsMove = true;
+            MoveMode = MoveMode.Jog;
             MoveTargetX = x;
             MoveTargetZ = z;
         }
@@ -122,13 +148,24 @@ namespace Game.Core.Match
         public int FrozenTicks { get; set; }
         public int TackleCooldownTicks { get; set; }
 
-        // 체력. 단기 체력은 전력 행동에 줄고 상한까지 회복한다. 상한은 전력 행동이 쌓일수록 내려간다. 시뮬만 읽고 쓴다(트리는 명목 속도로 판단)
+        // 체력. 단기 체력은 고강도 주행(10-29: 실제 속도 기준)에 줄고 상한까지 회복한다. 상한은 고강도 주행이 쌓일수록 내려간다. 시뮬만 읽고 쓴다(트리는 명목 속도로 판단)
         public float Stamina { get; set; } = 1f;
         public float StaminaCap { get; set; } = 1f;
+
+        // 현재 속도(m/s, 09-29 F2b). 가속 상한이 있어 방향을 바꾸면 줄었다가 다시 붙는다. 순간이동(킥오프 자리·진영 교체) 때 0
+        public float VelX { get; set; }
+        public float VelZ { get; set; }
+
+        public void Stop()
+        {
+            VelX = 0f;
+            VelZ = 0f;
+        }
 
         public void ClearIntent()
         {
             WantsMove = false;
+            MoveMode = MoveMode.Arrive;
             WantsShoot = false;
             WantsPass = false;
             PassReceiverId = -1;
@@ -138,6 +175,7 @@ namespace Game.Core.Match
         {
             X = AttackHomeX;
             Z = AttackHomeZ;
+            Stop();
         }
 
         // 후반 진영 교체(IFAB 8조, 09-27): 공격 방향과 자리 2쌍의 X를 뒤집는다. Z는 그대로(좌우는 안 바뀐다)
@@ -147,6 +185,7 @@ namespace Game.Core.Match
             AttackHomeX = -AttackHomeX;
             DefendHomeX = -DefendHomeX;
             X = -X;
+            Stop();
         }
     }
 }

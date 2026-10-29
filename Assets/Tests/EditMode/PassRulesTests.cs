@@ -13,7 +13,7 @@ public class PassRulesTests
     public void 상대가_패스_방향_뒤에_있으면_안전하다()
     {
         var behind = new List<TargetInfo> { new TargetInfo(playerId: 11, x: -5f, z: 1f) };
-        float risk = PassRules.InterceptRisk(0f, 0f, 20f, 0f, behind, opponentSpeed: 5f, ballSpeed: 15f);
+        float risk = PassRules.InterceptRisk(0f, 0f, 20f, 0f, behind, opponentSpeed: 5f, ballSpeed: 15f, opponentReaction: 0f);
         Assert.AreEqual(0f, risk, "뒤에 있는 상대는 위험도 0");
     }
 
@@ -22,7 +22,7 @@ public class PassRulesTests
     {
         // 패스 20m, 공 15m/s → 도착 1.33초. 상대는 x=10(공이 0.67초 뒤 지나감), z=1. 0.67초에 7m/s면 4.7m > 1m
         var near = new List<TargetInfo> { new TargetInfo(playerId: 11, x: 10f, z: 1f) };
-        float risk = PassRules.InterceptRisk(0f, 0f, 20f, 0f, near, opponentSpeed: 5f, ballSpeed: 15f);
+        float risk = PassRules.InterceptRisk(0f, 0f, 20f, 0f, near, opponentSpeed: 5f, ballSpeed: 15f, opponentReaction: 0f);
         Assert.AreEqual(1f, risk, "발 뻗는 범위 1.2 안이라 확실히 1");
         Assert.IsFalse(PassRules.IsPassSafe(risk, MatchTuning.PassRiskAllow[2]), "모험(0.8)이어도 안 함");
     }
@@ -32,7 +32,7 @@ public class PassRulesTests
     {
         // 상대 x=10, z=8. 공이 지나가는 0.67초에 5m/s면 3.3 + 1.2 = 4.5 < 8
         var far = new List<TargetInfo> { new TargetInfo(playerId: 11, x: 10f, z: 8f) };
-        float risk = PassRules.InterceptRisk(0f, 0f, 20f, 0f, far, opponentSpeed: 5f, ballSpeed: 15f);
+        float risk = PassRules.InterceptRisk(0f, 0f, 20f, 0f, far, opponentSpeed: 5f, ballSpeed: 15f, opponentReaction: 0f);
         Assert.AreEqual(0f, risk);
     }
 
@@ -41,7 +41,7 @@ public class PassRulesTests
     {
         // 상대 z=3: 달려야 하는 거리 3-1.2=1.8, 0.67초에 5m/s면 3.3 → 위험도 1-1.8/3.3 ≈ 0.45. 여기선 단조성과 허용치만
         var mid = new List<TargetInfo> { new TargetInfo(playerId: 11, x: 10f, z: 3f) };
-        float risk = PassRules.InterceptRisk(0f, 0f, 20f, 0f, mid, 5f, 15f);
+        float risk = PassRules.InterceptRisk(0f, 0f, 20f, 0f, mid, 5f, 15f, 0f);
         Assert.That(risk, Is.InRange(0.01f, 0.99f), "닿을락 말락은 중간값");
 
         Assert.IsFalse(PassRules.IsPassSafe(risk, riskAllow: MatchTuning.PassRiskAllow[0]), "안전(0.2)이면 막힘");
@@ -54,7 +54,7 @@ public class PassRulesTests
     public void 위험도는_여러_상대_중_최대값이다()
     {
         var two = new List<TargetInfo> { new TargetInfo(11, 10f, 8f), new TargetInfo(12, 10f, 0.5f) };
-        Assert.AreEqual(1f, PassRules.InterceptRisk(0f, 0f, 20f, 0f, two, 5f, 15f), "8m 상대는 0, 축 위 상대는 1 → 최대 1");
+        Assert.AreEqual(1f, PassRules.InterceptRisk(0f, 0f, 20f, 0f, two, 5f, 15f, 0f), "8m 상대는 0, 축 위 상대는 1 → 최대 1");
     }
 
     [Test]
@@ -62,9 +62,9 @@ public class PassRulesTests
     {
         // 패서 (0,0)이 +X로 찬다. 상대는 (-0.5, 0.3): 축 뒤(along < 0)지만 발 뻗는 범위 1.2 안
         var glued = new List<TargetInfo> { new TargetInfo(11, -0.5f, 0.3f) };
-        Assert.AreEqual(1f, PassRules.InterceptRisk(0f, 0f, 20f, 0f, glued, 5f, 15f));
+        Assert.AreEqual(1f, PassRules.InterceptRisk(0f, 0f, 20f, 0f, glued, 5f, 15f, 0f));
         var justOutside = new List<TargetInfo> { new TargetInfo(11, -1.5f, 0f) };
-        Assert.AreEqual(0f, PassRules.InterceptRisk(0f, 0f, 20f, 0f, justOutside, 5f, 15f), "범위 밖 뒤쪽 상대는 예전처럼 무관");
+        Assert.AreEqual(0f, PassRules.InterceptRisk(0f, 0f, 20f, 0f, justOutside, 5f, 15f, 0f), "범위 밖 뒤쪽 상대는 예전처럼 무관");
     }
 
     [Test]
@@ -162,15 +162,15 @@ public class PassRulesTests
     }
 
     [Test]
-    public void 킥_초속은_도착_속도와_거리로_역산하고_상한을_넘지_않는다()
+    public void 킥_초속은_평균_속도와_거리로_역산하고_상한을_넘지_않는다()
     {
-        // 감속 4, 도착 5: 5m → √(25 + 40) = 8.06, 30m → √(25 + 240) = 16.28, 100m → √(825) = 28.7은 상한 22로
-        Assert.AreEqual(8.062f, PassRules.KickSpeed(5f, 5f, 4f, 22f), 1e-3f, "짧은 패스는 살살");
-        Assert.AreEqual(16.279f, PassRules.KickSpeed(30f, 5f, 4f, 22f), 1e-3f, "긴 패스는 세게");
-        Assert.AreEqual(22f, PassRules.KickSpeed(100f, 5f, 4f, 22f), "상한");
-        // 평균 속도 = (초속 + 도착) / 2. 상한에 걸려 못 미치면 도착 0
-        Assert.AreEqual(6.531f, PassRules.AverageSpeed(8.062f, 5f, 4f), 1e-3f);
-        Assert.AreEqual(11f, PassRules.AverageSpeed(22f, 100f, 4f), 1e-3f, "484 − 800 < 0 → 도착 0 → 평균 11");
+        // 10-25: 입력이 평균 속도(실측 Metrica). v0 = v̄ + a·d/(2v̄). 감속 1.2·평균 12.2: 15m → 12.2 + 18/24.4 = 12.938, 도착 = 2v̄ − v0 = 11.462
+        Assert.AreEqual(12.938f, PassRules.KickSpeed(15f, 12.2f, 1.2f, 22f), 1e-3f, "표준 15m");
+        Assert.AreEqual(8.8f + 1.2f * 5f / 17.6f, PassRules.KickSpeed(5f, 8.8f, 1.2f, 22f), 1e-3f, "짧은 패스는 평균 근처");
+        Assert.AreEqual(22f, PassRules.KickSpeed(400f, 12.2f, 1.2f, 22f), "상한(12.2 + 480/24.4 = 31.9 → 22)");
+        // 실제 평균 = (초속 + 도착) / 2. 입력 평균이 그대로 나와야 한다. 상한에 걸려 못 미치면 도착 0
+        Assert.AreEqual(12.2f, PassRules.AverageSpeed(12.938f, 15f, 1.2f), 1e-3f, "역산이 맞으면 평균이 입력과 같다");
+        Assert.AreEqual(11f, PassRules.AverageSpeed(22f, 400f, 1.2f), 1e-3f, "484 − 960 < 0 → 도착 0 → 평균 11");
     }
 
     [Test]
@@ -242,9 +242,9 @@ public class PassRulesTests
     {
         // 09-30 전엔 착지점보다 먼 상대는 전부 무관이었다. 착지점이 받는 선수 발밑까지 내려오면 0.7m 뒤에 붙은 수비수도 "무관"이 된다
         var touching = new List<TargetInfo> { new TargetInfo(11, 19f, 0.5f) };
-        Assert.AreEqual(1f, PassRules.InterceptRisk(0f, 0f, 18.5f, 0f, touching, 7f, 10f), "착지점에서 0.7m = 발 뻗는 범위(1.2m) 안");
+        Assert.AreEqual(1f, PassRules.InterceptRisk(0f, 0f, 18.5f, 0f, touching, 7f, 10f, 0f), "착지점에서 0.7m = 발 뻗는 범위(1.2m) 안");
         var beyond = new List<TargetInfo> { new TargetInfo(11, 23f, 0.5f) };
-        Assert.AreEqual(0f, PassRules.InterceptRisk(0f, 0f, 18.5f, 0f, beyond, 7f, 10f), "4.5m 너머는 예전처럼 무관");
+        Assert.AreEqual(0f, PassRules.InterceptRisk(0f, 0f, 18.5f, 0f, beyond, 7f, 10f, 0f), "4.5m 너머는 예전처럼 무관");
     }
 
     [Test]
@@ -257,5 +257,58 @@ public class PassRulesTests
         Assert.AreEqual(1, PassRules.KeeperDistributionTarget(-48f, 0f, mates, +1, level: 1, keeperId: 9, alternate: false), "섞어: 이번엔 짧게");
         Assert.AreEqual(3, PassRules.KeeperDistributionTarget(-48f, 0f, mates, +1, level: 1, keeperId: 9, alternate: true), "섞어: 다음엔 길게");
         Assert.AreEqual(-1, PassRules.KeeperDistributionTarget(-48f, 0f, new List<TargetInfo>(), +1, 0, 9, false));
+    }
+
+    // 안전 가중(10-29 가속 E): (1 − 위험도) × 경계 띠. 띠는 허용치 ± band에서 1 → 0
+    [Test]
+    public void 안전_가중은_허용치_아래_띠_밖이면_1_빼기_위험도다()
+    {
+        Assert.AreEqual(0.8f, PassRules.SafetyWeight(0.2f, 0.5f, 0.1f), 1e-5f);
+        Assert.AreEqual(1f, PassRules.SafetyWeight(0f, 0.5f, 0.1f), 1e-5f);
+    }
+
+    [Test]
+    public void 안전_가중은_허용치에서_절반이고_띠_위끝에서_0이다()
+    {
+        Assert.AreEqual(0.5f * 0.5f, PassRules.SafetyWeight(0.5f, 0.5f, 0.1f), 1e-5f, "허용치 = 띠 가운데: (1 − 0.5) × 0.5");
+        Assert.AreEqual(0f, PassRules.SafetyWeight(0.6f, 0.5f, 0.1f), 1e-5f);
+        Assert.AreEqual(0f, PassRules.SafetyWeight(0.9f, 0.5f, 0.1f), 1e-5f);
+    }
+
+    [Test]
+    public void 안전_가중은_위험도가_오르면_줄기만_한다()
+    {
+        float previous = float.MaxValue;
+        for (float risk = 0f; risk <= 1f; risk += 0.05f)
+        {
+            float w = PassRules.SafetyWeight(risk, 0.5f, 0.1f);
+            Assert.LessOrEqual(w, previous + 1e-6f, $"위험도 {risk}");
+            previous = w;
+        }
+    }
+
+    [Test]
+    public void 안전_가중의_띠가_0이면_옛_이진_판정이다()
+    {
+        Assert.AreEqual(0.6f, PassRules.SafetyWeight(0.4f, 0.5f, 0f), 1e-5f);
+        Assert.AreEqual(0f, PassRules.SafetyWeight(0.51f, 0.5f, 0f), 1e-5f, "나누기 0 없이 탈락");
+    }
+
+    [Test]
+    public void 상대_반응_지연이_있으면_가로채기_위험이_낮다()
+    {
+        var mid = new List<TargetInfo> { new TargetInfo(1, 10f, 4f) };
+        float instant = PassRules.InterceptRisk(0f, 0f, 20f, 0f, mid, 7f, 15f, 0f);
+        float delayed = PassRules.InterceptRisk(0f, 0f, 20f, 0f, mid, 7f, 15f, MatchTuning.ReactionTime);
+        Assert.Less(delayed, instant);
+    }
+
+    [Test]
+    public void 되돌림_패스는_안전한_다른_후보가_없을_때만이다()
+    {
+        Assert.IsTrue(PassRules.PrefersOverReturn(bestFound: true, bestIsSafe: true, returnFound: true));
+        Assert.IsFalse(PassRules.PrefersOverReturn(bestFound: true, bestIsSafe: false, returnFound: true), "띠 안의 위험한 앞 후보보다 안전한 되돌림");
+        Assert.IsTrue(PassRules.PrefersOverReturn(bestFound: true, bestIsSafe: false, returnFound: false), "되돌림도 없으면 띠 안 후보라도 쓴다");
+        Assert.IsFalse(PassRules.PrefersOverReturn(bestFound: false, bestIsSafe: false, returnFound: true));
     }
 }

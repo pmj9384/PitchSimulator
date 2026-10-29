@@ -11,7 +11,9 @@ namespace Game.Core.Match
     {
         // 위험도 0(아무도 못 닿음)~1(확실히 닿음). 여러 상대 중 최대값.
         // 상대 속도는 스탯을 모르므로 평균 달리기(7m/s)로 본다. 정밀하게 하려면 호출자가 상대별 속도를 주면 된다(2차)
-        public static float InterceptRisk(float fromX, float fromZ, float toX, float toZ, IReadOnlyList<TargetInfo> opponents, float opponentSpeed, float ballSpeed)
+        // opponentReaction(09-29 F2b): 상대가 반응·가속으로 늦는 시간. 시뮬 이동에 가속이 생겨 판정도 같은 전제로(MatchTuning.ReactionTime).
+        // 기본값을 두지 않는다: 빠뜨리면 "판정과 이동이 같은 전제"가 조용히 깨진다(10-29 리뷰)
+        public static float InterceptRisk(float fromX, float fromZ, float toX, float toZ, IReadOnlyList<TargetInfo> opponents, float opponentSpeed, float ballSpeed, float opponentReaction)
         {
             float dx = toX - fromX;
             float dz = toZ - fromZ;
@@ -39,7 +41,7 @@ namespace Game.Core.Match
 
                 float perp = Math.Abs(ox * uz - oz * ux);    // 축에서 수직 거리
                 float t = along / ballSpeed;                  // 공이 그 지점을 지나는 시각
-                float reach = opponentSpeed * t;              // 그 시각까지 상대가 달릴 수 있는 거리
+                float reach = opponentSpeed * Math.Max(0f, t - opponentReaction);   // 그 시각까지 상대가 달릴 수 있는 거리
 
                 // Simple Soccer의 이진 판정(닿으면 위험)을 여유폭으로 편다: 잡기 반경 안에 들어오면 1(확실),
                 // 달려서 겨우 닿는 범위 끝에서 0. 그 사이는 선형. 리스크 허용(0.2/0.5/0.8)이 이 여유폭 어디까지 감수하나를 정한다
@@ -54,12 +56,13 @@ namespace Game.Core.Match
             return Math.Clamp(worst, 0f, 1f);
         }
 
-        // 킥 초속(09-23 Play "공이 너무 쉽게 멈춤"): 거리와 무관하게 서드 템포로 차니 먼 패스는 목표에 못 미쳐 멈추고 리시버는 리드 점으로 뛰어
-        // 공을 지나쳤다. 등감속 운동의 역산: 목표점에 도착 속도 arrival로 닿으려면 v0 = √(arrival² + 2·a·d). 상한을 넘으면 상한으로 차고
-        // 못 미친다(느린 템포로 롱볼을 시키면 결과에 보인다: 세팅의 차이가 결과에 보이는 게 이 게임의 축)
-        public static float KickSpeed(float distance, float arrivalSpeed, float deceleration, float maxSpeed)
+        // 킥 초속: 거리 d를 평균 속도 v̄로 가게 찬다(10-25. 실측 Metrica 패스 평균 10~14.5m/s를 그대로 입력으로 쓴다).
+        // 등감속에서 v̄ = (v0 + v도착)/2, v도착² = v0² − 2ad → v0 = v̄ + a·d/(2·v̄). 상한을 넘으면 상한으로 차고 못 미친다
+        // (느린 템포로 롱볼을 시키면 결과에 보인다: 세팅의 차이가 결과에 보이는 게 이 게임의 축).
+        // 09-23~10-24는 도착 속도가 입력(v0 = √(v도착² + 2ad))이라 15m 패스 평균이 8.5m/s로 실측(12.2)보다 30% 느렸다
+        public static float KickSpeed(float distance, float averageSpeed, float deceleration, float maxSpeed)
         {
-            float v0 = (float)Math.Sqrt(arrivalSpeed * arrivalSpeed + 2f * deceleration * distance);
+            float v0 = averageSpeed + deceleration * distance / (2f * averageSpeed);
             return v0 > maxSpeed ? maxSpeed : v0;
         }
 
@@ -76,6 +79,30 @@ namespace Game.Core.Match
         public static bool IsPassSafe(float interceptRisk, float riskAllow)
         {
             return interceptRisk <= riskAllow;
+        }
+
+        // 안전 가중(10-29 가속 E): 후보 점수에 곱한다. (1 − 위험도) × 경계 띠. 띠는 허용치 ± band에서 1 → 0으로 선형으로 줄어
+        // 허용치 바로 위·아래 후보가 통과/탈락으로 튀지 않는다. 전엔 위험도 ≤ 허용치면 점수 그대로, 넘으면 탈락이라
+        // 10-25 격자에서 슬라이드 계수 0.18/0.20/0.25에 4부 승률이 46/74/48%로 튀었다(실험/2026-10-25-슬라이드-수축-격자.md)
+        public static float SafetyWeight(float interceptRisk, float riskAllow, float band)
+        {
+            if (band <= 0f)
+            {
+                return IsPassSafe(interceptRisk, riskAllow) ? 1f - interceptRisk : 0f;   // 띠 없음 = 옛 이진 판정 + (1 − 위험도)
+            }
+            float taper = (riskAllow + band - interceptRisk) / (2f * band);
+            if (taper <= 0f) { return 0f; }
+            if (taper > 1f) { taper = 1f; }
+            return (1f - interceptRisk) * taper;
+        }
+
+        // 되돌림 패스(방금 준 선수에게 곧바로 뒤로)는 안전한(허용치 이하) 다른 후보가 없을 때만 쓴다(W↔ST 측면 왕복 22회, 09-21).
+        // 10-29 리뷰: 안전 가중 띠 안의 허용치 넘는 후보가 안전한 되돌림을 늘 이겼다(전엔 안전한 후보만 골랐다)
+        public static bool PrefersOverReturn(bool bestFound, bool bestIsSafe, bool returnFound)
+        {
+            if (!bestFound) { return false; }
+            if (!returnFound) { return true; }
+            return bestIsSafe;
         }
 
         // 리시버 후보 점수. 앞선(공격 방향) 아군은 전진 거리 + 선호 거리 근접 + 측면 가중.
@@ -119,29 +146,32 @@ namespace Game.Core.Match
         // 착지점 하나: 받는 선수 앞 leadMax 상한의 리드 점. 받는 선수 속도는 평균(speed 50)으로 본다.
         // 트리는 동료의 스탯을 모르고(TargetInfo), 고른 점을 시뮬이 그대로 차므로 판정과 실행이 같은 점을 본다.
         // 그전엔 트리가 평균 속도로 안전을 재고 시뮬이 실제 속도로 다시 계산해 찼다(09-28 재검증 "판정과 실행이 다른 전제")
-        public static (float x, float z) LandingPoint(float passerX, float passerZ, float receiverX, float receiverZ, int attackSign, float arrivalSpeed, float leadMax)
+        public static (float x, float z) LandingPoint(float passerX, float passerZ, float receiverX, float receiverZ, int attackSign, float averageSpeed, float leadMax)
         {
             float distance = Distance(passerX, passerZ, receiverX, receiverZ);
-            return LeadTarget(passerX, receiverX, receiverZ, attackSign, distance, FlightAverageSpeed(distance, arrivalSpeed), MatchTuning.SpeedMpsAt50, leadMax);
+            return LeadTarget(passerX, receiverX, receiverZ, attackSign, distance, FlightAverageSpeed(distance, averageSpeed), MatchTuning.SpeedMpsAt50, leadMax);
         }
 
-        // 그 착지점으로 찼을 때의 가로채기 위험. 공 속도는 착지점까지 거리로 역산한 평균(시뮬 Pass가 차는 속도와 같은 식)
-        public static float LandingRisk(float passerX, float passerZ, float landingX, float landingZ, float arrivalSpeed, IReadOnlyList<TargetInfo> opponents)
+        // 그 착지점으로 찼을 때의 가로채기 위험. 공 속도는 착지점까지 거리로 역산한 평균(시뮬 Pass가 차는 속도와 같은 식).
+        // 상대는 반응·가속만큼 늦게 출발한다(10-29 가속 B). 시뮬 이동에 가속이 있으니 판정도 같은 전제
+        public static float LandingRisk(float passerX, float passerZ, float landingX, float landingZ, float averageSpeed, IReadOnlyList<TargetInfo> opponents)
         {
             float distance = Distance(passerX, passerZ, landingX, landingZ);
-            return InterceptRisk(passerX, passerZ, landingX, landingZ, opponents, MatchTuning.InterceptRunSpeed, FlightAverageSpeed(distance, arrivalSpeed));
+            return InterceptRisk(passerX, passerZ, landingX, landingZ, opponents, MatchTuning.InterceptRunSpeed, FlightAverageSpeed(distance, averageSpeed), MatchTuning.ReactionTime);
         }
 
         // 착지점 고르기(09-30 공격 칼날 A): 리드 후보(MatchTuning.PassLeadOptions)를 긴 것부터 보다가 위험이 허용치 이하인 첫 후보를 고른다.
         // 앞이 비면 공간으로, 수비 라인이 가까우면 짧게, 그래도 막히면 발밑으로. Simple Soccer GetBestPassToReceiver(후보 3점 중 안전하고 골에 가까운 것)와 같은 구조.
-        // 전부 허용치를 넘으면 가장 덜 위험한 후보(동률은 긴 쪽)를 돌려준다. 안전한지는 호출자가 Risk로 본다(IsPassSafe)
-        public static PassLanding PickLanding(float passerX, float passerZ, float receiverX, float receiverZ, int attackSign, float arrivalSpeed, IReadOnlyList<TargetInfo> opponents, float riskAllow)
+        // 전부 허용치를 넘으면 가장 덜 위험한 후보(동률은 긴 쪽)를 돌려준다. 호출자(트리)는 Risk로 안전 가중(SafetyWeight)을 매긴다.
+        // 착지점은 이진 판정(IsPassSafe)으로 "안전한 가장 긴 리드"를 고르고, 리시버끼리 비교만 연속 가중으로 한다(10-29 가속 E).
+        // 착지점까지 가중으로 고르면 위험 0인 발밑이 늘 이겨 공간 패스가 사라진다. 리드 길이의 가치는 ScoreReceiver에 없다
+        public static PassLanding PickLanding(float passerX, float passerZ, float receiverX, float receiverZ, int attackSign, float averageSpeed, IReadOnlyList<TargetInfo> opponents, float riskAllow)
         {
             PassLanding leastRisky = default;
             for (int i = 0; i < MatchTuning.PassLeadOptions.Length; i++)
             {
-                (float x, float z) point = LandingPoint(passerX, passerZ, receiverX, receiverZ, attackSign, arrivalSpeed, MatchTuning.PassLeadOptions[i]);
-                float risk = LandingRisk(passerX, passerZ, point.x, point.z, arrivalSpeed, opponents);
+                (float x, float z) point = LandingPoint(passerX, passerZ, receiverX, receiverZ, attackSign, averageSpeed, MatchTuning.PassLeadOptions[i]);
+                float risk = LandingRisk(passerX, passerZ, point.x, point.z, averageSpeed, opponents);
                 var candidate = new PassLanding(point.x, point.z, risk);
                 if (IsPassSafe(risk, riskAllow)) { return candidate; }
                 if (i == 0 || risk < leastRisky.Risk) { leastRisky = candidate; }
@@ -156,10 +186,10 @@ namespace Game.Core.Match
             return (float)Math.Sqrt(dx * dx + dz * dz);
         }
 
-        // 그 거리를 도착 속도에 맞춰 찼을 때의 평균 공 속도(초속 역산 → 평균)
-        private static float FlightAverageSpeed(float distance, float arrivalSpeed)
+        // 그 거리를 평균 속도에 맞춰 찼을 때 실제 평균 공 속도(초속 역산 → 평균. 상한에 걸리면 입력보다 낮아진다)
+        private static float FlightAverageSpeed(float distance, float averageSpeed)
         {
-            float kick = KickSpeed(distance, arrivalSpeed, MatchTuning.BallDeceleration, MatchTuning.PassSpeedMax);
+            float kick = KickSpeed(distance, averageSpeed, MatchTuning.BallDeceleration, MatchTuning.PassSpeedMax);
             return AverageSpeed(kick, distance, MatchTuning.BallDeceleration);
         }
 

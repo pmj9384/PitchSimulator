@@ -5,7 +5,10 @@ using UnityEngine;
 // 09-16 결정: 경기 루프를 엔진 없이 EditMode에서 굴리기 위해 상태를 전부 순수 쪽에 두었다. 매니저는 모른다.
 public class PlayerController : MonoBehaviour
 {
-    private static readonly int SpeedParam = Animator.StringToHash("Speed");   // PlayerAnimator.controller의 float. 서기/걷기/달리기를 고른다
+    public const string SpeedParamName = "Speed";
+    private static readonly int SpeedParam = Animator.StringToHash(SpeedParamName);   // PlayerAnimator.controller의 float. Locomotion 블렌드 트리가 서기·걷기·달리기를 섞는다
+    public const string CadenceParamName = "Cadence";
+    private static readonly int CadenceParam = Animator.StringToHash(CadenceParamName);   // float. Locomotion 재생 배율(LocomotionCadence, 10-29)
     private static readonly int KickParam = Animator.StringToHash("Kick");     // 트리거. 패스 순간(MatchSimulation.BallKicked)
     private static readonly int ShootParam = Animator.StringToHash("Shoot");   // 트리거. 슛 순간. 패스보다 백스윙·팔로스루가 크다(10-23 유저 "슛도 똑같아서 모르겠다")
     private static readonly int CatchParam = Animator.StringToHash("Catch");         // 트리거. GK가 슛을 잡음(ShotResolved Caught)
@@ -169,12 +172,14 @@ public class PlayerController : MonoBehaviour
         SetSpeed();
     }
 
-    // 애니 Speed(서기·걷기·달리기 선택) = 직전 스텝에서 움직인 거리 ÷ 고정 스텝(m/s). 시뮬·연출·정지 모두 이 한 곳에서 넣는다:
+    // 애니 Speed(서기·걷기·달리기 섞기)와 Cadence(재생 배율) = 직전 스텝에서 움직인 거리 ÷ 고정 스텝(m/s)에서. 시뮬·연출·정지 모두 이 한 곳에서 넣는다:
     // 세리머니·하프타임 멈춤에서 안 넣으면 골 직전 달리던 값이 남아 제자리에서 달린다
     private void SetSpeed()
     {
         if (animator == null) { return; }
-        animator.SetFloat(SpeedParam, (current - previous).magnitude / MatchTuning.FixedStep);
+        float speed = (current - previous).magnitude / MatchTuning.FixedStep;
+        animator.SetFloat(SpeedParam, speed);
+        animator.SetFloat(CadenceParam, LocomotionCadence.For(speed));
     }
 
     // 스냅은 전부 킥오프 자리(배치·킥오프·하프타임·세리머니 끝)라 센터 마크를 보게 세운다. 안 돌리면 직전 진행 방향(세리머니 쪽)을 본 채 선다 [가정]

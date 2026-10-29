@@ -9,7 +9,7 @@ public class BallRulesTests
     private const float Dt = 0.02f;   // Unity 고정 스텝 기본값
 
     [Test]
-    public void 슛_25mps는_감속4로_약78m_가서_멈추고_Free가_된다()
+    public void 슛_25mps는_감속_상수로_정지_거리만큼_가서_멈추고_Free가_된다()
     {
         BallState ball = BallRules.Kick(BallState.FreeAt(0f, 0f), 1f, 0f, MatchTuning.ShotSpeed);
         int ticks = 0;
@@ -22,8 +22,11 @@ public class BallRulesTests
 
         Assert.AreEqual(BallPhase.Free, ball.Phase);
         Assert.AreEqual(0f, ball.VelX);
-        Assert.AreEqual(313, ticks, "25 / 4 = 6.25초 = 313틱(올림)");
-        Assert.That(ball.X, Is.InRange(77f, 78.2f), "해석값 25²/(2·4) = 78.125m. 반암시적 오일러라 약간 짧다");
+        float a = MatchTuning.BallDeceleration;
+        int expectedTicks = (int)System.Math.Ceiling(MatchTuning.ShotSpeed / a / Dt);
+        float stopDistance = MatchTuning.ShotSpeed * MatchTuning.ShotSpeed / (2f * a);   // 감속 1.2면 260m(필드보다 길다. 10-25 실측 기반 감속)
+        Assert.AreEqual(expectedTicks, ticks, "속도 / 감속 = 정지 시간(올림)");
+        Assert.That(ball.X, Is.InRange(stopDistance - 1.5f, stopDistance + 0.2f), "해석값 v²/(2a). 반암시적 오일러라 약간 짧다");
         Assert.AreEqual(0f, ball.Z, "X축으로만 찼으니 Z는 그대로");
     }
 

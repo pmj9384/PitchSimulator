@@ -449,7 +449,7 @@ namespace Game.Core.Match
             if (shotInFlight) { shotTicks++; }
             Ball = BallRules.Step(Ball, deltaTime, MatchTuning.BallDeceleration);
 
-            // 골라인에 못 미치고 감속으로 멈춘 슛(정지 거리 78m 밖에서 쏜 경우). 빗나감으로 마감해야 옛 슛 표시가 남지 않는다
+            // 골라인에 못 미치고 감속으로 멈춘 슛. 감속 1.2(10-25)면 정지 거리 260m라 필드 안에선 안 일어나는 안전장치다. 빗나감으로 마감해야 옛 슛 표시가 남지 않는다
             if (shotInFlight && Ball.Phase != BallPhase.Flight)
             {
                 Finish(ShotOutcome.Missed);
@@ -505,21 +505,30 @@ namespace Game.Core.Match
             for (int i = 0; i < players.Count; i++)
             {
                 PlayerState p = players[i];
-                bool sprinting = IsSprintAction(p);
+                bool carrying = Ball.Phase == BallPhase.Owned && Ball.OwnerId == p.PlayerId;
                 float beforeX = p.X;
                 float beforeZ = p.Z;
                 Apply(p, deltaTime);
-                bool moved = p.X != beforeX || p.Z != beforeZ;
-                UpdateStamina(p, sprinting && moved);
+                float moved = Distance(beforeX, beforeZ, p.X, p.Z);
+                UpdateStamina(p, IsHighIntensity(p, moved / deltaTime, carrying && moved > 0f));
             }
         }
 
-        // 현실에서 전력인 행동(09-29 체력): 공 몰기, 압박 1순위, 루즈볼 추격, 나에게 오는 패스 마중. 스냅샷 값만 봐서 실행 순서와 무관하다
-        private bool IsSprintAction(PlayerState p)
+        // 고강도 틱(10-29 가속 D): 이번 틱 실제 속도가 개인 최고 속도 × HighIntensityFraction 이상, 또는 공을 몰고 움직였다.
+        // 전엔 "전력 행동 목록"(압박 1순위·루즈볼 추격·패스 마중·공 몰기)만 셌다. 이동에 가속·조깅이 생겨 실제 속도로 구분할 수 있게 됐고,
+        // 그래서 공격 전진 런·늦은 복귀도 자연히 센다(10-29 유저: 체력 부담이 수비 설정에만 반응). 공 몰기는 최고 속도의 0.75라 문턱 아래지만
+        // 드리블은 같은 속도의 달리기보다 힘이 더 든다(Reilly & Ball 1984, 원문 미확인)
+        private static bool IsHighIntensity(PlayerState p, float actualSpeed, bool carriedAndMoved)
         {
-            if (Ball.Phase == BallPhase.Owned && Ball.OwnerId == p.PlayerId) { return true; }
-            if (p.IsLooseBallChaser || p.IsPassTarget) { return true; }
-            return p.BallOwnerTeam == 1 - p.Team && p.PressRank < MatchTuning.MaxPressers;   // 트리 ⑧과 같은 조건(PressRank는 압박 거리 안인 선수만 순위가 있다)
+            if (carriedAndMoved) { return true; }
+            return actualSpeed >= MatchRules.SpeedMps(p.Stats.Speed) * MatchTuning.HighIntensityFraction;
+        }
+
+        private static float Distance(float fromX, float fromZ, float toX, float toZ)
+        {
+            float dx = toX - fromX;
+            float dz = toZ - fromZ;
+            return (float)Math.Sqrt(dx * dx + dz * dz);
         }
 
         private static void UpdateStamina(PlayerState p, bool exerted)
@@ -621,7 +630,11 @@ namespace Game.Core.Match
         // ── 선수 실행
         private void Apply(PlayerState p, float deltaTime)
         {
-            if (p.FrozenTicks > 0) { return; }   // 실패한 태클러는 제쳐져 있다
+            if (p.FrozenTicks > 0)
+            {
+                p.Stop();   // 실패한 태클러는 제쳐져 있다(09-21). 멈춘 채로 풀리면 다시 가속부터(09-29 F2b)
+                return;
+            }
 
             bool owner = Ball.Phase == BallPhase.Owned && Ball.OwnerId == p.PlayerId;
 
@@ -629,47 +642,74 @@ namespace Game.Core.Match
             if (owner && holdUpTicksLeft > 0 && (p.WantsShoot || p.WantsPass))
             {
                 holdUpTicksLeft--;
+                p.Stop();   // 볼 끌기 = 공을 발밑에 두고 버틴다
                 return;
             }
 
             if (p.WantsShoot && owner)
             {
                 Shoot(p);
+                p.Stop();   // 킥은 디딤발을 딛고 찬다. 다음 이동은 다시 가속부터
                 return;
             }
 
             if (p.WantsPass && owner && p.PassReceiverId != BallState.NoOwner && p.PassReceiverId != p.PlayerId)
             {
                 Pass(p, p.PassReceiverId, p.PassLandingX, p.PassLandingZ);
+                p.Stop();   // 슛과 같다. 차고 나면 다시 가속부터
                 return;
             }
 
-            if (!p.WantsMove) { return; }
+            (float x, float z, float vx, float vz) next = NextMotion(p, owner, deltaTime);
+            p.X = next.x;
+            p.Z = next.z;
+            p.VelX = next.vx;
+            p.VelZ = next.vz;
 
-            float speed = MatchRules.SpeedMps(p.Stats.Speed) * FatigueRules.Effort(p.Stamina, MatchTuning.FatigueEffortThreshold, MatchTuning.FatigueEffortMin);
-            if (p.IsGoalkeeper && p.IncomingShot && !shotWillScore) { speed = MatchTuning.KeeperDiveSpeed; }   // 슛 대응은 다이빙 버스트. 피로·스탯 무관(KeeperCanReach와 같은 속도여야 "닿는다"고 본 슛에 실제로 닿는다). 골로 정해진 슛엔 스탯 속도로 한 발 늦게
-            bool carrying = Ball.Phase == BallPhase.Owned && Ball.OwnerId == p.PlayerId;
-            if (carrying) { speed *= MatchTuning.DribbleFactor; }
-
-            float dx = p.MoveTargetX - p.X;
-            float dz = p.MoveTargetZ - p.Z;
-            float dist = (float)Math.Sqrt(dx * dx + dz * dz);
-            float step = speed * deltaTime;
-            if (dist <= step)
-            {
-                p.X = p.MoveTargetX;
-                p.Z = p.MoveTargetZ;
-            }
-            else
-            {
-                p.X += dx / dist * step;
-                p.Z += dz / dist * step;
-            }
-
-            if (carrying)
+            if (owner)
             {
                 Ball = BallRules.Carry(Ball, p.X, p.Z);
             }
+        }
+
+        // 이번 틱 이동(10-29 가속): 속도 상한·가속을 정하고 MovementRules에 넘긴다. 가속은 스탯 최고 속도에서(피로는 최고 속도만 깎고 가속은 안 깎는다)
+        private (float x, float z, float vx, float vz) NextMotion(PlayerState p, bool owner, float deltaTime)
+        {
+            float topSpeed = MatchRules.SpeedMps(p.Stats.Speed);
+            float accel = MovementRules.AccelerationFor(topSpeed, MatchTuning.ReactionTime);
+            bool diving = IsKeeperDiving(p);
+            float vx = p.VelX;
+            float vz = p.VelZ;
+            if (!diving)
+            {
+                // 다이빙이 끝난 GK는 8m/s가 남아 스탯 가속으로 천천히 줄며 미끄러졌다(10-29 리뷰). 다이빙은 버스트라 끝나면 최고 속도로 자른다
+                (vx, vz) = MovementRules.ClampSpeed(vx, vz, topSpeed);
+            }
+            if (!p.WantsMove)
+            {
+                return MovementRules.Brake(p.X, p.Z, vx, vz, accel, deltaTime);
+            }
+
+            float speed = topSpeed * FatigueRules.Effort(p.Stamina, MatchTuning.FatigueEffortThreshold, MatchTuning.FatigueEffortMin);
+            if (p.MoveMode == MoveMode.Jog)
+            {
+                speed = MovementRules.PositioningSpeed(speed, Distance(p.X, p.Z, p.MoveTargetX, p.MoveTargetZ), MatchTuning.JogSpeedFraction, MatchTuning.LateToPositionMeters);
+            }
+            if (diving)
+            {
+                // 슛 대응은 다이빙 버스트. 피로·스탯·가속 무관(KeeperCanReach가 즉시 이 속도로 본다. 같은 전제여야 "닿는다"고 본 슛에 실제로 닿는다).
+                // 가속 한도를 한 틱에 다이빙 속도가 붙는 값으로 둔다. 골로 정해진 슛엔 스탯 속도·가속으로 한 발 늦게
+                speed = MatchTuning.KeeperDiveSpeed;
+                accel = MatchTuning.KeeperDiveSpeed / deltaTime;
+            }
+            if (owner) { speed *= MatchTuning.DribbleFactor; }
+            bool arrive = p.MoveMode != MoveMode.Run;
+            return MovementRules.Step(p.X, p.Z, vx, vz, p.MoveTargetX, p.MoveTargetZ, speed, accel, deltaTime, arrive);
+        }
+
+        private bool IsKeeperDiving(PlayerState p)
+        {
+            return p.IsGoalkeeper && p.IncomingShot && !shotWillScore;
         }
 
         // 슛: 확률은 MatchRules, 결과는 주사위 하나로 여기서 정한다. 공은 골 중심으로 날아가고 결과는 도착할 때 확정 표시된다
@@ -753,10 +793,10 @@ namespace Game.Core.Match
         private void Pass(PlayerState passer, int receiverId, float landingX, float landingZ)
         {
             Third third = PositionRules.ThirdOf(Ball.X, passer.AttackSign);
-            float arrival = MatchTuning.PassArrivalSpeed[tactics[passer.Team].Tempo[(int)third]];
+            float average = MatchTuning.PassAverageSpeed[tactics[passer.Team].Tempo[(int)third]];
             float dx = landingX - passer.X;
             float dz = landingZ - passer.Z;
-            float speed = PassRules.KickSpeed((float)Math.Sqrt(dx * dx + dz * dz), arrival, MatchTuning.BallDeceleration, MatchTuning.PassSpeedMax);
+            float speed = PassRules.KickSpeed((float)Math.Sqrt(dx * dx + dz * dz), average, MatchTuning.BallDeceleration, MatchTuning.PassSpeedMax);
 
             passInFlight = true;
             passReceiverId = receiverId;

@@ -18,8 +18,8 @@ internal static class PassFlightTestsHelper
         {
             TargetInfo m = ctx.Teammates[i];
             if (m.PlayerId != receiverId) { continue; }
-            float arrival = MatchTuning.PassArrivalSpeed[ctx.Tactics.Tempo[(int)ctx.BallThird]];
-            (float x, float z) landing = PassRules.LandingPoint(ctx.X, ctx.Z, m.X, m.Z, ctx.AttackSign, arrival, MatchTuning.PassLeadMax);
+            float average = MatchTuning.PassAverageSpeed[ctx.Tactics.Tempo[(int)ctx.BallThird]];
+            (float x, float z) landing = PassRules.LandingPoint(ctx.X, ctx.Z, m.X, m.Z, ctx.AttackSign, average, MatchTuning.PassLeadMax);
             ctx.Pass(receiverId, landing.x, landing.z);
             return;
         }
@@ -93,7 +93,7 @@ internal static class PassFlightTestsHelper
     {
         public override NodeState Tick(IPlayerContext ctx)
         {
-            if (!ctx.OwnsBall) { ctx.MoveToward(ctx.BallX, ctx.BallZ); }
+            if (!ctx.OwnsBall) { ctx.ArriveToward(ctx.BallX, ctx.BallZ); }
             return NodeState.Success;
         }
     }
@@ -279,7 +279,7 @@ public class MatchSimulationTests
     [Test]
     public void 골로_정해진_슛은_GK_자리에서_먼_구석으로_조준되고_GK는_버스트_없이_간다()
     {
-        // 골 roll 0.05, 조준 roll 0.5 → 중앙 0. GK z 0 → 파생 간격만큼 밀린다. 반응 ×2(20틱) 뒤 한 틱 이동 = 스탯 30(4.2m/s) × 0.02 = 0.084
+        // 골 roll 0.05, 조준 roll 0.5 → 중앙 0. GK z 0 → 파생 간격만큼 밀린다. 반응 ×2(20틱) 뒤 한 틱 이동 ≤ 스탯 30(4.2m/s) × 0.02 = 0.084(가속을 타서 더 짧다)
         var sim = new MatchSimulation(new RollQueue(new[] { 0.05f, 0.5f, 0.5f, 0.5f, 0.5f }).Next, PlayerTreeBuilder.Build()) { ResetAfterEveryShot = true };
         PlayerState striker = sim.AddPlayer(new PlayerState(0, 0, Striker(), 30f, 0f));
         PlayerState keeper = sim.AddPlayer(new PlayerState(1, 1, Keeper(), 50f, 0f));
@@ -307,7 +307,10 @@ public class MatchSimulationTests
         float beforeZ = keeper.Z;
         sim.Tick(Dt);
         float moved = (float)System.Math.Sqrt((keeper.X - beforeX) * (keeper.X - beforeX) + (keeper.Z - beforeZ) * (keeper.Z - beforeZ));
-        Assert.AreEqual(MatchRules.SpeedMps(keeper.Stats.Speed) * Dt, moved, 1e-2f, "골엔 스탯 속도(버스트 없음)");
+        // 10-29 가속: 버스트가 없으면 스탯 속도·가속을 탄다. 한 틱 이동은 스탯 속도 한 틱 이하이고, 다이빙 속도 한 틱보다 확실히 짧다
+        Assert.LessOrEqual(moved, MatchRules.SpeedMps(keeper.Stats.Speed) * Dt + 1e-4f, "골엔 스탯 속도 이하(버스트 없음)");
+        Assert.Less(moved, MatchTuning.KeeperDiveSpeed * Dt * 0.5f, "다이빙 버스트가 아니다");
+        Assert.Greater(moved, 0f, "그래도 움직이긴 한다(스탯 가속)");
     }
 
     [Test]
@@ -449,32 +452,14 @@ public class MatchSimulationTests
         Assert.Less(MatchTuning.ShotSpeed * Dt, MatchTuning.CaptureRadius);
     }
 
-    [Test]
-    public void 골라인에_못_미치고_멈춘_슛은_빗나감으로_마감되고_상대_GK가_공을_갖는다()
-    {
-        PlayerStats farShooter = Striker();
-        farShooter.ShotBias = 0f;   // 확률 0이어도 쏜다(다이얼 하한이 0)
-        var sim = new MatchSimulation(() => 0.99f, PlayerTreeBuilder.BuildLitmus());
-        PlayerState st = sim.AddPlayer(new PlayerState(0, 0, farShooter, -45f, 0f));   // 골라인까지 97.5m > 정지 거리 78m
-        sim.AddPlayer(new PlayerState(1, 1, Keeper(), 50f, 0f));
-        sim.Kickoff();
-        sim.Ball = BallRules.Own(sim.Ball, st.PlayerId, st.X, st.Z);   // 공을 ST 발에 직접 놓는다(킥오프 공은 중앙이라 달려가 잡으면 거리가 짧아짐)
-        var reports = new List<ShotReport>();
-        sim.ShotResolved += r => reports.Add(r);
-
-        for (int i = 0; i < 1200; i++) { sim.Tick(Dt); if (reports.Count > 0) { break; } }   // 바로 쏘고 멈출 때까지(6.25초 = 313틱)
-
-        Assert.AreEqual(1, reports.Count);
-        Assert.AreEqual(ShotOutcome.Missed, reports[0].Outcome);
-        Assert.AreEqual(0f, reports[0].Probability, "40m 밖은 확률 0");
-        Assert.AreEqual(BallPhase.Owned, sim.Ball.Phase, "골킥: 수비 팀 GK 소유(09-23)");
-        Assert.AreEqual(1, sim.Ball.OwnerId, "상대 GK");
-    }
+    // 10-25: "골라인에 못 미치고 멈춘 슛" 테스트를 지웠다. 감속 1.2(실측 기반)에선 슛 정지 거리가 260m라 필드 어디서 쏴도 골라인에 닿아 그 경로를 만들 수 없다.
+    // 규칙(ShotFlightTime < 0 → 빗나감)은 안전장치로 남겨 둔다
 
     private static PlayerStats Defender(int tackle)
     {
         return new PlayerStats { RoleId = "CB", VariantId = "cb_centreback", Speed = 40, Stamina = 50, Pass = 40, Shot = 20, Tackle = tackle, Positioning = 60, PressRange = 6f, ShotBias = 0.8f, PassLength = 20f };
     }
+
 
     [Test]
     public void 태클_확률은_tackle_스탯에_단조_증가하고_기본_확률_아래다()
@@ -588,7 +573,7 @@ public class MatchSimulationTests
     [Test]
     public void 세이브_뒤_튕긴_공은_멈추기_전에도_잡을_수_있다()
     {
-        // 09-21 리뷰: 파링(8m/s, 감속 4)은 슛도 패스도 아닌 비행이라 잡기 분기가 없어 2초(100틱) 동안 아무도 못 잡았다
+        // 09-21 리뷰: 파링은 슛도 패스도 아닌 비행이라 잡기 분기가 없어 멈출 때까지(10-25 감속 1.2·4.4m/s = 약 3.7초) 아무도 못 잡았다
         var sim = new MatchSimulation(() => 0.5f, PlayerTreeBuilder.BuildLitmus());
         sim.AddPlayer(new PlayerState(0, 0, Striker(), 3f, 0f));   // 튕긴 공의 경로 위 3m 앞
         sim.Kickoff();
