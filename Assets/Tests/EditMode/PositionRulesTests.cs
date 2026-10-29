@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Game.Core.Data;
 using Game.Core.Match;
 using Game.Core.Placement;
 using Game.Core.Tactics;
@@ -128,7 +129,7 @@ public class PositionRulesTests
         Assert.AreEqual(22f + 10f * MatchTuning.SlideVerticalAttack, a.x, 1e-4f);
         Assert.AreEqual(6f + 4f * MatchTuning.SlideLateralAttack, a.z, 1e-4f, "공격은 (공 z − 자리 z) × 계수");
 
-        // 공이 중앙이면 세로는 0, 가로만 자리에서 중앙 쪽으로. 편성 자리 = 가장 벌어진 모양이라 전술판(PitchView)도 공 (0, 0)으로 같은 식을 부른다
+        // 공이 중앙이면 세로는 0, 가로만 자리에서 중앙 쪽으로. 편성 자리 = 가장 벌어진 모양. 전술판 미니 피치(TacticsPreview)도 공 칸 (1,1) = (0, 0)으로 같은 식을 부른다
         (float x, float z) center = PositionRules.SlideAttack(22f, 6f, 0f, 0f, goalkeeper: false);
         Assert.AreEqual(22f, center.x, 1e-4f);
         Assert.AreEqual(6f - 6f * MatchTuning.SlideLateralAttack, center.z, 1e-4f);
@@ -157,6 +158,41 @@ public class PositionRulesTests
         (float x, float z) dNear = PositionRules.SlideDefend(-23f, 24f, 0f, 20f, goalkeeper: false);
         (float x, float z) dFar = PositionRules.SlideDefend(-23f, -24f, 0f, 20f, goalkeeper: false);
         Assert.AreEqual(48f, dNear.z - dFar.z, 1e-4f, "수비 블록은 같은 양을 옮겨 폭이 그대로");
+    }
+
+    // 10-29 ③d: 트리(MoveToAttackHome·MoveToDefendHome)와 전술판 미니 피치(TacticsPreview)가 같은 합성 함수를 부른다. 홈 + 공 지향 슬라이드가 한 곳에
+    [Test]
+    public void 공격_Stand는_공격_시_자리에_공_지향_슬라이드를_얹은_것과_같다()
+    {
+        var tactics = new TeamTactics { Mentality = 2, Width = new[] { 0, 1, 2 } };
+        var stats = new PlayerStats { RoleId = "W", PushUp = 15f, Width = 10f };
+        // 공 x 30 → 상대 진영 서드(폭 배열 [2] = 넓게)
+        (float x, float z) home = PositionRules.AttackHome(-18f, 24f, +1, mentality: 2, pushUp: 15f, widthLevel: 2, width: 10f);
+        (float x, float z) expected = PositionRules.SlideAttack(home.x, home.z, 30f, 10f, goalkeeper: false);
+        Assert.AreEqual(expected, PositionRules.AttackStand(-18f, 24f, +1, tactics, stats, ballX: 30f, ballZ: 10f, goalkeeper: false));
+
+        // 팀 1은 공 x 30이 우리 진영 서드(폭 배열 [0] = 좁게), 전진은 −X
+        home = PositionRules.AttackHome(18f, 24f, -1, mentality: 2, pushUp: 15f, widthLevel: 0, width: 10f);
+        expected = PositionRules.SlideAttack(home.x, home.z, 30f, 10f, goalkeeper: false);
+        Assert.AreEqual(expected, PositionRules.AttackStand(18f, 24f, -1, tactics, stats, 30f, 10f, goalkeeper: false));
+
+        var keeper = new PlayerStats { RoleId = "GK", PushUp = 0f, Width = 0f };
+        home = PositionRules.AttackHome(-48f, 0f, +1, mentality: 2, pushUp: 0f, widthLevel: 2, width: 0f);
+        Assert.AreEqual(PositionRules.SlideAttack(home.x, home.z, 30f, 10f, goalkeeper: true), PositionRules.AttackStand(-48f, 0f, +1, tactics, keeper, 30f, 10f, goalkeeper: true), "GK는 GK 슬라이드");
+    }
+
+    [Test]
+    public void 수비_Stand는_수비_시_자리에_팀_수비_라인과_공_지향_슬라이드를_얹은_것과_같다()
+    {
+        var tactics = new TeamTactics { DefenseLine = 2 };
+        var stats = new PlayerStats { RoleId = "CB", LineHeight = 6f };
+        (float x, float z) home = PositionRules.DefendHome(-41f, 7f, +1, lineHeight: 6f, teamLineOffset: PositionRules.TeamLineOffset(2, goalkeeper: false));
+        (float x, float z) expected = PositionRules.SlideDefend(home.x, home.z, 10f, -20f, goalkeeper: false);
+        Assert.AreEqual(expected, PositionRules.DefendStand(-41f, 7f, +1, tactics, stats, ballX: 10f, ballZ: -20f, goalkeeper: false));
+
+        var keeper = new PlayerStats { RoleId = "GK", LineHeight = 0f };
+        home = PositionRules.DefendHome(-48f, 0f, +1, lineHeight: 0f, teamLineOffset: 0f);
+        Assert.AreEqual(PositionRules.SlideDefend(home.x, home.z, 10f, -20f, goalkeeper: true), PositionRules.DefendStand(-48f, 0f, +1, tactics, keeper, 10f, -20f, goalkeeper: true), "GK는 팀 수비 라인 0 + GK 슬라이드");
     }
 
     [Test]

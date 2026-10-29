@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Game.Core.Data;
 using Game.Core.Placement;
 using Game.Core.Tactics;
 
@@ -7,7 +8,7 @@ namespace Game.Core.Match
 {
     // 자리·구역 판정 순수 함수(09-18 확정 스펙 §6). 상태 없음, 엔진 없음.
     // 서드는 콜라이더가 아니라 공 X 비교 한 줄이다(잡기 판정과 같은 이유: PhysX 콜백 순서·EditMode 불가).
-    // 공은 하나라 서드도 팀당 하나. MatchSimulation이 틱마다 한 번 계산해 컨텍스트에 넣는다.
+    // 공은 하나라 서드도 팀당 하나. MatchSimulation이 틱마다 한 번 계산해 컨텍스트에 넣는다. AttackStand는 컨텍스트 없이 쓰이는 전술판용이라 같은 식(ThirdOf)으로 직접 센다(10-29).
     public static class PositionRules
     {
         // 공이 있는 세로 구역. attackSign = +1(팀 0, +X 공격)이면 x ≤ −17.5가 우리 진영. 경계는 진영 쪽에 포함
@@ -61,6 +62,25 @@ namespace Game.Core.Match
         public static float KeeperLineX(float defendHomeX, float defendHomeZ, int attackSign, float lineHeight)
         {
             return DefendHome(defendHomeX, defendHomeZ, attackSign, lineHeight, 0f).x;   // GK엔 팀 수비 라인 오프셋이 없다(TeamLineOffset이 GK면 0을 주는 것과 같은 점)
+        }
+
+        // 실제로 서는 자리 = 홈 + 공 지향 슬라이드. 트리(MoveToAttackHome·MoveToDefendHome)와 전술판 미니 피치(TacticsPreview)가 이 두 함수를 같이 부른다(10-29 ③d).
+        // 합성을 한 곳에 둔 이유: 미니 피치가 "보이는 것 = 실제"를 약속하는데, 합성이 트리 안에만 있으면 둘이 따로 바뀔 수 있다.
+        // 서드는 공 x로 여기서 센다(시뮬이 컨텍스트에 넣는 BallThird와 같은 식 ThirdOf). 온사이드 클램프는 상대 위치가 필요해 트리에 남는다.
+        // 읽는 값: 팀 전술 Mentality·Width[서드]·DefenseLine, 선수 PushUp·Width·LineHeight. GK 슛 대응 라인(KeeperLineX)은 이동 목표가 아니라 닿음 판정의 기준점이라 여기 안 넣는다.
+        // goalkeeper는 Slide·TeamLineOffset처럼 따로 받는다: 시뮬의 GK 여부(PlayerState.IsGoalkeeper, 명부 keeperIds와 짝)가 기준이고 stats.IsKeeper는 그 출처일 뿐이다
+        public static (float x, float z) AttackStand(float baseX, float baseZ, int attackSign, TeamTactics tactics, PlayerStats stats, float ballX, float ballZ, bool goalkeeper)
+        {
+            int third = (int)ThirdOf(ballX, attackSign);
+            (float x, float z) home = AttackHome(baseX, baseZ, attackSign, tactics.Mentality, stats.PushUp, tactics.Width[third], stats.Width);
+            return SlideAttack(home.x, home.z, ballX, ballZ, goalkeeper);
+        }
+
+        public static (float x, float z) DefendStand(float baseX, float baseZ, int attackSign, TeamTactics tactics, PlayerStats stats, float ballX, float ballZ, bool goalkeeper)
+        {
+            float teamLine = TeamLineOffset(tactics.DefenseLine, goalkeeper);
+            (float x, float z) home = DefendHome(baseX, baseZ, attackSign, stats.LineHeight, teamLine);
+            return SlideDefend(home.x, home.z, ballX, ballZ, goalkeeper);
         }
 
         // 공 지향 슬라이드 두 가지(09-21 유저 "자리가 완전 고정은 아닌 것 같다"). 공 좌표 기준이라 팀 부호가 필요 없다. 결과는 필드 안으로 클램프.
