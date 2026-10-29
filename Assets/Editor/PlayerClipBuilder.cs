@@ -119,7 +119,7 @@ public static class PlayerClipBuilder
         {
             Transform model = instance.transform.Find("Model");
             var controller = AssetDatabase.LoadAssetAtPath<AnimatorController>(ControllerPath);
-            AnimationClip idle = FindState(controller.layers[0].stateMachine, "Idle").motion as AnimationClip;
+            AnimationClip idle = PlayerLocomotionBuilder.LoadModelClip(PlayerLocomotionBuilder.IdleClipName);   // 기준 자세. 10-29부터 Idle은 상태가 아니라 Locomotion 블렌드 트리의 한 칸이라 FBX에서 바로 읽는다
             if (!AssetDatabase.IsValidFolder(ClipFolder)) { AssetDatabase.CreateFolder("Assets/Animations", "Clips"); }
 
             AnimationClip kick = Bake(model, idle, "Kick", KickPoses(), false);
@@ -359,7 +359,12 @@ public static class PlayerClipBuilder
         EnsureParameter(controller, "Celebrate", AnimatorControllerParameterType.Bool);
 
         AnimatorStateMachine machine = controller.layers[0].stateMachine;
-        AnimatorState idle = FindState(machine, "Idle");
+        AnimatorState idle = FindState(machine, PlayerLocomotionBuilder.StateName);   // 연출이 끝나면 돌아갈 이동 상태(10-29, 옛 Idle)
+        if (idle == null)
+        {
+            Debug.LogError("[PlayerClipBuilder] Locomotion 상태가 없다. Tools/Animation/Build Player Locomotion을 먼저 누른다");
+            return;
+        }
         OneShot(machine, idle, "Kick", kick);
         OneShot(machine, idle, "Shoot", shoot);
         OneShot(machine, idle, "Catch", catchClip);
