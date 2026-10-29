@@ -2,7 +2,7 @@ using UnityEngine;
 
 // 프레임 상한 설정 — 고를 수 있는 값의 SSOT이자, 상한을 실제로 적용하는 지점.
 // 값의 보관은 세이브 체인 몫이다(PlayerAccountData.Save가 Current를 끌어가고, Load가 Restore로 밀어넣는다).
-// 노출은 OutGameSettingsPanel의 토글이 담당한다.
+// 노출은 OutGameSettingsPanel의 분절 버튼(SegmentedControl)이 담당한다.
 public static class FrameRateSetting
 {
     public const int Default = 60;

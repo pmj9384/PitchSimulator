@@ -1,11 +1,24 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 public class UIManager : MonoBehaviour, IUIManager
 {
     private readonly Dictionary<Type, UIScreen> screens = new();
     private readonly Dictionary<Type, UIPopup> popups = new();
+    private readonly List<UIPopup> openPopups = new();   // 연 순서. 뒤로가기는 맨 뒤(가장 최근)부터 닫는다
+
+    // 안드로이드 뒤로가기는 Input System에서 Escape 키로 들어온다고 알려져 있다(10-29 템플릿 UI 키트. 문서로는 못 찾았고 실기기 확인 필요).
+    // 열린 팝업이 없으면 아무것도 안 한다(화면 뒤로가기는 게임 몫). 인게임 UIElement 패널은 이 스택에 없어 뒤로가기로 안 닫힌다
+    private void Update()
+    {
+        if (openPopups.Count == 0) { return; }
+        Keyboard keyboard = Keyboard.current;
+        if (keyboard == null) { return; }
+        if (!keyboard.escapeKey.wasPressedThisFrame) { return; }
+        openPopups[openPopups.Count - 1].Hide();
+    }
 
 
 
@@ -85,5 +98,16 @@ public class UIManager : MonoBehaviour, IUIManager
                 entry.Value.Close();
             }
         }
+    }
+
+    public void NotifyPopupShown(UIPopup popup)
+    {
+        openPopups.Remove(popup);
+        openPopups.Add(popup);
+    }
+
+    public void NotifyPopupHidden(UIPopup popup)
+    {
+        openPopups.Remove(popup);
     }
 }
