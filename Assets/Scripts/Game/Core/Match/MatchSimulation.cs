@@ -1150,6 +1150,7 @@ namespace Game.Core.Match
                     if (kdx * kdx + kdz * kdz <= MatchTuning.CaptureRadius * MatchTuning.CaptureRadius) { continue; }
                     lastKickerId = BallState.NoOwner;
                 }
+                if (!BallRules.CanReachHeight(Ball.Y, IsKeeperInOwnBox(p))) { continue; }   // 머리 위로 넘어가는 공은 못 잡는다(10-29 ④-1)
                 captureCandidates.Add(new TargetInfo(p.PlayerId, p.X, p.Z));
             }
 
@@ -1158,6 +1159,12 @@ namespace Game.Core.Match
 
             PlayerState owner = FindPlayer(ownerId);
             Ball = BallRules.Own(Ball, ownerId, owner.X, owner.Z);
+        }
+
+        private static bool IsKeeperInOwnBox(PlayerState p)
+        {
+            if (!p.IsGoalkeeper) { return false; }
+            return MatchRules.IsInOwnPenaltyBox(p.X, p.Z, p.AttackSign);
         }
 
         // GK 배급 보호(09-30 공격 칼날 C): GK가 찬 패스가 그 GK의 페널티 박스 안에 있는 동안은 상대가 못 잡는다. 그 팀 번호, 해당 없으면 -1.

@@ -39,7 +39,7 @@ public class BallView : MonoBehaviour
     // 시뮬 좌표 → 화면 좌표. 소유 중이면 발 앞. 판정은 시뮬 좌표 그대로라 화면만 움직인다
     private static Vector3 Place(in BallState ball, Vector3 carrierForward)
     {
-        var position = new Vector3(ball.X, Radius, ball.Z);
+        var position = new Vector3(ball.X, Radius + ball.Y, ball.Z);   // 띄운 공은 높이만큼 위(10-29 ④-1)
         if (ball.Phase != BallPhase.Owned) { return position; }
         return position + carrierForward * CarryOffset;
     }

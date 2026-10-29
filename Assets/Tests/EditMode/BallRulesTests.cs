@@ -112,4 +112,69 @@ public class BallRulesTests
         Assert.AreEqual(-2.5f, ball.Z);
         Assert.AreEqual(3, ball.OwnerId, "옮겨도 소유자는 그대로");
     }
+
+    // ── 공 높이(10-29 ④-1)
+    private static BallState Lob(float speed, float angleDeg)
+    {
+        float rad = angleDeg * (float)System.Math.PI / 180f;
+        BallState ball = BallState.FreeAt(0f, 0f);
+        return BallRules.KickLob(ball, 1f, 0f, speed * (float)System.Math.Cos(rad), speed * (float)System.Math.Sin(rad));
+    }
+
+    [Test]
+    public void 로빙은_포물선_공식대로_날아_떨어진다()
+    {
+        // 16m/s·40°: 거리 v²·sin2θ/g = 25.7m, 체공 2v·sinθ/g = 2.10초
+        BallState ball = Lob(16f, 40f);
+        int ticks = 0;
+        while (ball.Airborne)
+        {
+            ball = BallRules.Step(ball, 0.02f, MatchTuning.BallDeceleration);
+            ticks++;
+        }
+        Assert.AreEqual(2.10f, ticks * 0.02f, 0.03f, "체공 시간");
+        Assert.AreEqual(25.7f, ball.X, 0.3f, "착지 거리");
+        Assert.AreEqual(0f, ball.Y, 1e-6f);
+        Assert.AreEqual(BallPhase.Flight, ball.Phase, "땅에 닿으면 굴러간다");
+    }
+
+    [Test]
+    public void 공중에선_수평_속도가_줄지_않고_착지_뒤부터_굴림_감속이다()
+    {
+        BallState ball = Lob(16f, 40f);
+        float vx = ball.VelX;
+        ball = BallRules.Step(ball, 0.02f, MatchTuning.BallDeceleration);
+        Assert.AreEqual(vx, ball.VelX, 1e-5f, "공중");
+        while (ball.Airborne) { ball = BallRules.Step(ball, 0.02f, MatchTuning.BallDeceleration); }
+        float landed = ball.VelX;
+        ball = BallRules.Step(ball, 0.02f, MatchTuning.BallDeceleration);
+        Assert.AreEqual(landed - MatchTuning.BallDeceleration * 0.02f, ball.VelX, 1e-4f, "땅");
+    }
+
+    [Test]
+    public void 땅볼은_높이가_0으로_남는다()
+    {
+        BallState ball = BallRules.Kick(BallState.FreeAt(0f, 0f), 1f, 0f, 10f);
+        for (int i = 0; i < 50; i++) { ball = BallRules.Step(ball, 0.02f, MatchTuning.BallDeceleration); }
+        Assert.AreEqual(0f, ball.Y, 0f);
+        Assert.IsFalse(ball.Airborne);
+    }
+
+    [Test]
+    public void 머리_위로_넘어가는_공은_필드_선수가_못_닿고_박스_안_GK는_닿는다()
+    {
+        Assert.IsTrue(BallRules.CanReachHeight(MatchTuning.FieldReachHeight, keeperInOwnBox: false), "경계 포함");
+        Assert.IsFalse(BallRules.CanReachHeight(MatchTuning.FieldReachHeight + 0.01f, keeperInOwnBox: false));
+        Assert.IsTrue(BallRules.CanReachHeight(2.5f, keeperInOwnBox: true));
+        Assert.IsFalse(BallRules.CanReachHeight(MatchTuning.KeeperReachHeight + 0.01f, keeperInOwnBox: true));
+    }
+
+    [Test]
+    public void 잡거나_다시_차면_높이가_0이_된다()
+    {
+        BallState ball = Lob(16f, 40f);
+        ball = BallRules.Step(ball, 0.02f, MatchTuning.BallDeceleration);
+        Assert.AreEqual(0f, BallRules.Own(ball, 3, ball.X, ball.Z).Y, 0f);
+        Assert.AreEqual(0f, BallRules.Kick(ball, 1f, 0f, 5f).VelY, 0f);
+    }
 }

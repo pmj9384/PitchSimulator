@@ -12,6 +12,7 @@ namespace Game.Core.Match
         public static BallState Step(BallState ball, float deltaTime, float deceleration)
         {
             if (ball.Phase != BallPhase.Flight) { return ball; }
+            if (ball.Airborne) { return StepAir(ball, deltaTime); }
 
             float speed = (float)Math.Sqrt(ball.VelX * ball.VelX + ball.VelZ * ball.VelZ);
             float next = speed - deceleration * deltaTime;
@@ -29,6 +30,27 @@ namespace Game.Core.Match
             ball.X += ball.VelX * deltaTime;
             ball.Z += ball.VelZ * deltaTime;
             return ball;
+        }
+
+        // 공중: 중력만 받는다(공기저항·양력은 무시, 10-29 ④-1 [가정]). 수평 속도는 그대로 가고, 땅에 닿으면 높이 0에서 굴림으로 이어진다(튀지 않음 [가정])
+        private static BallState StepAir(BallState ball, float deltaTime)
+        {
+            ball.VelY -= MatchTuning.Gravity * deltaTime;
+            ball.Y += ball.VelY * deltaTime;
+            ball.X += ball.VelX * deltaTime;
+            ball.Z += ball.VelZ * deltaTime;
+            if (ball.Y > 0f) { return ball; }
+
+            ball.Y = 0f;
+            ball.VelY = 0f;
+            return ball;
+        }
+
+        // 이 높이의 공에 닿을 수 있나(10-29 ④-1). 필드 선수는 머리·발 뻗는 높이, GK는 자기 페널티 박스 안에서 손을 뻗는 높이(IFAB 12조: 손은 자기 박스 안에서만)
+        public static bool CanReachHeight(float ballY, bool keeperInOwnBox)
+        {
+            float reach = keeperInOwnBox ? MatchTuning.KeeperReachHeight : MatchTuning.FieldReachHeight;
+            return ballY <= reach;
         }
 
         // 자유 공을 잡는 판정: 가장 가까운 선수(TargetSelector, 동률은 PlayerId 작은 쪽)가 radius 안이면 그 PlayerId, 아니면 NoOwner.
@@ -61,6 +83,8 @@ namespace Game.Core.Match
             ball.Z = ownerZ;
             ball.VelX = 0f;
             ball.VelZ = 0f;
+            ball.Y = 0f;
+            ball.VelY = 0f;
             return ball;
         }
 
@@ -85,6 +109,16 @@ namespace Game.Core.Match
             ball.OwnerId = BallState.NoOwner;
             ball.VelX = dirX / len * speed;
             ball.VelZ = dirZ / len * speed;
+            ball.Y = 0f;
+            ball.VelY = 0f;
+            return ball;
+        }
+
+        // 띄워 찬다(10-29 ④-1): 수평은 (dirX, dirZ) 방향으로 horizontalSpeed, 세로는 verticalSpeed로 출발한다. 착지 지점·시간은 중력으로 정해진다
+        public static BallState KickLob(BallState ball, float dirX, float dirZ, float horizontalSpeed, float verticalSpeed)
+        {
+            ball = Kick(ball, dirX, dirZ, horizontalSpeed);
+            ball.VelY = verticalSpeed;
             return ball;
         }
 
