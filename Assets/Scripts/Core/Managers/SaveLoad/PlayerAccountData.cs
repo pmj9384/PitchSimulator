@@ -78,6 +78,7 @@ public class PlayerAccountData : ISaveLoad
         saveData.bestScore = BestScore;
         saveData.coins = Coins;
         saveData.frameRateFps = FrameRateSetting.Current;
+        saveData.vibrationOff = !VibrationSetting.On;
     }
 
     public void Load()
@@ -87,6 +88,7 @@ public class PlayerAccountData : ISaveLoad
         BestScore = 0;
         Coins = 0;
         FrameRateSetting.Restore(FrameRateSetting.Default);
+        VibrationSetting.Restore(false);
     }
 
     public void Load(PlayerAccountDataSave saveData)
@@ -100,6 +102,7 @@ public class PlayerAccountData : ISaveLoad
         SfxVolume = saveData.sfxVolume;
         BestScore = saveData.bestScore;
         Coins = saveData.coins;
+        VibrationSetting.Restore(saveData.vibrationOff);
         FrameRateSetting.Restore(saveData.frameRateFps);   // 부팅 시 저장된 상한을 그대로 적용
     }
 }

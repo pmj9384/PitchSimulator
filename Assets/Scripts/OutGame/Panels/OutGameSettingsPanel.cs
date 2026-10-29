@@ -1,53 +1,70 @@
-using TMPro;
 using UnityEngine;
-using UnityEngine.UI;
 
+// 아웃게임 설정창(2026-10-29 UI 키트 표준안). 탭 3개 = 소리(배경음·효과음) / 화면(프레임 상한) / 기타(진동).
+// 바꾸면 바로 적용되고 저장은 세이브 체인이 한다(적용 버튼 없음, Game Accessibility Guidelines "모든 설정 저장").
+// 닫기는 PopupFrame(딤·X)과 UIManager(뒤로가기). 게임이 안 쓰는 탭을 빼는 절차는 TabBar 머리 주석. 그 탭의 부품을 지우면 여기 필드와 구독도 같이 지운다.
+// 값의 SSOT는 SoundManager·FrameRateSetting·VibrationSetting, 여기는 화면과 입력만
 public class OutGameSettingsPanel : UIPopup
 {
-    [SerializeField] private Slider bgmSlider;
-    [SerializeField] private Slider sfxSlider;
-    [SerializeField] private Button closeButton;
+    [Header("소리")]
+    [SerializeField] private SliderRow bgmRow;
+    [SerializeField] private SliderRow sfxRow;
 
-    // 순서는 FrameRateSetting.Options와 짝을 이룬다. 라벨을 코드가 찍으므로 순서가 어긋나면
-    // 토글에 다른 숫자가 뜬다 — 암묵 계약을 눈으로 잡을 수 있게 한 것.
-    // ToggleGroup(allowSwitchOff=false)이 "정확히 하나 선택"을 강제하므로 선택 표시를 직접 그리지 않는다
-    [SerializeField] private Toggle[] frameRateToggles;
+    [Header("화면")]
+    [SerializeField] private SegmentedControl frameRate;   // 칸 순서 = FrameRateSetting.Options
+
+    [Header("기타")]
+    [SerializeField] private ToggleSwitch vibration;
 
     private void Awake()
     {
-        closeButton.onClick.AddListener(Hide);
-        bgmSlider.onValueChanged.AddListener(v => SoundManager.Instance.SetBgmVolume(v));
-        sfxSlider.onValueChanged.AddListener(v => SoundManager.Instance.SetSfxVolume(v));
-
-        var options = FrameRateSetting.Options;
-        for (int i = 0; i < frameRateToggles.Length && i < options.Length; i++)
-        {
-            int fps = options[i];   // 클로저가 루프 변수를 잡지 않도록 복사
-            var label = frameRateToggles[i].GetComponentInChildren<TMP_Text>();
-            if (label != null) { label.text = fps.ToString(); }
-
-            frameRateToggles[i].onValueChanged.AddListener(on =>
-            {
-                if (on) { FrameRateSetting.Set(fps); }   // 꺼지는 쪽은 무시 — 그룹이 곧바로 다른 하나를 켠다
-            });
-        }
+        bgmRow.ValueChanged += OnBgmChanged;
+        sfxRow.ValueChanged += OnSfxChanged;
+        frameRate.SetLabels(FrameRateLabels());
+        frameRate.Selected += OnFrameRateSelected;
+        vibration.Changed += OnVibrationChanged;
     }
 
     public override void Show()
     {
-        bgmSlider.SetValueWithoutNotify(SoundManager.Instance.BgmVolume);
-        sfxSlider.SetValueWithoutNotify(SoundManager.Instance.SfxVolume);
-        SyncFrameRateToggles();
+        bgmRow.SetValueWithoutNotify(SoundManager.Instance.BgmVolume);
+        sfxRow.SetValueWithoutNotify(SoundManager.Instance.SfxVolume);
+        frameRate.SetSelectedWithoutNotify(CurrentFrameRateIndex());
+        vibration.SetWithoutNotify(VibrationSetting.On);
         base.Show();
     }
 
-    // 창을 열 때 현재 상한에 해당하는 토글만 켠다. Notify를 태우면 Set이 다시 불려 불필요한 저장이 생긴다
-    private void SyncFrameRateToggles()
+    private void OnBgmChanged(float value)
     {
-        var options = FrameRateSetting.Options;
-        for (int i = 0; i < frameRateToggles.Length && i < options.Length; i++)
-        {
-            frameRateToggles[i].SetIsOnWithoutNotify(options[i] == FrameRateSetting.Current);
-        }
+        SoundManager.Instance.SetBgmVolume(value);
+    }
+
+    private void OnSfxChanged(float value)
+    {
+        SoundManager.Instance.SetSfxVolume(value);
+    }
+
+    private void OnFrameRateSelected(int index)
+    {
+        FrameRateSetting.Set(FrameRateSetting.Options[index]);
+    }
+
+    private void OnVibrationChanged(bool on)
+    {
+        VibrationSetting.Set(on);
+        VibrationSetting.Vibrate();   // 켰을 때 한 번 울려 확인시킨다
+    }
+
+    private static int CurrentFrameRateIndex()
+    {
+        return System.Array.IndexOf(FrameRateSetting.Options, FrameRateSetting.Current);
+    }
+
+    private static string[] FrameRateLabels()
+    {
+        int[] options = FrameRateSetting.Options;
+        var names = new string[options.Length];
+        for (int i = 0; i < options.Length; i++) { names[i] = options[i].ToString(); }
+        return names;
     }
 }
