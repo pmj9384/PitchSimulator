@@ -51,10 +51,10 @@ namespace Game.Core.AI
                     new ConditionNode(ctx => ShouldTakeOn(ctx)),
                     new ActionNode(ctx => TakeOn(ctx))),
 
-                // ④ 안전한 앞선 아군이 있으면 최고점에 패스. 착지점은 받는 선수 앞 후보 중 안전한 가장 긴 것
+                // ④ 앞선 아군 중 점수 × 안전 가중이 가장 큰 이에게 패스. 착지점은 받는 선수 앞 후보 중 안전한 가장 긴 것
                 new SequenceNode(
-                    new ConditionNode(ctx => ctx.OwnsBall && BestSafeReceiver(ctx).Found),
-                    new ActionNode(ctx => PassTo(ctx, BestSafeReceiver(ctx)))),
+                    new ConditionNode(ctx => ctx.OwnsBall && BestReceiver(ctx).Found),
+                    new ActionNode(ctx => PassTo(ctx, BestReceiver(ctx)))),
 
                 // ⑤ 아니면 드리블. 드리블 성향이 낮으면 가장 가까운 아군 쪽으로 방향을 틀어 다음 틱 패스를 노린다
                 new SequenceNode(
@@ -159,8 +159,8 @@ namespace Game.Core.AI
             return MatchTuning.PassAverageSpeed[ctx.Tactics.Tempo[Third(ctx)]];
         }
 
-        // 리시버 후보 중 최고점이면서 안전한 아군과 그 착지점. 서드별 팀 값(패스 방식·리스크·폭)에 개인 패스 길이·리스크가 얹힌다
-        private static PassChoice BestSafeReceiver(IPlayerContext ctx)
+        // 리시버 후보 중 점수 × 안전 가중(PassRules.SafetyWeight)이 가장 큰 아군과 그 착지점. 서드별 팀 값(패스 방식·리스크·폭)에 개인 패스 길이·리스크가 얹힌다
+        private static PassChoice BestReceiver(IPlayerContext ctx)
         {
             int third = Third(ctx);
             TeamTactics t = ctx.Tactics;
@@ -174,7 +174,8 @@ namespace Game.Core.AI
             float onsideLine = OnsideLine(ctx);
 
             PassChoice best = PassChoice.None;
-            float bestScore = 0f;
+            float bestValue = 0f;   // 점수 × 안전 가중(PassRules.SafetyWeight, 10-29 가속 E)
+            bool bestIsSafe = false;
             PassChoice returnFallback = PassChoice.None;   // 방금 나에게 준 선수에게 곧바로 뒤로 되돌리는 패스는 다른 후보가 없을 때만(W↔ST 측면 왕복 22회)
             IReadOnlyList<TargetInfo> mates = ctx.Teammates;
             for (int i = 0; i < mates.Count; i++)
@@ -185,23 +186,26 @@ namespace Game.Core.AI
                 bool isReturn = backward && m.PlayerId == ctx.LastPasserId;
                 if (OffsideRules.IsOffsidePosition(m.X, ctx.AttackSign, onsideLine)) { continue; }   // 오프사이드 위치 아군에겐 안 준다
                 float score = PassRules.ScoreReceiver(ctx.X, ctx.Z, m.X, m.Z, ctx.AttackSign, t.PassStyle[third], ctx.Stats.PassLength, t.Width[third]);
-                if (score <= bestScore) { continue; }
+                if (score <= bestValue) { continue; }   // 가중은 1 이하라 점수가 지금 최고 가치보다 낮으면 볼 필요가 없다
 
                 // 안전 판정은 실제 착지점까지(09-21 3분 계측: 리시버 위치까지만 보면 그 앞 8m에 선 수비수가 걸러져 롱패스가 늘 먹혔다).
                 // 착지점은 후보 중 안전한 가장 긴 것. 고른 점을 그대로 시뮬에 넘겨 판정과 실행이 같은 점을 본다
                 PassLanding landing = PassRules.PickLanding(ctx.X, ctx.Z, m.X, m.Z, ctx.AttackSign, average, ctx.Opponents, riskAllow);
-                if (!PassRules.IsPassSafe(landing.Risk, riskAllow)) { continue; }
-
+                bool safe = PassRules.IsPassSafe(landing.Risk, riskAllow);
                 var choice = new PassChoice(m.PlayerId, landing.X, landing.Z);
                 if (isReturn)
                 {
-                    if (!returnFallback.Found) { returnFallback = choice; }
+                    if (!returnFallback.Found && safe) { returnFallback = choice; }
                     continue;
                 }
+                float value = score * PassRules.SafetyWeight(landing.Risk, riskAllow, MatchTuning.PassSafetyBand);
+                if (value <= bestValue) { continue; }
+
                 best = choice;
-                bestScore = score;
+                bestValue = value;
+                bestIsSafe = safe;
             }
-            return best.Found ? best : returnFallback;
+            return PassRules.PrefersOverReturn(best.Found, bestIsSafe, returnFallback.Found) ? best : returnFallback;
         }
 
         // 공을 쫓을 땐 공의 앞을 향해(추격 예측). 압박(⑧)과 자유 공(⑩)이 같이 쓴다

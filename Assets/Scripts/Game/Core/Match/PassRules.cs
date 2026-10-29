@@ -81,6 +81,30 @@ namespace Game.Core.Match
             return interceptRisk <= riskAllow;
         }
 
+        // 안전 가중(10-29 가속 E): 후보 점수에 곱한다. (1 − 위험도) × 경계 띠. 띠는 허용치 ± band에서 1 → 0으로 선형으로 줄어
+        // 허용치 바로 위·아래 후보가 통과/탈락으로 튀지 않는다. 전엔 위험도 ≤ 허용치면 점수 그대로, 넘으면 탈락이라
+        // 10-25 격자에서 슬라이드 계수 0.18/0.20/0.25에 4부 승률이 46/74/48%로 튀었다(실험/2026-10-25-슬라이드-수축-격자.md)
+        public static float SafetyWeight(float interceptRisk, float riskAllow, float band)
+        {
+            if (band <= 0f)
+            {
+                return IsPassSafe(interceptRisk, riskAllow) ? 1f - interceptRisk : 0f;   // 띠 없음 = 옛 이진 판정 + (1 − 위험도)
+            }
+            float taper = (riskAllow + band - interceptRisk) / (2f * band);
+            if (taper <= 0f) { return 0f; }
+            if (taper > 1f) { taper = 1f; }
+            return (1f - interceptRisk) * taper;
+        }
+
+        // 되돌림 패스(방금 준 선수에게 곧바로 뒤로)는 안전한(허용치 이하) 다른 후보가 없을 때만 쓴다(W↔ST 측면 왕복 22회, 09-21).
+        // 10-29 리뷰: 안전 가중 띠 안의 허용치 넘는 후보가 안전한 되돌림을 늘 이겼다(전엔 안전한 후보만 골랐다)
+        public static bool PrefersOverReturn(bool bestFound, bool bestIsSafe, bool returnFound)
+        {
+            if (!bestFound) { return false; }
+            if (!returnFound) { return true; }
+            return bestIsSafe;
+        }
+
         // 리시버 후보 점수. 앞선(공격 방향) 아군은 전진 거리 + 선호 거리 근접 + 측면 가중.
         // 옆·뒤 아군(09-21, C)은 같은 근접·측면 항에 배율 0.3을 곱하고 뒤 거리만큼 깎는다: 앞 후보를 절대 못 이기므로 앞이 전부
         // 막혔을 때만 돌릴 곳이 되고, 깊은 백패스는 0 이하로 떨어져 후보에서 빠진다(호출자는 0 초과만 본다).
@@ -138,7 +162,9 @@ namespace Game.Core.Match
 
         // 착지점 고르기(09-30 공격 칼날 A): 리드 후보(MatchTuning.PassLeadOptions)를 긴 것부터 보다가 위험이 허용치 이하인 첫 후보를 고른다.
         // 앞이 비면 공간으로, 수비 라인이 가까우면 짧게, 그래도 막히면 발밑으로. Simple Soccer GetBestPassToReceiver(후보 3점 중 안전하고 골에 가까운 것)와 같은 구조.
-        // 전부 허용치를 넘으면 가장 덜 위험한 후보(동률은 긴 쪽)를 돌려준다. 안전한지는 호출자가 Risk로 본다(IsPassSafe)
+        // 전부 허용치를 넘으면 가장 덜 위험한 후보(동률은 긴 쪽)를 돌려준다. 호출자(트리)는 Risk로 안전 가중(SafetyWeight)을 매긴다.
+        // 착지점은 이진 판정(IsPassSafe)으로 "안전한 가장 긴 리드"를 고르고, 리시버끼리 비교만 연속 가중으로 한다(10-29 가속 E).
+        // 착지점까지 가중으로 고르면 위험 0인 발밑이 늘 이겨 공간 패스가 사라진다. 리드 길이의 가치는 ScoreReceiver에 없다
         public static PassLanding PickLanding(float passerX, float passerZ, float receiverX, float receiverZ, int attackSign, float averageSpeed, IReadOnlyList<TargetInfo> opponents, float riskAllow)
         {
             PassLanding leastRisky = default;

@@ -259,6 +259,40 @@ public class PassRulesTests
         Assert.AreEqual(-1, PassRules.KeeperDistributionTarget(-48f, 0f, new List<TargetInfo>(), +1, 0, 9, false));
     }
 
+    // 안전 가중(10-29 가속 E): (1 − 위험도) × 경계 띠. 띠는 허용치 ± band에서 1 → 0
+    [Test]
+    public void 안전_가중은_허용치_아래_띠_밖이면_1_빼기_위험도다()
+    {
+        Assert.AreEqual(0.8f, PassRules.SafetyWeight(0.2f, 0.5f, 0.1f), 1e-5f);
+        Assert.AreEqual(1f, PassRules.SafetyWeight(0f, 0.5f, 0.1f), 1e-5f);
+    }
+
+    [Test]
+    public void 안전_가중은_허용치에서_절반이고_띠_위끝에서_0이다()
+    {
+        Assert.AreEqual(0.5f * 0.5f, PassRules.SafetyWeight(0.5f, 0.5f, 0.1f), 1e-5f, "허용치 = 띠 가운데: (1 − 0.5) × 0.5");
+        Assert.AreEqual(0f, PassRules.SafetyWeight(0.6f, 0.5f, 0.1f), 1e-5f);
+        Assert.AreEqual(0f, PassRules.SafetyWeight(0.9f, 0.5f, 0.1f), 1e-5f);
+    }
+
+    [Test]
+    public void 안전_가중은_위험도가_오르면_줄기만_한다()
+    {
+        float previous = float.MaxValue;
+        for (float risk = 0f; risk <= 1f; risk += 0.05f)
+        {
+            float w = PassRules.SafetyWeight(risk, 0.5f, 0.1f);
+            Assert.LessOrEqual(w, previous + 1e-6f, $"위험도 {risk}");
+            previous = w;
+        }
+    }
+
+    [Test]
+    public void 안전_가중의_띠가_0이면_옛_이진_판정이다()
+    {
+        Assert.AreEqual(0.6f, PassRules.SafetyWeight(0.4f, 0.5f, 0f), 1e-5f);
+        Assert.AreEqual(0f, PassRules.SafetyWeight(0.51f, 0.5f, 0f), 1e-5f, "나누기 0 없이 탈락");
+    }
 
     [Test]
     public void 상대_반응_지연이_있으면_가로채기_위험이_낮다()
@@ -267,5 +301,14 @@ public class PassRulesTests
         float instant = PassRules.InterceptRisk(0f, 0f, 20f, 0f, mid, 7f, 15f, 0f);
         float delayed = PassRules.InterceptRisk(0f, 0f, 20f, 0f, mid, 7f, 15f, MatchTuning.ReactionTime);
         Assert.Less(delayed, instant);
+    }
+
+    [Test]
+    public void 되돌림_패스는_안전한_다른_후보가_없을_때만이다()
+    {
+        Assert.IsTrue(PassRules.PrefersOverReturn(bestFound: true, bestIsSafe: true, returnFound: true));
+        Assert.IsFalse(PassRules.PrefersOverReturn(bestFound: true, bestIsSafe: false, returnFound: true), "띠 안의 위험한 앞 후보보다 안전한 되돌림");
+        Assert.IsTrue(PassRules.PrefersOverReturn(bestFound: true, bestIsSafe: false, returnFound: false), "되돌림도 없으면 띠 안 후보라도 쓴다");
+        Assert.IsFalse(PassRules.PrefersOverReturn(bestFound: false, bestIsSafe: false, returnFound: true));
     }
 }
