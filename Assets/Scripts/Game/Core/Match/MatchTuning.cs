@@ -87,8 +87,9 @@ namespace Game.Core.Match
         // 체력(09-29 전술 상성 ⑥, FatigueRules 주석). 회복 반감기·effort 구조·최저값은 레퍼런스, 소모·상한 감소는 출처 없는 값이라 러너로 맞췄다:
         // 끝 15분 고속 주행이 체력 없을 때보다 균형 FB -11%p·압박 FB -24%p·압박 W -14%p(레퍼런스 -8~-21%), 최고 속도 변화 0%.
         // 소모 0.02·상한 0.001·최저 0.85는 압박이 더 약해졌지만 균형 러너 골 1.82로 목표 밖이라 버렸다
-        public const float FatigueDrainPerTick = 0.012f;         // 전력 행동 한 틱에 줄어드는 단기 체력(stamina 50 기준). 1초(50틱) 전력이면 1 → 0.4
-        public const float FatigueCapLossPerTick = 0.0006f;      // 전력 행동 한 틱에 내려가는 장기 상한. 경기 동안 쌓여 후반 회복 상한이 낮아진다(경기 끝 평균 상한: 균형 0.79·압박 0.74)
+        public const float HighIntensityFraction = 5.5f / SpeedMpsAt50;   // 체력이 줄어드는 고강도 = 개인 최고 속도의 이 비율 이상(10-29 가속 D). speed 50이면 5.5m/s = 19.8km/h, 트래킹 연구의 고강도 달리기(HSR) 표준 문턱(PMC11534638). 절대값으로 두면 speed 30(4.2m/s) 선수는 영원히 안 지쳐 비율로 둔다
+        public const float FatigueDrainPerTick = 0.00216f;       // 고강도 한 틱에 줄어드는 단기 체력(stamina 50 기준). 10-29 가속 D: 실제 속도로 세자 고강도 틱이 늘어 09-30 값(0.012)의 0.18배로 맞췄다(균형 칸 경기 끝 상한 0.77·압박 0.73, 09-30 기준 0.79·0.74)
+        public const float FatigueCapLossPerTick = 0.000108f;    // 고강도 한 틱에 내려가는 장기 상한. 소모와 같은 0.18배(10-29). 경기 동안 쌓여 후반 회복 상한이 낮아진다
         public const float FatigueCapMin = 0.5f;                 // 장기 상한의 바닥
         public const float FatigueRecoveryHalfLifeTicks = 95f;   // 회복 반감기. 전력 뒤 에너지(PCr) 재합성 반감기 약 57초(Bogdanis 1995)를 경기 시간으로 본다. 3분 = 90분이라 1틱(0.02초) = 경기 0.6초, 57 ÷ 0.6 ≈ 95틱
         public const float FatigueEffortThreshold = 0.3f;        // 단기 체력이 이 아래면 속도가 준다(RoboCup effort_dec_thr와 같은 비율)

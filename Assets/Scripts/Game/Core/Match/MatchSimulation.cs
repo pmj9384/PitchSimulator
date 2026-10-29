@@ -505,21 +505,23 @@ namespace Game.Core.Match
             for (int i = 0; i < players.Count; i++)
             {
                 PlayerState p = players[i];
-                bool sprinting = IsSprintAction(p);
+                bool carrying = Ball.Phase == BallPhase.Owned && Ball.OwnerId == p.PlayerId;
                 float beforeX = p.X;
                 float beforeZ = p.Z;
                 Apply(p, deltaTime);
-                bool moved = p.X != beforeX || p.Z != beforeZ;
-                UpdateStamina(p, sprinting && moved);
+                float moved = Distance(beforeX, beforeZ, p.X, p.Z);
+                UpdateStamina(p, IsHighIntensity(p, moved / deltaTime, carrying && moved > 0f));
             }
         }
 
-        // 현실에서 전력인 행동(09-29 체력): 공 몰기, 압박 1순위, 루즈볼 추격, 나에게 오는 패스 마중. 스냅샷 값만 봐서 실행 순서와 무관하다
-        private bool IsSprintAction(PlayerState p)
+        // 고강도 틱(10-29 가속 D): 이번 틱 실제 속도가 개인 최고 속도 × HighIntensityFraction 이상, 또는 공을 몰고 움직였다.
+        // 전엔 "전력 행동 목록"(압박 1순위·루즈볼 추격·패스 마중·공 몰기)만 셌다. 이동에 가속·조깅이 생겨 실제 속도로 구분할 수 있게 됐고,
+        // 그래서 공격 전진 런·늦은 복귀도 자연히 센다(10-29 유저: 체력 부담이 수비 설정에만 반응). 공 몰기는 최고 속도의 0.75라 문턱 아래지만
+        // 드리블은 같은 속도의 달리기보다 힘이 더 든다(Reilly & Ball 1984, 원문 미확인)
+        private static bool IsHighIntensity(PlayerState p, float actualSpeed, bool carriedAndMoved)
         {
-            if (Ball.Phase == BallPhase.Owned && Ball.OwnerId == p.PlayerId) { return true; }
-            if (p.IsLooseBallChaser || p.IsPassTarget) { return true; }
-            return p.BallOwnerTeam == 1 - p.Team && p.PressRank < MatchTuning.MaxPressers;   // 트리 ⑧과 같은 조건(PressRank는 압박 거리 안인 선수만 순위가 있다)
+            if (carriedAndMoved) { return true; }
+            return actualSpeed >= MatchRules.SpeedMps(p.Stats.Speed) * MatchTuning.HighIntensityFraction;
         }
 
         private static float Distance(float fromX, float fromZ, float toX, float toZ)
