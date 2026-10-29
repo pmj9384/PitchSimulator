@@ -17,6 +17,8 @@ using UnityEngine.UI;
 // 목록은 버튼 배열을 미리 깔아 두고 쓰는 만큼만 켠다(SlotPanel의 역할 버튼과 같은 꼴): 후보 4. ②열은 버튼 하나만 쓴다(나머지는 숨김. 10-19 전엔 같은 자리의 내 선수 목록이었다)
 // 안내 글자(verdictText)는 누른 쪽 핸들러만 쓴다. 채우기 함수가 같이 쓰면 마지막 시도의 판정이 "시도가 없다"에 덮인다(10-12 리뷰 🔴)
 // 판정 연출은 ScoutRevealPopup(카드 뒤집기, 10-21)이 맡고 verdictText는 그 아래 글자 기록이자 팝업이 없는 씬의 예비다
+// ③열 내 벤치(10-29 유저 "선수 사고팔기는 스카우트 창에서"): 행을 누르면 확인 팝업(ConfirmPopup, 되돌릴 수 없어 빨강) → 방출. 전엔 전술판 명단에서 두 번 눌러 방출했다.
+// 벤치가 차서 영입이 잠기면 같은 화면에서 자리를 만들 수 있다. 방출 규칙(벤치만, 코인 = ★×30)은 코어(SeasonState·SquadRules), 코인 지급·저장은 SeasonSystem
 // 버튼 배선은 처음 열릴 때 한 번(TacticsBoardView와 같은 꼴). UIManager가 시작 때 Close만 부르므로 Awake에 두면 열리기 전엔 안 돈다
 public class ScoutScreen : UIScreen
 {
@@ -34,8 +36,14 @@ public class ScoutScreen : UIScreen
     [SerializeField] private ScoutEntryButton[] myButtons;   // [0]만 [영입 시도]로 쓴다
     [SerializeField] private TMP_Text verdictText;   // 다음에 할 일·미리보기·판정 결과
 
+    [Header("③ 내 벤치 (SquadRules.MaxBench개, 누르면 방출 확인)")]
+    [SerializeField] private TMP_Text benchHeader;   // "내 벤치 3/7 · 누르면 방출"
+    [SerializeField] private ScoutEntryButton[] benchButtons;
+
     private IReadOnlyList<ScoutCandidate> candidates = Array.Empty<ScoutCandidate>();   // ①열 버튼 번호 = 후보 자리 번호
     private int selectedSlot = NoSelection;
+    private readonly List<RosterPlayer> bench = new List<RosterPlayer>();   // ③열 행 번호 → 선수
+    private RosterPlayer releaseTarget;   // 확인 팝업이 떠 있는 동안의 방출 대상
     private bool initialized;
 
     private static SeasonSystem Season => GameDataManager.Instance.Season;
@@ -53,6 +61,11 @@ public class ScoutScreen : UIScreen
             buyButtonLabel.text = $"시도 +1 ({ScoutRules.ExtraAttemptCoinPrice}코인)";
             InitializeList(candidateButtons, OnCandidateClicked);
             InitializeList(myButtons, OnRecruitClicked);
+            InitializeList(benchButtons, OnBenchClicked);
+            if (benchButtons.Length != SquadRules.MaxBench)
+            {
+                Debug.LogError($"[ScoutScreen] 벤치 행 {benchButtons.Length}개 ≠ 벤치 {SquadRules.MaxBench}명. 뒤쪽 벤치 선수가 안 보인다");
+            }
         }
         selectedSlot = NoSelection;
         verdictText.text = "영입할 후보를 고른다";
@@ -60,6 +73,7 @@ public class ScoutScreen : UIScreen
         ShowHeader();
         ShowCandidates();
         ShowRecruitButton();
+        ShowBench();
     }
 
     private static void InitializeList(ScoutEntryButton[] buttons, Action<ScoutEntryButton> onClicked)
@@ -97,6 +111,8 @@ public class ScoutScreen : UIScreen
         ShowHeader();
         ShowCandidates();      // 성공한 자리는 다음 후보로, 실패한 자리는 확률이 +10%
         ShowRecruitButton();   // 성공했으면 숨고, 시도가 0이거나 벤치가 차면 잠긴다
+        ShowBench();           // 성공이면 벤치에 한 명 늘었다
+        noticeText.text = NoticeLine(Season);
         ShowReveal(target, portrait, verdict, line);
     }
 
@@ -106,6 +122,36 @@ public class ScoutScreen : UIScreen
         ScoutRevealPopup popup = uiManager.GetPopup<ScoutRevealPopup>();
         if (popup == null) { return; }
         popup.Show(target, portrait, verdict, line);
+    }
+
+    // 벤치 행을 누르면 확인 팝업. 되돌릴 수 없는 행동이라 실행 버튼이 빨강이고 딤으로는 안 닫힌다(UI 키트 ConfirmPopup)
+    private void OnBenchClicked(ScoutEntryButton button)
+    {
+        int index = Array.IndexOf(benchButtons, button);
+        if (index >= bench.Count) { return; }
+        ConfirmPopup popup = uiManager.GetPopup<ConfirmPopup>();
+        if (popup == null)
+        {
+            Debug.LogError("[ScoutScreen] 씬에 ConfirmPopup이 없어 방출 확인을 띄울 수 없다(되돌릴 수 없는 행동이라 확인 없이 방출하지 않는다)");
+            return;
+        }
+        releaseTarget = bench[index];   // 팝업이 열려 있는 동안만 쓴다. 확인하면 OnReleaseConfirmed가 비운다
+        int coins = SquadRules.ReleaseCoins(releaseTarget.Stars);
+        popup.Open("선수 방출", $"방출할 선수: {BenchLine(releaseTarget)} · 코인 +{coins}\n방출한 선수는 되돌릴 수 없다", $"방출 +{coins}", true, OnReleaseConfirmed);
+    }
+
+    private void OnReleaseConfirmed()
+    {
+        if (releaseTarget == null) { return; }
+        int coins = Season.ReleasePlayer(releaseTarget.PlayerId);
+        verdictText.text = $"방출: {BenchLine(releaseTarget)} → 코인 +{coins}";
+        releaseTarget = null;
+        selectedSlot = NoSelection;   // 후보는 내 로스터 자리 기준으로 뽑혀(ScoutPool.Eligible) 방출로 바뀔 수 있다. 옛 선택이 다른 후보를 가리키지 않게 푼다(리뷰)
+        noticeText.text = NoticeLine(Season);
+        ShowHeader();
+        ShowCandidates();
+        ShowRecruitButton();   // 벤치가 차서 잠겨 있던 영입이 풀린다(후보를 다시 고르면 보인다)
+        ShowBench();
     }
 
     private void OnBuy()
@@ -187,6 +233,30 @@ public class ScoutScreen : UIScreen
         return Season.CanRecruit;
     }
 
+    // ③열: 내 벤치. 행 글자 = 자리 · 변형 · ★ · 방출하면 받는 코인
+    private void ShowBench()
+    {
+        bench.Clear();
+        bench.AddRange(Season.State.Bench());
+        benchHeader.text = $"내 벤치 {bench.Count}/{SquadRules.MaxBench}  ·  누르면 방출";
+        for (int i = 0; i < benchButtons.Length; i++)
+        {
+            if (i >= bench.Count)
+            {
+                benchButtons[i].Hide();
+                continue;
+            }
+            RosterPlayer player = bench[i];
+            string text = $"{BenchLine(player)}   방출 +{SquadRules.ReleaseCoins(player.Stars)}";
+            benchButtons[i].Show(text, PortraitRepository.Get(player.Portrait), selected: false, interactable: true);
+        }
+    }
+
+    private static string BenchLine(RosterPlayer player)
+    {
+        return $"{player.Stats.RoleId} {player.Stats.DisplayName} {Stars(player.Stars)}";
+    }
+
     private static PlayerStats TargetPlayer(ScoutCandidate picked)
     {
         return Season.ScoutTeam(picked.TeamId).Players[picked.PlayerIndex];
@@ -208,7 +278,7 @@ public class ScoutScreen : UIScreen
     {
         if (season.LastReportFailed) { return "지난 경기 결과를 저장하지 못했다. 다음 경기를 치른 뒤 영입할 수 있다"; }
         if (season.IsOver) { return "시즌이 끝났다. 지금 영입하면 역할은 다음 시즌으로 가지만 능력치는 기본으로 돌아간다"; }
-        if (!season.CanRecruit) { return $"벤치가 찼다({SquadRules.MaxBench}명). 전술 탭에서 방출해야 영입할 수 있다"; }
+        if (!season.CanRecruit) { return $"벤치가 찼다({SquadRules.MaxBench}명). 오른쪽 내 벤치에서 방출하면 영입할 수 있다"; }
         if (ScoutRules.AllStarsAreOne(season.Tier)) { return "내 부의 상대는 모두 기본 역할이라 ★1뿐이다. 역할이 다른 선수는 뒤 두 자리의 위 부 후보에서 온다"; }
         return string.Empty;
     }

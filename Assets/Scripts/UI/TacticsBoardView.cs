@@ -38,7 +38,6 @@ public class TacticsBoardView : MonoBehaviour
             pitch.Deselected += ShowRoster;
             pitch.PhaseChanged += OnPhaseChanged;
             rosterPanel.StarterSelected += OnStarterSelected;
-            rosterPanel.Changed += OnRosterChanged;
             slotPanel.Changed += OnSlotChanged;
             slotPanel.LineupChanged += OnLineupChanged;
             formationPanel.Changed += OnFormationChanged;
@@ -97,13 +96,6 @@ public class TacticsBoardView : MonoBehaviour
     private void OnLineupChanged(int playerId)
     {
         pitch.Select(playerId);
-        ShowSidePanel();
-    }
-
-    // 방출 뒤: 명단과 필드(어긋남 표시는 안 바뀌지만 같은 경로)
-    private void OnRosterChanged()
-    {
-        pitch.Refresh();
         ShowSidePanel();
     }
 
