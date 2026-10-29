@@ -52,6 +52,7 @@ public class FatigueRulesTests
         sim.Ball = BallState.FreeAt(40f, -30f);
         p.Stamina = 0f;
         p.StaminaCap = 0.5f;
+        p.VelX = 7f * MatchTuning.FatigueEffortMin;   // 이미 그 속도로 달리는 중(정지 출발이면 가속부터라 상한을 못 본다, 09-29 F2b)
         sim.Tick(0.02f);
         Assert.AreEqual(7f * MatchTuning.FatigueEffortMin * 0.02f, p.X, 1e-4f);
     }
@@ -94,7 +95,7 @@ public class FatigueRulesTests
     {
         public override Game.Core.AI.NodeState Tick(Game.Core.AI.IPlayerContext ctx)
         {
-            ctx.MoveToward(ctx.X + 10f, ctx.Z);
+            ctx.ArriveToward(ctx.X + 10f, ctx.Z);
             return Game.Core.AI.NodeState.Success;
         }
     }

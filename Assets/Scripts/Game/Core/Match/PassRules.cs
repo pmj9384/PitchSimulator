@@ -11,7 +11,9 @@ namespace Game.Core.Match
     {
         // 위험도 0(아무도 못 닿음)~1(확실히 닿음). 여러 상대 중 최대값.
         // 상대 속도는 스탯을 모르므로 평균 달리기(7m/s)로 본다. 정밀하게 하려면 호출자가 상대별 속도를 주면 된다(2차)
-        public static float InterceptRisk(float fromX, float fromZ, float toX, float toZ, IReadOnlyList<TargetInfo> opponents, float opponentSpeed, float ballSpeed)
+        // opponentReaction(09-29 F2b): 상대가 반응·가속으로 늦는 시간. 시뮬 이동에 가속이 생겨 판정도 같은 전제로(MatchTuning.ReactionTime).
+        // 기본값을 두지 않는다: 빠뜨리면 "판정과 이동이 같은 전제"가 조용히 깨진다(10-29 리뷰)
+        public static float InterceptRisk(float fromX, float fromZ, float toX, float toZ, IReadOnlyList<TargetInfo> opponents, float opponentSpeed, float ballSpeed, float opponentReaction)
         {
             float dx = toX - fromX;
             float dz = toZ - fromZ;
@@ -39,7 +41,7 @@ namespace Game.Core.Match
 
                 float perp = Math.Abs(ox * uz - oz * ux);    // 축에서 수직 거리
                 float t = along / ballSpeed;                  // 공이 그 지점을 지나는 시각
-                float reach = opponentSpeed * t;              // 그 시각까지 상대가 달릴 수 있는 거리
+                float reach = opponentSpeed * Math.Max(0f, t - opponentReaction);   // 그 시각까지 상대가 달릴 수 있는 거리
 
                 // Simple Soccer의 이진 판정(닿으면 위험)을 여유폭으로 편다: 잡기 반경 안에 들어오면 1(확실),
                 // 달려서 겨우 닿는 범위 끝에서 0. 그 사이는 선형. 리스크 허용(0.2/0.5/0.8)이 이 여유폭 어디까지 감수하나를 정한다
@@ -126,11 +128,12 @@ namespace Game.Core.Match
             return LeadTarget(passerX, receiverX, receiverZ, attackSign, distance, FlightAverageSpeed(distance, averageSpeed), MatchTuning.SpeedMpsAt50, leadMax);
         }
 
-        // 그 착지점으로 찼을 때의 가로채기 위험. 공 속도는 착지점까지 거리로 역산한 평균(시뮬 Pass가 차는 속도와 같은 식)
+        // 그 착지점으로 찼을 때의 가로채기 위험. 공 속도는 착지점까지 거리로 역산한 평균(시뮬 Pass가 차는 속도와 같은 식).
+        // 상대는 반응·가속만큼 늦게 출발한다(10-29 가속 B). 시뮬 이동에 가속이 있으니 판정도 같은 전제
         public static float LandingRisk(float passerX, float passerZ, float landingX, float landingZ, float averageSpeed, IReadOnlyList<TargetInfo> opponents)
         {
             float distance = Distance(passerX, passerZ, landingX, landingZ);
-            return InterceptRisk(passerX, passerZ, landingX, landingZ, opponents, MatchTuning.InterceptRunSpeed, FlightAverageSpeed(distance, averageSpeed));
+            return InterceptRisk(passerX, passerZ, landingX, landingZ, opponents, MatchTuning.InterceptRunSpeed, FlightAverageSpeed(distance, averageSpeed), MatchTuning.ReactionTime);
         }
 
         // 착지점 고르기(09-30 공격 칼날 A): 리드 후보(MatchTuning.PassLeadOptions)를 긴 것부터 보다가 위험이 허용치 이하인 첫 후보를 고른다.

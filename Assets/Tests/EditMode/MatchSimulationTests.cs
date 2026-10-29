@@ -93,7 +93,7 @@ internal static class PassFlightTestsHelper
     {
         public override NodeState Tick(IPlayerContext ctx)
         {
-            if (!ctx.OwnsBall) { ctx.MoveToward(ctx.BallX, ctx.BallZ); }
+            if (!ctx.OwnsBall) { ctx.ArriveToward(ctx.BallX, ctx.BallZ); }
             return NodeState.Success;
         }
     }
@@ -279,7 +279,7 @@ public class MatchSimulationTests
     [Test]
     public void 골로_정해진_슛은_GK_자리에서_먼_구석으로_조준되고_GK는_버스트_없이_간다()
     {
-        // 골 roll 0.05, 조준 roll 0.5 → 중앙 0. GK z 0 → 파생 간격만큼 밀린다. 반응 ×2(20틱) 뒤 한 틱 이동 = 스탯 30(4.2m/s) × 0.02 = 0.084
+        // 골 roll 0.05, 조준 roll 0.5 → 중앙 0. GK z 0 → 파생 간격만큼 밀린다. 반응 ×2(20틱) 뒤 한 틱 이동 ≤ 스탯 30(4.2m/s) × 0.02 = 0.084(가속을 타서 더 짧다)
         var sim = new MatchSimulation(new RollQueue(new[] { 0.05f, 0.5f, 0.5f, 0.5f, 0.5f }).Next, PlayerTreeBuilder.Build()) { ResetAfterEveryShot = true };
         PlayerState striker = sim.AddPlayer(new PlayerState(0, 0, Striker(), 30f, 0f));
         PlayerState keeper = sim.AddPlayer(new PlayerState(1, 1, Keeper(), 50f, 0f));
@@ -307,7 +307,10 @@ public class MatchSimulationTests
         float beforeZ = keeper.Z;
         sim.Tick(Dt);
         float moved = (float)System.Math.Sqrt((keeper.X - beforeX) * (keeper.X - beforeX) + (keeper.Z - beforeZ) * (keeper.Z - beforeZ));
-        Assert.AreEqual(MatchRules.SpeedMps(keeper.Stats.Speed) * Dt, moved, 1e-2f, "골엔 스탯 속도(버스트 없음)");
+        // 10-29 가속: 버스트가 없으면 스탯 속도·가속을 탄다. 한 틱 이동은 스탯 속도 한 틱 이하이고, 다이빙 속도 한 틱보다 확실히 짧다
+        Assert.LessOrEqual(moved, MatchRules.SpeedMps(keeper.Stats.Speed) * Dt + 1e-4f, "골엔 스탯 속도 이하(버스트 없음)");
+        Assert.Less(moved, MatchTuning.KeeperDiveSpeed * Dt * 0.5f, "다이빙 버스트가 아니다");
+        Assert.Greater(moved, 0f, "그래도 움직이긴 한다(스탯 가속)");
     }
 
     [Test]

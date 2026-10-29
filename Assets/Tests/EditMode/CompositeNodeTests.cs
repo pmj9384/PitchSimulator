@@ -55,7 +55,9 @@ public class CompositeNodeTests
         public bool WaitingForShot => false;
         public bool IncomingShot => false;
         public float IncomingShotTargetZ => 0f;
-        public void MoveToward(float x, float z) { }
+        public void ArriveToward(float x, float z) { }
+        public void RunToward(float x, float z) { }
+        public void JogToward(float x, float z) { }
         public void Shoot() { }
         public void Pass(int receiverId, float landingX, float landingZ) { }
     }

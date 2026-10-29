@@ -34,7 +34,7 @@ public class PassFlightTests
                 done = true;
                 return NodeState.Success;
             }
-            ctx.MoveToward(ctx.BallX, ctx.BallZ);
+            ctx.ArriveToward(ctx.BallX, ctx.BallZ);
             return NodeState.Success;
         }
     }
@@ -347,7 +347,7 @@ public class PassFlightTests
         sim.Kickoff();
         sim.Ball = BallRules.Own(sim.Ball, 0, 0f, 0f);
 
-        for (int i = 0; i < 10; i++) { sim.Tick(Dt); }
+        for (int i = 0; i < 30; i++) { sim.Tick(Dt); }   // 0.6초. 정지 출발이라 가속부터(09-29 F2b: 0.2초면 0.14m)
 
         Assert.Greater(first.X, -4.5f, "첫 압박자는 공으로 달린다");
         Assert.AreEqual(-10f, second.X, 0.5f, "두 번째는 수비 자리(스폰 자리 + 슬라이드)에 남는다");
@@ -369,7 +369,7 @@ public class PassFlightTests
         sim.Ball = BallRules.Own(sim.Ball, 0, 0f, 0f);
         first.FrozenTicks = 100;   // 태클 실패 직후 상태
 
-        for (int i = 0; i < 10; i++) { sim.Tick(Dt); }
+        for (int i = 0; i < 30; i++) { sim.Tick(Dt); }   // 0.6초. 정지 출발이라 가속부터(09-29 F2b)
 
         Assert.AreEqual(-5f, first.X, 0.01f, "얼어 있으면 못 움직인다");
         Assert.Greater(second.X, -9.5f, "2순위가 공으로 달린다(얼어 있는 1순위는 순위에서 빠짐)");

@@ -63,7 +63,10 @@ namespace Game.Core.AI
         float IncomingShotTargetZ { get; } // GK가 가야 할 z = 그 슛이 내 라인을 지나는 z(GK만)
 
         // ── 시키기. 실행(속도·판정)은 시뮬 몫, 트리는 의도만 남긴다
-        void MoveToward(float x, float z);
+        // 이동 의도 3가지(PlayerState.MoveMode). 09-29 F2b: Simple Soccer(Reynolds)의 Arrive와 Seek·Pursuit, 10-29 가속 C: 자리 잡기 조깅
+        void ArriveToward(float x, float z);   // 그 자리에 서려고 가까워지면 감속한다. 최고 속도까지(패스 마중·GK 슛 라인·전진 런)
+        void JogToward(float x, float z);      // 자리 잡기(홈 + 슬라이드). 감속하고, 자리에서 많이 늦지 않았으면 조깅 상한
+        void RunToward(float x, float z);      // 멈출 생각 없이 전력으로(공 쫓기·공 몰기)
         void Shoot();
         void Pass(int receiverId, float landingX, float landingZ);   // 착지점까지 트리가 정한다. 시뮬은 그 점으로 찬다
     }

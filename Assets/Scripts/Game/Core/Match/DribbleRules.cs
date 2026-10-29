@@ -28,7 +28,7 @@ namespace Game.Core.Match
         // 돌파 목표점. 후보 = 정면 기준 -90°~+90°를 stepDeg 간격, 거리 lookahead. 후보마다 "내가 닿는 시간"과 "가장 빠른 상대가 닿는 시간"의 차(여유)를 잰다.
         // 여유가 양수인(상대보다 먼저 닿는) 후보 중 가장 앞으로 가는 것, 없으면 여유가 가장 큰 것. 동률은 정면에 가까운 각. 필드 밖 후보는 버린다
         public static (float x, float z) TakeOnTarget(float x, float z, int attackSign, IReadOnlyList<TargetInfo> opponents,
-            float carrySpeed, float opponentSpeed, float opponentReach, float lookahead, float stepDeg, float halfLength, float halfWidthInside)
+            float carrySpeed, float opponentSpeed, float opponentReach, float opponentReaction, float lookahead, float stepDeg, float halfLength, float halfWidthInside)
         {
             float myTime = lookahead / Math.Max(carrySpeed, 0.1f);
             bool bestSafe = false;
@@ -50,7 +50,7 @@ namespace Game.Core.Match
                     float dx = opponents[i].X - px;
                     float dz = opponents[i].Z - pz;
                     float d = (float)Math.Sqrt(dx * dx + dz * dz) - opponentReach;
-                    float t = Math.Max(d, 0f) / Math.Max(opponentSpeed, 0.1f);
+                    float t = ArrivalTime(d, opponentSpeed, opponentReaction);
                     if (t < oppTime) { oppTime = t; }
                 }
                 float margin = oppTime - myTime;
@@ -66,6 +66,13 @@ namespace Game.Core.Match
                 bz = pz;
             }
             return (bx, bz);
+        }
+
+        // 상대가 그 지점에 닿는 시간. 발 뻗는 범위 안이면 0(뛸 필요가 없다), 뛰어야 하면 반응·가속으로 늦는 시간을 더한다(09-29 F2b, 가로채기 판정과 같은 값)
+        private static float ArrivalTime(float runDistance, float speed, float reaction)
+        {
+            if (runDistance <= 0f) { return 0f; }
+            return reaction + runDistance / Math.Max(speed, 0.1f);
         }
 
         // 안전한 후보가 안전하지 않은 후보보다 먼저. 같은 부류면 점수가 큰 쪽, 비기면 정면에 가까운 쪽

@@ -34,7 +34,7 @@ namespace Game.Core.Match
         public static readonly float[] PassAverageSpeed = { 10f, 12.2f, 14.5f };   // 속도(느리게·표준·빠르게) → 패스의 평균 속도 m/s. Metrica 10~20m 패스 775건의 Q1·중앙값·Q3(10-25). 초속·도착은 거리로 역산(PassRules.KickSpeed).
                                                                                  // 09-23~10-24는 "도착 속도" 2/5/8이 입력이라 15m 표준 패스의 평균이 8.5로 실측보다 30% 느렸다
         public const float PassSpeedMax = 22f;                                  // 패스 초속 상한(강한 킥, 슛 25 아래). 평균 14.5·감속 1.2면 2·14.5·(22−14.5)/1.2 ≈ 180m까지 식이 성립해 사실상 안 걸린다
-        public const float InterceptRunSpeed = SpeedMpsAt50;                    // 가로채기 판정의 상대 달리기 속도. 09-23 밤까지 5(반응·가속 가정)였는데 이 시뮬의 선수는 가속 없이 즉시 전력이고 추격 예측까지 하니 판정이 실제보다 낙관적이었다. 킥 속도 역산으로 공이 느려지자 "안전" 패스를 압박 선수가 매번 끊는 결정적 왕복(100판 전부 0:0)이 됐다. 시뮬과 같은 값(7)으로
+        public const float InterceptRunSpeed = SpeedMpsAt50;                    // 가로채기 판정의 상대 달리기 속도. 09-23 밤까지 5(반응·가속 가정)였는데 당시(09-23) 시뮬의 선수는 가속 없이 즉시 전력이고 추격 예측까지 하니 판정이 실제보다 낙관적이었다. 킥 속도 역산으로 공이 느려지자 "안전" 패스를 압박 선수가 매번 끊는 결정적 왕복(100판 전부 0:0)이 됐다. 시뮬과 같은 값(7)으로  // 10-29부터 이동에 가속이 있고, 그 늦음은 반응 지연(ReactionTime)으로 판정에 따로 넣는다
         public const float InterceptReach = 1.2f;                               // 달려와서 발을 뻗어 공을 건드리는 범위(m). 잡기 반경 0.8보다 넓다(밸런스 값)
         public static readonly float[] PressStartScale = { 0f, 1f, 1.5f };      // 압박 시작(안 감·표준·적극) → 개인 압박 거리 배율. 0은 안 씀(ShouldPress가 먼저 거름)
         public const float CounterPressScale = 2f;                              // 역압박 중 개인 압박 거리에 추가로 곱하는 배율(단계 배율 × 이 값. 표준 2.0·적극 3.0, 10-08)
@@ -122,6 +122,13 @@ namespace Game.Core.Match
         // 돌파 뒤·패스 앞에 두고 사거리 제한 없이 6m면 1.86 / 0.10(ST 전진 20이 더 죽음). 기준 없는 때는 1.81 / 0.17·0.47. [가정] 4m
         public const float CarryComfortZone = 4f;                               // 앞쪽 이 거리 안에 상대가 없으면 "위협 없음"으로 보고 몬다
         public static readonly string[] CarryRoles = { "ST", "AM", "W" };       // 운반 규칙을 타는 자리(PlayerTable roleId)
+        // 가속(09-29 F2b, 10-29 개인화. MovementRules 주석). 판단 쪽 반응 지연과 이동 가속이 같은 값에서 나온다(이동과 판정이 같은 전제)
+        public const float JogSpeedFraction = 0.6f;     // 자리 잡기 조깅 상한 = 최고 속도 × 이 값. speed 50이면 4.2m/s, 트래킹 속도 구간의 조깅 상한 4m/s(14.4km/h, PMC11534638)와 비슷. [가정] 러너로 오프볼 스프린트 약 80에 맞춘다
+        public const float ForwardRunMargin = 1f;       // 아군 소유 중 공격 자리가 이보다 앞이면 전진 런(전력). [가정] 제자리 떨림만 거르는 값
+        public const float LateToPositionMeters = 8f;   // 자리에서 이보다 멀면 조깅 대신 전력 복귀. [가정] 출처 없음, 러너로 맞춘다
+        public const float AccelerationAt50 = 7f;                                  // speed 50 선수의 가속 m/s². Spearman 2018·Shaw 코드의 amax 7. 정지 출발 10m 1.93초(현실 2.04초)
+        public const float ReactionTime = SpeedMpsAt50 / (2f * AccelerationAt50);  // 0.5초. 정지한 선수가 가속으로 잃는 거리 = 최고 속도로 이만큼 늦게 출발한 것(MovementRules.ReactionEquivalent).
+                                                                                   // 개인 가속은 이 값이 모든 선수에게 같도록 최고 속도에서 유도한다(MovementRules.AccelerationFor)
         public const int MaxPressers = 1;                                       // 팀에서 동시에 압박(⑧)하는 인원 상한. 압박 거리 안인 선수를 공 거리순으로 세어 이 안만 간다(09-23 Play: 인원 제한이 없어 우리 진영 "적극"이면 CM 19.5m·FB/W/ST 12m 안 4~6명이 한꺼번에 달려들어 초등학교 경기처럼 뭉쳤다). Simple Soccer는 최근접 1명만 쫓고 FM도 1명 압박 + 커버. 러너에서 태클이 죽으면 2
     }
 }
