@@ -109,7 +109,7 @@ namespace Game.Core.Match
             if (distance <= 0f) { return 1f; }
 
             // 포물선은 좌우 대칭이라 하강 구간 길이 = 발사 구간 길이
-            float fall = BallRules.LobRiseDistance(distance, MatchTuning.LobLaunchAngleDeg, MatchTuning.Gravity, MatchTuning.FieldReachHeight);
+            float fall = LobLaunchDistance(distance, BallRules.ReachHeight(keeperInOwnBox: false));
             float startX = landingX - (landingX - passerX) / distance * fall;
             float startZ = landingZ - (landingZ - passerZ) / distance * fall;
 
@@ -153,7 +153,7 @@ namespace Game.Core.Match
         {
             float distance = Distance(passerX, passerZ, landingX, landingZ);
             if (distance <= 0f) { return 1f; }
-            float rise = BallRules.LobRiseDistance(distance, MatchTuning.LobLaunchAngleDeg, MatchTuning.Gravity, MatchTuning.FieldReachHeight);
+            float rise = LobLaunchDistance(distance, BallRules.ReachHeight(keeperInOwnBox: false));
             float endX = passerX + (landingX - passerX) / distance * rise;
             float endZ = passerZ + (landingZ - passerZ) / distance * rise;
             float horizontal = LobHorizontalSpeed(distance);
@@ -177,6 +177,15 @@ namespace Game.Core.Match
             float race = LobRisk(passerX, passerZ, point.x, point.z, receiverX, receiverZ, opponents, MatchTuning.InterceptRunSpeed, MatchTuning.ReactionTime, MatchTuning.ArrivalSigma);
             float launch = LobLaunchRisk(passerX, passerZ, point.x, point.z, opponents);
             return new PassLanding(point.x, point.z, Math.Max(race, launch));
+        }
+
+        // 로빙이 height를 넘어 오를 때까지 수평으로 가는 거리(발사 구간). 그 안에선 공이 낮아 경로 가까운 선수가 잡을 수 있다.
+        // 시각은 공 궤적 질의(BallRules.FirstAboveHeight)에 맡기고 여기선 수평 속도만 곱한다(11-02 S1). 끝까지 못 넘는 낮은 로빙이면 전체 거리
+        public static float LobLaunchDistance(float distance, float height)
+        {
+            (float horizontal, float vertical, float flightTime) v = BallRules.LobVelocity(distance, MatchTuning.LobLaunchAngleDeg, MatchTuning.Gravity);
+            BallState launch = BallRules.KickLob(BallState.FreeAt(0f, 0f), 1f, 0f, v.horizontal, v.vertical);
+            return v.horizontal * BallRules.FirstAboveHeight(launch, height);
         }
 
         private static float LobHorizontalSpeed(float distance)

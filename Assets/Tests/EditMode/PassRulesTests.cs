@@ -355,8 +355,8 @@ public class PassRulesTests
         // 25m·40°: 세로 초속 v, 2.2m를 넘는 시각 = (v − √(v² − 2g·2.2)) / g
         (float h, float v, float t) lob = BallRules.LobVelocity(25f, 40f, 9.81f);
         float up = (lob.v - (float)System.Math.Sqrt(lob.v * lob.v - 2f * 9.81f * 2.2f)) / 9.81f;
-        Assert.AreEqual(lob.h * up, BallRules.LobRiseDistance(25f, 40f, 9.81f, 2.2f), 1e-3f);
-        Assert.AreEqual(1f, BallRules.LobRiseDistance(1f, 40f, 9.81f, 2.2f), 1e-6f, "2.2m를 못 넘는 낮은 로빙은 전체 거리");
+        Assert.AreEqual(lob.h * up, PassRules.LobLaunchDistance(25f, 2.2f), 1e-3f);
+        Assert.AreEqual(1f, PassRules.LobLaunchDistance(1f, 2.2f), 1e-6f, "2.2m를 못 넘는 낮은 로빙은 전체 거리");
     }
 
     [Test]

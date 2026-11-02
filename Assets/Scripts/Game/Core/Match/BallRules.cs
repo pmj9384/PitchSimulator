@@ -58,22 +58,91 @@ namespace Game.Core.Match
             return (speed * (float)Math.Cos(rad), vertical, 2f * vertical / gravity);
         }
 
-        // 로빙이 height를 넘어 오를 때까지 수평으로 가는 거리(발사 구간). 그 안에선 공이 낮아 경로 가까운 선수가 잡을 수 있다.
-        // 끝까지 height를 못 넘는 낮은 로빙이면 전체 거리. v·t − g·t²/2 = height의 작은 근
-        public static float LobRiseDistance(float distance, float angleDeg, float gravity, float height)
-        {
-            (float horizontal, float vertical, float flightTime) v = LobVelocity(distance, angleDeg, gravity);
-            double disc = (double)v.vertical * v.vertical - 2.0 * gravity * height;
-            if (disc < 0.0) { return distance; }
-            double t = (v.vertical - Math.Sqrt(disc)) / gravity;
-            return (float)(v.horizontal * t);
-        }
-
-        // 이 높이의 공에 닿을 수 있나(10-29 ④-1). 필드 선수는 머리·발 뻗는 높이, GK는 자기 페널티 박스 안에서 손을 뻗는 높이(IFAB 12조: 손은 자기 박스 안에서만)
+        // 이 높이의 공에 닿을 수 있나(10-29 ④-1). 높이 상수 선택은 ReachHeight 한 곳
         public static bool CanReachHeight(float ballY, bool keeperInOwnBox)
         {
-            float reach = keeperInOwnBox ? MatchTuning.KeeperReachHeight : MatchTuning.FieldReachHeight;
-            return ballY <= reach;
+            return ballY <= ReachHeight(keeperInOwnBox);
+        }
+
+        // 닿는 높이: 필드 선수는 머리·발 뻗는 높이, GK는 자기 페널티 박스 안에서 손을 뻗는 높이(IFAB 12조: 손은 자기 박스 안에서만).
+        // 잡기 판정과 궤적 질의(BelowHeightFrom)가 같은 값을 봐야 "닿을 수 있다고 본 자리에서 못 잡는" 어긋남이 없다(11-02 S1)
+        public static float ReachHeight(bool keeperInOwnBox)
+        {
+            return keeperInOwnBox ? MatchTuning.KeeperReachHeight : MatchTuning.FieldReachHeight;
+        }
+
+        // ── 공 궤적 질의(11-02 S1, 통합설계 코어 1). 지금 공 상태에서 앞날을 해석식으로 읽는다. 틱을 돌리지 않고 같은 식을 쓰는 이유는
+        // 판정(패스 위험)과 실행(추격·포획)이 같은 궤적을 보게 하려는 것이다. 슛·패스·로빙·튕김이 한 식을 쓴다.
+        // 시뮬 Step은 반암시적 오일러라 틱 결과가 해석식과 조금 다르다(위치 오차 ≈ 중력·dt·t/2, 감속·dt·t/2, 착지 틱 한 칸). 테스트가 그 크기를 잰다
+
+        // 지금부터 t초 뒤의 위치(x, 높이, z). 공중은 StepAir와 같은 포물선(수평 감속 없음), 착지 순간 수평 속도 × LobBounceSpeedRetention,
+        // 그 뒤 땅은 Step과 같은 감속(BallDeceleration)으로 멈출 때까지. 비행이 아닌 공(Free·Owned)은 Step처럼 움직이지 않는다
+        public static (float x, float y, float z) PositionAt(in BallState ball, float t)
+        {
+            if (ball.Phase != BallPhase.Flight) { return (ball.X, ball.Y, ball.Z); }
+            if (t <= 0f) { return (ball.X, ball.Y, ball.Z); }
+
+            if (!ball.Airborne)
+            {
+                (float x, float z) rolled = RollPosition(ball.X, ball.Z, ball.VelX, ball.VelZ, t);
+                return (rolled.x, 0f, rolled.z);
+            }
+
+            float landing = LandingTime(ball);
+            if (t < landing)
+            {
+                float y = ball.Y + ball.VelY * t - MatchTuning.Gravity * t * t / 2f;
+                return (ball.X + ball.VelX * t, y, ball.Z + ball.VelZ * t);
+            }
+
+            float landX = ball.X + ball.VelX * landing;
+            float landZ = ball.Z + ball.VelZ * landing;
+            float keep = MatchTuning.LobBounceSpeedRetention;
+            (float x, float z) after = RollPosition(landX, landZ, ball.VelX * keep, ball.VelZ * keep, t - landing);
+            return (after.x, 0f, after.z);
+        }
+
+        // 땅 위에서 초속 (velX, velZ)로 굴러 t초 뒤 위치. Step과 같은 감속이고 멈춘 뒤엔 그 자리에 있는다
+        private static (float x, float z) RollPosition(float x, float z, float velX, float velZ, float t)
+        {
+            float speed = (float)Math.Sqrt(velX * velX + velZ * velZ);
+            if (speed <= 0f) { return (x, z); }
+
+            float deceleration = MatchTuning.BallDeceleration;
+            float rolling = Math.Min(t, speed / deceleration);
+            float distance = speed * rolling - deceleration * rolling * rolling / 2f;
+            return (x + velX / speed * distance, z + velZ / speed * distance);
+        }
+
+        // 지금부터 땅에 닿을 때까지 걸리는 시간. 땅볼이면 0
+        public static float LandingTime(in BallState ball)
+        {
+            if (!ball.Airborne) { return 0f; }
+            return (float)((ball.VelY + Math.Sqrt((double)ball.VelY * ball.VelY + 2.0 * MatchTuning.Gravity * ball.Y)) / MatchTuning.Gravity);
+        }
+
+        // 공이 height 아래에 있어 닿을 수 있게 되는 가장 이른 시각(t ≥ 0). 지금 이미 height 아래면(상승 중 발사 구간 포함) 0, 땅볼도 0.
+        // height 위에서 내려오는 공은 Y = height가 되는 하강 시각. 상승 중이어도 height 위면 정점을 지나 내려올 때다
+        public static float BelowHeightFrom(in BallState ball, float height)
+        {
+            if (!ball.Airborne) { return 0f; }
+            if (ball.Y <= height) { return 0f; }
+
+            double disc = (double)ball.VelY * ball.VelY + 2.0 * MatchTuning.Gravity * (ball.Y - height);
+            return (float)((ball.VelY + Math.Sqrt(disc)) / MatchTuning.Gravity);
+        }
+
+        // 공이 height를 처음 넘어서는 시각. 지금 이미 height 위면 0. 끝까지 못 넘으면 착지 시각(땅볼은 0).
+        // 로빙의 발사 구간(낮아서 경로 가까운 선수가 잡을 수 있는 구간)의 끝이다. v·t − g·t²/2 = height의 작은 근
+        public static float FirstAboveHeight(in BallState ball, float height)
+        {
+            if (!ball.Airborne) { return 0f; }
+            if (ball.Y > height) { return 0f; }
+            if (ball.VelY <= 0f) { return LandingTime(ball); }
+
+            double disc = (double)ball.VelY * ball.VelY - 2.0 * MatchTuning.Gravity * (height - ball.Y);
+            if (disc < 0.0) { return LandingTime(ball); }
+            return (float)((ball.VelY - Math.Sqrt(disc)) / MatchTuning.Gravity);
         }
 
         // 자유 공을 잡는 판정: 가장 가까운 선수(TargetSelector, 동률은 PlayerId 작은 쪽)가 radius 안이면 그 PlayerId, 아니면 NoOwner.

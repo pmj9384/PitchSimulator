@@ -180,6 +180,154 @@ public class BallRulesTests
         Assert.IsFalse(BallRules.CanReachHeight(MatchTuning.KeeperReachHeight + 0.01f, keeperInOwnBox: true));
     }
 
+    // ── 공 궤적 질의(11-02 S1)
+
+    private static BallState Lob(float distance)
+    {
+        (float horizontal, float vertical, float flightTime) v = BallRules.LobVelocity(distance, MatchTuning.LobLaunchAngleDeg, MatchTuning.Gravity);
+        return BallRules.KickLob(BallState.FreeAt(0f, 0f), 1f, 0f, v.horizontal, v.vertical);
+    }
+
+    private static BallState InAir(float y, float velY)
+    {
+        BallState ball = BallState.FreeAt(0f, 0f);
+        ball.Phase = BallPhase.Flight;
+        ball.VelX = 10f;
+        ball.Y = y;
+        ball.VelY = velY;
+        return ball;
+    }
+
+    // 시뮬과 같은 Step을 ticks번 돌린 공
+    private static BallState Ticked(BallState ball, int ticks)
+    {
+        for (int i = 0; i < ticks; i++) { ball = BallRules.Step(ball, Dt, MatchTuning.BallDeceleration); }
+        return ball;
+    }
+
+    // 해석식과 틱 적분이 갈리는 크기(dt = 0.02 기준). Step은 속도를 먼저 바꾸고 그 속도로 옮기는 반암시적 오일러라
+    // 높이는 중력·dt·t/2(t = 2.5초에 0.25m), 땅 위 위치는 감속·dt·t/2만큼 해석식보다 짧다. 착지는 틱 경계에서만 감지돼 최대 한 틱(수평 속도 × dt ≈ 0.25m) 늦다.
+    // 그래서 위치 허용치는 한 틱 이동(0.25m)에 감속 오차(1.2 × 0.02 × 3 / 2 = 0.04m)를 더하고 여유를 둔 0.4m, 높이는 0.3m로 잡는다
+    private const float PositionTolerance = 0.4f;
+    private const float HeightTolerance = 0.3f;
+
+    private static void AssertMatchesTicks(BallState start, int ticks)
+    {
+        (float x, float y, float z) analytic = BallRules.PositionAt(start, ticks * Dt);
+        BallState ticked = Ticked(start, ticks);
+        Assert.AreEqual(ticked.X, analytic.x, PositionTolerance, $"x, {ticks}틱");
+        Assert.AreEqual(ticked.Y, analytic.y, HeightTolerance, $"높이, {ticks}틱");
+        Assert.AreEqual(ticked.Z, analytic.z, PositionTolerance, $"z, {ticks}틱");
+    }
+
+    [Test]
+    public void PositionAt은_로빙_착지_전에_틱_적분과_같다()
+    {
+        AssertMatchesTicks(Lob(25f), 50);
+    }
+
+    [Test]
+    public void PositionAt은_로빙_착지_순간에_틱_적분과_같다()
+    {
+        BallState lob = Lob(25f);
+        AssertMatchesTicks(lob, (int)System.Math.Round(BallRules.LandingTime(lob) / Dt));
+    }
+
+    [Test]
+    public void PositionAt은_로빙_착지_뒤_굴림에서_틱_적분과_같다()
+    {
+        BallState lob = Lob(25f);
+        AssertMatchesTicks(lob, (int)System.Math.Round(BallRules.LandingTime(lob) / Dt) + 50);
+    }
+
+    [Test]
+    public void PositionAt은_땅볼에서_틱_적분과_같고_멈춘_뒤엔_그_자리에_있다()
+    {
+        BallState ground = BallRules.Kick(BallState.FreeAt(0f, 0f), 1f, 1f, 10f);
+        AssertMatchesTicks(ground, 100);
+
+        float a = MatchTuning.BallDeceleration;
+        float stop = 10f * 10f / (2f * a) / (float)System.Math.Sqrt(2.0);
+        (float x, float y, float z) far = BallRules.PositionAt(ground, 60f);
+        Assert.AreEqual(stop, far.x, 1e-3f, "해석값 v²/(2a)를 방향으로 나눈 자리에서 멈춘다");
+        Assert.AreEqual(far.x, far.z, 1e-3f);
+    }
+
+    [Test]
+    public void PositionAt은_착지_순간_높이가_0이고_뒤엔_수평_속도가_보존율만큼_남는다()
+    {
+        BallState lob = Lob(25f);
+        float landing = BallRules.LandingTime(lob);
+        Assert.AreEqual(25f, BallRules.PositionAt(lob, landing).x, 1e-2f, "LobVelocity가 역산한 착지 거리");
+        Assert.AreEqual(0f, BallRules.PositionAt(lob, landing).y, 1e-3f);
+
+        float keep = MatchTuning.LobBounceSpeedRetention;
+        float rolled = 1f;
+        float expected = lob.VelX * keep * rolled - MatchTuning.BallDeceleration * rolled * rolled / 2f;
+        Assert.AreEqual(25f + expected, BallRules.PositionAt(lob, landing + rolled).x, 1e-2f);
+    }
+
+    [Test]
+    public void LandingTime은_로빙이_계산한_체공_시간과_같고_땅볼은_0이다()
+    {
+        (float horizontal, float vertical, float flightTime) v = BallRules.LobVelocity(25f, MatchTuning.LobLaunchAngleDeg, MatchTuning.Gravity);
+        Assert.AreEqual(v.flightTime, BallRules.LandingTime(Lob(25f)), 1e-4f);
+        BallState ground = BallRules.Kick(BallState.FreeAt(0f, 0f), 1f, 0f, 10f);
+        Assert.AreEqual(0f, BallRules.LandingTime(ground), 0f);
+    }
+
+    [Test]
+    public void BelowHeightFrom은_땅볼이면_0이다()
+    {
+        BallState ground = BallRules.Kick(BallState.FreeAt(7f, -3f), 1f, 0f, 12f);
+        Assert.AreEqual(0f, BallRules.BelowHeightFrom(ground, MatchTuning.FieldReachHeight), 0f);
+    }
+
+    [Test]
+    public void BelowHeightFrom은_하강_중인_높은_공이_닿는_높이로_내려오는_시각이다()
+    {
+        BallState ball = InAir(6f, -3f);
+        float reach = MatchTuning.FieldReachHeight;
+        float g = MatchTuning.Gravity;
+        float expected = (-3f + (float)System.Math.Sqrt(9f + 2f * g * (6f - reach))) / g;
+        float t = BallRules.BelowHeightFrom(ball, reach);
+        Assert.AreEqual(expected, t, 1e-3f);
+        Assert.AreEqual(reach, BallRules.PositionAt(ball, t).y, 1e-3f, "그 시각에 공이 정확히 닿는 높이");
+        Assert.AreEqual(10f * t, BallRules.PositionAt(ball, t).x, 1e-3f);
+    }
+
+    [Test]
+    public void BelowHeightFrom은_이미_닿는_높이_아래면_상승_중이어도_0이다()
+    {
+        Assert.AreEqual(0f, BallRules.BelowHeightFrom(InAir(1f, 5f), MatchTuning.FieldReachHeight), 0f);
+        Assert.AreEqual(0f, BallRules.BelowHeightFrom(InAir(1f, -5f), MatchTuning.FieldReachHeight), 0f);
+    }
+
+    [Test]
+    public void BelowHeightFrom은_닿는_높이가_클수록_더_이르다()
+    {
+        BallState ball = InAir(6f, 4f);
+        float keeper = BallRules.BelowHeightFrom(ball, BallRules.ReachHeight(keeperInOwnBox: true));
+        float field = BallRules.BelowHeightFrom(ball, BallRules.ReachHeight(keeperInOwnBox: false));
+        Assert.Less(keeper, field, "손이 더 높이 닿으니 공이 덜 내려와도 된다");
+        Assert.AreEqual(MatchTuning.KeeperReachHeight, BallRules.ReachHeight(keeperInOwnBox: true), 0f);
+        Assert.AreEqual(MatchTuning.FieldReachHeight, BallRules.ReachHeight(keeperInOwnBox: false), 0f);
+    }
+
+    [Test]
+    public void FirstAboveHeight는_로빙_발사_구간의_끝이고_낮은_로빙은_착지_시각이다()
+    {
+        BallState lob = Lob(25f);
+        float reach = MatchTuning.FieldReachHeight;
+        float t = BallRules.FirstAboveHeight(lob, reach);
+        Assert.AreEqual(reach, BallRules.PositionAt(lob, t).y, 1e-3f);
+        Assert.Less(t, BallRules.LandingTime(lob) / 2f, "정점 전에 넘어선다");
+
+        BallState low = Lob(5f);
+        Assert.AreEqual(BallRules.LandingTime(low), BallRules.FirstAboveHeight(low, reach), 1e-4f, "정점이 닿는 높이 아래면 끝까지 닿는다");
+        Assert.AreEqual(0f, BallRules.FirstAboveHeight(InAir(6f, 1f), reach), 0f, "이미 위에 있으면 0");
+    }
+
     [Test]
     public void 잡거나_다시_차면_높이가_0이_된다()
     {
