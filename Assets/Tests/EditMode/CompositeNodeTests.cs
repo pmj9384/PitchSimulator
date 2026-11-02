@@ -60,6 +60,7 @@ public class CompositeNodeTests
         public void JogToward(float x, float z) { }
         public void Shoot() { }
         public void Pass(int receiverId, float landingX, float landingZ) { }
+        public void PassLob(int receiverId, float landingX, float landingZ) { }
     }
 
     private static BehaviorNode Cond(bool value)

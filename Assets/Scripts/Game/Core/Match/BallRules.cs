@@ -32,7 +32,8 @@ namespace Game.Core.Match
             return ball;
         }
 
-        // 공중: 중력만 받는다(공기저항·양력은 무시, 10-29 ④-1 [가정]). 수평 속도는 그대로 가고, 땅에 닿으면 높이 0에서 굴림으로 이어진다(튀지 않음 [가정])
+        // 공중: 중력만 받는다(공기저항·양력은 무시, 10-29 ④-1 [가정]). 수평 속도는 그대로 가고, 땅에 닿으면 높이 0에서 굴림으로 이어진다.
+        // 착지 때 잔디가 수평 속도를 깎는다(LobBounceSpeedRetention). 안 깎으면 25m 로빙이 12m/s로 내려앉아 60m를 굴렀다(11-02 리뷰). 세로로 튀지는 않는다 [가정]
         private static BallState StepAir(BallState ball, float deltaTime)
         {
             ball.VelY -= MatchTuning.Gravity * deltaTime;
@@ -43,7 +44,29 @@ namespace Game.Core.Match
 
             ball.Y = 0f;
             ball.VelY = 0f;
+            ball.VelX *= MatchTuning.LobBounceSpeedRetention;
+            ball.VelZ *= MatchTuning.LobBounceSpeedRetention;
             return ball;
+        }
+
+        // 거리 distance에 떨어지는 로빙의 수평·세로 초속과 체공 시간. 발사각 고정, 공기저항 없음: v² = d·g / sin2θ
+        public static (float horizontal, float vertical, float flightTime) LobVelocity(float distance, float angleDeg, float gravity)
+        {
+            float rad = angleDeg * (float)Math.PI / 180f;
+            float speed = (float)Math.Sqrt(distance * gravity / Math.Sin(2f * rad));
+            float vertical = speed * (float)Math.Sin(rad);
+            return (speed * (float)Math.Cos(rad), vertical, 2f * vertical / gravity);
+        }
+
+        // 로빙이 height를 넘어 오를 때까지 수평으로 가는 거리(발사 구간). 그 안에선 공이 낮아 경로 가까운 선수가 잡을 수 있다.
+        // 끝까지 height를 못 넘는 낮은 로빙이면 전체 거리. v·t − g·t²/2 = height의 작은 근
+        public static float LobRiseDistance(float distance, float angleDeg, float gravity, float height)
+        {
+            (float horizontal, float vertical, float flightTime) v = LobVelocity(distance, angleDeg, gravity);
+            double disc = (double)v.vertical * v.vertical - 2.0 * gravity * height;
+            if (disc < 0.0) { return distance; }
+            double t = (v.vertical - Math.Sqrt(disc)) / gravity;
+            return (float)(v.horizontal * t);
         }
 
         // 이 높이의 공에 닿을 수 있나(10-29 ④-1). 필드 선수는 머리·발 뻗는 높이, GK는 자기 페널티 박스 안에서 손을 뻗는 높이(IFAB 12조: 손은 자기 박스 안에서만)

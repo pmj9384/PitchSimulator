@@ -655,7 +655,7 @@ namespace Game.Core.Match
 
             if (p.WantsPass && owner && p.PassReceiverId != BallState.NoOwner && p.PassReceiverId != p.PlayerId)
             {
-                Pass(p, p.PassReceiverId, p.PassLandingX, p.PassLandingZ);
+                Pass(p, p.PassReceiverId, p.PassLandingX, p.PassLandingZ, p.PassIsLob);
                 p.Stop();   // 슛과 같다. 차고 나면 다시 가속부터
                 return;
             }
@@ -790,13 +790,13 @@ namespace Game.Core.Match
 
         // 패스: 트리가 고른 착지점으로 직선 비행(전엔 여기서 받는 선수 앞 8m를 다시 계산해, 트리가 안전하다고 본 점과 실제로 찬 점이 달랐다).
         // 초속은 착지점까지 거리로 역산(도착 속도 = 공이 있는 서드의 팀 템포). 리시버는 스냅샷으로 알고 마중 나간다
-        private void Pass(PlayerState passer, int receiverId, float landingX, float landingZ)
+        private void Pass(PlayerState passer, int receiverId, float landingX, float landingZ, bool lob)
         {
             Third third = PositionRules.ThirdOf(Ball.X, passer.AttackSign);
             float average = MatchTuning.PassAverageSpeed[tactics[passer.Team].Tempo[(int)third]];
             float dx = landingX - passer.X;
             float dz = landingZ - passer.Z;
-            float speed = PassRules.KickSpeed((float)Math.Sqrt(dx * dx + dz * dz), average, MatchTuning.BallDeceleration, MatchTuning.PassSpeedMax);
+            float distance = (float)Math.Sqrt(dx * dx + dz * dz);
 
             passInFlight = true;
             passReceiverId = receiverId;
@@ -812,7 +812,18 @@ namespace Game.Core.Match
             kickoffTakerId = BallState.NoOwner;   // 킥오프는 첫 킥으로 끝난다
             takeOnOwnerId = BallState.NoOwner;    // 공을 내줬으면 돌파도 끝
 
-            Ball = BallRules.Kick(Ball, dx, dz, speed);
+            if (lob)
+            {
+                // 발사각 고정, 착지 거리에서 초속을 역산한다. 트리가 LobRisk로 본 착지점에 실제로 떨어진다(판정과 실행이 같은 점)
+                (float horizontal, float vertical, float flightTime) v =
+                    BallRules.LobVelocity(distance, MatchTuning.LobLaunchAngleDeg, MatchTuning.Gravity);
+                Ball = BallRules.KickLob(Ball, dx, dz, v.horizontal, v.vertical);
+            }
+            else
+            {
+                float speed = PassRules.KickSpeed(distance, average, MatchTuning.BallDeceleration, MatchTuning.PassSpeedMax);
+                Ball = BallRules.Kick(Ball, dx, dz, speed);
+            }
             BallKicked?.Invoke(new KickReport(passer.PlayerId, false, dx, dz));
         }
 

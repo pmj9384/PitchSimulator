@@ -69,5 +69,6 @@ namespace Game.Core.AI
         void RunToward(float x, float z);      // 멈출 생각 없이 전력으로(공 쫓기·공 몰기)
         void Shoot();
         void Pass(int receiverId, float landingX, float landingZ);   // 착지점까지 트리가 정한다. 시뮬은 그 점으로 찬다
+        void PassLob(int receiverId, float landingX, float landingZ);   // 띄워서 그 점에 떨어뜨린다(10-29 ④-1). 시뮬이 발사각·초속을 정한다
     }
 }

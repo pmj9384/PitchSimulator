@@ -454,4 +454,54 @@ public class PassFlightTests
         sim.Tick(Dt);
         Assert.IsTrue(st.IsPassTarget, "섞어: 다음 배급은 길게(가장 앞선 ST)");
     }
+
+    // 공을 가지면 정한 점으로 한 번 띄운다(10-29 ④-1)
+    private sealed class LobOnce : BehaviorNode
+    {
+        private readonly int passer;
+        private readonly int receiver;
+        private readonly float landingX;
+        private readonly float landingZ;
+        private bool done;
+
+        public LobOnce(int passer, int receiver, float landingX, float landingZ)
+        {
+            this.passer = passer;
+            this.receiver = receiver;
+            this.landingX = landingX;
+            this.landingZ = landingZ;
+        }
+
+        public override NodeState Tick(IPlayerContext ctx)
+        {
+            if (!done && ctx.PlayerId == passer && ctx.OwnsBall)
+            {
+                ctx.PassLob(receiver, landingX, landingZ);
+                done = true;
+            }
+            return NodeState.Success;
+        }
+    }
+
+    [Test]
+    public void 로빙은_트리가_고른_착지점에_떨어진다()
+    {
+        // 11-02 리뷰: 판정(LobRisk)이 본 점과 실행이 같은 점이어야 한다. 리시버는 멀리 세워 공중에서 안 잡게 한다
+        var sim = new MatchSimulation(() => 0.5f, new LobOnce(passer: 0, receiver: 1, landingX: 25f, landingZ: 5f));
+        sim.AddPlayer(new PlayerState(0, 0, Mid(), 0f, 0f));
+        sim.AddPlayer(new PlayerState(1, 0, Mid(), 40f, -20f));
+        sim.Kickoff();
+        sim.Ball = BallRules.Own(sim.Ball, 0, 0f, 0f);
+
+        sim.Tick(Dt);
+        Assert.IsTrue(sim.Ball.Airborne, "띄워 찼다");
+        int ticks = 0;
+        while (sim.Ball.Airborne && ticks < 500)
+        {
+            sim.Tick(Dt);
+            ticks++;
+        }
+        Assert.AreEqual(25f, sim.Ball.X, 0.5f);
+        Assert.AreEqual(5f, sim.Ball.Z, 0.5f);
+    }
 }

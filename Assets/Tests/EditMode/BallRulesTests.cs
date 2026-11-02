@@ -152,6 +152,17 @@ public class BallRulesTests
     }
 
     [Test]
+    public void 로빙이_착지하면_잔디가_수평_속도를_깎는다()
+    {
+        // 11-02 리뷰: 안 깎으면 25m 로빙이 12m/s로 내려앉아 60m를 굴렀다. FIFA Angle Ball Rebound 유지율
+        BallState ball = Lob(16f, 40f);
+        float vx = ball.VelX;
+        while (ball.Airborne) { ball = BallRules.Step(ball, 0.02f, MatchTuning.BallDeceleration); }
+        Assert.AreEqual(vx * MatchTuning.LobBounceSpeedRetention, ball.VelX, 1e-4f);
+        Assert.AreEqual(0f, ball.VelY, 0f, "세로로 튀지 않는다");
+    }
+
+    [Test]
     public void 땅볼은_높이가_0으로_남는다()
     {
         BallState ball = BallRules.Kick(BallState.FreeAt(0f, 0f), 1f, 0f, 10f);

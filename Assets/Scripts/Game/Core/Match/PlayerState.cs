@@ -73,6 +73,7 @@ namespace Game.Core.Match
         public float MoveTargetZ { get; private set; }
         public bool WantsShoot { get; private set; }
         public bool WantsPass { get; private set; }
+        public bool PassIsLob { get; private set; }   // 띄워 차는 패스(10-29 ④-1). WantsPass일 때만 뜻이 있다
         public int PassReceiverId { get; private set; } = -1;
         public float PassLandingX { get; private set; }   // 내가 차는 패스의 착지점(트리가 고른 점). WantsPass일 때만 뜻이 있다. 위의 PassTargetX·Z는 나에게 오는 패스의 도착점이라 방향이 반대다
         public float PassLandingZ { get; private set; }
@@ -139,9 +140,16 @@ namespace Game.Core.Match
         public void Pass(int receiverId, float landingX, float landingZ)
         {
             WantsPass = true;
+            PassIsLob = false;
             PassReceiverId = receiverId;
             PassLandingX = landingX;
             PassLandingZ = landingZ;
+        }
+
+        public void PassLob(int receiverId, float landingX, float landingZ)
+        {
+            Pass(receiverId, landingX, landingZ);
+            PassIsLob = true;
         }
 
         // 태클. 시뮬이 틱마다 줄인다. 정지 중엔 이동 안 함(제쳐짐), 쿨다운 중엔 재시도 안 함
@@ -168,6 +176,7 @@ namespace Game.Core.Match
             MoveMode = MoveMode.Arrive;
             WantsShoot = false;
             WantsPass = false;
+            PassIsLob = false;
             PassReceiverId = -1;
         }
 

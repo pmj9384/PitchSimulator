@@ -74,16 +74,64 @@ public class PlayerTreeTests
             MoveZ = z;
         }
         public void Shoot() { Did = "shoot"; }
+        public bool Lob;   // 마지막 패스가 로빙이었나(10-29 ④-1)
         public void Pass(int receiverId, float landingX, float landingZ)
         {
             Did = "pass";
+            Lob = false;
             PassedTo = receiverId;
             PassX = landingX;
             PassZ = landingZ;
         }
+        public void PassLob(int receiverId, float landingX, float landingZ)
+        {
+            Pass(receiverId, landingX, landingZ);
+            Lob = true;
+        }
     }
 
     private static readonly BehaviorNode Tree = PlayerTreeBuilder.Build();
+
+    [Test]
+    public void 땅볼_길이_막히고_착지점이_비면_띄워_준다()
+    {
+        // 10-29 ④-1: 패서 (0,0) → 앞선 리시버 (24,0). 경로 한가운데 (12,0)에 상대 1명. 리시버 주변은 비었다
+        var cm = new Fake
+        {
+            PlayerId = 4, BallPhase = BallPhase.Owned, OwnsBall = true, BallOwnerTeam = 0, X = 0f, Z = 0f,
+            Teammates = new List<TargetInfo> { new TargetInfo(9, 24f, 0f) },
+            Opponents = new List<TargetInfo> { new TargetInfo(15, 12f, 0f), new TargetInfo(16, 40f, -15f), new TargetInfo(17, 42f, 15f), new TargetInfo(18, 50f, 0f) },   // 깊은 수비 2명 + GK 자리: 오프사이드 선 42
+        };
+        cm.Stats.PassLength = 25f;
+        cm.Tactics.PassStyle = new[] { 1, 1, 1 };   // 직접. 짧게(기본 0)는 안 띄운다
+        Tree.Tick(cm);
+        Assert.AreEqual("pass", cm.Did);
+        Assert.AreEqual(9, cm.PassedTo);
+        Assert.IsTrue(cm.Lob, "땅볼은 (12,0) 수비에 끊긴다");
+
+        cm.Tactics.PassStyle = new[] { 0, 0, 0 };
+        cm.Did = "";
+        cm.Lob = false;
+        Tree.Tick(cm);
+        Assert.IsFalse(cm.Lob, "짧게 서드에선 막혀도 안 띄운다(11-02)");
+    }
+
+    [Test]
+    public void 땅볼_길이_비어_있으면_띄우지_않는다()
+    {
+        // 위와 같은 자리에서 경로 위 상대만 뺐다. 땅볼과 로빙이 둘 다 안전하면(가중 동률) 땅볼
+        var cm = new Fake
+        {
+            PlayerId = 4, BallPhase = BallPhase.Owned, OwnsBall = true, BallOwnerTeam = 0, X = 0f, Z = 0f,
+            Teammates = new List<TargetInfo> { new TargetInfo(9, 24f, 0f) },
+            Opponents = new List<TargetInfo> { new TargetInfo(16, 40f, -15f), new TargetInfo(17, 42f, 15f), new TargetInfo(18, 50f, 0f) },
+        };
+        cm.Stats.PassLength = 25f;
+        cm.Tactics.PassStyle = new[] { 1, 1, 1 };
+        Tree.Tick(cm);
+        Assert.AreEqual("pass", cm.Did);
+        Assert.IsFalse(cm.Lob);
+    }
 
     [Test]
     public void GK가_잡으면_배급_패스다()
@@ -105,6 +153,7 @@ public class PlayerTreeTests
         Tree.Tick(gk);
         Assert.AreEqual("pass", gk.Did);
         Assert.AreEqual(2, gk.PassedTo, "붙어 있으면 길게(가장 앞선 아군)");
+        Assert.IsFalse(gk.Lob, "GK 배급은 로빙 판정을 안 탄다(PassUnchecked, 땅볼만)");
     }
 
     [Test]
@@ -425,6 +474,7 @@ public class PlayerTreeTests
         Tree.Tick(kicker);
         Assert.AreEqual("pass", kicker.Did);
         Assert.AreEqual(7, kicker.PassedTo, "앞선 10번(5m)이 더 가까워도 뒤의 7번(10m)");
+        Assert.IsFalse(kicker.Lob, "킥오프는 땅볼만");
     }
 
     [Test]

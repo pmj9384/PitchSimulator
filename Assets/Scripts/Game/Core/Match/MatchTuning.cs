@@ -128,6 +128,12 @@ namespace Game.Core.Match
         public const float Gravity = 9.81f;
         public const float FieldReachHeight = 2.2f;     // 필드 선수가 공에 닿는 최고 높이(m). 키 1.8m + 헤딩·발 뻗기 [가정]
         public const float KeeperReachHeight = 2.6f;    // 자기 박스 안 GK가 손으로 닿는 높이(m). 크로스바 2.44m 위까지 [가정]
+        public const int LobMinPassStyle = 1;           // 로빙을 차는 최소 패스 방식(0 짧게·1 직접·2 롱볼). 짧게 서드는 안 띄운다(11-02: 띄우면 짧게·롱볼 카드의 패스 길이 차이가 사라졌다)
+        public const float LobLaunchAngleDeg = 40f;     // 로빙 발사각. 초속은 착지 거리에서 역산(BallRules.LobVelocity) [가정]
+        public const float LobMinDistance = 15f;        // 이보다 짧은 패스는 띄우지 않는다 [가정]
+        public const float LobMaxDistance = 45f;        // 이보다 긴 패스도 띄우지 않는다(초속 22m/s 근처) [가정]
+        public const float ArrivalSigma = 0.45f;        // 도착 시간 차를 확률로 바꾸는 폭(초). Spearman 2017 "Beyond Expected Goals" pitch control의 tti_sigma
+        public const float LobBounceSpeedRetention = 0.53f;   // 로빙 착지 때 남는 수평 속도 비율. FIFA Quality Programme(2015) Angle Ball Rebound Pro 건조 45~60%의 중앙. 시험 입사각·속도는 미확인 [가정]
         public const float JogSpeedFraction = 0.6f;     // 자리 잡기 조깅 상한 = 최고 속도 × 이 값. speed 50이면 4.2m/s, 트래킹 속도 구간의 조깅 상한 4m/s(14.4km/h, PMC11534638)와 비슷. [가정] 러너로 오프볼 스프린트 약 80에 맞춘다
         public const float PassSafetyBand = 0.1f;       // 패스 안전 가중의 경계 띠(허용치 ± 이 값에서 1 → 0, PassRules.SafetyWeight). [가정] 출처 없음, 10-25 격자로 확인
         public const float ForwardRunMargin = 1f;       // 아군 소유 중 공격 자리가 이보다 앞이면 전진 런(전력). [가정] 제자리 떨림만 거르는 값

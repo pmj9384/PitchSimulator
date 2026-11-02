@@ -96,6 +96,95 @@ namespace Game.Core.Match
             return (1f - interceptRisk) * taper;
         }
 
+        // 로빙의 위험(10-29 ④-1 3단계): 공이 머리 위로 가니 경로 옆 수비는 무관하고, 착지점에 누가 먼저 닿나로 정한다(HELIOS·Spearman의 도착 경쟁).
+        // 도착 시간 = 발 뻗는 범위 밖이면 반응 + 달릴 거리 ÷ 속도(땅볼 판정 InterceptRisk와 같은 모양). 받는 선수와 가장 빠른 상대의 시간 차를
+        // 로지스틱(폭 sigma, Spearman pitch control)으로 확률로 바꾼다. 동시 도착 = 0.5. 킥 지점에 붙은 상대는 뜨기 전에 닿으니 1.
+        // 상대는 착지점 한 점이 아니라 하강 구간(공이 잡기 높이 아래로 내려온 뒤 착지까지) 위 가장 가까운 점까지 잰다. 그 구간에선 공이 낮아 잡힌다(11-02 리뷰).
+        // 받는 선수는 킥 순간부터 착지점으로 마중 나가니 반응 지연이 없다. reaction은 상대에게만 준다(11-02 리뷰)
+        // 하강 구간은 필드 선수 높이(FieldReachHeight)로 잰다. 상대 박스 안 GK는 2.6m까지 닿아 실제론 더 일찍 잡는다(④ GK 공중볼 단계에서 맞춘다)
+        public static float LobRisk(float passerX, float passerZ, float landingX, float landingZ, float receiverX, float receiverZ,
+            IReadOnlyList<TargetInfo> opponents, float runSpeed, float reaction, float sigma)
+        {
+            float distance = Distance(passerX, passerZ, landingX, landingZ);
+            if (distance <= 0f) { return 1f; }
+
+            // 포물선은 좌우 대칭이라 하강 구간 길이 = 발사 구간 길이
+            float fall = BallRules.LobRiseDistance(distance, MatchTuning.LobLaunchAngleDeg, MatchTuning.Gravity, MatchTuning.FieldReachHeight);
+            float startX = landingX - (landingX - passerX) / distance * fall;
+            float startZ = landingZ - (landingZ - passerZ) / distance * fall;
+
+            float receiverTime = ArrivalTime(Distance(receiverX, receiverZ, landingX, landingZ), runSpeed, 0f);
+            float defenderTime = float.MaxValue;
+            for (int i = 0; i < opponents.Count; i++)
+            {
+                if (Distance(opponents[i].X, opponents[i].Z, passerX, passerZ) <= MatchTuning.InterceptReach) { return 1f; }
+                float toSegment = DistanceToSegment(opponents[i].X, opponents[i].Z, startX, startZ, landingX, landingZ);
+                float t = ArrivalTime(toSegment, runSpeed, reaction);
+                if (t < defenderTime) { defenderTime = t; }
+            }
+            if (defenderTime == float.MaxValue) { return 0f; }
+            // π/√3은 sigma를 로지스틱 분포의 표준편차로 읽는 변환이다(Spearman 2017 pitch control의 tti_sigma)
+            double x = (receiverTime - defenderTime) / sigma * Math.PI / Math.Sqrt(3.0);
+            return (float)(1.0 / (1.0 + Math.Exp(-x)));
+        }
+
+        private static float ArrivalTime(float distance, float runSpeed, float reaction)
+        {
+            float run = distance - MatchTuning.InterceptReach;
+            if (run <= 0f) { return 0f; }
+            return reaction + run / runSpeed;
+        }
+
+        // 점 (px, pz)에서 선분 (ax, az)–(bx, bz)까지 가장 짧은 거리
+        private static float DistanceToSegment(float px, float pz, float ax, float az, float bx, float bz)
+        {
+            float dx = bx - ax;
+            float dz = bz - az;
+            float lengthSq = dx * dx + dz * dz;
+            if (lengthSq <= 0f) { return Distance(px, pz, ax, az); }
+            float t = ((px - ax) * dx + (pz - az) * dz) / lengthSq;
+            t = Math.Clamp(t, 0f, 1f);
+            return Distance(px, pz, ax + dx * t, az + dz * t);
+        }
+
+        // 로빙의 발사 구간 위험(10-29 ④-1, 진단: 로빙의 85%가 차자마자 0.5~1.5m 높이에서 킥 지점 근처 상대에게 끊겼다).
+        // 공이 잡기 높이를 넘기 전까지의 짧은 경로를 땅볼과 같은 가로채기 판정(InterceptRisk)으로 잰다. 실행에서 공이 낮은 구간과 같은 구간이다
+        public static float LobLaunchRisk(float passerX, float passerZ, float landingX, float landingZ, IReadOnlyList<TargetInfo> opponents)
+        {
+            float distance = Distance(passerX, passerZ, landingX, landingZ);
+            if (distance <= 0f) { return 1f; }
+            float rise = BallRules.LobRiseDistance(distance, MatchTuning.LobLaunchAngleDeg, MatchTuning.Gravity, MatchTuning.FieldReachHeight);
+            float endX = passerX + (landingX - passerX) / distance * rise;
+            float endZ = passerZ + (landingZ - passerZ) / distance * rise;
+            float horizontal = LobHorizontalSpeed(distance);
+            return InterceptRisk(passerX, passerZ, endX, endZ, opponents, MatchTuning.InterceptRunSpeed, horizontal, MatchTuning.ReactionTime);
+        }
+
+        // 로빙 후보: 같은 리시버에게 띄워 주는 착지점(긴 리드)과 그 위험 = max(발사 구간, 착지 경쟁). 거리가 로빙 범위 밖이면 PassLanding.None.
+        // 리드는 로빙의 수평 속도로 잰다(체공 시간 = 거리 ÷ 수평 속도). 지금 상수에선 로빙 범위(15m 이상)의 리드가 늘 상한 PassLeadMax 8m에 걸려 땅볼 속도로 재도 같지만, 상한이나 범위를 바꾸면 차이가 난다
+        // 착지 뒤 굴러가는 공(착지 속도 × LobBounceSpeedRetention)을 리시버가 놓쳤을 때의 위험은 판정 밖이다 [가정]
+        public static PassLanding LobLanding(float passerX, float passerZ, float receiverX, float receiverZ, int attackSign, IReadOnlyList<TargetInfo> opponents)
+        {
+            float toReceiver = Distance(passerX, passerZ, receiverX, receiverZ);
+            if (toReceiver <= 0f) { return PassLanding.None; }
+            float horizontal = LobHorizontalSpeed(toReceiver);
+            (float x, float z) point = LeadTarget(passerX, receiverX, receiverZ, attackSign, toReceiver, horizontal, MatchTuning.SpeedMpsAt50, MatchTuning.PassLeadOptions[0]);
+
+            float distance = Distance(passerX, passerZ, point.x, point.z);
+            if (distance < MatchTuning.LobMinDistance) { return PassLanding.None; }
+            if (distance > MatchTuning.LobMaxDistance) { return PassLanding.None; }
+
+            float race = LobRisk(passerX, passerZ, point.x, point.z, receiverX, receiverZ, opponents, MatchTuning.InterceptRunSpeed, MatchTuning.ReactionTime, MatchTuning.ArrivalSigma);
+            float launch = LobLaunchRisk(passerX, passerZ, point.x, point.z, opponents);
+            return new PassLanding(point.x, point.z, Math.Max(race, launch));
+        }
+
+        private static float LobHorizontalSpeed(float distance)
+        {
+            (float horizontal, float vertical, float flightTime) v = BallRules.LobVelocity(distance, MatchTuning.LobLaunchAngleDeg, MatchTuning.Gravity);
+            return v.horizontal;
+        }
+
         // 되돌림 패스(방금 준 선수에게 곧바로 뒤로)는 안전한(허용치 이하) 다른 후보가 없을 때만 쓴다(W↔ST 측면 왕복 22회, 09-21).
         // 10-29 리뷰: 안전 가중 띠 안의 허용치 넘는 후보가 안전한 되돌림을 늘 이겼다(전엔 안전한 후보만 골랐다)
         public static bool PrefersOverReturn(bool bestFound, bool bestIsSafe, bool returnFound)
@@ -167,7 +256,7 @@ namespace Game.Core.Match
         // 착지점까지 가중으로 고르면 위험 0인 발밑이 늘 이겨 공간 패스가 사라진다. 리드 길이의 가치는 ScoreReceiver에 없다
         public static PassLanding PickLanding(float passerX, float passerZ, float receiverX, float receiverZ, int attackSign, float averageSpeed, IReadOnlyList<TargetInfo> opponents, float riskAllow)
         {
-            PassLanding leastRisky = default;
+            PassLanding leastRisky = PassLanding.None;
             for (int i = 0; i < MatchTuning.PassLeadOptions.Length; i++)
             {
                 (float x, float z) point = LandingPoint(passerX, passerZ, receiverX, receiverZ, attackSign, averageSpeed, MatchTuning.PassLeadOptions[i]);
@@ -265,32 +354,42 @@ namespace Game.Core.Match
     // 착지점 하나와 그 점까지의 가로채기 위험(0~1)
     public readonly struct PassLanding
     {
+        public static readonly PassLanding None = new PassLanding(0f, 0f, 1f, false);   // 후보가 없다(로빙 범위 밖 등). 위험 1과 구별한다
+
         public readonly float X;
         public readonly float Z;
         public readonly float Risk;
+        public readonly bool Found;
 
-        public PassLanding(float x, float z, float risk)
+        public PassLanding(float x, float z, float risk) : this(x, z, risk, true)
+        {
+        }
+
+        private PassLanding(float x, float z, float risk, bool found)
         {
             X = x;
             Z = z;
             Risk = risk;
+            Found = found;
         }
     }
 
     // 패스 한 번의 선택: 누구에게, 어느 점으로. 트리가 고르고 시뮬은 그 점으로 찬다
     public readonly struct PassChoice
     {
-        public static readonly PassChoice None = new PassChoice(-1, 0f, 0f);
+        public static readonly PassChoice None = new PassChoice(-1, 0f, 0f, false);
 
         public readonly int ReceiverId;
         public readonly float X;
         public readonly float Z;
+        public readonly bool IsLob;   // 띄워 준다(10-29 ④-1)
 
-        public PassChoice(int receiverId, float x, float z)
+        public PassChoice(int receiverId, float x, float z, bool isLob)
         {
             ReceiverId = receiverId;
             X = x;
             Z = z;
+            IsLob = isLob;
         }
 
         public bool Found => ReceiverId != -1;
