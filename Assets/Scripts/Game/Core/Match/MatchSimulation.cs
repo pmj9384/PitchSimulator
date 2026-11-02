@@ -600,6 +600,7 @@ namespace Game.Core.Match
                 p.Opponents = rosterSnapshot[other];
                 p.IsKeeperAlternate = keeperAlternate[p.Team];
                 p.OpponentKeeper = keeperIds[other] == -1 ? null : FindPlayer(keeperIds[other]).Stats;
+                p.OpponentKeeperId = keeperIds[other];
                 p.IsPassTarget = passInFlight && passReceiverId == p.PlayerId;
                 p.PassTargetX = passTargetX;
                 p.PassTargetZ = passTargetZ;
@@ -814,10 +815,8 @@ namespace Game.Core.Match
 
             if (lob)
             {
-                // 발사각 고정, 착지 거리에서 초속을 역산한다. 트리가 LobRisk로 본 착지점에 실제로 떨어진다(판정과 실행이 같은 점)
-                (float horizontal, float vertical, float flightTime) v =
-                    BallRules.LobVelocity(distance, MatchTuning.LobLaunchAngleDeg, MatchTuning.Gravity);
-                Ball = BallRules.KickLob(Ball, dx, dz, v.horizontal, v.vertical);
+                // 발사각 고정, 착지 거리에서 초속을 역산한다. 트리가 도달 경쟁(InterceptRules)으로 본 착지점에 실제로 떨어진다(판정과 실행이 같은 점)
+                Ball = BallRules.KickLobTo(Ball, dx, dz);
             }
             else
             {

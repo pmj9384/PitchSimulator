@@ -486,7 +486,7 @@ public class PassFlightTests
     [Test]
     public void 로빙은_트리가_고른_착지점에_떨어진다()
     {
-        // 11-02 리뷰: 판정(LobRisk)이 본 점과 실행이 같은 점이어야 한다. 리시버는 멀리 세워 공중에서 안 잡게 한다
+        // 11-02 리뷰: 판정(InterceptRules)이 본 점과 실행이 같은 점이어야 한다. 리시버는 멀리 세워 공중에서 안 잡게 한다
         var sim = new MatchSimulation(() => 0.5f, new LobOnce(passer: 0, receiver: 1, landingX: 25f, landingZ: 5f));
         sim.AddPlayer(new PlayerState(0, 0, Mid(), 0f, 0f));
         sim.AddPlayer(new PlayerState(1, 0, Mid(), 40f, -20f));

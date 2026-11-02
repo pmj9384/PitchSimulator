@@ -44,6 +44,7 @@ public class CompositeNodeTests
         public bool WantsTakeOn => false;
         public bool IsKeeperAlternate => false;
         public int LastPasserId => -1;
+        public int OpponentKeeperId => -1;
         public PlayerStats OpponentKeeper => null;   // 테스트 asmdef는 nullable 미적용. 계약은 PlayerStats?
         public float AttackHomeX => 0f;
         public float AttackHomeZ => 0f;

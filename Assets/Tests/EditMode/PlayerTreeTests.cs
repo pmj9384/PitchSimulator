@@ -38,6 +38,7 @@ public class PlayerTreeTests
         public bool IsKeeperAlternate { get; set; }
         public int LastPasserId { get; set; } = -1;
         public PlayerStats OpponentKeeper { get; set; } = null;
+        public int OpponentKeeperId { get; set; } = -1;
         public float AttackHomeX { get; set; }
         public float AttackHomeZ { get; set; }
         public float DefendHomeX { get; set; }

@@ -209,14 +209,14 @@ namespace Game.Core.AI
         // 한 리시버에게 찰 착지점과 안전 가중, 띄울지. 땅볼 착지점과 로빙 착지점 중 가중이 큰 쪽(동률은 땅볼).
         // 안전 판정은 실제 착지점까지(09-21 3분 계측: 리시버 위치까지만 보면 그 앞 8m에 선 수비수가 걸러져 롱패스가 늘 먹혔다).
         // 땅볼 착지점은 후보 중 안전한 가장 긴 것. 고른 점을 그대로 시뮬에 넘겨 판정과 실행이 같은 점을 본다.
-        // 로빙(10-29 ④-1)은 경로가 아니라 착지점 도착 경쟁으로 잰다(PassRules.LobRisk). 패스 방식이 짧게인 서드거나 로빙 범위 밖이면 땅볼만
+        // 로빙(10-29 ④-1)은 경로가 아니라 도달 경쟁으로 잰다(PassRules.LobLanding, InterceptRules). 패스 방식이 짧게인 서드거나 로빙 범위 밖이면 땅볼만
         private static (PassLanding landing, float weight, bool lob) ChooseLanding(IPlayerContext ctx, TargetInfo receiver, float average, float riskAllow, int passStyle)
         {
             PassLanding ground = PassRules.PickLanding(ctx.X, ctx.Z, receiver.X, receiver.Z, ctx.AttackSign, average, ctx.Opponents, riskAllow);
             float groundWeight = PassRules.SafetyWeight(ground.Risk, riskAllow, MatchTuning.PassSafetyBand);
             if (passStyle < MatchTuning.LobMinPassStyle) { return (ground, groundWeight, false); }
 
-            PassLanding lob = PassRules.LobLanding(ctx.X, ctx.Z, receiver.X, receiver.Z, ctx.AttackSign, ctx.Opponents);
+            PassLanding lob = PassRules.LobLanding(ctx.X, ctx.Z, receiver.X, receiver.Z, ctx.AttackSign, ctx.Opponents, ctx.OpponentKeeperId);
             if (!lob.Found) { return (ground, groundWeight, false); }
 
             float lobWeight = PassRules.SafetyWeight(lob.Risk, riskAllow, MatchTuning.PassSafetyBand);

@@ -322,84 +322,62 @@ public class PassRulesTests
     }
 
     [Test]
-    public void 로빙_위험은_경로가_아니라_착지점_도착_경쟁이다()
+    public void 로빙_위험은_경로가_아니라_도달_경쟁이다()
     {
-        // 경로 한가운데(10, 0)의 수비는 땅볼이면 확실히 끊지만 로빙엔 무관하다. 착지점(25, 0)엔 리시버가 2m, 수비가 15m
+        // 경로 한가운데(10,0)의 수비는 땅볼이면 확실히 끊지만 로빙엔 무관하다. 그 점에선 공이 이미 머리 위(5m)다
         var onPath = new List<TargetInfo> { new TargetInfo(11, 10f, 0f) };
-        float lob = PassRules.LobRisk(0f, 0f, 25f, 0f, 23f, 0f, onPath, 7f, 0.5f, 0.45f);
+        PassLanding lob = PassRules.LobLanding(0f, 0f, 23f, 0f, 1, onPath, -1);
         float ground = PassRules.InterceptRisk(0f, 0f, 25f, 0f, onPath, 7f, 15f, 0.5f);
         Assert.AreEqual(1f, ground, 1e-5f);
-        Assert.Less(lob, 0.1f);
-    }
-
-    [Test]
-    public void 로빙_위험은_동시_도착이면_절반이고_수비가_빠르면_높다()
-    {
-        // 반응 지연 0이면 같은 거리 = 동시 도착
-        var same = new List<TargetInfo> { new TargetInfo(11, 25f, 5f) };
-        Assert.AreEqual(0.5f, PassRules.LobRisk(0f, 0f, 25f, 0f, 25f, -5f, same, 7f, 0f, 0.45f), 1e-4f);
-        var closer = new List<TargetInfo> { new TargetInfo(11, 26f, 0f) };
-        Assert.Greater(PassRules.LobRisk(0f, 0f, 25f, 0f, 25f, -10f, closer, 7f, 0.5f, 0.45f), 0.9f);
+        Assert.IsTrue(lob.Found);
+        Assert.Less(lob.Risk, 0.1f);
     }
 
     [Test]
     public void 킥_지점에_붙은_상대는_로빙도_뜨기_전에_막는다()
     {
         var glued = new List<TargetInfo> { new TargetInfo(11, 0.5f, 0f) };
-        Assert.AreEqual(1f, PassRules.LobRisk(0f, 0f, 25f, 0f, 24f, 0f, glued, 7f, 0.5f, 0.45f), 1e-6f);
+        PassLanding lob = PassRules.LobLanding(0f, 0f, 23f, 0f, 1, glued, -1);
+        Assert.Greater(lob.Risk, 0.99f);
     }
 
     [Test]
-    public void 로빙_발사_구간은_공이_잡기_높이를_넘을_때까지다()
+    public void 상대_GK는_자기_박스_안에서_손_높이로_재서_같은_자리_필드_선수보다_위험하다()
     {
-        // 25m·40°: 세로 초속 v, 2.2m를 넘는 시각 = (v − √(v² − 2g·2.2)) / g
-        (float h, float v, float t) lob = BallRules.LobVelocity(25f, 40f, 9.81f);
-        float up = (lob.v - (float)System.Math.Sqrt(lob.v * lob.v - 2f * 9.81f * 2.2f)) / 9.81f;
-        Assert.AreEqual(lob.h * up, PassRules.LobLaunchDistance(25f, 2.2f), 1e-3f);
-        Assert.AreEqual(1f, PassRules.LobLaunchDistance(1f, 2.2f), 1e-6f, "2.2m를 못 넘는 낮은 로빙은 전체 거리");
+        // 팀 0(공격 +X)이 (20,0)에서 상대 박스 쪽 리시버에게 로빙. 상대 GK의 공격 방향은 −X라 자기 골은 +X 끝이다.
+        // 상대는 공이 2.4m(필드 선수는 못 닿고 GK만 닿는 높이)로 내려오는 하강 지점에서 옆으로 6m 비껴 선다.
+        // 붙어 서면 필드 선수도 같은 틱에 잡아 도착 시각 가르기로 위험이 이미 포화한다(11-02 동률 처리). 6m 비키면 필드 선수는 리시버보다 늦게 도착하고, GK만 2.6m에서 더 일찍 잡는다
+        PassLanding open = PassRules.LobLanding(20f, 0f, 46f, 0f, 1, new List<TargetInfo>(), -1);
+        float distance = open.X - 20f;
+        (float h, float v, float t) lob = BallRules.LobVelocity(distance, MatchTuning.LobLaunchAngleDeg, MatchTuning.Gravity);
+        float fall = (lob.v + (float)System.Math.Sqrt(lob.v * lob.v - 2f * 9.81f * 2.4f)) / 9.81f;
+        var opponents = new List<TargetInfo> { new TargetInfo(11, 20f + lob.h * fall, 6f) };
+        PassLanding asField = PassRules.LobLanding(20f, 0f, 46f, 0f, 1, opponents, -1);
+        PassLanding asKeeper = PassRules.LobLanding(20f, 0f, 46f, 0f, 1, opponents, 11);
+        Assert.Greater(asKeeper.Risk, asField.Risk + 0.05f, "GK는 2.6m에서 일찍 잡아 위험이 눈에 띄게 크다");
     }
 
     [Test]
-    public void 차자마자_앞_경로에_선_상대는_로빙도_끊고_멀리_선_상대는_무관하다()
+    public void 상대가_둘이면_순서와_상관없이_가장_위험한_상대로_정해진다()
     {
-        var near = new List<TargetInfo> { new TargetInfo(11, 2f, 0.3f) };   // 공이 아직 1m 남짓
-        Assert.AreEqual(1f, PassRules.LobLaunchRisk(0f, 0f, 25f, 0f, near), 1e-5f);
-        var far = new List<TargetInfo> { new TargetInfo(11, 10f, 0f) };     // 공이 이미 머리 위
-        Assert.AreEqual(0f, PassRules.LobLaunchRisk(0f, 0f, 25f, 0f, far), 1e-5f);
-    }
-
-    [Test]
-    public void 로빙_받는_선수는_반응_지연이_없다()
-    {
-        // 11-02 리뷰: 받는 선수는 킥 순간부터 마중 나간다. 같은 거리면 반응 0.5초만큼 받는 쪽이 앞선다
-        var same = new List<TargetInfo> { new TargetInfo(11, 25f, 5f) };
-        Assert.Less(PassRules.LobRisk(0f, 0f, 25f, 0f, 25f, -5f, same, 7f, 0.5f, 0.45f), 0.2f);
-    }
-
-    [Test]
-    public void 로빙_하강_구간에_선_상대는_착지점에서_같은_거리라도_더_위험하다()
-    {
-        // 11-02 리뷰: 착지 직전 약 3m는 공이 2.2m 아래라 잡힌다. (23, 1.5)는 하강 구간에서 1.5m, (27, 1.5)는 착지점 너머라 2.5m
-        var onDescent = new List<TargetInfo> { new TargetInfo(11, 23f, 1.5f) };
-        var beyond = new List<TargetInfo> { new TargetInfo(11, 27f, 1.5f) };
-        float descentRisk = PassRules.LobRisk(0f, 0f, 25f, 0f, 25f, -3f, onDescent, 7f, 0.5f, 0.45f);
-        float beyondRisk = PassRules.LobRisk(0f, 0f, 25f, 0f, 25f, -3f, beyond, 7f, 0.5f, 0.45f);
-        Assert.Greater(descentRisk, beyondRisk);
-    }
-
-    [Test]
-    public void 로빙_위험은_상대가_없으면_0이다()
-    {
-        Assert.AreEqual(0f, PassRules.LobRisk(0f, 0f, 25f, 0f, 23f, 0f, new List<TargetInfo>(), 7f, 0.5f, 0.45f));
+        // 하나는 하강 입구에 붙어 같은 틱에 먼저 와 있고, 하나는 킥 지점에서 멀어 늦다. 목록 순서를 바꿔도 같은 위험이어야 하고 가까운 쪽 하나만 있을 때와 같다
+        PassLanding open = PassRules.LobLanding(0f, 0f, 23f, 0f, 1, new List<TargetInfo>(), -1);
+        var entrance = new TargetInfo(11, open.X - 3f, 0f);
+        var far = new TargetInfo(12, open.X - 12f, 9f);
+        float both = PassRules.LobLanding(0f, 0f, 23f, 0f, 1, new List<TargetInfo> { far, entrance }, -1).Risk;
+        float reversed = PassRules.LobLanding(0f, 0f, 23f, 0f, 1, new List<TargetInfo> { entrance, far }, -1).Risk;
+        float onlyEntrance = PassRules.LobLanding(0f, 0f, 23f, 0f, 1, new List<TargetInfo> { entrance }, -1).Risk;
+        Assert.AreEqual(both, reversed, 0f);
+        Assert.GreaterOrEqual(both, onlyEntrance);
     }
 
     [Test]
     public void 로빙_범위_밖이면_후보가_없다()
     {
         var none = new List<TargetInfo>();
-        Assert.IsFalse(PassRules.LobLanding(0f, 0f, 5f, 0f, 1, none).Found, "15m보다 짧다");
-        Assert.IsFalse(PassRules.LobLanding(0f, 0f, 0f, 50f, 1, none).Found, "45m보다 길다(옆 리시버라 리드 없음)");
-        PassLanding inRange = PassRules.LobLanding(0f, 0f, 20f, 0f, 1, none);
+        Assert.IsFalse(PassRules.LobLanding(0f, 0f, 5f, 0f, 1, none, -1).Found, "15m보다 짧다");
+        Assert.IsFalse(PassRules.LobLanding(0f, 0f, 0f, 50f, 1, none, -1).Found, "45m보다 길다(옆 리시버라 리드 없음)");
+        PassLanding inRange = PassRules.LobLanding(0f, 0f, 20f, 0f, 1, none, -1);
         Assert.IsTrue(inRange.Found);
         Assert.AreEqual(0f, inRange.Risk, 1e-6f);
     }
@@ -410,9 +388,9 @@ public class PassRulesTests
     {
         // 옆에 선 리시버는 공격 방향 성분이 0이라 리드 없이 리시버 위치가 착지점이 된다. 거리를 정확히 줄 수 있다
         var none = new List<TargetInfo>();
-        Assert.IsTrue(PassRules.LobLanding(0f, 0f, 0f, 15f, 1, none).Found, "15m는 포함");
-        Assert.IsTrue(PassRules.LobLanding(0f, 0f, 0f, 45f, 1, none).Found, "45m는 포함");
-        Assert.IsFalse(PassRules.LobLanding(0f, 0f, 0f, 14.9f, 1, none).Found, "15m 미만");
-        Assert.IsFalse(PassRules.LobLanding(0f, 0f, 0f, 45.1f, 1, none).Found, "45m 초과");
+        Assert.IsTrue(PassRules.LobLanding(0f, 0f, 0f, 15f, 1, none, -1).Found, "15m는 포함");
+        Assert.IsTrue(PassRules.LobLanding(0f, 0f, 0f, 45f, 1, none, -1).Found, "45m는 포함");
+        Assert.IsFalse(PassRules.LobLanding(0f, 0f, 0f, 14.9f, 1, none, -1).Found, "15m 미만");
+        Assert.IsFalse(PassRules.LobLanding(0f, 0f, 0f, 45.1f, 1, none, -1).Found, "45m 초과");
     }
 }

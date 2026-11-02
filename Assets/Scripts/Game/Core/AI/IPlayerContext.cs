@@ -45,6 +45,7 @@ namespace Game.Core.AI
         bool IsKeeperAlternate { get; }                  // GK 배급 "섞어"의 교대 스위치(팀별, 시뮬이 GK 패스마다 뒤집음). 09-23 R2
         int LastPasserId { get; }                      // 방금 나에게 준 아군(패스로 받았을 때만, 아니면 -1). 되돌림 금지용
         PlayerStats? OpponentKeeper { get; }
+        int OpponentKeeperId { get; }                  // 상대 GK의 PlayerId, 없으면 -1. 로빙 판정이 상대 GK만 손 높이(2.6m)로 재려고 쓴다(11-02 S2)
 
         // ── 자리 2쌍(배치 좌표. 오프셋은 PositionRules가 붙임)
         float AttackHomeX { get; }

@@ -96,74 +96,14 @@ namespace Game.Core.Match
             return (1f - interceptRisk) * taper;
         }
 
-        // 로빙의 위험(10-29 ④-1 3단계): 공이 머리 위로 가니 경로 옆 수비는 무관하고, 착지점에 누가 먼저 닿나로 정한다(HELIOS·Spearman의 도착 경쟁).
-        // 도착 시간 = 발 뻗는 범위 밖이면 반응 + 달릴 거리 ÷ 속도(땅볼 판정 InterceptRisk와 같은 모양). 받는 선수와 가장 빠른 상대의 시간 차를
-        // 로지스틱(폭 sigma, Spearman pitch control)으로 확률로 바꾼다. 동시 도착 = 0.5. 킥 지점에 붙은 상대는 뜨기 전에 닿으니 1.
-        // 상대는 착지점 한 점이 아니라 하강 구간(공이 잡기 높이 아래로 내려온 뒤 착지까지) 위 가장 가까운 점까지 잰다. 그 구간에선 공이 낮아 잡힌다(11-02 리뷰).
-        // 받는 선수는 킥 순간부터 착지점으로 마중 나가니 반응 지연이 없다. reaction은 상대에게만 준다(11-02 리뷰)
-        // 하강 구간은 필드 선수 높이(FieldReachHeight)로 잰다. 상대 박스 안 GK는 2.6m까지 닿아 실제론 더 일찍 잡는다(④ GK 공중볼 단계에서 맞춘다)
-        public static float LobRisk(float passerX, float passerZ, float landingX, float landingZ, float receiverX, float receiverZ,
-            IReadOnlyList<TargetInfo> opponents, float runSpeed, float reaction, float sigma)
-        {
-            float distance = Distance(passerX, passerZ, landingX, landingZ);
-            if (distance <= 0f) { return 1f; }
-
-            // 포물선은 좌우 대칭이라 하강 구간 길이 = 발사 구간 길이
-            float fall = LobLaunchDistance(distance, BallRules.ReachHeight(keeperInOwnBox: false));
-            float startX = landingX - (landingX - passerX) / distance * fall;
-            float startZ = landingZ - (landingZ - passerZ) / distance * fall;
-
-            float receiverTime = ArrivalTime(Distance(receiverX, receiverZ, landingX, landingZ), runSpeed, 0f);
-            float defenderTime = float.MaxValue;
-            for (int i = 0; i < opponents.Count; i++)
-            {
-                if (Distance(opponents[i].X, opponents[i].Z, passerX, passerZ) <= MatchTuning.InterceptReach) { return 1f; }
-                float toSegment = DistanceToSegment(opponents[i].X, opponents[i].Z, startX, startZ, landingX, landingZ);
-                float t = ArrivalTime(toSegment, runSpeed, reaction);
-                if (t < defenderTime) { defenderTime = t; }
-            }
-            if (defenderTime == float.MaxValue) { return 0f; }
-            // π/√3은 sigma를 로지스틱 분포의 표준편차로 읽는 변환이다(Spearman 2017 pitch control의 tti_sigma)
-            double x = (receiverTime - defenderTime) / sigma * Math.PI / Math.Sqrt(3.0);
-            return (float)(1.0 / (1.0 + Math.Exp(-x)));
-        }
-
-        private static float ArrivalTime(float distance, float runSpeed, float reaction)
-        {
-            float run = distance - MatchTuning.InterceptReach;
-            if (run <= 0f) { return 0f; }
-            return reaction + run / runSpeed;
-        }
-
-        // 점 (px, pz)에서 선분 (ax, az)–(bx, bz)까지 가장 짧은 거리
-        private static float DistanceToSegment(float px, float pz, float ax, float az, float bx, float bz)
-        {
-            float dx = bx - ax;
-            float dz = bz - az;
-            float lengthSq = dx * dx + dz * dz;
-            if (lengthSq <= 0f) { return Distance(px, pz, ax, az); }
-            float t = ((px - ax) * dx + (pz - az) * dz) / lengthSq;
-            t = Math.Clamp(t, 0f, 1f);
-            return Distance(px, pz, ax + dx * t, az + dz * t);
-        }
-
-        // 로빙의 발사 구간 위험(10-29 ④-1, 진단: 로빙의 85%가 차자마자 0.5~1.5m 높이에서 킥 지점 근처 상대에게 끊겼다).
-        // 공이 잡기 높이를 넘기 전까지의 짧은 경로를 땅볼과 같은 가로채기 판정(InterceptRisk)으로 잰다. 실행에서 공이 낮은 구간과 같은 구간이다
-        public static float LobLaunchRisk(float passerX, float passerZ, float landingX, float landingZ, IReadOnlyList<TargetInfo> opponents)
-        {
-            float distance = Distance(passerX, passerZ, landingX, landingZ);
-            if (distance <= 0f) { return 1f; }
-            float rise = LobLaunchDistance(distance, BallRules.ReachHeight(keeperInOwnBox: false));
-            float endX = passerX + (landingX - passerX) / distance * rise;
-            float endZ = passerZ + (landingZ - passerZ) / distance * rise;
-            float horizontal = LobHorizontalSpeed(distance);
-            return InterceptRisk(passerX, passerZ, endX, endZ, opponents, MatchTuning.InterceptRunSpeed, horizontal, MatchTuning.ReactionTime);
-        }
-
-        // 로빙 후보: 같은 리시버에게 띄워 주는 착지점(긴 리드)과 그 위험 = max(발사 구간, 착지 경쟁). 거리가 로빙 범위 밖이면 PassLanding.None.
+        // 로빙 후보(11-02 S2): 같은 리시버에게 띄워 주는 착지점(긴 리드)과 그 위험. 거리가 로빙 범위 밖이면 PassLanding.None.
+        // 위험은 도달 경쟁(InterceptRules)으로 잰다: 패서 자리에서 그 착지점으로 차는 공을 만들어, 리시버와 상대 각자의 가장 이른 포획 시각을 비교한다.
+        // 공이 낮은 발사 구간(킥 지점에 붙은 상대는 T≈0)과 하강 구간(착지 2.2m 앞 상대가 착지점의 리시버보다 먼저 잡음)을 따로 식으로 두지 않아도 같은 궤적이 잡는다.
+        // 리시버도 정지 출발이라 ReactionTime을 똑같이 잃는다(11-02 번복: 옛 "리시버 반응 0"은 가속 등가값을 지각 반응으로 오해한 전제였다).
+        // 상대 GK(opponentKeeperId)는 자기 박스 안에서 손이 닿는 높이로 잰다. 상대의 공격 방향은 패서와 반대
         // 리드는 로빙의 수평 속도로 잰다(체공 시간 = 거리 ÷ 수평 속도). 지금 상수에선 로빙 범위(15m 이상)의 리드가 늘 상한 PassLeadMax 8m에 걸려 땅볼 속도로 재도 같지만, 상한이나 범위를 바꾸면 차이가 난다
-        // 착지 뒤 굴러가는 공(착지 속도 × LobBounceSpeedRetention)을 리시버가 놓쳤을 때의 위험은 판정 밖이다 [가정]
-        public static PassLanding LobLanding(float passerX, float passerZ, float receiverX, float receiverZ, int attackSign, IReadOnlyList<TargetInfo> opponents)
+        // 착지 뒤 굴러가는 공도 코어가 정지까지 따라가므로, 리시버가 놓친 공을 상대가 줍는 것까지 위험에 들어간다
+        public static PassLanding LobLanding(float passerX, float passerZ, float receiverX, float receiverZ, int attackSign, IReadOnlyList<TargetInfo> opponents, int opponentKeeperId)
         {
             float toReceiver = Distance(passerX, passerZ, receiverX, receiverZ);
             if (toReceiver <= 0f) { return PassLanding.None; }
@@ -174,18 +114,25 @@ namespace Game.Core.Match
             if (distance < MatchTuning.LobMinDistance) { return PassLanding.None; }
             if (distance > MatchTuning.LobMaxDistance) { return PassLanding.None; }
 
-            float race = LobRisk(passerX, passerZ, point.x, point.z, receiverX, receiverZ, opponents, MatchTuning.InterceptRunSpeed, MatchTuning.ReactionTime, MatchTuning.ArrivalSigma);
-            float launch = LobLaunchRisk(passerX, passerZ, point.x, point.z, opponents);
-            return new PassLanding(point.x, point.z, Math.Max(race, launch));
-        }
+            BallState lob = BallRules.KickLobTo(BallState.FreeAt(passerX, passerZ), point.x - passerX, point.z - passerZ);
 
-        // 로빙이 height를 넘어 오를 때까지 수평으로 가는 거리(발사 구간). 그 안에선 공이 낮아 경로 가까운 선수가 잡을 수 있다.
-        // 시각은 공 궤적 질의(BallRules.FirstAboveHeight)에 맡기고 여기선 수평 속도만 곱한다(11-02 S1). 끝까지 못 넘는 낮은 로빙이면 전체 거리
-        public static float LobLaunchDistance(float distance, float height)
-        {
-            (float horizontal, float vertical, float flightTime) v = BallRules.LobVelocity(distance, MatchTuning.LobLaunchAngleDeg, MatchTuning.Gravity);
-            BallState launch = BallRules.KickLob(BallState.FreeAt(0f, 0f), 1f, 0f, v.horizontal, v.vertical);
-            return v.horizontal * BallRules.FirstAboveHeight(launch, height);
+            var receiver = InterceptRules.EarliestCatch(lob, receiverX, receiverZ, MatchTuning.InterceptRunSpeed, MatchTuning.ReactionTime,
+                MatchTuning.CaptureRadius, isKeeper: false, keeperAttackSign: 0);
+            float opponentTime = float.PositiveInfinity;
+            float opponentArrival = float.PositiveInfinity;
+            for (int i = 0; i < opponents.Count; i++)
+            {
+                bool isKeeper = opponents[i].PlayerId == opponentKeeperId;
+                var catchAt = InterceptRules.EarliestCatchBefore(lob, opponents[i].X, opponents[i].Z, MatchTuning.InterceptRunSpeed, MatchTuning.ReactionTime,
+                    MatchTuning.CaptureRadius, isKeeper: isKeeper, keeperAttackSign: -attackSign, bestOpponentTime: opponentTime);
+                if (InterceptRules.IsBetterOpponent(catchAt.time, catchAt.arrival, opponentTime, opponentArrival))
+                {
+                    opponentTime = catchAt.time;
+                    opponentArrival = catchAt.arrival;
+                }
+            }
+            float risk = InterceptRules.Contest(receiver.time, receiver.arrival, opponentTime, opponentArrival, MatchTuning.ArrivalSigma);
+            return new PassLanding(point.x, point.z, risk);
         }
 
         private static float LobHorizontalSpeed(float distance)

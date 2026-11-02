@@ -57,6 +57,7 @@ namespace Game.Core.Match
         public bool IsKeeperAlternate { get; set; }
         public int LastPasserId { get; set; } = -1;   // 방금 나에게 패스한 아군. 곧바로 뒤로 되돌리지 않는다(09-23 측면 왕복 22회)
         public PlayerStats? OpponentKeeper { get; set; }
+        public int OpponentKeeperId { get; set; } = -1;   // 상대 GK의 PlayerId. 시뮬이 스냅샷에 같이 넣는다(11-02 S2)
 
         public bool IsPassTarget { get; set; }
         public float PassTargetX { get; set; }
