@@ -35,7 +35,7 @@ public static class AutoMatchMenu
         TeamTactics away = presets.Find(t => t.PresetId == awayPreset) ?? throw new InvalidOperationException($"프리셋 없음: {awayPreset}");
 
         var watch = System.Diagnostics.Stopwatch.StartNew();
-        List<MatchSummary> results = AutoMatchRunner.Run(table, rows, home, away, firstSeed, matches);
+        List<MatchSummary> results = AutoMatchRunner.Run(table, rows, home, away, firstSeed, matches, ThreatTableRepository.Grid);
         watch.Stop();
 
         string dir = Path.Combine(Directory.GetParent(Application.dataPath)!.FullName, "Reports");

@@ -53,8 +53,13 @@ namespace Game.Core.AI
         float DefendHomeX { get; }
         float DefendHomeZ { get; }
 
+        // ── 사전 런(11-03 ⑤): 패스가 오기 전에 러너가 달려갈 점. 러너는 자기 제안으로 달리고, 패서는 같은 점을 스루 후보로 본다
+        IReadOnlyList<RunOffer> RunOffers { get; }
+        ThreatGrid Threat { get; }     // xT 위협 격자(운반·패스 이득 비교). 시뮬이 생성자로 받아 모든 선수에게 같은 것을 준다
+
         // ── 패스 받기
         bool IsPassTarget { get; }     // 지금 날아오는 패스의 리시버가 나인가
+        bool IsRunPass { get; }        // 그 패스가 사전 런 제안(스루)으로 찬 것인가. 맞으면 감속 없이 달려 들어가며 받는다(A1, 11-03)
         float PassTargetX { get; }     // 그 패스의 도착점
         float PassTargetZ { get; }
 
@@ -71,5 +76,6 @@ namespace Game.Core.AI
         void Shoot();
         void Pass(int receiverId, float landingX, float landingZ);   // 착지점까지 트리가 정한다. 시뮬은 그 점으로 찬다
         void PassLob(int receiverId, float landingX, float landingZ);   // 띄워서 그 점에 떨어뜨린다(10-29 ④-1). 시뮬이 발사각·초속을 정한다
+        void PassRun(int receiverId, float landingX, float landingZ);   // 사전 런 제안의 점으로 찬다(11-03 ⑤). 받는 쪽이 감속 없이 달려 들어가며 받는다
     }
 }

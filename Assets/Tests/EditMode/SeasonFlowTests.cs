@@ -122,7 +122,7 @@ public class SeasonFlowTests
         {
             Assert.IsFalse(SeasonProgress.IsOver(state, tier), $"라운드 {round} 전엔 안 끝남");
             MatchSetup setup = SeasonRunner.SetupMyMatch(state, opponents, schedule, presets, round, table);
-            SeasonRunner.PlayRound(state, opponents, schedule, presets, setup.ResultFor(2, 0));   // 내가 다 이긴 걸로
+            SeasonRunner.PlayRound(state, opponents, schedule, presets, setup.ResultFor(2, 0), TestThreat.Real);   // 내가 다 이긴 걸로
         }
 
         Assert.IsTrue(SeasonProgress.IsOver(state, tier), "1위는 승강전 없이 끝");
@@ -140,7 +140,7 @@ public class SeasonFlowTests
         for (int round = 0; round < tier.Matches; round++)
         {
             MatchSetup setup = SeasonRunner.SetupMyMatch(state, opponents, schedule, presets, round, table);
-            SeasonRunner.PlayRound(state, opponents, schedule, presets, setup.ResultFor(0, 3));
+            SeasonRunner.PlayRound(state, opponents, schedule, presets, setup.ResultFor(0, 3), TestThreat.Real);
         }
         Assert.AreEqual(4, SeasonProgress.NextTier(state, tier));
     }
@@ -201,13 +201,13 @@ public class SeasonFlowTests
         List<Fixture> schedule = SeasonSchedule.RoundRobin(tier.Teams);
         MatchResult myResult = SeasonRunner.SetupMyMatch(computed, opponents, schedule, presets, 0, table).ResultFor(1, 0);
 
-        List<MatchResult> results = SeasonRunner.ComputeRound(computed.RoundsPlayed, computed.SeasonSeed, opponents, schedule, presets, myResult);
+        List<MatchResult> results = SeasonRunner.ComputeRound(computed.RoundsPlayed, computed.SeasonSeed, opponents, schedule, presets, myResult, TestThreat.Real);
         Assert.AreEqual(0, computed.RoundsPlayed, "계산만 하고 라운드를 넘기지 않는다");
         Assert.AreEqual(0, computed.Results.Count, "결과도 넣지 않는다");
         Assert.AreEqual(tier.Teams / 2, results.Count, "라운드의 전 경기");
         Assert.AreEqual(myResult, results[0], "내 결과가 맨 앞");
 
-        SeasonRunner.PlayRound(played, opponents, schedule, presets, myResult);
+        SeasonRunner.PlayRound(played, opponents, schedule, presets, myResult, TestThreat.Real);
         Assert.AreEqual(1, played.RoundsPlayed);
         CollectionAssert.AreEqual(results, played.Results, "같은 시드면 헤드리스 경기 결과도 같다");
     }

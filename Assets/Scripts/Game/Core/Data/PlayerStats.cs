@@ -32,7 +32,7 @@ namespace Game.Core.Data
         public int Handling { get; set; }       // 세이브 뒤 캐치 확률을 올리는 보정
         public int Diving { get; set; }         // 슛 확률을 내리는 보정(닿는 범위)
 
-        // ── 지시(행동) 다이얼 11. 트리의 판정값. 팀 전술 값을 덮어쓴다(FM26 개인 지시 기준, 전술-기획.md 3-2)
+        // ── 지시(행동) 다이얼 12(슬롯 지시로 고치는 건 9개. 침투 성향은 11-03 ⑤에서 역할(변형) 값만 두고 슬롯 지시 노출은 다음 단계). 트리의 판정값. 팀 전술 값을 덮어쓴다(FM26 개인 지시 기준, 전술-기획.md 3-2)
         public float PushUp { get; set; }        // 전진 폭: 아군 소유 때 자리에서 앞으로 얼마나(m)
         public float PressRange { get; set; }    // 압박 거리: 상대 소유 때 공이 몇 m 안이면 달려드나. 역할마다 달라 "누가 압박하나"의 답
         public float ShotBias { get; set; }      // 슛 성향(0~1): xG ≥ 성향 × MatchTuning.ShotBiasXgScale(0.5)이면 쏜다. 포처 0.2 → xG 0.10
@@ -44,6 +44,7 @@ namespace Game.Core.Data
         public float Dribble { get; set; }       // 드리블 성향 0~1. 위협 없을 때 드리블 유지 확률
         public float HoldUp { get; set; }        // 볼 끌기: 소유 뒤 킥까지 대기(초). 타깃맨
         public float GkRushRadius { get; set; }  // GK 출격 반경(m, 박스 상한). 스위퍼 키퍼. 필드 플레이어는 0
+        public int RunStyle { get; set; }        // 침투 성향(11-03 ⑤): 0 없음 · 1 뒤공간 침투 · 2 내려와 받기 · 3 박스에 늦게 도착(RunRules.Style*). 범주라 값을 섞지 않는다
 
         // ── 표시 텍스트(선수 세팅 화면, 3주차에 채움)
         public string DisplayName { get; set; } = string.Empty;

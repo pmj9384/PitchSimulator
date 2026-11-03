@@ -38,4 +38,17 @@ public class OffsideRulesTests
         Assert.AreEqual(-30.5f, OffsideRules.ClampOnside(-37f, -1, 31f, 0.5f), 1e-4f, "팀1");
         Assert.AreEqual(37f, OffsideRules.ClampOnside(37f, +1, OffsideRules.NoLine, 0.5f), 1e-4f);
     }
+
+    [Test]
+    public void 수비_라인은_공을_빼고_상대_뒤에서_2번째_선수다()
+    {
+        var opp = new List<TargetInfo> { new TargetInfo(20, 48f, 0f), new TargetInfo(21, 31f, 5f), new TargetInfo(22, 30f, -5f), new TargetInfo(23, 20f, 0f) };
+        Assert.AreEqual(31f, OffsideRules.LastDefenderLine(opp, +1), 1e-4f);
+        Assert.AreEqual(31f, OffsideRules.OnsideLine(opp, +1, ballX: 10f), 1e-4f, "공이 뒤면 온사이드 선과 같다");
+        Assert.AreEqual(40f, OffsideRules.OnsideLine(opp, +1, ballX: 40f), 1e-4f, "온사이드 선은 공이 앞서면 공을 따라간다");
+        Assert.Less(OffsideRules.LastDefenderLine(opp, +1), OffsideRules.OnsideLine(opp, +1, ballX: 40f), "수비 라인엔 공 위치 항이 없다");
+        Assert.AreEqual(OffsideRules.NoLine, OffsideRules.LastDefenderLine(new List<TargetInfo> { new TargetInfo(20, 48f, 0f) }, +1));
+        var opp1 = new List<TargetInfo> { new TargetInfo(0, -48f, 0f), new TargetInfo(1, -31f, 0f) };
+        Assert.AreEqual(31f, OffsideRules.LastDefenderLine(opp1, -1), 1e-4f, "팀1은 공격 방향 좌표");
+    }
 }

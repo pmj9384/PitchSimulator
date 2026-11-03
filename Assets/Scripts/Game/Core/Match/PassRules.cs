@@ -75,6 +75,19 @@ namespace Game.Core.Match
             return (kickSpeed + arrival) * 0.5f;
         }
 
+        // 패스 리스크 허용치: 서드별 팀 값(안전·균형·모험 단계)과 개인 다이얼 중 큰 쪽. 트리(BestReceiver)와 런 제안(시뮬)이 같은 값을 쓰게 한 곳에 둔다(11-03 ⑤)
+        public static float RiskAllow(int teamRiskLevel, float individualRisk)
+        {
+            return Math.Max(MatchTuning.PassRiskAllow[teamRiskLevel], individualRisk);
+        }
+
+        // 스루 허용치(11-03 ⑤): 실측 맞춘 기준값(MatchTuning.ThroughRiskAllow)에 팀·개인 허용치가 균형(PassRiskAllow[1])에서 벗어난 만큼을 얹는다
+        public static float ThroughAllow(int teamRiskLevel, float individualRisk)
+        {
+            float deviation = RiskAllow(teamRiskLevel, individualRisk) - MatchTuning.PassRiskAllow[1];
+            return Math.Clamp(MatchTuning.ThroughRiskAllow + deviation, 0f, 1f);
+        }
+
         // 리스크 허용치 이하면 안전. 경계 포함(허용치와 같으면 통과). 위험도 1은 허용치가 1이 아닌 한 안 함
         public static bool IsPassSafe(float interceptRisk, float riskAllow)
         {
@@ -333,19 +346,21 @@ namespace Game.Core.Match
     // 패스 한 번의 선택: 누구에게, 어느 점으로. 트리가 고르고 시뮬은 그 점으로 찬다
     public readonly struct PassChoice
     {
-        public static readonly PassChoice None = new PassChoice(-1, 0f, 0f, false);
+        public static readonly PassChoice None = new PassChoice(-1, 0f, 0f, false, false);
 
         public readonly int ReceiverId;
         public readonly float X;
         public readonly float Z;
         public readonly bool IsLob;   // 띄워 준다(10-29 ④-1)
+        public readonly bool IsRun;   // 사전 런 제안의 점으로 준다(11-03 ⑤). 시뮬이 런 패스(수신 Seek)로 기록한다
 
-        public PassChoice(int receiverId, float x, float z, bool isLob)
+        public PassChoice(int receiverId, float x, float z, bool isLob, bool isRun)
         {
             ReceiverId = receiverId;
             X = x;
             Z = z;
             IsLob = isLob;
+            IsRun = isRun;
         }
 
         public bool Found => ReceiverId != -1;

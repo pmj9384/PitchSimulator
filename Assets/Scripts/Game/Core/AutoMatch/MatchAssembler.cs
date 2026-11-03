@@ -9,23 +9,23 @@ using Game.Core.Tactics;
 namespace Game.Core.AutoMatch
 {
     // 데이터 → 경기 조립. 러너·테스트·시즌(SeasonRunner)·새 시즌 로스터(SeasonState.NewSeason)가 같은 경로로 시뮬·라인업을 만든다.
-    // 러너·테스트가 공유하고, 엔진이 없으니 EditMode·배치에서 그대로 돈다. 파일 읽기는 호출자 몫(순수 코어는 Resources를 모른다).
+    // 러너·테스트가 공유하고, 엔진이 없으니 EditMode·배치에서 그대로 돈다. 파일 읽기는 호출자 몫(순수 코어는 Resources를 모른다): xT 격자도 호출자가 읽어 넘긴다.
     public static class MatchAssembler
     {
         // 편성 행(StageComposition) → 라인업 2개 → 시뮬. 러너·테스트가 쓰는 입구
-        public static MatchSimulation Create(IReadOnlyList<PlayerStats> table, IReadOnlyList<StageEntry> rows, TeamTactics home, TeamTactics away, int seed, BehaviorNode? tree = null)
+        public static MatchSimulation Create(IReadOnlyList<PlayerStats> table, IReadOnlyList<StageEntry> rows, TeamTactics home, TeamTactics away, int seed, ThreatGrid threat, BehaviorNode? tree = null)
         {
             if (rows.Count == 0) { throw new InvalidOperationException("[MatchAssembler] 편성 행이 없다"); }
-            return Create(ToLineup(table, rows, 0), ToLineup(table, rows, 1), home, away, seed, tree);
+            return Create(ToLineup(table, rows, 0), ToLineup(table, rows, 1), home, away, seed, threat, tree);
         }
 
         // 라인업(선수 + 자리 2쌍) → 시뮬. 생성 팀(부 총점으로 축소된 빌드)·내 로스터가 이 입구를 쓴다. 조립 경로는 이것 하나다
-        public static MatchSimulation Create(IReadOnlyList<LineupSlot> home, IReadOnlyList<LineupSlot> away, TeamTactics homeTactics, TeamTactics awayTactics, int seed, BehaviorNode? tree = null)
+        public static MatchSimulation Create(IReadOnlyList<LineupSlot> home, IReadOnlyList<LineupSlot> away, TeamTactics homeTactics, TeamTactics awayTactics, int seed, ThreatGrid threat, BehaviorNode? tree = null)
         {
             if (home.Count == 0 || away.Count == 0) { throw new InvalidOperationException("[MatchAssembler] 라인업이 비었다"); }
 
             var rng = new Random(seed);
-            var sim = new MatchSimulation(() => (float)rng.NextDouble(), tree ?? PlayerTreeBuilder.Build()) { ResetAfterEveryShot = false };
+            var sim = new MatchSimulation(() => (float)rng.NextDouble(), tree ?? PlayerTreeBuilder.Build(), threat) { ResetAfterEveryShot = false };
             sim.SetTactics(0, homeTactics);
             sim.SetTactics(1, awayTactics);
 

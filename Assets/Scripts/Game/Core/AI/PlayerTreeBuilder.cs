@@ -65,7 +65,7 @@ namespace Game.Core.AI
                 // ⑥ 나한테 오는 패스면 도착점으로 마중
                 new SequenceNode(
                     new ConditionNode(ctx => ctx.IsPassTarget),
-                    new ActionNode(ctx => ctx.ArriveToward(ctx.PassTargetX, ctx.PassTargetZ))),
+                    new ActionNode(ctx => ReceivePass(ctx))),
 
                 // ⑦ 아군이 공을 가졌으면 공격 시 자리(+ 전진·폭 오프셋)로
                 new SequenceNode(
@@ -150,7 +150,13 @@ namespace Game.Core.AI
         // 패스 리스크 허용치: 서드별 팀 값과 개인 다이얼 중 큰 쪽
         private static float RiskAllow(IPlayerContext ctx)
         {
-            return Math.Max(MatchTuning.PassRiskAllow[ctx.Tactics.PassRisk[Third(ctx)]], ctx.Stats.PassRisk);
+            return PassRules.RiskAllow(ctx.Tactics.PassRisk[Third(ctx)], ctx.Stats.PassRisk);
+        }
+
+        // 스루(런 제안 착지점) 허용치: 실측 맞춘 값에 팀·개인 허용치 편차를 얹는다(PassRules.ThroughAllow, 11-03 ⑤)
+        private static float ThroughAllow(IPlayerContext ctx)
+        {
+            return PassRules.ThroughAllow(ctx.Tactics.PassRisk[Third(ctx)], ctx.Stats.PassRisk);
         }
 
         // 패스의 평균 속도(서드별 팀 템포, 10-25 실측 기반). 킥 초속은 거리로 역산한다(시뮬 Pass와 같은 식)
@@ -181,17 +187,23 @@ namespace Game.Core.AI
             for (int i = 0; i < mates.Count; i++)
             {
                 TargetInfo m = mates[i];
-                bool backward = (m.X - ctx.X) * ctx.AttackSign <= 0f;
-                if (!pressed && backward) { continue; }
-                bool isReturn = backward && m.PlayerId == ctx.LastPasserId;
                 if (OffsideRules.IsOffsidePosition(m.X, ctx.AttackSign, onsideLine)) { continue; }   // 오프사이드 위치 아군에겐 안 준다
-                float score = PassRules.ScoreReceiver(ctx.X, ctx.Z, m.X, m.Z, ctx.AttackSign, t.PassStyle[third], ctx.Stats.PassLength, t.Width[third]);
+
+                // 후보 = (리시버, 겨냥점). 겨냥점은 사전 런을 하는 러너면 그 목표점, 아니면 받는 선수 앞 최대 리드 점(11-03 ⑤ A1).
+                // 게이트(앞이면 압박과 무관, 옆·뒤면 압박받을 때만)와 점수가 같은 점을 본다. 리시버 위치를 보던 때는 패서 뒤의 윙어가 앞 공간으로 달려도 후보가 못 됐다
+                int offerIndex = OfferIndexOf(ctx, m.PlayerId);
+                (float x, float z) aim = AimPoint(ctx, m, average, offerIndex);
+                bool isLastPasser = m.PlayerId == ctx.LastPasserId;
+                PassKind kind = ReceiverRules.Classify(ctx.X * ctx.AttackSign, aim.x * ctx.AttackSign, pressed, isLastPasser);
+                if (kind == PassKind.Gated) { continue; }
+
+                float score = PassRules.ScoreReceiver(ctx.X, ctx.Z, aim.x, aim.z, ctx.AttackSign, t.PassStyle[third], ctx.Stats.PassLength, t.Width[third]);
                 if (score <= bestValue) { continue; }   // 가중은 1 이하라 점수가 지금 최고 가치보다 낮으면 볼 필요가 없다
 
-                (PassLanding landing, float weight, bool lob) kick = ChooseLanding(ctx, m, average, riskAllow, t.PassStyle[third]);
-                bool safe = PassRules.IsPassSafe(kick.landing.Risk, riskAllow);
-                var choice = new PassChoice(m.PlayerId, kick.landing.X, kick.landing.Z, kick.lob);
-                if (isReturn)
+                var kick = KickFor(ctx, m, average, riskAllow, offerIndex, t.PassStyle[third]);
+                bool safe = PassRules.IsPassSafe(kick.landing.Risk, kick.allow);
+                var choice = new PassChoice(m.PlayerId, kick.landing.X, kick.landing.Z, kick.lob, offerIndex != NoOffer);
+                if (kind == PassKind.Return)
                 {
                     if (!returnFallback.Found && safe) { returnFallback = choice; }
                     continue;
@@ -204,6 +216,49 @@ namespace Game.Core.AI
                 bestIsSafe = safe;
             }
             return PassRules.PrefersOverReturn(best.Found, bestIsSafe, returnFallback.Found) ? best : returnFallback;
+        }
+
+        private const int NoOffer = -1;   // OfferIndexOf: 사전 런 제안이 없다
+
+        // 이 선수가 사전 런 제안을 받았으면 그 위치(RunOffers 번호), 아니면 NoOffer
+        private static int OfferIndexOf(IPlayerContext ctx, int playerId)
+        {
+            IReadOnlyList<RunOffer> offers = ctx.RunOffers;
+            for (int i = 0; i < offers.Count; i++)
+            {
+                if (offers[i].RunnerId == playerId) { return i; }
+            }
+            return NoOffer;
+        }
+
+        // 패스 후보가 겨냥하는 점: 러너는 자기 런 목표점, 그 밖엔 받는 선수 앞 최대 리드(PassLeadMax) 점. 리드는 앞선 리시버에게만 붙는다(LeadTarget)
+        private static (float x, float z) AimPoint(IPlayerContext ctx, TargetInfo receiver, float average, int offerIndex)
+        {
+            if (offerIndex != NoOffer) { return (ctx.RunOffers[offerIndex].X, ctx.RunOffers[offerIndex].Z); }
+            return PassRules.LandingPoint(ctx.X, ctx.Z, receiver.X, receiver.Z, ctx.AttackSign, average, MatchTuning.PassLeadMax);
+        }
+
+        // 후보에게 찰 착지점과 그 점을 판정한 허용치. 런 제안이 있으면 제안 점(스루 허용치), 없으면 일반 착지점(팀·개인 허용치)
+        private static (PassLanding landing, float weight, bool lob, float allow) KickFor(IPlayerContext ctx, TargetInfo receiver, float average, float riskAllow, int offerIndex, int passStyle)
+        {
+            if (offerIndex == NoOffer)
+            {
+                var normal = ChooseLanding(ctx, receiver, average, riskAllow, passStyle);
+                return (normal.landing, normal.weight, normal.lob, riskAllow);
+            }
+
+            float throughAllow = ThroughAllow(ctx);
+            var run = RunLanding(ctx, offerIndex, throughAllow);
+            return (run.landing, run.weight, run.lob, throughAllow);
+        }
+
+        // 러너에게 찰 착지점 = 런 목표점 그대로(땅볼). 위험은 시뮬이 이번 틱에 다시 잰 값(러너의 현재 속도 반영)이다. 가중은 일반 후보와 같은 식
+        private static (PassLanding landing, float weight, bool lob) RunLanding(IPlayerContext ctx, int offerIndex, float riskAllow)
+        {
+            RunOffer offer = ctx.RunOffers[offerIndex];
+            var landing = new PassLanding(offer.X, offer.Z, offer.Risk);
+            float weight = PassRules.SafetyWeight(offer.Risk, riskAllow, MatchTuning.PassSafetyBand);
+            return (landing, weight, false);
         }
 
         // 한 리시버에게 찰 착지점과 안전 가중, 띄울지. 땅볼 착지점과 로빙 착지점 중 가중이 큰 쪽(동률은 땅볼).
@@ -280,6 +335,11 @@ namespace Game.Core.AI
                 ctx.PassLob(choice.ReceiverId, choice.X, choice.Z);
                 return;
             }
+            if (choice.IsRun)
+            {
+                ctx.PassRun(choice.ReceiverId, choice.X, choice.Z);
+                return;
+            }
             ctx.Pass(choice.ReceiverId, choice.X, choice.Z);
         }
 
@@ -319,7 +379,30 @@ namespace Game.Core.AI
             if (ctx.BallThird == Tactics.Third.Own) { return false; }
             if (!IsCarryRole(ctx.Stats.RoleId)) { return false; }
             if (MatchRules.ShotDistance(ctx.X, ctx.Z, ctx.AttackSign) > MatchTuning.MaxShotRange) { return false; }
-            return !DribbleRules.HasDefenderAhead(ctx.X, ctx.Z, ctx.AttackSign, ctx.Opponents, MatchTuning.CarryComfortZone);
+            if (DribbleRules.HasDefenderAhead(ctx.X, ctx.Z, ctx.AttackSign, ctx.Opponents, MatchTuning.CarryComfortZone)) { return false; }
+            return !PrefersRunPass(ctx);
+        }
+
+        // 런 제안이 있을 때 운반과 침투 패스를 xT 증가량으로 비교한다(11-03 ⑤ xT). 격자는 시뮬이 생성자로 받아 선수 컨텍스트로 준다(전역 아님).
+        // 운반 목표 = 골 쪽으로 CarryComfortZone(②c가 "앞에 상대 없음"을 확인한 만큼) 앞 [가정: 운반은 골 중심으로 계속 가지만 비교는 확인한 구간까지만 믿는다].
+        // 패스 목표 = 러너의 런 지점, 성공 확률 = 1 − 스루 위험. 실패 손실은 원문 모델대로 도착 값 0(소유를 잃음)이라 따로 계수를 두지 않는다. 허용치를 넘는 제안은 패스가 안 되므로 뺀다
+        private static bool PrefersRunPass(IPlayerContext ctx)
+        {
+            IReadOnlyList<RunOffer> offers = ctx.RunOffers;
+            if (offers.Count == 0) { return false; }
+
+            ThreatGrid grid = ctx.Threat;
+
+            float allow = ThroughAllow(ctx);
+            float carryX = ctx.X + MatchTuning.CarryComfortZone * ctx.AttackSign;
+            float carryGain = ThreatRules.CarryGain(grid, ctx.X, ctx.Z, carryX, ctx.Z, ctx.AttackSign);
+            for (int i = 0; i < offers.Count; i++)
+            {
+                if (offers[i].Risk > allow) { continue; }
+                float passGain = ThreatRules.PassGain(grid, ctx.X, ctx.Z, offers[i].X, offers[i].Z, ctx.AttackSign, offers[i].Risk);
+                if (ReceiverRules.PassBeatsCarry(carryGain, passGain)) { return true; }
+            }
+            return false;
         }
 
         private static bool IsCarryRole(string roleId)
@@ -350,9 +433,16 @@ namespace Game.Core.AI
             ctx.RunToward(aim.x, aim.z);
         }
 
-        // 서는 자리(홈 + 슬라이드)는 PositionRules.AttackStand 한 곳. 전술판 미니 피치가 같은 함수로 미리 보인다(10-29 ③d)
+        // 서는 자리(홈 + 슬라이드)는 PositionRules.AttackStand 한 곳. 전술판 미니 피치가 같은 함수로 미리 보인다(10-29 ③d).
+        // 사전 런 제안을 받았으면 그 점으로 먼저 달린다(RunToSpot)
         private static void MoveToAttackHome(IPlayerContext ctx)
         {
+            int myOffer = OfferIndexOf(ctx, ctx.PlayerId);
+            if (myOffer != NoOffer)
+            {
+                RunToSpot(ctx, ctx.RunOffers[myOffer]);
+                return;
+            }
             (float x, float z) slid = PositionRules.AttackStand(ctx.AttackHomeX, ctx.AttackHomeZ, ctx.AttackSign, ctx.Tactics, ctx.Stats, ctx.BallX, ctx.BallZ, ctx.IsGoalkeeper);
             float x = slid.x;
             if (ctx.BallOwnerTeam == ctx.Team && !ctx.OwnsBall && !ctx.IsGoalkeeper)
@@ -366,6 +456,28 @@ namespace Game.Core.AI
                 return;
             }
             ctx.JogToward(x, slid.z);
+        }
+
+        // 나에게 오는 패스 받기. 런 패스(스루)면 감속 없이 목표점으로 달려 들어가며 받는다: 공간에 서서 기다리지 않는다(FM "runs onto").
+        // 도착점에서 감속하면 공이 먼저 지나간다. 런 판정(RunRules.RunnerMeetsBall)도 같은 Seek로 굴려 판정과 실행이 같은 식을 쓴다(설계 A1 3절).
+        // 일반 패스는 도착점에서 멈춰 받는다
+        private static void ReceivePass(IPlayerContext ctx)
+        {
+            if (ctx.IsRunPass)
+            {
+                ctx.RunToward(ctx.PassTargetX, ctx.PassTargetZ);
+                return;
+            }
+            ctx.ArriveToward(ctx.PassTargetX, ctx.PassTargetZ);
+        }
+
+        // 사전 런(11-03 ⑤): 패스가 오기 전에 런 목표점으로 먼저 달린다. 위치는 온사이드 선 −OnsideMargin까지만 간다(킥 순간 온사이드여야 후보가 되므로).
+        // 선 너머는 킥 뒤 ⑥ 리시버 마중이 이어받는다. 패스가 안 오면 선에서 멈춘다(허탕 런)
+        private static void RunToSpot(IPlayerContext ctx, RunOffer offer)
+        {
+            float line = OffsideRules.OnsideLine(ctx.Opponents, ctx.AttackSign, ctx.BallX);
+            float x = OffsideRules.ClampOnside(offer.X, ctx.AttackSign, line, MatchTuning.OnsideMargin);
+            ctx.ArriveToward(x, offer.Z);
         }
 
         // 공격 전진 런(10-29 가속 C): 아군 소유 중 앞쪽 자리로 가는 이동은 전력, 뒤·옆으로 돌아오는 건 조깅.

@@ -4,6 +4,7 @@ using System.Globalization;
 using System.IO;
 using CsvHelper;
 using CsvHelper.Configuration;
+using Game.Core.Match;
 
 namespace Game.Core.Data
 {
@@ -107,6 +108,10 @@ namespace Game.Core.Data
             {
                 throw new FormatException($"PlayerTable {line}행: passRisk·dribble은 0~1");
             }
+            if (p.RunStyle < RunRules.StyleNone || p.RunStyle > RunRules.StyleLate)
+            {
+                throw new FormatException($"PlayerTable {line}행: runStyle은 0~3 ({p.RunStyle})");
+            }
             if (p.Focus < 0 || p.Focus > 2)
             {
                 throw new FormatException($"PlayerTable {line}행: focus는 0~2 ({p.Focus})");
@@ -159,6 +164,7 @@ namespace Game.Core.Data
                 Map(p => p.Dribble).Name("dribble");
                 Map(p => p.HoldUp).Name("holdUp");
                 Map(p => p.GkRushRadius).Name("gkRushRadius");
+                Map(p => p.RunStyle).Name("runStyle").Optional().Default(0);   // 11-03 ⑤. 옛 CSV(열 없음)는 0 = 침투 성향 없음
                 Map(p => p.DisplayName).Name("displayName");
                 Map(p => p.Description).Name("description");
             }

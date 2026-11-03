@@ -138,6 +138,29 @@ namespace Game.Core.Match
             return (float)((ball.VelY + Math.Sqrt(disc)) / MatchTuning.Gravity);
         }
 
+        // 공이 멈추는 시각. 공중은 착지 시각 + 착지 뒤 수평 속도(× LobBounceSpeedRetention)가 땅 감속으로 줄어드는 시간,
+        // 땅은 속도 ÷ 감속. 비행이 아닌 공(Free·Owned)은 움직이지 않으니 0
+        public static float StopTime(in BallState ball, float landing)
+        {
+            if (ball.Phase != BallPhase.Flight) { return 0f; }
+
+            float speed = (float)Math.Sqrt(ball.VelX * ball.VelX + ball.VelZ * ball.VelZ);
+            if (!ball.Airborne) { return speed / MatchTuning.BallDeceleration; }
+
+            float rollSpeed = speed * MatchTuning.LobBounceSpeedRetention;
+            return landing + rollSpeed / MatchTuning.BallDeceleration;
+        }
+
+        // 땅볼이 킥 속도 kickSpeed로 출발해 거리 distance 떨어진 점에 닿는 시각(땅볼 전용). 등감속 d = v0·t − a·t²/2의 첫 해.
+        // 거리에 못 미치고 서면 서는 시각(StopTime의 땅볼 식)을 낸다
+        public static float TimeToDistance(float kickSpeed, float distance)
+        {
+            float a = MatchTuning.BallDeceleration;
+            float disc = kickSpeed * kickSpeed - 2f * a * distance;
+            if (disc <= 0f) { return kickSpeed / a; }
+            return (kickSpeed - (float)Math.Sqrt(disc)) / a;
+        }
+
         // 공이 height 아래에 있어 닿을 수 있게 되는 가장 이른 시각(t ≥ 0). 지금 이미 height 아래면(상승 중 발사 구간 포함) 0, 땅볼도 0.
         // height 위에서 내려오는 공은 Y = height가 되는 하강 시각. 상승 중이어도 height 위면 정점을 지나 내려올 때다
         public static float EarliestReachableTime(in BallState ball, float height)

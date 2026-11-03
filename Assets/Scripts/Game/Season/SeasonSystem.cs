@@ -166,10 +166,11 @@ public class SeasonSystem : ISaveLoad
             IReadOnlyList<GeneratedTeam> opponents = Opponents;
             IReadOnlyList<Fixture> schedule = Schedule;
             IReadOnlyList<TeamTactics> presets = TeamTacticsRepository.All;
+            ThreatGrid threat = ThreatTableRepository.Grid;   // 같은 이유로 메인 스레드에서 미리 읽는다(Resources.Load)
 
             // 시뮬은 순수 C#(Game.Core, 엔진 참조 없음)이고 값·읽기 전용 목록만 넘겨 스레드에서 돌려도 된다. 이 구간엔 Debug.Log도 부르지 않는다
             await Awaitable.BackgroundThreadAsync();
-            List<MatchResult> results = SeasonRunner.ComputeRound(round, seasonSeed, opponents, schedule, presets, myResult);
+            List<MatchResult> results = SeasonRunner.ComputeRound(round, seasonSeed, opponents, schedule, presets, myResult, threat);
             await Awaitable.MainThreadAsync();
 
             // 에디터에서 계산 중 Play를 끄면 여기로 돌아왔을 때 SaveLoadSystem이 이미 파괴돼 있다. Instance가 초기화 안 된 새 객체를 만들어 세이브를 null로 덮으니
@@ -214,7 +215,7 @@ public class SeasonSystem : ISaveLoad
         if (foreignTeam != null) { return foreignTeam; }
         PlayoffPlan plan = PlayoffPlan;
         TierRule other = TierRuleRepository.Get(plan.OtherTier);
-        foreignTeam = SeasonRunner.ForeignTeam(State.SeasonSeed, other, plan.Role, PlayerTableRepository.All, FormationTemplateRepository.All, TeamNameRepository.Table, TeamTacticsRepository.All);
+        foreignTeam = SeasonRunner.ForeignTeam(State.SeasonSeed, other, plan.Role, PlayerTableRepository.All, FormationTemplateRepository.All, TeamNameRepository.Table, TeamTacticsRepository.All, ThreatTableRepository.Grid);
         return foreignTeam;
     }
 
@@ -223,7 +224,7 @@ public class SeasonSystem : ISaveLoad
     public async Awaitable AutoPlayCurrentMatchAsync()
     {
         MatchSetup setup = CurrentMatch;
-        MatchSimulation sim = MatchAssembler.Create(setup.Team0, setup.Team1, setup.Tactics0, setup.Tactics1, setup.Seed);
+        MatchSimulation sim = MatchAssembler.Create(setup.Team0, setup.Team1, setup.Tactics0, setup.Tactics1, setup.Seed, ThreatTableRepository.Grid);
         var probe = new MatchProbe(sim);
         probe.Run(MatchTuning.MatchTicks, MatchTuning.FixedStep);
         await ReportMyResultAsync(setup.ResultFor(sim.HomeGoals, sim.AwayGoals), null);

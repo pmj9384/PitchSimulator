@@ -28,7 +28,7 @@ public class ChaserHysteresisTests
     [Test]
     public void 루즈볼_담당은_도전자가_2m_넘게_가까워질_때만_바뀐다()
     {
-        var sim = new MatchSimulation(() => 0.5f, PlayerTreeBuilder.Build());
+        var sim = new MatchSimulation(() => 0.5f, PlayerTreeBuilder.Build(), TestThreat.Real);
         PlayerState a = sim.AddPlayer(new PlayerState(playerId: 0, team: 0, Field(), x: -10f, z: 0f));
         PlayerState b = sim.AddPlayer(new PlayerState(playerId: 1, team: 0, Field(), x: -10.5f, z: 0f));
         sim.Ball = BallState.FreeAt(0f, 0f);
@@ -51,7 +51,7 @@ public class ChaserHysteresisTests
     public void 출격_못_하는_GK가_최근접이어도_필드_플레이어가_쫓는다()
     {
         // 09-23 R3 회귀: 공 -33, GK -48(15m > 출격 12m), 필드 -20(13m). GK는 루즈볼 후보에서 빠진다
-        var sim = new MatchSimulation(() => 0.5f, PlayerTreeBuilder.Build());
+        var sim = new MatchSimulation(() => 0.5f, PlayerTreeBuilder.Build(), TestThreat.Real);
         PlayerState gk = sim.AddPlayer(new PlayerState(playerId: 0, team: 0, Keeper(), x: -48f, z: 0f));
         PlayerState field = sim.AddPlayer(new PlayerState(playerId: 1, team: 0, Field(), x: -20f, z: 0f));
         sim.Ball = BallState.FreeAt(-33f, 0f);

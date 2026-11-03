@@ -393,4 +393,13 @@ public class PassRulesTests
         Assert.IsFalse(PassRules.LobLanding(0f, 0f, 0f, 14.9f, 1, none, -1).Found, "15m 미만");
         Assert.IsFalse(PassRules.LobLanding(0f, 0f, 0f, 45.1f, 1, none, -1).Found, "45m 초과");
     }
+
+    [Test]
+    public void 스루_허용치는_실측_맞춘_기준값에_팀_개인_허용치의_균형_대비_편차를_얹는다()
+    {
+        Assert.AreEqual(MatchTuning.ThroughRiskAllow, PassRules.ThroughAllow(1, 0f), 1e-5f, "균형 = 기준값");
+        Assert.AreEqual(MatchTuning.ThroughRiskAllow - 0.3f, PassRules.ThroughAllow(0, 0f), 1e-5f, "안전 카드(0.2)는 0.3 낮다");
+        Assert.AreEqual(1f, PassRules.ThroughAllow(2, 0.95f), 1e-5f, "1로 자른다");
+        Assert.AreEqual(MatchTuning.ThroughRiskAllow + 0.2f, PassRules.ThroughAllow(1, 0.7f), 1e-5f, "개인 허용치가 더 크면 그 편차");
+    }
 }

@@ -29,7 +29,7 @@ namespace Game.Core.Match
         {
             float limit = bestOpponentTime + MatchTuning.FixedStep;
             float landing = BallRules.LandingTime(ball);   // t와 무관하니 스캔 밖에서 한 번만 잰다
-            float stop = StopTime(ball, landing);
+            float stop = BallRules.StopTime(ball, landing);
             int steps = (int)Math.Floor(stop / MatchTuning.FixedStep);
             for (int i = 0; i <= steps; i++)
             {
@@ -87,19 +87,6 @@ namespace Game.Core.Match
             if (float.IsPositiveInfinity(opponentTime)) { return 0f; }
             if (IsSameTick(receiverTime, opponentTime)) { return Risk(receiverArrival, opponentArrival, sigma); }
             return Risk(receiverTime, opponentTime, sigma);
-        }
-
-        // 공이 멈추는 시각. 공중은 착지 시각 + 착지 뒤 수평 속도(× LobBounceSpeedRetention)가 땅 감속으로 줄어드는 시간,
-        // 땅은 속도 ÷ 감속. 비행이 아닌 공(Free·Owned)은 움직이지 않으니 0
-        private static float StopTime(in BallState ball, float landing)
-        {
-            if (ball.Phase != BallPhase.Flight) { return 0f; }
-
-            float speed = (float)Math.Sqrt(ball.VelX * ball.VelX + ball.VelZ * ball.VelZ);
-            if (!ball.Airborne) { return speed / MatchTuning.BallDeceleration; }
-
-            float rollSpeed = speed * MatchTuning.LobBounceSpeedRetention;
-            return landing + rollSpeed / MatchTuning.BallDeceleration;
         }
 
         private static float ArrivalTime(float distance, float runSpeed, float reaction, float captureRadius)

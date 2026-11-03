@@ -123,4 +123,26 @@ public class MovementRulesTests
         }
         return ticks;
     }
+
+    [Test]
+    public void 목표에_이르면_Arrive는_멈추고_Seek는_지나쳐_간다()
+    {
+        // 런 패스 수신이 Seek인 이유(RunRules.RunnerMeetsBall): Arrive는 목표에서 서고 Seek는 멈출 생각 없이 지나간다
+        float top = MatchRules.SpeedMps(50);
+        float accel = MovementRules.AccelerationFor(top, MatchTuning.ReactionTime);
+        (float x, float z, float vx, float vz) arrive = (0f, 0f, top, 0f);
+        (float x, float z, float vx, float vz) seek = (0f, 0f, top, 0f);
+        float arriveMaxX = 0f;
+        float seekMaxX = 0f;
+        for (int i = 0; i < 150; i++)
+        {
+            arrive = MovementRules.Step(arrive.x, arrive.z, arrive.vx, arrive.vz, 10f, 0f, top, accel, Dt, true);
+            seek = MovementRules.Step(seek.x, seek.z, seek.vx, seek.vz, 10f, 0f, top, accel, Dt, false);
+            arriveMaxX = System.Math.Max(arriveMaxX, arrive.x);
+            seekMaxX = System.Math.Max(seekMaxX, seek.x);
+        }
+        Assert.LessOrEqual(arriveMaxX, 10.5f, "Arrive: 목표에서 감속해 선다");
+        Assert.AreEqual(10f, arrive.x, 0.5f);
+        Assert.Greater(seekMaxX, 11f, "Seek: 최고 속도로 목표를 지나친다");
+    }
 }

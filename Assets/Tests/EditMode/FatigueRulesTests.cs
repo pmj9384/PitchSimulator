@@ -47,7 +47,7 @@ public class FatigueRulesTests
     {
         // speed 50 = 7m/s. 체력 0이면 7 × 0.9 = 6.3m/s → 한 틱(0.02초) 0.126m
         var stats = new PlayerStats { RoleId = "CM", VariantId = "cm_test", Speed = 50, Stamina = 50, PressRange = 8f };
-        var sim = new MatchSimulation(() => 0.5f, new MoveRight());
+        var sim = new MatchSimulation(() => 0.5f, new MoveRight(), TestThreat.Real);
         PlayerState p = sim.AddPlayer(new PlayerState(0, 0, stats, 0f, 10f));
         sim.Ball = BallState.FreeAt(40f, -30f);
         p.Stamina = 0f;
@@ -62,7 +62,7 @@ public class FatigueRulesTests
     {
         // 전력 행동(공 몰기)만 깎는다. 같은 트리로 움직여도 공이 없는 선수는 회복 쪽
         var stats = new PlayerStats { RoleId = "CM", VariantId = "cm_test", Speed = 50, Stamina = 50, PressRange = 8f };
-        var sim = new MatchSimulation(() => 0.5f, new MoveRight());
+        var sim = new MatchSimulation(() => 0.5f, new MoveRight(), TestThreat.Real);
         PlayerState carrier = sim.AddPlayer(new PlayerState(0, 0, stats, 0f, 10f));
         PlayerState mate = sim.AddPlayer(new PlayerState(1, 0, stats, 0f, -10f));
         sim.Ball = BallRules.Own(sim.Ball, 0, 0f, 10f);
@@ -77,7 +77,7 @@ public class FatigueRulesTests
     public void 하프타임에는_단기_체력이_상한까지_찬다()
     {
         var stats = new PlayerStats { RoleId = "CM", VariantId = "cm_test", Speed = 50, Stamina = 50, PressRange = 8f };
-        var sim = new MatchSimulation(() => 0.5f, new PassFlightTestsHelper.NoOp());
+        var sim = new MatchSimulation(() => 0.5f, new PassFlightTestsHelper.NoOp(), TestThreat.Real);
         PlayerState p = sim.AddPlayer(new PlayerState(0, 0, stats, -10f, 0f));
         sim.AddPlayer(new PlayerState(1, 1, stats, 10f, 0f));
         sim.KickoffBy(0);

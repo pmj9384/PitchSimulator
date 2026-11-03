@@ -50,7 +50,10 @@ public class CompositeNodeTests
         public float AttackHomeZ => 0f;
         public float DefendHomeX => 0f;
         public float DefendHomeZ => 0f;
+        public IReadOnlyList<RunOffer> RunOffers => new List<RunOffer>();
+        public ThreatGrid Threat => TestThreat.Flat();
         public bool IsPassTarget => false;
+        public bool IsRunPass => false;
         public float PassTargetX => 0f;
         public float PassTargetZ => 0f;
         public bool WaitingForShot => false;
@@ -62,6 +65,7 @@ public class CompositeNodeTests
         public void Shoot() { }
         public void Pass(int receiverId, float landingX, float landingZ) { }
         public void PassLob(int receiverId, float landingX, float landingZ) { }
+        public void PassRun(int receiverId, float landingX, float landingZ) { }
     }
 
     private static BehaviorNode Cond(bool value)

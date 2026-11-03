@@ -13,17 +13,17 @@ namespace Game.Core.League
     {
 
         public static void PlayRound(SeasonState state, IReadOnlyList<GeneratedTeam> opponents, IReadOnlyList<Fixture> schedule,
-            IReadOnlyList<TeamTactics> presets, MatchResult myResult)
+            IReadOnlyList<TeamTactics> presets, MatchResult myResult, ThreatGrid threat)
         {
             // 결과를 모아 끝에 한 번에 넣는다: 헤드리스 경기 중 예외가 나도 내 결과만 남는 반쪽 상태가 생기지 않는다(09-27 리뷰 D3)
-            state.AddRound(ComputeRound(state.RoundsPlayed, state.SeasonSeed, opponents, schedule, presets, myResult));
+            state.AddRound(ComputeRound(state.RoundsPlayed, state.SeasonSeed, opponents, schedule, presets, myResult, threat));
         }
 
         // 한 라운드의 전 경기 결과(내 결과가 맨 앞)를 계산만 한다. 입력을 읽기만 해서 백그라운드 스레드에서 불러도 된다.
         // 인게임에선 휘슬 뒤 헤드리스 경기가 FixedUpdate를 2.5초 붙잡던 것을 스레드로 뺀다. 넣기(AddRound)는 부르는 쪽이 메인 스레드에서 한 번에 한다(09-28 G1).
         // 시즌 상태 대신 라운드·시드 값만 받는다: 스레드로 넘어가는 가변 객체가 없어야 "상태를 안 건드린다"가 주석이 아니라 시그니처로 보장된다
         public static List<MatchResult> ComputeRound(int round, int seasonSeed, IReadOnlyList<GeneratedTeam> opponents, IReadOnlyList<Fixture> schedule,
-            IReadOnlyList<TeamTactics> presets, MatchResult myResult)
+            IReadOnlyList<TeamTactics> presets, MatchResult myResult, ThreatGrid threat)
         {
             Fixture mine = SeasonSchedule.MyFixture(schedule, round, SeasonState.MyTeamId);
             if (myResult.HomeTeamId != mine.HomeTeamId || myResult.AwayTeamId != mine.AwayTeamId)
@@ -37,17 +37,17 @@ namespace Game.Core.League
             {
                 Fixture f = fixtures[i];
                 if (f.HomeTeamId == SeasonState.MyTeamId || f.AwayTeamId == SeasonState.MyTeamId) { continue; }
-                results.Add(Simulate(seasonSeed, f, opponents, presets));
+                results.Add(Simulate(seasonSeed, f, opponents, presets, threat));
             }
             return results;
         }
 
         // 상대끼리 한 경기(헤드리스). 테스트가 결정성·스폰 진영을 이 단위로 본다
-        public static MatchSimulation Assemble(int seasonSeed, Fixture f, IReadOnlyList<GeneratedTeam> opponents, IReadOnlyList<TeamTactics> presets)
+        public static MatchSimulation Assemble(int seasonSeed, Fixture f, IReadOnlyList<GeneratedTeam> opponents, IReadOnlyList<TeamTactics> presets, ThreatGrid threat)
         {
             GeneratedTeam home = Find(opponents, f.HomeTeamId);
             GeneratedTeam away = Find(opponents, f.AwayTeamId);
-            return MatchAssembler.Create(home.ToLineup(asHome: true), away.ToLineup(asHome: false), FindPreset(presets, home.PresetId), FindPreset(presets, away.PresetId), MatchSeed(seasonSeed, f));
+            return MatchAssembler.Create(home.ToLineup(asHome: true), away.ToLineup(asHome: false), FindPreset(presets, home.PresetId), FindPreset(presets, away.PresetId), MatchSeed(seasonSeed, f), threat);
         }
 
         // 경기 시드는 (시즌 시드, 라운드, 홈, 원정)에서만 나온다. 인게임 내 경기와 헤드리스 상대 경기가 같은 식을 쓴다(같은 세팅 = 같은 경기, "막히면 재세팅")
@@ -73,7 +73,7 @@ namespace Game.Core.League
         // 다른 부의 승강전 상대. [가정] 상위 부(도전자일 때)는 그 부 생성 목록의 마지막 팀이 "최하위 바로 위"를 맡고,
         // 하위 부(수성일 때)는 생성 2·3번 팀의 단판 PO(2번 홈)를 헤드리스로 돌려 승자가 올라온다. id는 1000 + 생성 id, 이름엔 부를 붙인다
         public static GeneratedTeam ForeignTeam(int seasonSeed, TierRule otherTier, PlayoffRole role, IReadOnlyList<PlayerStats> table,
-            IReadOnlyList<FormationTemplate> formations, TeamNameTable names, IReadOnlyList<TeamTactics> presets)
+            IReadOnlyList<FormationTemplate> formations, TeamNameTable names, IReadOnlyList<TeamTactics> presets, ThreatGrid threat)
         {
             List<GeneratedTeam> teams = TeamGenerator.Generate(seasonSeed, otherTier, table, formations, names);
             if (teams.Count < 3) { throw new InvalidOperationException($"[SeasonRunner] {otherTier.Tier}부 생성 팀이 3개 미만이다({teams.Count})"); }
@@ -88,7 +88,7 @@ namespace Game.Core.League
                 GeneratedTeam home = teams[1];
                 GeneratedTeam away = teams[2];
                 var f = new Fixture(otherTier.Matches, home.TeamId, away.TeamId);
-                MatchSimulation sim = MatchAssembler.Create(home.ToLineup(asHome: true), away.ToLineup(asHome: false), FindPreset(presets, home.PresetId), FindPreset(presets, away.PresetId), MatchSeed(seasonSeed, f));
+                MatchSimulation sim = MatchAssembler.Create(home.ToLineup(asHome: true), away.ToLineup(asHome: false), FindPreset(presets, home.PresetId), FindPreset(presets, away.PresetId), MatchSeed(seasonSeed, f), threat);
                 var probe = new MatchProbe(sim);
                 probe.Run(MatchTuning.MatchTicks, MatchTuning.FixedStep);
                 picked = LeagueRules.PlayoffWinner(home.TeamId, away.TeamId, sim.HomeGoals, sim.AwayGoals) == home.TeamId ? home : away;
@@ -150,9 +150,9 @@ namespace Game.Core.League
             return new PlayoffResult(stage, myResult.HomeTeamId, myResult.AwayTeamId, myResult.HomeGoals, myResult.AwayGoals, pens.HomeScore, pens.AwayScore);
         }
 
-        private static MatchResult Simulate(int seasonSeed, Fixture f, IReadOnlyList<GeneratedTeam> opponents, IReadOnlyList<TeamTactics> presets)
+        private static MatchResult Simulate(int seasonSeed, Fixture f, IReadOnlyList<GeneratedTeam> opponents, IReadOnlyList<TeamTactics> presets, ThreatGrid threat)
         {
-            MatchSimulation sim = Assemble(seasonSeed, f, opponents, presets);
+            MatchSimulation sim = Assemble(seasonSeed, f, opponents, presets, threat);
             var probe = new MatchProbe(sim);
             probe.Run(MatchTuning.MatchTicks, MatchTuning.FixedStep);
             return new MatchResult(f.HomeTeamId, f.AwayTeamId, sim.HomeGoals, sim.AwayGoals);

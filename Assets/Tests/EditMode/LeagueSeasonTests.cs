@@ -182,14 +182,14 @@ public class LeagueSeasonTests
         TierRule tier = Tier(4);
         List<GeneratedTeam> opponents = TeamGenerator.Generate(3, tier, table, formations, names);
         var fixture = new Fixture(0, 1, 2);
-        Game.Core.Match.MatchSimulation sim = SeasonRunner.Assemble(3, fixture, opponents, presets);
+        Game.Core.Match.MatchSimulation sim = SeasonRunner.Assemble(3, fixture, opponents, presets, TestThreat.Real);
         foreach (Game.Core.Match.PlayerState p in sim.Players)
         {
             if (p.Team == 0) { Assert.Less(p.AttackHomeX, 0f, $"홈 #{p.PlayerId}는 -X 진영"); Assert.Less(p.DefendHomeX, 0f); }
             else { Assert.Greater(p.AttackHomeX, 0f, $"원정 #{p.PlayerId}는 +X 진영"); }
         }
-        Game.Core.Match.MatchSimulation a = SeasonRunner.Assemble(3, fixture, opponents, presets);
-        Game.Core.Match.MatchSimulation b = SeasonRunner.Assemble(3, fixture, opponents, presets);
+        Game.Core.Match.MatchSimulation a = SeasonRunner.Assemble(3, fixture, opponents, presets, TestThreat.Real);
+        Game.Core.Match.MatchSimulation b = SeasonRunner.Assemble(3, fixture, opponents, presets, TestThreat.Real);
         for (int i = 0; i < MatchTuning.MatchTicks; i++)
         {
             a.Tick(0.02f);
@@ -257,7 +257,7 @@ public class LeagueSeasonTests
             Fixture mine = SeasonSchedule.MyFixture(schedule, round, SeasonState.MyTeamId);
             bool home = mine.HomeTeamId == SeasonState.MyTeamId;
             var myResult = new MatchResult(mine.HomeTeamId, mine.AwayTeamId, home ? 2 : 0, home ? 0 : 2);   // 내가 다 이긴 걸로
-            SeasonRunner.PlayRound(state, opponents, schedule, presets, myResult);
+            SeasonRunner.PlayRound(state, opponents, schedule, presets, myResult, TestThreat.Real);
         }
 
         Assert.AreEqual(tier.Matches, state.RoundsPlayed);
@@ -279,7 +279,7 @@ public class LeagueSeasonTests
         SeasonState state = SeasonState.NewSeason(4, 1, myRows, table);
         List<GeneratedTeam> opponents = TeamGenerator.Generate(1, tier, table, formations, names);
         List<Fixture> schedule = SeasonSchedule.RoundRobin(tier.Teams);
-        Assert.Throws<InvalidOperationException>(() => SeasonRunner.PlayRound(state, opponents, schedule, presets, new MatchResult(3, 4, 1, 0)));
+        Assert.Throws<InvalidOperationException>(() => SeasonRunner.PlayRound(state, opponents, schedule, presets, new MatchResult(3, 4, 1, 0), TestThreat.Real));
     }
 
     [Test]

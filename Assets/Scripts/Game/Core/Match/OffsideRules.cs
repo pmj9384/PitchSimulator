@@ -35,6 +35,27 @@ namespace Game.Core.Match
             return line;
         }
 
+        // 수비 라인(공 제외, 공격 방향 좌표): 상대 중 골 쪽에서 2번째 선수. 온사이드 선은 여기에 공·하프라인 항이 붙지만
+        // 뒤공간 런의 "뒤"는 수비수 기준이다(SkillCorner run in behind 정의). 상대가 2명 미만이면 NoLine
+        public static float LastDefenderLine(IReadOnlyList<TargetInfo> opponents, int attackSign)
+        {
+            if (opponents.Count < 2) { return NoLine; }
+
+            float first = float.MinValue;
+            float second = float.MinValue;
+            for (int i = 0; i < opponents.Count; i++)
+            {
+                float f = opponents[i].X * attackSign;
+                if (f > first)
+                {
+                    second = first;
+                    first = f;
+                }
+                else if (f > second) { second = f; }
+            }
+            return second;
+        }
+
         public static bool IsOffsidePosition(float x, int attackSign, float onsideLine)
         {
             return x * attackSign > onsideLine;

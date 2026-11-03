@@ -143,6 +143,25 @@ namespace Game.Core.Match
         public const float AccelerationAt50 = 7f;                                  // speed 50 선수의 가속 m/s². Spearman 2018·Shaw 코드의 amax 7. 정지 출발 10m 1.93초(현실 2.04초)
         public const float ReactionTime = SpeedMpsAt50 / (2f * AccelerationAt50);  // 0.5초. 정지한 선수가 가속으로 잃는 거리 = 최고 속도로 이만큼 늦게 출발한 것(MovementRules.ReactionEquivalent).
                                                                                    // 개인 가속은 이 값이 모든 선수에게 같도록 최고 속도에서 유도한다(MovementRules.AccelerationFor)
+        // 사전 런(11-03 ⑤, 설계초안-침투-스루 3절 C·D). 값은 설계초안 9절 격자(러너 100판 × 20칸)로 정했다. 출처가 주는 수치는 없어 범위만 HELIOS(6~30m, ±40°)를 따른다
+        // RunPlanInterval: 5틱 주기는 판당 시뮬 시간이 1.33배, 10틱은 1.19배인데 지표 차이는 잡음 안이라 10으로 둔다
+        public const int RunPlanInterval = 10;                                       // 런 제안을 새로 찾는 주기(틱). 이미 있는 제안은 매 틱 다시 잰다
+        public const int MaxRunners = 1;                                             // 팀당 동시에 사전 런을 하는 인원. SkillCorner 팀·경기당 18.7회는 4.8분에 1번이라 겹침이 드물다
+        public const float RunAngleDeg = 40f;                                        // 런 목표 방향의 한쪽 폭(공격 방향 기준). HELIOS 스루 후보 ±40°
+        public const int RunDirectionCount = 3;                                      // 방향 후보 수(1·3·5). 가운데부터 좌우로 균등
+        public static readonly float[] RunDistances = { 30f, 18f, 10f, 6f };        // 러너 앞 목표 거리 후보(긴 것부터). HELIOS 6~30m 안
+        public const float RunSupportDistance = 7f;                                  // 내려와 받기: 패서 앞 이 거리. 코칭 자료(FIFA Training Centre 지원 간격 6~8m, 2차)
+
+        // RunBehindMargin: SkillCorner는 받는 위치가 최종 수비수와 나란하다(0.06m)고 하지만 1m로 두면 윙어가 판당 0.8번만 달린다(공격 자리가 라인에서 25m 뒤). [가정]
+        public const float RunBehindMargin = 5f;                                     // 뒤공간 목표는 수비 라인(공 제외)에서 이만큼 뒤까지 인정
+
+        // 스루 위험 허용치(11-03 ⑤): 런 제안 착지점으로 차는 패스에만 쓴다. 땅볼 판정(LandingRisk)은 여유폭 척도라 허용치 0.5에서도 성공이 89%였다.
+        // SkillCorner opendata A리그 20경기 749런의 "패스를 받은 런 성공률" 51.9%(339회 중 176, 95% 구간 46.6~57.2%)에 성공률이 가까운 값으로 맞췄다(실측 맞춤 [가정], 격자는 설계초안 9절: 0.5 → 63%, 0.55 → 58%, 0.6 → 59%, 0.65 이상은 72~95%로 튀거나 제안이 사라진다).
+        // 팀 PassRisk와의 관계: 균형(0.5) 기준 편차를 그대로 얹는다(PassRules.ThroughAllow). 안전 카드는 스루도 덜 찬다
+        public const float ThroughRiskAllow = 0.55f;   // 스루(런 제안 착지점) 위험 허용치 기준값
+
+        // RunArrivalMargin: 실행의 작은 손실(제동·방향 틀기)에도 판정이 안 뒤집히게 하는 여유다. {0, 0.1, 0.2, 0.3} × ThroughRiskAllow 3값 24칸 중 완료 기준을 가장 많이 만족한 칸(설계 A1 8절). [가정]
+        public const float RunArrivalMargin = 0.1f;   // 런 판정: 러너가 목표점에 공 도착 시각보다 이만큼 일찍 닿아야 도달 가능
         public const int MaxPressers = 1;                                       // 팀에서 동시에 압박(⑧)하는 인원 상한. 압박 거리 안인 선수를 공 거리순으로 세어 이 안만 간다(09-23 Play: 인원 제한이 없어 우리 진영 "적극"이면 CM 19.5m·FB/W/ST 12m 안 4~6명이 한꺼번에 달려들어 초등학교 경기처럼 뭉쳤다). Simple Soccer는 최근접 1명만 쫓고 FM도 1명 압박 + 커버. 러너에서 태클이 죽으면 2
     }
 }

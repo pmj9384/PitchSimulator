@@ -157,7 +157,7 @@ public class StaminaLoadTests
         long slowed = 0;
         for (int seed = FirstSeed; seed < FirstSeed + matches; seed++)
         {
-            MatchSimulation sim = MatchAssembler.Create(players, rows, mine, balanced, seed);
+            MatchSimulation sim = MatchAssembler.Create(players, rows, mine, balanced, seed, TestThreat.Real);
             for (int tick = 0; tick < MatchTuning.MatchTicks; tick++)
             {
                 sim.Tick(MatchTuning.FixedStep);

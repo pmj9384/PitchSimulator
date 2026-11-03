@@ -227,7 +227,7 @@ public class PlayoffRulesTests
         Assert.AreEqual(PlayoffStage.LegOne, SeasonProgress.PendingStage(state, tier));
 
         // 승강전: 3부 팀과 1차전 홈·2차전 원정, 합산 동점 → 승부차기로 갈린다
-        GeneratedTeam foreign = SeasonRunner.ForeignTeam(42, Tier(3), plan.Role, table, formations, names, presets);
+        GeneratedTeam foreign = SeasonRunner.ForeignTeam(42, Tier(3), plan.Role, table, formations, names, presets, TestThreat.Real);
         Assert.GreaterOrEqual(foreign.TeamId, PlayoffRules.ForeignTeamIdBase);
         StringAssert.Contains("(3부)", foreign.Name);
 
@@ -281,7 +281,7 @@ public class PlayoffRulesTests
         Assert.AreEqual(PlayoffRole.Defender, plan.Role);
         Assert.AreEqual(PlayoffStage.LegOne, SeasonProgress.PendingStage(state, tier));
 
-        GeneratedTeam foreign = SeasonRunner.ForeignTeam(43, Tier(4), plan.Role, table, formations, names, presets);
+        GeneratedTeam foreign = SeasonRunner.ForeignTeam(43, Tier(4), plan.Role, table, formations, names, presets, TestThreat.Real);
         StringAssert.Contains("(4부)", foreign.Name);
         MatchSetup legOne = SeasonRunner.SetupPlayoffMatch(state, tier, plan, PlayoffStage.LegOne, opponents, foreign, presets, table);
         Assert.IsFalse(legOne.MyTeamIsHome, "수성은 1차전 원정");

@@ -98,6 +98,7 @@ namespace Game.Core.Match
         private readonly List<TargetInfo> captureCandidates = new List<TargetInfo>();
         private readonly Func<float> nextRoll;
         private readonly BehaviorNode tree;
+        private readonly ThreatGrid threat;   // xT 격자(11-03 ⑤). 선수 스냅샷에 실어 트리가 읽는다
 
         // 팀 전술 2개(스타일 카드). 기본은 "균형"과 같은 빈 값(전부 0)이고 MatchManager가 프리셋을 주입한다
         private readonly TeamTactics[] tactics = { new TeamTactics(), new TeamTactics() };
@@ -105,6 +106,9 @@ namespace Game.Core.Match
         // 틱마다 한 번 계산하는 팀 단위 국면: 공은 하나라 서드·역습도 팀당 하나. 22명이 같은 값을 본다
         private readonly List<TargetInfo>[] rosterSnapshot = { new List<TargetInfo>(), new List<TargetInfo>() };
         private readonly List<TargetInfo>[] pressEligible = { new List<TargetInfo>(), new List<TargetInfo>() };   // 팀별 압박 거리 안 선수(압박 순위 계산용)
+        private readonly List<RunOffer>[] runOffers = { new List<RunOffer>(), new List<RunOffer>() };   // 팀별 사전 런 제안(11-03 ⑤)
+        private readonly int[] runCarrierId = { BallState.NoOwner, BallState.NoOwner };               // 제안을 만든 때의 운반자. 바뀌면 제안을 버린다
+        private readonly List<RunCandidate> runCandidateBuffer = new List<RunCandidate>();
         private readonly List<TargetInfo>[] looseCandidates = { new List<TargetInfo>(), new List<TargetInfo>() }; // 팀별 루즈볼 추격 후보(GK·얼음 제외)
         private readonly List<TargetInfo>[] blockCandidates = { new List<TargetInfo>(), new List<TargetInfo>() }; // 팀별 슛 블록 후보(얼음 제외, 09-30 리뷰). 틱 시작 스냅샷과 같은 시점
         // 팀별 "지금 맡은 선수"(09-28 F1b 히스테리시스). 압박 1순위는 상대 소유 중에만, 루즈볼 추격자는 소유 팀이 없을 때만 유지하고 아니면 -1
@@ -134,6 +138,7 @@ namespace Game.Core.Match
         // 비행 중인 패스. 리시버는 스냅샷으로 "나한테 온다"를 알고 마중 나간다
         private bool passInFlight;
         private int passReceiverId = -1;
+        private bool passIsRun;               // 비행 중 패스가 런 제안 착지점으로 찬 것인가(트리가 고른 PassChoice.IsRun을 킥 때 받는다). 리시버가 Seek로 받을지 정한다
         private int passPasserId = -1;        // 되돌림 금지용: 받은 선수의 LastPasserId에 기록
         private float passTargetX;
         private float passTargetZ;
@@ -162,10 +167,12 @@ namespace Game.Core.Match
         public int PassCount { get; private set; }
         public int InterceptCount { get; private set; }
 
-        public MatchSimulation(Func<float> nextRoll, BehaviorNode tree)
+        // 격자는 전역이 아니라 생성자로 받는다: 생성 지점이 매니저(관전)·조립기(자동 대전)로 둘이라, 전역이면 한쪽이 안 넣을 때 같은 세팅의 판단이 갈린다
+        public MatchSimulation(Func<float> nextRoll, BehaviorNode tree, ThreatGrid threat)
         {
             this.nextRoll = nextRoll;
             this.tree = tree;
+            this.threat = threat ?? throw new ArgumentNullException(nameof(threat));
             Ball = BallState.FreeAt(0f, 0f);
         }
 
@@ -395,7 +402,7 @@ namespace Game.Core.Match
             lastOwnerTeam = -1;
             ticksSinceTurnover = int.MaxValue;
             turnoverLoserTeam = -1;
-            passInFlight = false;
+            passInFlight = false;   // runOffers·passIsRun은 여기서 안 비운다: 공이 Free가 되거나 킥오프 선수에게 쥐어져 다음 틱 UpdateRunOffersOf 가드가 비우고, passIsRun은 passInFlight가 꺼져 읽히지 않는다
             passReceiverId = -1;
             ballOwnerAtLastTick = BallState.NoOwner;
             holdUpTicksLeft = 0;
@@ -581,6 +588,7 @@ namespace Game.Core.Match
             }
             FillPressEligible();
             UpdateChasers(ownerTeam);
+            UpdateRunOffers();
 
             for (int i = 0; i < players.Count; i++)
             {
@@ -594,6 +602,8 @@ namespace Game.Core.Match
                 p.IsCounterPressing = counterPressingByTeam[p.Team];
                 p.PressRank = PressRules.PressRank(p.PlayerId, pressEligible[p.Team], Ball.X, Ball.Z, pressLeader[p.Team], PressMargin(p.Team));
                 p.IsLooseBallChaser = looseChaser[p.Team] == p.PlayerId;
+                p.RunOffers = runOffers[p.Team];
+                p.Threat = threat;
                 p.IsKickoffTaker = kickoffTakerId == p.PlayerId;
                 p.WantsTakeOn = takeOnOwnerId == p.PlayerId && takeOnTicksLeft > 0;
                 p.Teammates = TeammatesExcluding(p);
@@ -602,10 +612,109 @@ namespace Game.Core.Match
                 p.OpponentKeeper = keeperIds[other] == -1 ? null : FindPlayer(keeperIds[other]).Stats;
                 p.OpponentKeeperId = keeperIds[other];
                 p.IsPassTarget = passInFlight && passReceiverId == p.PlayerId;
+                p.IsRunPass = p.IsPassTarget && passIsRun;
                 p.PassTargetX = passTargetX;
                 p.PassTargetZ = passTargetZ;
                 FillKeeperShotSnapshot(p);
             }
+        }
+
+        // 사전 런 제안(11-03 ⑤): 팀의 공격 소유자(필드 플레이어)가 공을 쥐고 있는 동안만 있다. 공이 비행·자유 공이 되거나 운반자가 바뀌면 버린다
+        // (비행 중엔 ⑥ 리시버 마중이 이어받는다). 이미 있는 제안은 매 틱 다시 재고, 새 제안은 RunPlanInterval 틱마다 찾는다(비용)
+        private void UpdateRunOffers()
+        {
+            for (int team = 0; team < 2; team++)
+            {
+                UpdateRunOffersOf(team);
+            }
+        }
+
+        private void UpdateRunOffersOf(int team)
+        {
+            List<RunOffer> offers = runOffers[team];
+            if (Ball.Phase != BallPhase.Owned)
+            {
+                ClearRunOffers(team);
+                return;
+            }
+
+            PlayerState carrier = FindPlayer(Ball.OwnerId);
+            if (carrier.Team != team || carrier.IsGoalkeeper || carrier.PlayerId == kickoffTakerId)
+            {
+                ClearRunOffers(team);
+                return;
+            }
+            if (runCarrierId[team] != carrier.PlayerId)
+            {
+                offers.Clear();
+                runCarrierId[team] = carrier.PlayerId;
+            }
+
+            int third = (int)thirdByTeam[team];
+            TeamTactics teamTactics = tactics[team];
+            float allow = PassRules.ThroughAllow(teamTactics.PassRisk[third], carrier.Stats.PassRisk);   // 런 제안은 스루 허용치(11-03 ⑤)
+            float average = MatchTuning.PassAverageSpeed[teamTactics.Tempo[third]];
+            IReadOnlyList<TargetInfo> opponents = rosterSnapshot[1 - team];
+
+            KeepRunOffers(team, carrier, average, allow, opponents);
+            if (tickCount % MatchTuning.RunPlanInterval != 0) { return; }
+            FindRunOffers(team, carrier, average, allow, opponents);
+        }
+
+        private void ClearRunOffers(int team)
+        {
+            runOffers[team].Clear();
+            runCarrierId[team] = BallState.NoOwner;
+        }
+
+        private void KeepRunOffers(int team, PlayerState carrier, float average, float allow, IReadOnlyList<TargetInfo> opponents)
+        {
+            List<RunOffer> offers = runOffers[team];
+            for (int i = offers.Count - 1; i >= 0; i--)
+            {
+                PlayerState runner = FindPlayer(offers[i].RunnerId);
+                RunOffer kept = RunRules.Reevaluate(offers[i], carrier.X, carrier.Z, average, allow, opponents, RunCandidateOf(runner));
+                if (kept.RunnerId == RunOffer.NoRunner || runner.FrozenTicks > 0)
+                {
+                    offers.RemoveAt(i);
+                    continue;
+                }
+                offers[i] = kept;
+            }
+        }
+
+        private void FindRunOffers(int team, PlayerState carrier, float average, float allow, IReadOnlyList<TargetInfo> opponents)
+        {
+            List<RunOffer> offers = runOffers[team];
+            if (offers.Count >= MatchTuning.MaxRunners) { return; }
+
+            runCandidateBuffer.Clear();
+            for (int i = 0; i < players.Count; i++)
+            {
+                PlayerState p = players[i];
+                if (p.Team != team || p.IsGoalkeeper || p.FrozenTicks > 0) { continue; }
+                if (p.Stats.RunStyle != RunRules.StyleBehind && p.Stats.RunStyle != RunRules.StyleShort) { continue; }
+                runCandidateBuffer.Add(RunCandidateOf(p));
+            }
+            if (runCandidateBuffer.Count == 0) { return; }
+
+            bool pressed = IsPressed(carrier);
+            int third = (int)thirdByTeam[team];
+            int passStyle = tactics[team].PassStyle[third];
+            int widthLevel = tactics[team].Width[third];
+            while (offers.Count < MatchTuning.MaxRunners)
+            {
+                RunOffer offer = RunRules.FindOffer(carrier.X, carrier.Z, carrier.AttackSign, average, allow, pressed, opponents, runCandidateBuffer, offers, carrier.PlayerId,
+                    passStyle, carrier.Stats.PassLength, widthLevel);
+                if (offer.RunnerId == RunOffer.NoRunner) { return; }
+                offers.Add(offer);
+            }
+        }
+
+        private static RunCandidate RunCandidateOf(PlayerState p)
+        {
+            return new RunCandidate(p.PlayerId, p.X, p.Z, p.VelX, p.VelZ, MatchRules.SpeedMps(p.Stats.Speed), p.Stats.RunStyle,
+                FatigueRules.Effort(p.Stamina, MatchTuning.FatigueEffortThreshold, MatchTuning.FatigueEffortMin));
         }
 
         // 동료 목록에서 나를 뺀 뷰. 22명 × 틱마다 새 리스트는 GC를 부르므로 선수마다 버퍼를 갖는다
@@ -656,7 +765,7 @@ namespace Game.Core.Match
 
             if (p.WantsPass && owner && p.PassReceiverId != BallState.NoOwner && p.PassReceiverId != p.PlayerId)
             {
-                Pass(p, p.PassReceiverId, p.PassLandingX, p.PassLandingZ, p.PassIsLob);
+                Pass(p, p.PassReceiverId, p.PassLandingX, p.PassLandingZ, p.PassIsLob, p.PassIsRun);
                 p.Stop();   // 슛과 같다. 차고 나면 다시 가속부터
                 return;
             }
@@ -791,7 +900,7 @@ namespace Game.Core.Match
 
         // 패스: 트리가 고른 착지점으로 직선 비행(전엔 여기서 받는 선수 앞 8m를 다시 계산해, 트리가 안전하다고 본 점과 실제로 찬 점이 달랐다).
         // 초속은 착지점까지 거리로 역산(도착 속도 = 공이 있는 서드의 팀 템포). 리시버는 스냅샷으로 알고 마중 나간다
-        private void Pass(PlayerState passer, int receiverId, float landingX, float landingZ, bool lob)
+        private void Pass(PlayerState passer, int receiverId, float landingX, float landingZ, bool lob, bool isRun)
         {
             Third third = PositionRules.ThirdOf(Ball.X, passer.AttackSign);
             float average = MatchTuning.PassAverageSpeed[tactics[passer.Team].Tempo[(int)third]];
@@ -804,6 +913,7 @@ namespace Game.Core.Match
             passPasserId = passer.PlayerId;
             passTargetX = landingX;
             passTargetZ = landingZ;
+            passIsRun = isRun;
             PassCount++;
             if (passer.IsGoalkeeper && tactics[passer.Team].GkDistribution == 1) { keeperAlternate[passer.Team] = !keeperAlternate[passer.Team]; }   // 섞어: 다음 배급은 반대
             kickOriginX = Ball.X;
