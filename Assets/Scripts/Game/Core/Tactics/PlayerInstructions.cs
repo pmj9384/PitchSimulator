@@ -34,7 +34,7 @@ namespace Game.Core.Tactics
         public const int LegacyDialCount = 10;        // 10-27 전 세이브의 칸 수
         private const int LegacyLineHeightIndex = 3;  // 그중 버리는 칸
 
-        // PlayerDial 순서. 슛 성향은 부호가 반대다: ShotBias는 "이 값 × 0.5 이상의 xG면 쏜다"는 문턱이라 낮을수록 자주 쏜다. 지시의 +를 "더 자주"로 맞추려고 음수 칸
+        // PlayerDial 순서. 슛 성향은 부호가 반대다: ShotBias는 낮을수록 자주 쏜다(슛 값 배율 = 기본 + 이득 × (1 − ShotBias)). 지시의 +를 "더 자주"로 맞추려고 음수 칸
         private static readonly float[] Step = { 5f, 4f, 2f, -0.05f, 5f, 0.1f, 0.15f, 0.15f, 2f };
         private static readonly float[] Min = { 0f, 0f, 0f, 0.05f, 5f, 0f, 0f, 0f, 6f };
         private static readonly float[] Max = { 40f, 30f, 22f, 1f, 45f, 1f, 1f, 1.5f, FieldBounds.PenaltyBoxDepth };   // GK 출격은 박스 깊이가 상한(스펙 §5)

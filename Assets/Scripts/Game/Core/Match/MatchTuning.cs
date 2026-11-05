@@ -24,7 +24,7 @@ namespace Game.Core.Match
         public const float ThirdBoundary = 17.5f;                              // 필드 105m를 3등분한 경계. 우리 진영 ≤ −17.5 < 중원 < 17.5 ≤ 상대 진영
         public static readonly float[] MentalityOffset = { -5f, 0f, 5f };      // 전진 정도(수비적·균형·공격적) → 공격 시 자리 X 오프셋(m)
         public static readonly float[] DefenseLineOffset = { -5f, 0f, 5f };    // 수비 라인 높이(깊게·표준·높게) → 수비 시 자리 X 오프셋(m), 필드 선수만. [가정] 전진 정도와 대칭. 10-27 FM Defensive Line. 기본 라인 자체가 현실보다 약 15m 낮은 문제(장부 F3)는 이 레버와 별개
-        public const float LateralScoreScale = 0.005f;                          // 리시버 점수의 측면 가중: |z| 1m당(× 폭 배율). 09-18 0.02는 라인 위 윙어에게 +0.62(전진 12m 상당)라 어디서든 윙어가 최고점, 10경기 소유 시간의 31%가 터치라인 9m 안(86% W). 0.005면 +0.16(전진 3m)
+        public const float LateralScoreScale = 0.005f;                          // 리시버 적합도의 측면 가중: |z| 1m당(× 폭 배율). 적합도는 ReceiverFitWeight(0.02)를 곱해 xT 단위로 패스 값에 더한다(11-03 P1, 전진 가중은 xT가 대신 센다). 09-18 0.02는 라인 위 윙어가 어디서든 최고점이라 소유 시간의 31%가 터치라인 9m 안이었다(86% W)
         public const float TouchlineMargin = 3f;                                // 자리 계산의 Z 클램프 여유(m). 필드 가장자리 0.5m로 두면 공 쪽 윙어가 슬라이드로 라인 밖까지 밀려 라인 위(z 33.5)에 붙어 빌드업했다
         public const float WideZoneZ = 25f;                                     // 형태 지표: |z|가 이 이상이면 "측면 구역"(터치라인 9m 안). 러너 CSV·감시 테스트가 소유 시간의 측면 비율을 잰다. 09-26 터치라인 빌드업(31%)을 정지 탐지·리뷰가 못 잡아 넣음
         public const float PositionDialScale = 0.3f;                            // 개인 자리 다이얼 중 측면 쏠림·라인 높이(선수표 0~25)를 미터로 바꾸는 배율. 전진 폭은 미터 그대로(편성 posX가 그 전제)(09-26 Play: 그대로 더하니 FB·W 폭 42·49로 터치라인에 붙고, CB 라인 높이 20이 편성 posX2가 이미 담은 라인 간격 위에 얹혀 수비 4줄이 5m 안에 뭉쳤다). 스펙 §6: 간격은 바둑알(편성)이 정하고 다이얼은 그 위의 미세 조정
@@ -52,7 +52,6 @@ namespace Game.Core.Match
         // 3.5 = gfootball 리드(받는 선수 속도 × 최대 0.5초, 7m/s 기준), 0 = Simple Soccer GetBestPassToReceiver 후보 중 "받는 선수 위치"
         public static readonly float[] PassLeadOptions = { PassLeadMax, 3.5f, 0f };
         public const float DribbleReluctance = 0.3f;                            // 개인 드리블 성향이 이 미만이면 골 대신 가까운 아군 쪽으로 몰아 패스를 노린다
-        public const float BackPassScale = 0.3f;                                // 옆·뒤 아군 후보 점수 배율(플랜 09-22 칸). 전진 5m 이상 앞 후보는 못 이기고, 1~3m 앞 찔끔 후보에겐 이길 수 있다(의도: 핑퐁 방지)
         // 공 지향 슬라이드(PositionRules.SlideAttack·SlideDefend). 지역 방어는 공 기준(Spielverlagerung ball-oriented zonal marking).
         // 수비는 컴팩트(가로 큼), 공격은 침투(세로 큼). 공격 가로만 수축식이고 나머지는 평행이동(10-25, 실험/2026-10-25-슬라이드-수축-격자.md)
         public const float SlideLateralDefend = 0.3f;   // 09-26 0.4 → 0.3: 압박 1명 제한·킥 속도 역산 뒤 블록이 너무 촘촘해 100판 골 0.6. 0.3이면 1.06·슛 10
@@ -70,10 +69,10 @@ namespace Game.Core.Match
         public const int TackleCooldownTicks = 35;                              // 태클러당 재시도 간격 0.7초. 틱마다 굴리면 확률이 폭주한다. 면역(25)·실패 정지(25)와 같은 값이면 "면역 끝 = 재시도"가 맞물려 핑퐁 리듬이 생긴다
         public const int PossessionImmunityTicks = 25;                          // 소유 뒤 0.5초는 못 뺏김(유저 09-21 "뺏고 나서 몇 초는 바로 못 뺏게"). 붙은 둘이 틱마다 뒤집는 것 방지, 첫 터치에 해당
         public const int TackleFailFreezeTicks = 25;                            // 실패한 태클러는 0.5초 정지(제쳐짐). 실패 비용이 없으면 압박이 공짜다
-        public const float ShotBiasXgScale = 0.5f;                              // 슛 판정 = xG ≥ 슛 성향(0~1) × 이 값. xG는 정면 11m가 0.18이라 0~0.3이 실용 범위(성향 0.2를 그대로 비교하니 3분 슛 0). 09-26 0.3 → 0.5: 포처 문턱 0.06이면 코너(|z| 12) xG 0.09에서 받자마자 쏴 슛 전부가 0.09였다. 0.10이면 정면 15m 안
+        public const float ShotValueBase = 1f;                                  // 슛 값 배율 = 기본 + 성향 이득 × (1 − 슛 성향). 슛은 운반·패스와 같은 값 비교에 들어가고 고정 문턱은 없다 [가정 P-G17, 격자로 고정]
+        public const float ShotValueBiasGain = 4f;                            // 슛 성향이 낮을수록(포처 0.2) 배율이 이만큼 커서 자주 쏜다. 0이면 슛 성향이 슛 선택에 안 든다
         public const float CounterForwardMargin = 3f;                           // 역습 리시버는 패서보다 이만큼 앞선 아군만(자기만 빼면 뒤로 돌려 핑퐁)
-        public const float PressedRadius = TackleRange;                         // 상대가 이 거리 안이면 "압박받는 중". 옆·뒤 돌리기는 이때만. 09-23: 3m였을 땐 압박이 3m 선을 넘는 순간 3틱 만에 안전한 뒤 패스로 도망가 접촉이 0이었다. 태클 사거리와 같게 두면 같은 틱에 태클이 먼저 시도되고 실패해야 돌린다
-        public const float BackPassDepthPenalty = 0.01f;                        // 뒤로 1m마다 깎는 점수. 20m 뒤면 -0.2라 깊은 백패스(GK 등)는 0 이하로 떨어져 별도 컷 없이 후보에서 빠진다
+        public const float PressedRadius = TackleRange;                         // 상대가 이 거리 안이면 "압박받는 중"(슛 확률 감점·운반 위험의 붙은 압박). 09-23: 3m였을 땐 압박이 3m 선을 넘는 순간 3틱 만에 안전한 뒤 패스로 도망가 접촉이 0이었다. 태클 사거리와 같게 두면 같은 틱에 태클이 먼저 시도되고 실패해야 돌린다
         public const int PressMinTenureTicks = 50;                              // 압박 1순위를 받으면 이 동안(1초)은 거리로 안 뺏긴다(10-23 probe: 왕복의 45%가 태클 실패 정지 0.5초 뒤 되찾기, 간격 중앙값 0.50초). 후보에서 빠지면(얼음·범위 밖) 즉시 넘어간다 [가정 1초, 러너로 조정]
         public const float LockedMargin = 1000f;                                // 최소 재임 중 히스테리시스 마진. 사실상 무한이라 현 담당이 0순위를 지킨다
         public const float ChaserSwitchMargin = 2f;                             // 추격자 히스테리시스(09-28 F1b): 압박 1순위·루즈볼 추격자는 도전자가 이만큼 더 가까워야 넘겨준다. 출처가 주는 수치는 없어 태클 사거리와 같은 값으로 출발(러너·Play로 조정)
@@ -109,7 +108,7 @@ namespace Game.Core.Match
         public const float KeeperHoldAfterCatchSeconds = 2f;   // GK가 슛을 잡은 뒤 배급까지 들고 있는 시간. FIFA 규칙은 6초 안(Law 12). 바로 차면 "잡자마자 패스"가 어색했다(10-25 유저 Play) [가정 2초]
         public const float FormationTransitionWarnMeters = 15f;   // 선수의 공격 자리·수비 자리 거리가 이보다 멀면 전술판이 경고(FM26 "둘 나란히" 경고처럼 막지 않음). 4-4-2 공수 차이 5m, 4-4-2↔4-3-3 대응 최대 15m쯤 [가정]
         public const float ShotWideMargin = 0.5f;        // 노골로 정해졌는데 GK가 못 닿을 유효 슛을 포스트 밖으로 미는 거리(m). 골대 안으로 들어가는 노골을 없앤다(10-23 유저 "안 들어가면 골대 안으로 가면 안 된다"). [가정] 출처 없음, 화면에서 확실히 밖으로 보이는 값
-        public const float ShotResolveLogitBonus = 0.8f; // 슛 확정 확률에만 더하는 로짓(판정 WantsShot은 안 본다). 10-23 인게임 경로 계측: 슛이 현실의 절반(5.9/팀)이라 골 1.44·0:0 22%였다. 0.6 → 0.8은 GK 슛 대응·조준 반폭·압박 재임을 넣은 뒤 격자(최종 4부 20시즌 골 2.13·0:0 9%·무 27%). [가정] 임시 레버
+        public const float ShotResolveLogitBonus = 0.8f; // 슛 확정 확률에만 더하는 로짓(판정 ShouldShoot은 안 본다). 10-23 인게임 경로 계측: 슛이 현실의 절반(5.9/팀)이라 골 1.44·0:0 22%였다. 0.6 → 0.8은 GK 슛 대응·조준 반폭·압박 재임을 넣은 뒤 격자(최종 4부 20시즌 골 2.13·0:0 9%·무 27%). [가정] 임시 레버
                                                          // 문턱을 낮추면 나쁜 자리에서 일찍 쏴 골이 줄고(0.88), 확정만 올리면 슛 수 그대로 골 2.17·0:0 6%(+0.3 1.76 / +0.9 2.70). 유저 "중간점".
                                                          // 임시 레버: ⑦ 공격 장면·④ 침투로 슛이 늘면 0으로 되돌린다. 기록 실험/2026-10-23-골-가뭄-레버-격자.md
         public const float ShotBlockRange = TackleRange;  // 슛을 막을 수 있는 수비수 거리(발 뻗어 막는 범위 = 태클 사거리)
@@ -118,11 +117,13 @@ namespace Game.Core.Match
         public const float BlockReboundSpeed = 3.3f;     // 막힌 공이 튕겨 나가는 초속(m/s). 약 4.5m 가서 멈춤, 감속 4 때 6m/s와 같은 거리(10-25)
         public const float BlockReboundTurnDeg = 60f;    // 슛 반대 방향에서 비트는 각도. 슈터 쪽 직선이면 슈터가 도로 잡았다
         public const float BlockReboundStart = 0.9f;     // 튕긴 공이 막은 선수에게서 떨어져 출발하는 거리. 잡기 반경(0.8) 밖
-        // 공격수 운반(10-08 결정 7, 09-30 B 실험). 노드는 슛 판단 바로 뒤, 슛 사거리(MaxShotRange) 안에서만.
-        // 10-08 러너(균형 300판 합계 골 / ST 전진 20·25 득점): 여유 4m 1.75 / 0.34·0.83, 5m 1.72 / 0.28·0.86, 6m 1.74 / 0.27·0.79, 8m 1.69 / 0.23·0.57.
-        // 돌파 뒤·패스 앞에 두고 사거리 제한 없이 6m면 1.86 / 0.10(ST 전진 20이 더 죽음). 기준 없는 때는 1.81 / 0.17·0.47. [가정] 4m
-        public const float CarryComfortZone = 4f;                               // 앞쪽 이 거리 안에 상대가 없으면 "위협 없음"으로 보고 몬다
-        public static readonly string[] CarryRoles = { "ST", "AM", "W" };       // 운반 규칙을 타는 자리(PlayerTable roleId)
+        // 공격수 운반(10-08 결정 7, 09-30 B 실험). 11-03 P1+: 자격 조건(역할·서드·슛 사거리)을 없애고 필드 선수 전원이 후보다.
+        // 11-03 P1: 앞 4m에 상대가 없으면 무조건 몰던 문턱을 없애고, 운반도 패스처럼 값(ThreatRules.CarryValue)으로 비교한다. 위험은 DribbleRules.CarryRisk
+        public const float CarryComfortZone = 6f;                               // 운반 위험을 재는 앞쪽 거리(m). 이 밖의 상대는 위험 0 [가정 P-G1, 격자로 고정]. 옛 문턱은 4m였다
+        public const float CarryRiskScale = 2f;                                 // 운반 위험 식의 계수: 가장 가까운 앞 상대 항에 곱한다 [가정 P-G1, 격자로 고정]
+        public const float CarryHorizon = 30f;                                  // 운반 값을 재는 구간(m). 골 쪽으로 이만큼 간 점의 xT를 본다. 짧으면 운반의 xT 이득이 패스보다 늘 작아 공격수가 안 몬다 [가정 P-G5]
+        public const float ReceiverFitWeight = 0.02f;                          // 거리 적합·측면 가중을 패스 값에 더하는 크기(xT 단위). 팀 전술(패스 방식·폭)이 값에 들어오는 유일한 길이라 0이면 카드 차이가 사라진다 [가정 P-G3, 격자로 고정]
+        public const float ReturnPenalty = 0.02f;                               // 방금 나에게 준 선수에게 뒤로 되돌리는 패스의 감점(xT 단위). 핑퐁 방지를 게이트 대신 값으로 한다 [가정 P-G2]
         // 가속(09-29 F2b, 10-29 개인화. MovementRules 주석). 판단 쪽 반응 지연과 이동 가속이 같은 값에서 나온다(이동과 판정이 같은 전제)
         // 공 높이(10-29 ④-1). 로빙만 띄운다. 높이 값은 출처를 못 찾았다(설계초안-공높이-침투 3절) [가정 전부]
         public const float Gravity = 9.81f;

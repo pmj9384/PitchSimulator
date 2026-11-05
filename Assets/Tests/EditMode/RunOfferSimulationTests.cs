@@ -10,6 +10,9 @@ using NUnit.Framework;
 public class RunOfferSimulationTests
 {
     private const float Dt = 0.02f;
+    private const int HoldTicks = 1000;
+    // 장면 좌표(운반자 (18.3,4), 러너 (18.6,8.7), 제안이 생기는 자리)와 TestThreat.Step의 둔덕 위치는 서로 맞춰 손으로 정한 값이다. 격자나 제안 식을 바꾸면 함께 다시 맞춘다
+    private const float ReleaseRisk = 0.1f;   // 제안의 위험이 이만큼 낮아지면 운반자를 푼다(런 패스 성공 확률 0.9 이상)
 
     private static PlayerStats Carrier(float holdUp)
     {
@@ -40,6 +43,7 @@ public class RunOfferSimulationTests
         public bool RunnerOffsideAtKick;
         public RunOffer OfferAtKick = RunOffer.None;
         public int FirstOfferTick = -1;
+        public int ReleaseTick = -1;   // 얼린 운반자를 푼 틱. 이 틱 뒤의 선택은 트리가 한다
         public bool KickWasRun;
 
         private PlayerState KickerOf(int playerId)
@@ -70,21 +74,22 @@ public class RunOfferSimulationTests
         }
     }
 
-    // 팀0: 운반자 CM(20,0), 러너 W(12,10, 뒤공간, 운반자보다 8m 뒤). 팀1: GK(50,0)와 수비 둘(30, ±28). 가운데 길이 비어 있다
-    private static Scene Build(float holdUp, int runStyle = RunRules.StyleBehind, float carrierX = 20f)
+    // 팀0: 운반자 CM(20,0), 러너 W(12,10, 뒤공간, 운반자보다 8m 뒤). 격자는 박스 쪽만 값이 있는 계단 격자(TestThreat.Step): 운반 이득이 작아 런 지점 패스가 이긴다. 팀1: GK(50,0)와 수비 둘(30, ±28). 가운데 길이 비어 있다
+    private static Scene Build(float holdUp, int runStyle = RunRules.StyleBehind, float carrierX = 18.3f)
     {
         var scene = new Scene();
-        var sim = new MatchSimulation(() => 0.5f, PlayerTreeBuilder.Build(), TestThreat.Real);
+        var sim = new MatchSimulation(() => 0.5f, PlayerTreeBuilder.Build(), TestThreat.Step());
         var tactics = new TeamTactics { PassRisk = new[] { 1, 1, 1 }, PressStart = new[] { 0, 0, 0 }, Width = new[] { 1, 1, 1 }, Tempo = new[] { 1, 1, 1 }, Mentality = 1, PassStyle = new[] { 1, 1, 1 } };
         sim.SetTactics(0, tactics);
         sim.SetTactics(1, tactics);
-        scene.Carrier = sim.AddPlayer(new PlayerState(0, 0, Carrier(holdUp), carrierX, 0f, carrierX, 0f));
-        scene.Runner = sim.AddPlayer(new PlayerState(1, 0, Winger(runStyle), 12f, 10f, 12f, 10f));
+        scene.Carrier = sim.AddPlayer(new PlayerState(0, 0, Carrier(holdUp), carrierX, 4f, carrierX, 4f));
+        scene.Runner = sim.AddPlayer(new PlayerState(1, 0, Winger(runStyle), 18.6f, 8.7f, 18.6f, 8.7f));
         sim.AddPlayer(new PlayerState(10, 1, Defender(keeper: true), 50f, 0f, 50f, 0f));
         sim.AddPlayer(new PlayerState(11, 1, Defender(keeper: false), 30f, -28f, 30f, -28f));
         sim.AddPlayer(new PlayerState(12, 1, Defender(keeper: false), 30f, 28f, 30f, 28f));
         sim.Kickoff();
-        sim.Ball = BallRules.Own(sim.Ball, 0, carrierX, 0f);
+        sim.Ball = BallRules.Own(sim.Ball, 0, carrierX, 4f);
+        scene.Carrier.FrozenTicks = HoldTicks;   // 11-03 P1+: 운반자는 패스·운반 후보를 늘 비교해 기다리지 않는다. 제안이 생길 때까지 얼려 공을 쥐게 한다
         scene.Sim = sim;
         sim.BallKicked += scene.OnKicked;
         return scene;
@@ -96,6 +101,7 @@ public class RunOfferSimulationTests
         {
             scene.Sim.Tick(Dt);
             if (scene.FirstOfferTick < 0 && scene.Carrier.RunOffers.Count > 0) { scene.FirstOfferTick = scene.Sim.TickCount; }
+            if (scene.Carrier.FrozenTicks > 0 && scene.Carrier.RunOffers.Count > 0 && scene.Carrier.RunOffers[0].Risk < ReleaseRisk) { scene.Carrier.FrozenTicks = 0; scene.ReleaseTick = scene.Sim.TickCount; }
         }
     }
 
@@ -107,8 +113,11 @@ public class RunOfferSimulationTests
 
         Assert.GreaterOrEqual(scene.KickTick, 0, "8초 안에 패스가 나간다");
         Assert.AreEqual(1, scene.KickReceiver, "러너에게");
-        Assert.GreaterOrEqual(scene.FirstOfferTick, 0, "패스 전에 제안이 먼저 있었다(사전 런)");
-        Assert.Less(scene.FirstOfferTick, scene.KickTick, "제안이 킥보다 먼저");
+        // 얼림은 "운반자가 제안을 기다린다"를 흉내 낼 뿐이라 킥이 제안보다 늦는 건 당연하다(동어반복). 의미 있는 단언은 풀린 직후 트리가 런 제안을 고르는 것이다
+        Assert.GreaterOrEqual(scene.FirstOfferTick, 0, "사전 런 제안이 생겼다");
+        Assert.GreaterOrEqual(scene.ReleaseTick, scene.FirstOfferTick, "제안 위험이 낮아진 틱에 푼다");
+        Assert.LessOrEqual(scene.KickTick - scene.ReleaseTick, (int)(0.5f / Dt) + 3, "풀린 직후 트리가 런 제안 패스를 고른다(볼 끌기 0.5초 + 3틱 안에 킥)");
+        Assert.IsTrue(scene.KickWasRun, "그 패스는 런 패스다");
         float secondsAfterOffer = (scene.KickTick - scene.FirstOfferTick) * Dt;
         Assert.LessOrEqual(secondsAfterOffer, 2.5f, "런 시작 뒤 SkillCorner p75(2.1초) 근처에 패스");
         Assert.Greater(scene.RunnerSpeedAtKick, 0.5f * 11.2f, "킥 순간 러너는 질주 중");

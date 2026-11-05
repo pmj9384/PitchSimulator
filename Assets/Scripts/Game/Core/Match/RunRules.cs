@@ -92,14 +92,15 @@ namespace Game.Core.Match
         }
 
         // 새 제안 하나 찾기: 후보 러너마다 목표점을 고르고, 시작 조건(지금은 위험, 달리면 가능)을 만족하는 것 중
-        // 패서가 가장 높게 점수 매길 목표(PassRules.ScoreReceiver, 패서가 후보를 고를 때와 같은 식)를 가진 러너를 낸다. 동률은 PlayerId 작은 쪽.
+        // 패서가 가장 높게 값 매길 목표를 가진 러너를 낸다. 값은 패서가 후보를 고를 때(PlayerTreeBuilder.BestPass)와 같은 함수다: 성공 확률 = PassRules.SafetyWeight, 값 = ThreatRules.PassValue (11-03 P1 [가정 P-G8]).
+        // 되돌림 감점만 빠진다(FindOffer는 직전 패서를 모른다). 동률은 PlayerId 작은 쪽.
         // 가장 앞선 목표로 고르지 않는 이유: 수비 라인에 늘 가까운 스트라이커가 이겨 윙어가 달리지 않는다
         public static RunOffer FindOffer(float carrierX, float carrierZ, int attackSign, float averageSpeed, float allow, bool carrierPressed,
             IReadOnlyList<TargetInfo> opponents, IReadOnlyList<RunCandidate> candidates, IReadOnlyList<RunOffer> existing, int carrierId,
-            int passStyle, float passLength, int widthLevel)
+            ThreatGrid grid, int passStyle, float passLength, int widthLevel)
         {
             RunOffer best = RunOffer.None;
-            float bestScore = float.MinValue;
+            float bestValue = float.MinValue;
             float defenderLine = OffsideRules.LastDefenderLine(opponents, attackSign);
             float onsideLine = OffsideRules.OnsideLine(opponents, attackSign, carrierX);
             for (int i = 0; i < candidates.Count; i++)
@@ -111,11 +112,13 @@ namespace Game.Core.Match
 
                 RunOffer offer = FindSpot(carrierX, carrierZ, attackSign, averageSpeed, allow, carrierPressed, opponents, runner, defenderLine);
                 if (offer.RunnerId == RunOffer.NoRunner) { continue; }
-                float score = PassRules.ScoreReceiver(carrierX, carrierZ, offer.X, offer.Z, attackSign, passStyle, passLength, widthLevel);
-                if (score < bestScore) { continue; }
-                if (score == bestScore && offer.RunnerId > best.RunnerId) { continue; }
+                float fit = PassRules.ReceiverFit(carrierX, carrierZ, offer.X, offer.Z, passStyle, passLength, widthLevel);
+                float success = PassRules.SafetyWeight(offer.Risk, allow, MatchTuning.PassSafetyBand);
+                float value = ThreatRules.PassValue(grid, carrierX, carrierZ, offer.X, offer.Z, attackSign, success, MatchTuning.ReceiverFitWeight * fit);
+                if (value < bestValue) { continue; }
+                if (value == bestValue && offer.RunnerId > best.RunnerId) { continue; }
                 best = offer;
-                bestScore = score;
+                bestValue = value;
             }
             return best;
         }

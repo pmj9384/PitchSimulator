@@ -26,6 +26,23 @@ namespace Game.Core.Match
             return cells[row, column];
         }
 
+        // 같은 폭 z에서 x가 fromX~toX일 때 위협 값의 최댓값. 이중선형 보간은 x 방향으로 열 중심에서 꺾이므로 양 끝과 사이의 열 중심만 보면 된다.
+        // 후보 패스 값의 상한(가지치기)이 쓴다
+        public float MaxAlongX(float fromX, float toX, float z, int attackSign)
+        {
+            float low = Math.Min(fromX * attackSign, toX * attackSign);
+            float high = Math.Max(fromX * attackSign, toX * attackSign);
+            float best = Math.Max(Value(low * attackSign, z, attackSign), Value(high * attackSign, z, attackSign));
+            float columnWidth = 2f * FieldBounds.HalfLength / Columns;
+            for (int c = 0; c < Columns; c++)
+            {
+                float center = -FieldBounds.HalfLength + (c + 0.5f) * columnWidth;
+                if (center <= low || center >= high) { continue; }
+                best = Math.Max(best, Value(center * attackSign, z, attackSign));
+            }
+            return best;
+        }
+
         // 그 점의 위협 값. 공격 방향 좌표로 바꿔(x × attackSign) 칸 중심 사이를 이중선형 보간한다.
         // 보간하는 이유: 칸 경계(필드 8.75m × 8.5m)를 넘는 순간 값이 계단으로 튀면 운반·패스 비교가 경계에서 뒤집힌다. 가장자리 바깥은 가장 가까운 칸 중심 값
         public float Value(float x, float z, int attackSign)
@@ -45,19 +62,26 @@ namespace Game.Core.Match
         }
     }
 
-    // 운반·패스의 위협 증가 비교(11-03 ⑤ xT, 원문 모델: 이동이 성공해야 도착 칸 값을 얻고 실패하면 0). 상태 없음
+    // 슛·운반·패스 행동 가치(11-03 P1, 원문 xT 모델: 이동이 성공해야 도착 칸 값을 얻고 실패하면 0). 상태 없음.
+    // 값 = 성공 확률 × 도착 값 − 지금 값. 지금 값은 모든 행동에 똑같이 빠지므로 행동끼리의 순서는 안 바꾼다. 보유(값 0) 기준선은 없고 가장 큰 값을 늘 실행한다(11-03 P1+)
     public static class ThreatRules
     {
-        // 운반 가치 = 운반 목표점 값 − 지금 값. 운반 구간엔 상대가 없는 것을 ②c가 확인하므로 뺏길 위험은 넣지 않는다
-        public static float CarryGain(ThreatGrid grid, float fromX, float fromZ, float toX, float toZ, int attackSign)
+        // 운반 가치. carryRisk = DribbleRules.CarryRisk
+        public static float CarryValue(ThreatGrid grid, float fromX, float fromZ, float toX, float toZ, int attackSign, float carryRisk)
         {
-            return grid.Value(toX, toZ, attackSign) - grid.Value(fromX, fromZ, attackSign);
+            return (1f - carryRisk) * grid.Value(toX, toZ, attackSign) - grid.Value(fromX, fromZ, attackSign);
         }
 
-        // 패스 가치 = (1 − 스루 위험) × 런 지점 값 − 지금 값. 실패하면 소유를 잃어 도착 값이 0(원문이 실패한 이동을 모델에서 빼는 것과 같다)
-        public static float PassGain(ThreatGrid grid, float fromX, float fromZ, float spotX, float spotZ, int attackSign, float throughRisk)
+        // 슛 가치. 슛은 소유를 끝내는 행동이라 성공 확률(압박 보정한 xG)에 선수 슛 성향 배율(dial)을 곱한 값이 도착 값이다. 지금 값을 빼는 건 운반·패스와 같다
+        public static float ShotValue(ThreatGrid grid, float fromX, float fromZ, int attackSign, float shotChance, float dial)
         {
-            return (1f - throughRisk) * grid.Value(spotX, spotZ, attackSign) - grid.Value(fromX, fromZ, attackSign);
+            return shotChance * dial - grid.Value(fromX, fromZ, attackSign);
+        }
+
+        // 패스 가치. success = 성공 확률(1 − 위험에 허용치 띠를 곱한 PassRules.SafetyWeight), fitBonus = 거리 적합·측면 가중(성공했을 때만 얻는다)
+        public static float PassValue(ThreatGrid grid, float fromX, float fromZ, float landingX, float landingZ, int attackSign, float success, float fitBonus)
+        {
+            return success * (grid.Value(landingX, landingZ, attackSign) + fitBonus) - grid.Value(fromX, fromZ, attackSign);
         }
     }
 }

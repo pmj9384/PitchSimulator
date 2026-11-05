@@ -43,7 +43,7 @@ namespace Game.Core.AI
         bool WantsTakeOn { get; }                      // 이번 소유에서 돌파 의도가 살아 있나. 시뮬이 소유 때 드리블 성향으로 굴리고 2초·킥·소유 변경 때 푼다
         bool IsKickoffTaker { get; }                   // 킥오프 공을 쥔 키커이고 아직 첫 패스 전. 시뮬이 킥오프 때 정하고 첫 킥·소유 변경 때 푼다
         bool IsKeeperAlternate { get; }                  // GK 배급 "섞어"의 교대 스위치(팀별, 시뮬이 GK 패스마다 뒤집음). 09-23 R2
-        int LastPasserId { get; }                      // 방금 나에게 준 아군(패스로 받았을 때만, 아니면 -1). 되돌림 금지용
+        int LastPasserId { get; }                      // 방금 나에게 준 아군(패스로 받았을 때만, 아니면 -1). 되돌림 감점용(ReceiverRules.ReturnPenaltyFor)
         PlayerStats? OpponentKeeper { get; }
         int OpponentKeeperId { get; }                  // 상대 GK의 PlayerId, 없으면 -1. 로빙 판정이 상대 GK만 손 높이(2.6m)로 재려고 쓴다(11-02 S2)
 

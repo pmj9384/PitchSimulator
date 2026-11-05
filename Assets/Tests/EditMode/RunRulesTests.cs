@@ -23,7 +23,7 @@ public class RunRulesTests
 
     private static RunOffer Find(List<TargetInfo> opponents, params RunCandidate[] runners)
     {
-        return RunRules.FindOffer(10f, 0f, +1, Average, Allow, false, opponents, runners, new List<RunOffer>(), 99, 1, 15f, 1);
+        return RunRules.FindOffer(10f, 0f, +1, Average, Allow, false, opponents, runners, new List<RunOffer>(), 99, TestThreat.Real, 1, 15f, 1);
     }
 
     private const float PassDistance = 30f;
@@ -218,20 +218,22 @@ public class RunRulesTests
     public void 오프사이드_위치의_러너와_운반자_본인과_이미_제안을_받은_선수는_건너뛴다()
     {
         Assert.AreEqual(RunOffer.NoRunner, Find(OpenDefense(), Winger(x: 31f)).RunnerId, "선(30) 너머 러너");
-        Assert.AreEqual(RunOffer.NoRunner, RunRules.FindOffer(10f, 0f, +1, Average, Allow, false, OpenDefense(), new[] { Winger(id: 99) }, new List<RunOffer>(), 99, 1, 15f, 1).RunnerId, "운반자");
+        Assert.AreEqual(RunOffer.NoRunner, RunRules.FindOffer(10f, 0f, +1, Average, Allow, false, OpenDefense(), new[] { Winger(id: 99) }, new List<RunOffer>(), 99, TestThreat.Real, 1, 15f, 1).RunnerId, "운반자");
         var existing = new List<RunOffer> { new RunOffer(1, 40f, 0f, 0.9f) };
-        Assert.AreEqual(RunOffer.NoRunner, RunRules.FindOffer(10f, 0f, +1, Average, Allow, false, OpenDefense(), new[] { Winger() }, existing, 99, 1, 15f, 1).RunnerId, "이미 제안을 받은 선수");
+        Assert.AreEqual(RunOffer.NoRunner, RunRules.FindOffer(10f, 0f, +1, Average, Allow, false, OpenDefense(), new[] { Winger() }, existing, 99, TestThreat.Real, 1, 15f, 1).RunnerId, "이미 제안을 받은 선수");
     }
 
     [Test]
-    public void 후보_러너가_여럿이면_패서가_높게_점수_매길_목표의_러너가_이긴다_동률은_PlayerId_작은_쪽()
+    public void 후보_러너가_여럿이면_패서가_높게_값_매길_목표의_러너가_이긴다_동률은_PlayerId_작은_쪽()
     {
-        // 같은 모양의 두 러너는 z만 좌우 대칭: 점수(측면 가중은 |z|)가 같아 PlayerId 작은 쪽
+        // 같은 모양의 두 러너는 z만 좌우 대칭: 격자가 폭 대칭이라 값이 같아 PlayerId 작은 쪽
         RunOffer tie = Find(OpenDefense(), Winger(id: 7, z: 5f), Winger(id: 3, z: -5f));
         Assert.AreEqual(3, tie.RunnerId);
-        // 더 옆(|z| 큼)에서 달리는 러너의 목표가 측면 가중으로 더 높은 점수를 받는다
-        RunOffer wide = Find(OpenDefense(), Winger(id: 3, z: 2f), Winger(id: 7, z: 5f));
-        Assert.AreEqual(7, wide.RunnerId);
+
+        // 두 목표가 x 45(실제 격자 열 11, 박스 앞)에 놓인다. 그 열은 중앙 행 xT가 측면보다 높아(z 2 → 0.448, z 5 → 0.440) 중앙 쪽 러너가 이긴다.
+        // 격자 전체가 중앙이 높은 것은 아니다(열 6~9는 측면이 높다). 적합도 가산이 작아 xT가 먼저다
+        RunOffer central = Find(OpenDefense(), Winger(id: 3, z: 2f), Winger(id: 7, z: 5f));
+        Assert.AreEqual(3, central.RunnerId);
     }
 
     [Test]
@@ -240,7 +242,7 @@ public class RunRulesTests
         // 팀0 시나리오를 X만 뒤집은 팀1(−X)
         var opp = new List<TargetInfo> { new TargetInfo(100, -50f, 0f), new TargetInfo(101, -30f, -28f), new TargetInfo(102, -30f, 28f) };
         var runner = new RunCandidate(1, -15f, 0f, 0f, 0f, WingerSpeed, RunRules.StyleBehind);
-        RunOffer offer = RunRules.FindOffer(-10f, 0f, -1, Average, Allow, false, opp, new[] { runner }, new List<RunOffer>(), 99, 1, 15f, 1);
+        RunOffer offer = RunRules.FindOffer(-10f, 0f, -1, Average, Allow, false, opp, new[] { runner }, new List<RunOffer>(), 99, TestThreat.Real, 1, 15f, 1);
         RunOffer mirrored = Find(OpenDefense(), Winger());
         Assert.AreEqual(mirrored.RunnerId, offer.RunnerId);
         Assert.AreEqual(-mirrored.X, offer.X, 1e-3f);
@@ -251,10 +253,10 @@ public class RunRulesTests
     public void 내려와_받기는_압박받는_운반자일_때만_패서_앞_지원_거리에_선다()
     {
         var shortRunner = new RunCandidate(3, 12f, 5f, 0f, 0f, 7f, RunRules.StyleShort);
-        RunOffer unpressed = RunRules.FindOffer(10f, 0f, +1, Average, Allow, false, OpenDefense(), new[] { shortRunner }, new List<RunOffer>(), 99, 1, 15f, 1);
+        RunOffer unpressed = RunRules.FindOffer(10f, 0f, +1, Average, Allow, false, OpenDefense(), new[] { shortRunner }, new List<RunOffer>(), 99, TestThreat.Real, 1, 15f, 1);
         Assert.AreEqual(RunOffer.NoRunner, unpressed.RunnerId, "압박이 없으면 내려올 이유가 없다");
 
-        RunOffer pressed = RunRules.FindOffer(10f, 0f, +1, Average, Allow, true, OpenDefense(), new[] { shortRunner }, new List<RunOffer>(), 99, 1, 15f, 1);
+        RunOffer pressed = RunRules.FindOffer(10f, 0f, +1, Average, Allow, true, OpenDefense(), new[] { shortRunner }, new List<RunOffer>(), 99, TestThreat.Real, 1, 15f, 1);
         Assert.AreEqual(3, pressed.RunnerId);
         Assert.AreEqual(10f + MatchTuning.RunSupportDistance, pressed.X, 1e-4f);
         Assert.AreEqual(5f, pressed.Z, 1e-4f, "자기 레인 유지");

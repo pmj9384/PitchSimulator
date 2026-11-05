@@ -58,17 +58,57 @@ public class ThreatRulesTests
     }
 
     [Test]
-    public void 운반_가치는_목표_값_빼기_지금_값이고_패스_가치는_성공_확률을_곱한다()
+    public void 운반_가치는_성공_확률_곱하기_목표_값_빼기_지금_값이다()
     {
         ThreatGrid grid = Sample();
         float now = grid.Value(0f, 0f, +1);
-        float carry = ThreatRules.CarryGain(grid, 0f, 0f, 4f, 0f, +1);
-        Assert.AreEqual(grid.Value(4f, 0f, +1) - now, carry, 1e-6f);
+        float target = grid.Value(4f, 0f, +1);
+        Assert.AreEqual(target - now, ThreatRules.CarryValue(grid, 0f, 0f, 4f, 0f, +1, 0f), 1e-6f);
+        Assert.AreEqual(0.75f * target - now, ThreatRules.CarryValue(grid, 0f, 0f, 4f, 0f, +1, 0.25f), 1e-6f);
+        Assert.AreEqual(-now, ThreatRules.CarryValue(grid, 0f, 0f, 4f, 0f, +1, 1f), 1e-6f, "위험 1이면 도착 값 0: 소유를 잃는 만큼 손해");
+    }
 
+    [Test]
+    public void 패스_가치는_성공_확률을_도착_값과_적합도_가산에_곱한다()
+    {
+        ThreatGrid grid = Sample();
+        float now = grid.Value(0f, 0f, +1);
         float spot = grid.Value(40f, 0f, +1);
-        Assert.AreEqual(0.5f * spot - now, ThreatRules.PassGain(grid, 0f, 0f, 40f, 0f, +1, 0.5f), 1e-6f);
-        Assert.AreEqual(-now, ThreatRules.PassGain(grid, 0f, 0f, 40f, 0f, +1, 1f), 1e-6f, "위험 1이면 도착 값 0: 소유를 잃는 만큼 손해");
-        Assert.AreEqual(spot - now, ThreatRules.PassGain(grid, 0f, 0f, 40f, 0f, +1, 0f), 1e-6f);
+        Assert.AreEqual(0.5f * spot - now, ThreatRules.PassValue(grid, 0f, 0f, 40f, 0f, +1, 0.5f, 0f), 1e-6f);
+        Assert.AreEqual(-now, ThreatRules.PassValue(grid, 0f, 0f, 40f, 0f, +1, 0f, 0.05f), 1e-6f, "성공 확률 0이면 가산도 못 얻는다");
+        Assert.AreEqual(spot + 0.05f - now, ThreatRules.PassValue(grid, 0f, 0f, 40f, 0f, +1, 1f, 0.05f), 1e-6f);
+    }
+
+    [Test]
+    public void 슛_가치는_압박_보정한_xG에_성향_배율을_곱하고_지금_값을_뺀다()
+    {
+        ThreatGrid grid = Sample();
+        float now = grid.Value(0f, 0f, +1);
+        Assert.AreEqual(0.3f * 2f - now, ThreatRules.ShotValue(grid, 0f, 0f, +1, 0.3f, 2f), 1e-6f);
+        Assert.AreEqual(-now, ThreatRules.ShotValue(grid, 0f, 0f, +1, 0f, 2f), 1e-6f, "쏠 수 없으면 지금 값만큼 손해");
+        Assert.Greater(ThreatRules.ShotValue(grid, 0f, 0f, +1, 0.3f, 2.5f), ThreatRules.ShotValue(grid, 0f, 0f, +1, 0.3f, 2f), "배율이 크면 값이 크다");
+    }
+
+    [Test]
+    public void 구간_최댓값은_구간_안_어느_점보다_작지_않다_열_중심에서_꺾여도_놓치지_않는다()
+    {
+        // 열 중심에서 값이 솟는 격자: 양 끝만 보면 중간 봉우리를 놓친다
+        var cells = new float[ThreatGrid.Rows, ThreatGrid.Columns];
+        for (int r = 0; r < ThreatGrid.Rows; r++) { cells[r, 6] = 0.5f; }
+        var grid = new ThreatGrid(cells);
+        float centerOfColumn6 = -52.5f + 6.5f * (105f / 12f);
+        Assert.AreEqual(0.5f, grid.MaxAlongX(centerOfColumn6 - 3f, centerOfColumn6 + 3f, 0f, +1), 1e-5f, "구간 안 열 중심 봉우리");
+        Assert.Less(grid.Value(centerOfColumn6 - 3f, 0f, +1), 0.5f);
+        Assert.Less(grid.Value(centerOfColumn6 + 3f, 0f, +1), 0.5f);
+
+        var random = new System.Random(7);
+        for (int i = 0; i < 100; i++)
+        {
+            float a = (float)random.NextDouble() * 100f - 50f, b = a + (float)random.NextDouble() * 12f, z = (float)random.NextDouble() * 60f - 30f;
+            float max = grid.MaxAlongX(a, b, z, +1);
+            for (float x = a; x <= b; x += 0.25f) { Assert.LessOrEqual(grid.Value(x, z, +1), max + 1e-5f); }
+        }
+        Assert.AreEqual(grid.MaxAlongX(10f, 20f, 5f, +1), grid.MaxAlongX(-20f, -10f, 5f, -1), 1e-5f, "반대 진영은 거울");
     }
 
     [Test]

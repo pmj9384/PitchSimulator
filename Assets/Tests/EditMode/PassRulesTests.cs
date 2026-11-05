@@ -68,40 +68,38 @@ public class PassRulesTests
     }
 
     [Test]
-    public void 리시버_점수는_앞선_선수가_높고_선호_거리에_가까울수록_높다()
+    public void 리시버_적합도는_선호_거리에_가까울수록_높고_전진_여부는_안_본다()
     {
-        // 팀 0(+X). 패서 (0,0). 후보 A (15, 0) 전진 15, B (5, 0) 전진 5, C (-5, 0) 뒤
-        float a = PassRules.ScoreReceiver(0f, 0f, 15f, 0f, +1, passStyle: 1, passLength: 15f, widthLevel: 1);
-        float b = PassRules.ScoreReceiver(0f, 0f, 5f, 0f, +1, passStyle: 1, passLength: 15f, widthLevel: 1);
-        float c = PassRules.ScoreReceiver(0f, 0f, -5f, 0f, +1, passStyle: 1, passLength: 15f, widthLevel: 1);
+        // 패서 (0,0), 선호 거리 15m. 15m 앞·15m 뒤는 거리가 같아 적합도가 같다(앞뒤 구분은 착지점 xT 몫)
+        float ahead = PassRules.ReceiverFit(0f, 0f, 15f, 0f, passStyle: 1, passLength: 15f, widthLevel: 1);
+        float behind = PassRules.ReceiverFit(0f, 0f, -15f, 0f, passStyle: 1, passLength: 15f, widthLevel: 1);
+        float near = PassRules.ReceiverFit(0f, 0f, 5f, 0f, passStyle: 1, passLength: 15f, widthLevel: 1);
 
-        Assert.Greater(a, b, "더 앞선 A");
-        Assert.Greater(c, 0f, "5m 뒤 후보도 후보다(09-21 C)");
-        Assert.Less(c, b, "뒤 후보는 어떤 앞 후보보다 낮다");
+        Assert.AreEqual(ahead, behind, 1e-6f);
+        Assert.Greater(ahead, near, "선호 거리에 더 가까운 쪽");
     }
 
     [Test]
-    public void 옆_후보는_양수지만_앞_후보를_못_이기고_깊은_뒤_후보는_빠진다()
+    public void 리시버_적합도는_상한_함수를_넘지_않는다_무작위_100개()
     {
-        // 패서 (0,0). 옆 (0, 8) 전진 0, 앞 후보 (5, 0) 전진 5, 깊은 뒤 (-25, 0)
-        // 경계: 옆·뒤 최대치는 0.3 × (근접 1 + 측면). 1~3m 앞처럼 전진이 거의 없는 후보는 근접 항이 낮아 좋은 옆 후보에게 질 수 있고
-        // 그게 의도다(찔끔 패스 핑퐁 방지). 전진 5m 정도부터는 앞 후보가 확실히 이긴다
-        float side = PassRules.ScoreReceiver(0f, 0f, 0f, 8f, +1, passStyle: 1, passLength: 15f, widthLevel: 1);
-        float forward5 = PassRules.ScoreReceiver(0f, 0f, 5f, 0f, +1, passStyle: 1, passLength: 15f, widthLevel: 1);
-        float deepBack = PassRules.ScoreReceiver(0f, 0f, -25f, 0f, +1, passStyle: 1, passLength: 15f, widthLevel: 1);
-
-        Assert.Greater(side, 0f, "옆 아군은 후보");
-        Assert.Less(side, forward5, "전진 5m 앞 후보에게 진다");
-        Assert.LessOrEqual(deepBack, 0f, "25m 뒤는 감점으로 후보에서 빠진다");
+        var random = new System.Random(1105);
+        for (int i = 0; i < 100; i++)
+        {
+            float passerX = (float)random.NextDouble() * 60f - 30f, passerZ = (float)random.NextDouble() * 50f - 25f;
+            float candX = (float)random.NextDouble() * 100f - 50f, candZ = (float)random.NextDouble() * 60f - 30f;
+            int style = random.Next(0, 3), width = random.Next(0, 3);
+            float fit = PassRules.ReceiverFit(passerX, passerZ, candX, candZ, style, 15f, width);
+            Assert.LessOrEqual(fit, PassRules.ReceiverFitCeiling(candZ, width) + 1e-5f, $"{i}번째");
+        }
     }
 
     [Test]
     public void 패스_방식이_롱볼이면_먼_후보를_더_선호한다()
     {
-        float shortNear = PassRules.ScoreReceiver(0f, 0f, 8f, 0f, +1, passStyle: 0, passLength: 15f, widthLevel: 1);
-        float shortFar = PassRules.ScoreReceiver(0f, 0f, 30f, 0f, +1, passStyle: 0, passLength: 15f, widthLevel: 1);
-        float longNear = PassRules.ScoreReceiver(0f, 0f, 8f, 0f, +1, passStyle: 2, passLength: 15f, widthLevel: 1);
-        float longFar = PassRules.ScoreReceiver(0f, 0f, 30f, 0f, +1, passStyle: 2, passLength: 15f, widthLevel: 1);
+        float shortNear = PassRules.ReceiverFit(0f, 0f, 8f, 0f, passStyle: 0, passLength: 15f, widthLevel: 1);
+        float shortFar = PassRules.ReceiverFit(0f, 0f, 30f, 0f, passStyle: 0, passLength: 15f, widthLevel: 1);
+        float longNear = PassRules.ReceiverFit(0f, 0f, 8f, 0f, passStyle: 2, passLength: 15f, widthLevel: 1);
+        float longFar = PassRules.ReceiverFit(0f, 0f, 30f, 0f, passStyle: 2, passLength: 15f, widthLevel: 1);
 
         Assert.Greater(shortNear - shortFar, longNear - longFar, "짧게는 가까운 쪽으로, 롱볼은 먼 쪽으로 기운다");
     }
@@ -109,19 +107,9 @@ public class PassRulesTests
     [Test]
     public void 폭이_넓으면_측면_후보_점수가_오른다()
     {
-        float narrow = PassRules.ScoreReceiver(0f, 0f, 10f, 20f, +1, passStyle: 1, passLength: 15f, widthLevel: 0);
-        float wide = PassRules.ScoreReceiver(0f, 0f, 10f, 20f, +1, passStyle: 1, passLength: 15f, widthLevel: 2);
+        float narrow = PassRules.ReceiverFit(0f, 0f, 10f, 20f, passStyle: 1, passLength: 15f, widthLevel: 0);
+        float wide = PassRules.ReceiverFit(0f, 0f, 10f, 20f, passStyle: 1, passLength: 15f, widthLevel: 2);
         Assert.Greater(wide, narrow);
-    }
-
-    [Test]
-    public void 라인_위_윙어가_중앙_앞_후보를_측면_가중만으로_이기지_않는다()
-    {
-        // 09-26: 측면 가중 0.02면 z 31 윙어에게 +0.62(전진 12m 상당)라 어디서든 윙어가 최고점이었다. 같은 거리·같은 전진이면 측면이 조금 앞서되,
-        // 전진 5m 더 앞선 중앙 후보에겐 진다
-        float wingerOnLine = PassRules.ScoreReceiver(0f, 20f, 10f, 31f, +1, passStyle: 1, passLength: 15f, widthLevel: 1);
-        float centralAhead = PassRules.ScoreReceiver(0f, 20f, 15f, 20f, +1, passStyle: 1, passLength: 15f, widthLevel: 1);
-        Assert.Less(wingerOnLine, centralAhead, "전진 5m가 측면 가중을 이긴다");
     }
 
     [Test]
@@ -301,15 +289,6 @@ public class PassRulesTests
         float instant = PassRules.InterceptRisk(0f, 0f, 20f, 0f, mid, 7f, 15f, 0f);
         float delayed = PassRules.InterceptRisk(0f, 0f, 20f, 0f, mid, 7f, 15f, MatchTuning.ReactionTime);
         Assert.Less(delayed, instant);
-    }
-
-    [Test]
-    public void 되돌림_패스는_안전한_다른_후보가_없을_때만이다()
-    {
-        Assert.IsTrue(PassRules.PrefersOverReturn(bestFound: true, bestIsSafe: true, returnFound: true));
-        Assert.IsFalse(PassRules.PrefersOverReturn(bestFound: true, bestIsSafe: false, returnFound: true), "띠 안의 위험한 앞 후보보다 안전한 되돌림");
-        Assert.IsTrue(PassRules.PrefersOverReturn(bestFound: true, bestIsSafe: false, returnFound: false), "되돌림도 없으면 띠 안 후보라도 쓴다");
-        Assert.IsFalse(PassRules.PrefersOverReturn(bestFound: false, bestIsSafe: false, returnFound: true));
     }
 
     // ── 로빙(10-29 ④-1 3단계)

@@ -56,6 +56,87 @@ public class DribbleRulesTests
     }
 
     [Test]
+    public void 운반_끝점은_골_쪽으로_구간만큼_가고_골_가까이서도_골_중심에_붙지_않는다()
+    {
+        (float x, float z) far = DribbleRules.CarryEnd(0f, 0f, 52.5f, 0f, 8f, 52.5f, 34f);
+        Assert.AreEqual(8f, far.x, 1e-4f);
+        Assert.AreEqual(0f, far.z, 1e-4f);
+
+        (float x, float z) diagonal = DribbleRules.CarryEnd(0f, 30f, 40f, 0f, 10f, 52.5f, 34f);
+        Assert.AreEqual(8f, diagonal.x, 1e-3f, "골 중심 방향 단위벡터 (0.8, -0.6) × 10");
+        Assert.AreEqual(24f, diagonal.z, 1e-3f);
+
+        (float x, float z) near = DribbleRules.CarryEnd(40f, 10f, 52.5f, 0f, 8f, 52.5f, 34f);
+        Assert.Less(near.x, 52.5f, "골 가까이서도 구간만큼만 간다(골 중심 스냅 없음)");
+        Assert.AreEqual(8f, System.MathF.Sqrt((near.x - 40f) * (near.x - 40f) + (near.z - 10f) * (near.z - 10f)), 1e-3f);
+    }
+
+    [Test]
+    public void 골까지가_구간보다_짧으면_골_중심에서_멈추고_실행_방향과_같다()
+    {
+        // 11-05 리뷰 Y1: (40,10)에서 구간 30이면 골 중심(52.5, 0)을 지나친 점을 x·z 따로 자르면 (52.5, -8.75)로 꺾였다
+        (float x, float z) end = DribbleRules.CarryEnd(40f, 10f, 52.5f, 0f, 30f, 52.5f, 34f);
+        Assert.AreEqual(52.5f, end.x, 1e-3f);
+        Assert.AreEqual(0f, end.z, 1e-3f);
+
+        // 실행(RunToward 골 중심)과 같은 방향: 끝점이 패서에서 골 중심으로 가는 직선 위에 있다
+        float cross = (end.x - 40f) * (0f - 10f) - (end.z - 10f) * (52.5f - 40f);
+        Assert.AreEqual(0f, cross, 1e-2f);
+
+        // 구간 안이면 원래대로 구간만큼만
+        (float x, float z) shorter = DribbleRules.CarryEnd(40f, 10f, 52.5f, 0f, 8f, 52.5f, 34f);
+        Assert.AreEqual(8f, System.MathF.Sqrt((shorter.x - 40f) * (shorter.x - 40f) + (shorter.z - 10f) * (shorter.z - 10f)), 1e-3f);
+    }
+
+    [Test]
+    public void 운반_끝점은_골라인과_터치라인_밖으로_나가지_않는다()
+    {
+        (float x, float z) pastGoalLine = DribbleRules.CarryEnd(50f, 0f, 52.5f, 0f, 8f, 52.5f, 34f);
+        Assert.AreEqual(52.5f, pastGoalLine.x, 1e-4f);
+
+        (float x, float z) pastTouchline = DribbleRules.CarryEnd(0f, 30f, 0f, 60f, 8f, 52.5f, 34f);
+        Assert.AreEqual(34f, pastTouchline.z, 1e-4f);
+
+        (float x, float z) atGoal = DribbleRules.CarryEnd(52.5f, 0f, 52.5f, 0f, 8f, 52.5f, 34f);
+        Assert.AreEqual(52.5f, atGoal.x, 1e-4f, "골 중심에 이미 있으면 제자리");
+    }
+
+    [Test]
+    public void 운반_위험은_앞_구간_안_상대가_가까울수록_크고_구간_밖이면_0이다()
+    {
+        float scale = 1f;
+        var none = new List<TargetInfo>();
+        var outside = new List<TargetInfo> { new TargetInfo(20, 9f, 0f) };
+        var far = new List<TargetInfo> { new TargetInfo(20, 3f, 0f) };
+        var near = new List<TargetInfo> { new TargetInfo(20, 1f, 0f) };
+
+        Assert.AreEqual(0f, DribbleRules.CarryRisk(0f, 0f, 8f, 0f, none, 4f, 2f, scale));
+        Assert.AreEqual(0f, DribbleRules.CarryRisk(0f, 0f, 8f, 0f, outside, 4f, 2f, scale), "구간 밖 상대는 무관");
+        Assert.AreEqual(0.25f, DribbleRules.CarryRisk(0f, 0f, 8f, 0f, far, 4f, 2f, scale), 1e-5f, "1 − 3 ÷ 4");
+        Assert.AreEqual(0.75f, DribbleRules.CarryRisk(0f, 0f, 8f, 0f, near, 4f, 2f, scale), 1e-5f, "1 − 1 ÷ 4");
+    }
+
+    [Test]
+    public void 운반_위험은_옆_상대에겐_0이고_붙은_압박은_뒤에서도_거리_항을_쓴다()
+    {
+        var side = new List<TargetInfo> { new TargetInfo(20, 0f, 3f) };
+        var behindFar = new List<TargetInfo> { new TargetInfo(20, -3f, 0f) };
+        var behindGlued = new List<TargetInfo> { new TargetInfo(20, -1f, 0f) };
+
+        Assert.AreEqual(0f, DribbleRules.CarryRisk(0f, 0f, 8f, 0f, side, 4f, 2f, 1f), "운반 방향과 직각이면 무관");
+        Assert.AreEqual(0f, DribbleRules.CarryRisk(0f, 0f, 8f, 0f, behindFar, 4f, 2f, 1f), "압박 반경 밖 뒤쪽은 무관");
+        Assert.AreEqual(0.75f, DribbleRules.CarryRisk(0f, 0f, 8f, 0f, behindGlued, 4f, 2f, 1f), 1e-5f, "압박 반경 안이면 각과 무관하게 거리 항");
+    }
+
+    [Test]
+    public void 운반_위험_계수는_곱하고_1로_자른다()
+    {
+        var near = new List<TargetInfo> { new TargetInfo(20, 2f, 0f) };
+        Assert.AreEqual(0.25f, DribbleRules.CarryRisk(0f, 0f, 8f, 0f, near, 4f, 0.5f, 0.5f), 1e-5f);
+        Assert.AreEqual(1f, DribbleRules.CarryRisk(0f, 0f, 8f, 0f, near, 4f, 0.5f, 4f));
+    }
+
+    [Test]
     public void 돌파_확률은_드리블_성향에_비례하고_0_1로_자른다()
     {
         Assert.AreEqual(0.36f, DribbleRules.TakeOnChance(0.9f, 0.4f), 1e-5f);

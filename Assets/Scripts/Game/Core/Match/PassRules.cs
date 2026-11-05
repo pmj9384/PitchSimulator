@@ -75,7 +75,7 @@ namespace Game.Core.Match
             return (kickSpeed + arrival) * 0.5f;
         }
 
-        // 패스 리스크 허용치: 서드별 팀 값(안전·균형·모험 단계)과 개인 다이얼 중 큰 쪽. 트리(BestReceiver)와 런 제안(시뮬)이 같은 값을 쓰게 한 곳에 둔다(11-03 ⑤)
+        // 패스 리스크 허용치: 서드별 팀 값(안전·균형·모험 단계)과 개인 다이얼 중 큰 쪽. 트리(BestPass)와 런 제안(시뮬)이 같은 값을 쓰게 한 곳에 둔다(11-03 ⑤)
         public static float RiskAllow(int teamRiskLevel, float individualRisk)
         {
             return Math.Max(MatchTuning.PassRiskAllow[teamRiskLevel], individualRisk);
@@ -94,8 +94,8 @@ namespace Game.Core.Match
             return interceptRisk <= riskAllow;
         }
 
-        // 안전 가중(10-29 가속 E): 후보 점수에 곱한다. (1 − 위험도) × 경계 띠. 띠는 허용치 ± band에서 1 → 0으로 선형으로 줄어
-        // 허용치 바로 위·아래 후보가 통과/탈락으로 튀지 않는다. 전엔 위험도 ≤ 허용치면 점수 그대로, 넘으면 탈락이라
+        // 안전 가중(10-29 가속 E): 패스 값의 성공 확률로 쓴다(ThreatRules.PassValue, 11-03 P1). (1 − 위험도) × 경계 띠. 띠는 허용치 ± band에서 1 → 0으로 선형으로 줄어
+        // 허용치 바로 위·아래 후보가 통과/탈락으로 튀지 않는다. 전엔 위험도 ≤ 허용치면 그대로, 넘으면 탈락이라
         // 10-25 격자에서 슬라이드 계수 0.18/0.20/0.25에 4부 승률이 46/74/48%로 튀었다(실험/2026-10-25-슬라이드-수축-격자.md)
         public static float SafetyWeight(float interceptRisk, float riskAllow, float band)
         {
@@ -154,22 +154,10 @@ namespace Game.Core.Match
             return v.horizontal;
         }
 
-        // 되돌림 패스(방금 준 선수에게 곧바로 뒤로)는 안전한(허용치 이하) 다른 후보가 없을 때만 쓴다(W↔ST 측면 왕복 22회, 09-21).
-        // 10-29 리뷰: 안전 가중 띠 안의 허용치 넘는 후보가 안전한 되돌림을 늘 이겼다(전엔 안전한 후보만 골랐다)
-        public static bool PrefersOverReturn(bool bestFound, bool bestIsSafe, bool returnFound)
-        {
-            if (!bestFound) { return false; }
-            if (!returnFound) { return true; }
-            return bestIsSafe;
-        }
-
-        // 리시버 후보 점수. 앞선(공격 방향) 아군은 전진 거리 + 선호 거리 근접 + 측면 가중.
-        // 옆·뒤 아군(09-21, C)은 같은 근접·측면 항에 배율 0.3을 곱하고 뒤 거리만큼 깎는다: 앞 후보를 절대 못 이기므로 앞이 전부
-        // 막혔을 때만 돌릴 곳이 되고, 깊은 백패스는 0 이하로 떨어져 후보에서 빠진다(호출자는 0 초과만 본다).
+        // 리시버 후보의 적합도(11-03 P1): 선호 거리에 가까울수록, 폭을 넓게 쓸수록 높다. 전진·뒤 감점은 없다. 그건 착지점의 xT 값(ThreatRules.PassValue)이 센다.
         // passStyle(짧게 0·직접 1·롱볼 2)이 "먼 후보를 얼마나 선호하나"를, widthLevel이 "측면 후보를 얼마나 선호하나"를 정한다
-        public static float ScoreReceiver(float passerX, float passerZ, float candX, float candZ, int attackSign, int passStyle, float passLength, int widthLevel)
+        public static float ReceiverFit(float passerX, float passerZ, float candX, float candZ, int passStyle, float passLength, int widthLevel)
         {
-            float forward = (candX - passerX) * attackSign;
             float dx = candX - passerX;
             float dz = candZ - passerZ;
             float dist = (float)Math.Sqrt(dx * dx + dz * dz);
@@ -177,10 +165,13 @@ namespace Game.Core.Match
             float preferred = passLength * MatchTuning.PassStyleLengthScale[passStyle];   // 짧게 ×0.6 · 직접 ×1.0 · 롱볼 ×1.8
             float distFit = 1f - Math.Abs(dist - preferred) / (preferred + dist);         // 0~1, 선호 거리에 가까울수록 1
             float lateral = Math.Abs(candZ) * MatchTuning.WidthScale[widthLevel] * MatchTuning.LateralScoreScale; // 측면 가중(폭 넓게일수록). 크기는 MatchTuning 주석
+            return distFit + lateral;
+        }
 
-            if (forward > 0f) { return forward * 0.05f + distFit + lateral; }
-
-            return (distFit + lateral) * MatchTuning.BackPassScale + forward * MatchTuning.BackPassDepthPenalty;   // forward ≤ 0이라 감점
+        // ReceiverFit의 상한: 선호 거리 적합이 1일 때. 착지 z가 같으면 어떤 거리에서도 ReceiverFit ≤ 이 값이다(가지치기가 이 식을 따로 베끼지 않게 여기 둔다)
+        public static float ReceiverFitCeiling(float candZ, int widthLevel)
+        {
+            return 1f + Math.Abs(candZ) * MatchTuning.WidthScale[widthLevel] * MatchTuning.LateralScoreScale;
         }
 
         // 리드 패스 목표(09-18 Play 진단): 리시버의 지금 위치로 차면 리시버는 이미 움직여 공이 뒤에 떨어진다.
@@ -222,7 +213,7 @@ namespace Game.Core.Match
         // 앞이 비면 공간으로, 수비 라인이 가까우면 짧게, 그래도 막히면 발밑으로. Simple Soccer GetBestPassToReceiver(후보 3점 중 안전하고 골에 가까운 것)와 같은 구조.
         // 전부 허용치를 넘으면 가장 덜 위험한 후보(동률은 긴 쪽)를 돌려준다. 호출자(트리)는 Risk로 안전 가중(SafetyWeight)을 매긴다.
         // 착지점은 이진 판정(IsPassSafe)으로 "안전한 가장 긴 리드"를 고르고, 리시버끼리 비교만 연속 가중으로 한다(10-29 가속 E).
-        // 착지점까지 가중으로 고르면 위험 0인 발밑이 늘 이겨 공간 패스가 사라진다. 리드 길이의 가치는 ScoreReceiver에 없다
+        // 착지점까지 가중으로 고르면 위험 0인 발밑이 늘 이겨 공간 패스가 사라진다. 리드 길이의 가치는 ReceiverFit에 없다
         public static PassLanding PickLanding(float passerX, float passerZ, float receiverX, float receiverZ, int attackSign, float averageSpeed, IReadOnlyList<TargetInfo> opponents, float riskAllow)
         {
             PassLanding leastRisky = PassLanding.None;

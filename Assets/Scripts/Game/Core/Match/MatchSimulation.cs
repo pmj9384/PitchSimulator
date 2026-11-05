@@ -139,7 +139,7 @@ namespace Game.Core.Match
         private bool passInFlight;
         private int passReceiverId = -1;
         private bool passIsRun;               // 비행 중 패스가 런 제안 착지점으로 찬 것인가(트리가 고른 PassChoice.IsRun을 킥 때 받는다). 리시버가 Seek로 받을지 정한다
-        private int passPasserId = -1;        // 되돌림 금지용: 받은 선수의 LastPasserId에 기록
+        private int passPasserId = -1;        // 되돌림 감점용: 받은 선수의 LastPasserId에 기록
         private float passTargetX;
         private float passTargetZ;
         private int ballOwnerAtLastTick = BallState.NoOwner;
@@ -705,7 +705,7 @@ namespace Game.Core.Match
             while (offers.Count < MatchTuning.MaxRunners)
             {
                 RunOffer offer = RunRules.FindOffer(carrier.X, carrier.Z, carrier.AttackSign, average, allow, pressed, opponents, runCandidateBuffer, offers, carrier.PlayerId,
-                    passStyle, carrier.Stats.PassLength, widthLevel);
+                    threat, passStyle, carrier.Stats.PassLength, widthLevel);
                 if (offer.RunnerId == RunOffer.NoRunner) { return; }
                 offers.Add(offer);
             }
@@ -830,8 +830,8 @@ namespace Game.Core.Match
             int diving = keeper != null ? keeper.Stats.Diving : 0;
 
             shotProbability = MatchRules.ShotProbability(shooter.X, shooter.Z, shooter.AttackSign, shooter.Stats.Shot, reflexes, diving);
-            if (IsPressed(shooter)) { shotProbability = MatchRules.PressuredShotProbability(shotProbability, MatchTuning.ShotPressureLogit); }   // 트리 WantsShot과 같은 식(09-29 D3)
-            shotProbability = MatchRules.ResolveShotProbability(shotProbability, MatchTuning.ShotResolveLogitBonus);   // 확정만 보정. 판정(WantsShot)은 보정 전 값
+            if (IsPressed(shooter)) { shotProbability = MatchRules.PressuredShotProbability(shotProbability, MatchTuning.ShotPressureLogit); }   // 트리 ShouldShoot과 같은 식(09-29 D3)
+            shotProbability = MatchRules.ResolveShotProbability(shotProbability, MatchTuning.ShotResolveLogitBonus);   // 확정만 보정. 판정(ShouldShoot)은 보정 전 값
             shotWillScore = MatchRules.Resolve(shotProbability, nextRoll());
             shotInFlight = true;
             shooterId = shooter.PlayerId;

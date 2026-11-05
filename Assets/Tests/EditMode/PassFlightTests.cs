@@ -221,13 +221,16 @@ public class PassFlightTests
         sim.Kickoff();
         sim.Ball = BallRules.Own(sim.Ball, passer.PlayerId, passer.X, passer.Z);
 
+        // 받자마자 되돌려 차는 틱이 있어도 잡은 것으로 센다(틱 끝 소유자만 보면 11-05 슛 성향 방향 수정 뒤 놓친다)
+        bool receiverCaptured = false;
+        sim.PossessionChanged += change => { if (change.NewOwnerId == receiver.PlayerId) { receiverCaptured = true; } };
         int ticks = 0;
-        while (ticks < 600 && !(sim.Ball.Phase == BallPhase.Owned && sim.Ball.OwnerId == receiver.PlayerId))
+        while (ticks < 600 && !receiverCaptured)
         {
             sim.Tick(Dt);
             ticks++;
         }
-        Assert.AreEqual(receiver.PlayerId, sim.Ball.OwnerId, $"12초 안에 리시버가 멈춘 공을 잡는다(공 {sim.Ball.Phase} ({sim.Ball.X:0.0},{sim.Ball.Z:0.0}), 리시버 ({receiver.X:0.0},{receiver.Z:0.0}))");
+        Assert.IsTrue(receiverCaptured, $"12초 안에 리시버가 멈춘 공을 잡는다(공 {sim.Ball.Phase} ({sim.Ball.X:0.0},{sim.Ball.Z:0.0}), 리시버 ({receiver.X:0.0},{receiver.Z:0.0}))");
     }
 
     [Test]

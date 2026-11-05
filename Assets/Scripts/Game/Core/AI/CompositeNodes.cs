@@ -60,4 +60,17 @@ namespace Game.Core.AI
             return NodeState.Success;
         }
     }
+
+    // TryAction: 판단과 행동이 한 계산에서 나올 때 쓴다. 행동에 성공하면 Success, 할 게 없으면 Failure로 다음 자식에게 넘긴다.
+    // Condition + Action 짝은 같은 판단을 두 번 돌려야 해서 비싼 판정(패스 후보 비교)에는 이쪽을 쓴다
+    public sealed class TryActionNode : BehaviorNode
+    {
+        private readonly Func<IPlayerContext, bool> tryAction;
+        public TryActionNode(Func<IPlayerContext, bool> tryAction) { this.tryAction = tryAction; }
+
+        public override NodeState Tick(IPlayerContext ctx)
+        {
+            return tryAction(ctx) ? NodeState.Success : NodeState.Failure;
+        }
+    }
 }

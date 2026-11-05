@@ -35,7 +35,7 @@ namespace Game.Core.Data
         // ── 지시(행동) 다이얼 12(슬롯 지시로 고치는 건 9개. 침투 성향은 11-03 ⑤에서 역할(변형) 값만 두고 슬롯 지시 노출은 다음 단계). 트리의 판정값. 팀 전술 값을 덮어쓴다(FM26 개인 지시 기준, 전술-기획.md 3-2)
         public float PushUp { get; set; }        // 전진 폭: 아군 소유 때 자리에서 앞으로 얼마나(m)
         public float PressRange { get; set; }    // 압박 거리: 상대 소유 때 공이 몇 m 안이면 달려드나. 역할마다 달라 "누가 압박하나"의 답
-        public float ShotBias { get; set; }      // 슛 성향(0~1): xG ≥ 성향 × MatchTuning.ShotBiasXgScale(0.5)이면 쏜다. 포처 0.2 → xG 0.10
+        public float ShotBias { get; set; }      // 슛 성향(0~1), 낮을수록 자주 쏜다: 슛 값 배율 = ShotValueBase + ShotValueBiasGain × (1 − 성향)(PlayerTreeBuilder.ShouldShoot). 포처 0.2, 수비수 0.8
         public float PassLength { get; set; }    // 패스 길이: 우선 패스 거리(m)
         public float Width { get; set; }         // 측면 쏠림: 자리 기준 좌우로 얼마나(m)
         public float LineHeight { get; set; }    // 라인 높이: 수비 때 후퇴 한계(m)

@@ -117,6 +117,19 @@ public class CompositeNodeTests
     }
 
     [Test]
+    public void TryAction은_행동에_성공하면_Success이고_못_하면_Failure로_다음_자식에게_넘긴다()
+    {
+        var player = new FakePlayer();
+        var done = new TryActionNode(ctx => { ((FakePlayer)ctx).ACalls++; return true; });
+        var skipped = new TryActionNode(ctx => { ((FakePlayer)ctx).BCalls++; return false; });
+
+        Assert.AreEqual(NodeState.Success, done.Tick(player));
+        Assert.AreEqual(NodeState.Failure, skipped.Tick(player));
+        Assert.AreEqual(1, player.ACalls);
+        Assert.AreEqual(1, player.BCalls);
+    }
+
+    [Test]
     public void 트리_하나를_여러_선수가_공유해도_서로_안_섞인다()
     {
         // "전 선수가 같은 트리" 축의 증명. 같은 인스턴스로 상태 다른 두 선수를 교차 틱
