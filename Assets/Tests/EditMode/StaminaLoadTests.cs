@@ -91,15 +91,24 @@ public class StaminaLoadTests
         Assert.AreEqual(StaminaLoadLevel.High, StaminaLoad.LevelOf(8));
     }
 
+    // 지키는 것은 "압박 축구만 튄다"이다. 나머지 카드가 낮음인지 보통인지는 표를 다시 잴 때마다 바뀌는 측정값이라 잠그지 않는다
+    // (11-03 P1 뒤 표에서 세 카드가 3~4칸 보통 → 2칸 낮음. 선수가 덜 달린 결과다)
     [Test]
-    public void 카드_4장_중_압박_축구만_높음이고_나머지는_보통이다()
+    public void 카드_4장_중_압박_축구만_높음이다()
     {
         List<StaminaLoadEntry> table = RealTable();
         List<TeamTactics> cards = TeamTacticsParser.Parse(File.ReadAllText("Assets/Resources/Tables/TacticPresets.csv"));
         for (int i = 0; i < cards.Count; i++)
         {
-            StaminaLoadLevel expected = cards[i].PresetId == "pressing" ? StaminaLoadLevel.High : StaminaLoadLevel.Medium;
-            Assert.AreEqual(expected, StaminaLoad.LevelOf(StaminaLoad.FilledSegments(table, cards[i])), cards[i].PresetId);
+            StaminaLoadLevel level = StaminaLoad.LevelOf(StaminaLoad.FilledSegments(table, cards[i]));
+            if (cards[i].PresetId == "pressing")
+            {
+                Assert.AreEqual(StaminaLoadLevel.High, level, cards[i].PresetId);
+            }
+            else
+            {
+                Assert.AreNotEqual(StaminaLoadLevel.High, level, cards[i].PresetId);
+            }
         }
     }
 
@@ -126,17 +135,19 @@ public class StaminaLoadTests
         Assert.AreEqual(StaminaLoadLevel.High, StaminaLoad.LevelOf(all));
     }
 
-    // 표는 러너로 잰 값이라 체력·압박 규칙이 바뀌면 낡는다. 4칸을 20판씩 다시 재서 표와 1%p 넘게 벌어지면 깨진다.
-    // 표는 100판(시드 101~200), 여기는 20판(시드 101~120)이다. 09-30에 81칸을 20판으로 다시 쟀을 때 100판 값과의 차이는 최대 0.4%p였다.
+    // 표는 러너로 잰 값이라 체력·압박 규칙이 바뀌면 낡는다. 4칸을 50판씩 다시 재서 표와 1%p 넘게 벌어지면 깨진다.
+    // 표는 100판(시드 101~200), 여기는 50판(시드 101~150)이다. 09-30에 81칸을 20판으로 다시 쟀을 때 100판 값과의 차이는 최대 0.4%p였지만,
+    // 11-03 P1 뒤에는 20판(시드 101~120)이 (2,1,0,2)칸에서 100판보다 1.2%p 높게 나와 50판으로 늘렸다(50판은 최대 0.3%p).
     // 깨지면 스크래치 LoadTable 하네스(Vault 실험/2026-09-30-LoadTable.cs.txt)로 표를 다시 만든다
     [Test]
+    [Timeout(600000)]   // 200판이라 Unity 기본 180초를 넘는다(에디터가 뒤에 있으면 약 250초)
     public void 표는_지금_엔진으로_다시_잰_값과_1퍼센트포인트_안에서_맞는다()
     {
         List<StaminaLoadEntry> table = RealTable();
         TeamTactics[] cells = { Tactics(0, 0, 0, 1), Tactics(2, 1, 0, 1), Tactics(2, 2, 2, 1), Tactics(2, 1, 0, 2) };   // 압박 3칸 + 전진 정도가 다른 1칸
         for (int i = 0; i < cells.Length; i++)
         {
-            float measured = MeasureSlowedPercent(cells[i], matches: 20);
+            float measured = MeasureSlowedPercent(cells[i], matches: 50);
             Assert.AreEqual(StaminaLoad.Find(table, cells[i]), measured, 1f, $"압박 시작 {string.Join(",", cells[i].PressStart)}");
         }
     }
