@@ -118,7 +118,9 @@ public class StallGuardTests
                         ownerTicks = 0;
                         ownerX = sim.Ball.X;
                     }
-                    if (ownerTicks >= 150 && System.Math.Abs(sim.Ball.X - ownerX) < 0.3f) { found.Add($"D 시드{seed} t={tick * 0.02f:0.0} 소유자 #{ownerId} 정지"); break; }
+                    // GK는 골킥 대기(GoalKickSetupSeconds)가 규칙이라 그보다 1초 더 서 있을 때만 정지로 본다(11-05). 필드 선수는 3초
+                    int stillLimit = sim.Players[ownerId].IsGoalkeeper ? (int)((MatchTuning.GoalKickSetupSeconds + 1f) / 0.02f) : 150;
+                    if (ownerTicks >= stillLimit && System.Math.Abs(sim.Ball.X - ownerX) < 0.3f) { found.Add($"D 시드{seed} t={tick * 0.02f:0.0} 소유자 #{ownerId} 정지"); break; }
                 }
                 else
                 {

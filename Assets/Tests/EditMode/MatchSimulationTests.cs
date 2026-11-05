@@ -509,6 +509,84 @@ public class MatchSimulationTests
     }
 
     [Test]
+    public void 골라인_밖으로_나간_공은_그_골을_지키는_팀_GK의_골킥이고_준비_시간_동안_차지_않으며_상대는_박스_밖에_머문다()
+    {
+        // 11-05 유저 Play "골킥 때 수비랑 공을 주고받는다": 전엔 골킥 자리에 주인 없는 공을 놓아 가까운 선수가 주웠고, 빗나간 슛 뒤 GK는 바로 찼다
+        var sim = new MatchSimulation(() => 0.5f, PlayerTreeBuilder.Build(), TestThreat.Real);
+        sim.AddPlayer(new PlayerState(0, 0, Keeper(), -48f, 0f));
+        PlayerState st = sim.AddPlayer(new PlayerState(1, 0, Striker(), 44f, 5f));   // 팀 1 박스 안
+        PlayerState gk = sim.AddPlayer(new PlayerState(2, 1, Keeper(), 48f, 0f));
+        sim.AddPlayer(new PlayerState(3, 1, Striker(), 30f, 10f));
+        sim.Kickoff();
+        sim.Ball = BallRules.Kick(BallState.FreeAt(FieldBounds.HalfLength - 0.05f, 20f), 1f, 0f, 5f);   // 팀 1 골라인(+X) 밖으로 굴러 나간다
+        sim.Tick(Dt);
+        Assert.AreEqual(gk.PlayerId, sim.Ball.OwnerId, "그 골을 지키는 팀(1)의 GK가 공을 쥔다");
+
+        int setupTicks = (int)(MatchTuning.GoalKickSetupSeconds / Dt);
+        for (int i = 0; i < setupTicks - 5; i++)
+        {
+            sim.Tick(Dt);
+            Assert.AreEqual(gk.PlayerId, sim.Ball.OwnerId, $"준비 시간 동안 들고 있다 (틱 {i})");
+            Assert.IsFalse(MatchRules.IsInOwnPenaltyBox(st.X, st.Z, gk.AttackSign), $"상대는 박스 밖 (틱 {i})");
+        }
+        for (int i = 0; i < 60; i++) { sim.Tick(Dt); }
+        Assert.AreNotEqual(gk.PlayerId, sim.Ball.OwnerId, "준비가 끝나면 배급한다");
+    }
+
+    [Test]
+    public void 빗나간_슛_뒤_골킥도_준비_시간_동안_들고_있다가_배급하고_다음_소유자에게는_대기가_이어지지_않는다()
+    {
+        var sim = new MatchSimulation(() => 0.99f, PlayerTreeBuilder.Build(), TestThreat.Real);   // 0.99 = 골 안 됨·조준은 빗나감
+        sim.AddPlayer(new PlayerState(0, 0, Keeper(), -48f, 0f));
+        sim.AddPlayer(new PlayerState(1, 0, Striker(), 44f, 0f));
+        PlayerState gk = sim.AddPlayer(new PlayerState(2, 1, Keeper(), 48f, 0f));
+        PlayerState cb = sim.AddPlayer(new PlayerState(3, 1, Striker(), 25f, 15f));
+        sim.Kickoff();
+        sim.Ball = BallRules.Own(sim.Ball, 1, 44f, 0f);
+        int caughtTick = -1;
+        for (int i = 0; i < 300 && caughtTick < 0; i++)
+        {
+            sim.Tick(Dt);
+            if (sim.Ball.Phase == BallPhase.Owned && sim.Ball.OwnerId == gk.PlayerId) { caughtTick = sim.TickCount; }
+        }
+        Assert.GreaterOrEqual(caughtTick, 0, "빗나간 슛 뒤 GK 소유(골킥)");
+
+        int setupTicks = (int)(MatchTuning.GoalKickSetupSeconds / Dt);
+        while (sim.TickCount < caughtTick + setupTicks - 5)
+        {
+            sim.Tick(Dt);
+            Assert.AreEqual(gk.PlayerId, sim.Ball.OwnerId, "준비 시간 동안 들고 있다");
+        }
+        int releaseTick = -1;
+        for (int i = 0; i < 60 && releaseTick < 0; i++)
+        {
+            sim.Tick(Dt);
+            if (sim.Ball.Phase != BallPhase.Owned || sim.Ball.OwnerId != gk.PlayerId) { releaseTick = sim.TickCount; }
+        }
+        Assert.GreaterOrEqual(releaseTick, 0, "준비가 끝나면 배급한다");
+        Assert.LessOrEqual(releaseTick - caughtTick, setupTicks + 5, "대기는 준비 시간만큼이다");
+
+        // 다음 소유자(배급 받은 아군)는 자기 볼 끌기(테스트 스탯 0)만큼만 기다린다. 4초가 이어지면 이 창 안에 다시 못 찬다
+        for (int i = 0; i < 200 && !(sim.Ball.Phase == BallPhase.Owned && sim.Ball.OwnerId == cb.PlayerId); i++) { sim.Tick(Dt); }
+        Assert.AreEqual(cb.PlayerId, sim.Ball.OwnerId, "배급을 받는다");
+        float startX = cb.X;
+        for (int i = 0; i < 30; i++) { sim.Tick(Dt); }
+        Assert.IsTrue(sim.Ball.Phase != BallPhase.Owned || sim.Ball.OwnerId != cb.PlayerId || cb.X != startX, "받은 선수는 4초 동안 서 있지 않는다");
+    }
+
+    [Test]
+    public void GK가_없는_시뮬은_골라인_밖으로_나간_공을_예전처럼_골킥_자리의_자유_공으로_둔다()
+    {
+        var sim = new MatchSimulation(() => 0.5f, PlayerTreeBuilder.BuildLitmus(), TestThreat.Real);
+        sim.AddPlayer(new PlayerState(0, 0, Striker(), -40f, -30f));
+        sim.Kickoff();
+        sim.Ball = BallRules.Kick(BallState.FreeAt(FieldBounds.HalfLength - 0.05f, 20f), 1f, 0f, 5f);
+        sim.Tick(Dt);
+        Assert.AreEqual(BallPhase.Free, sim.Ball.Phase);
+        Assert.AreEqual(FieldBounds.HalfLength - MatchTuning.GoalKickOffset, sim.Ball.X, 1e-4f, "골킥 자리");
+    }
+
+    [Test]
     public void 공을_잡은_GK는_태클당하지_않는다()
     {
         // 규칙 12조. 주사위 0 = 시도하면 항상 성공인데도 GK 소유 중엔 시도 자체가 없어야 한다
