@@ -7,28 +7,28 @@ public class MatchClockTests
     [Test]
     public void 틱을_표시_분으로_바꾼다()
     {
-        Assert.AreEqual(0, MatchClock.MinuteOf(0));
-        Assert.AreEqual(0, MatchClock.MinuteOf(99), "1분 미만은 0");
-        Assert.AreEqual(1, MatchClock.MinuteOf(100));
-        Assert.AreEqual(45, MatchClock.MinuteOf(4500), "전반 끝");
-        Assert.AreEqual(89, MatchClock.MinuteOf(8999));
-        Assert.AreEqual(90, MatchClock.MinuteOf(9000), "종료 틱 = 90분");
-        Assert.AreEqual(90, MatchClock.MinuteOf(12345), "넘치면 90");
-        Assert.AreEqual(0, MatchClock.MinuteOf(-5), "음수는 0");
+        Assert.AreEqual(0, MatchClock.MinuteOf(0, MatchLength.Compressed));
+        Assert.AreEqual(0, MatchClock.MinuteOf(99, MatchLength.Compressed), "1분 미만은 0");
+        Assert.AreEqual(1, MatchClock.MinuteOf(100, MatchLength.Compressed));
+        Assert.AreEqual(45, MatchClock.MinuteOf(4500, MatchLength.Compressed), "전반 끝");
+        Assert.AreEqual(89, MatchClock.MinuteOf(8999, MatchLength.Compressed));
+        Assert.AreEqual(90, MatchClock.MinuteOf(9000, MatchLength.Compressed), "종료 틱 = 90분");
+        Assert.AreEqual(90, MatchClock.MinuteOf(12345, MatchLength.Compressed), "넘치면 90");
+        Assert.AreEqual(0, MatchClock.MinuteOf(-5, MatchLength.Compressed), "음수는 0");
     }
 
     [Test]
     public void 초와_전후반도_틱에서_나온다()
     {
-        Assert.AreEqual(0, MatchClock.SecondOf(0));
-        Assert.AreEqual(36, MatchClock.SecondOf(60), "60틱 = 36초");
-        Assert.AreEqual(0, MatchClock.SecondOf(100), "100틱 = 1:00");
-        Assert.AreEqual(59, MatchClock.SecondOf(8999), "8999틱 = 89:59");
-        Assert.AreEqual(0, MatchClock.SecondOf(9000), "9000틱 = 90:00");
-        Assert.AreEqual(5400, MatchClock.TotalSecondsOf(9000));
-        Assert.IsFalse(MatchClock.IsSecondHalf(4499));
-        Assert.IsTrue(MatchClock.IsSecondHalf(4500), "4500틱 = 45:00부터 후반");
-        Assert.AreEqual(45, MatchClock.MinuteOf(MatchTuning.HalfTimeTick));
+        Assert.AreEqual(0, MatchClock.SecondOf(0, MatchLength.Compressed));
+        Assert.AreEqual(36, MatchClock.SecondOf(60, MatchLength.Compressed), "60틱 = 36초");
+        Assert.AreEqual(0, MatchClock.SecondOf(100, MatchLength.Compressed), "100틱 = 1:00");
+        Assert.AreEqual(59, MatchClock.SecondOf(8999, MatchLength.Compressed), "8999틱 = 89:59");
+        Assert.AreEqual(0, MatchClock.SecondOf(9000, MatchLength.Compressed), "9000틱 = 90:00");
+        Assert.AreEqual(5400, MatchClock.TotalSecondsOf(9000, MatchLength.Compressed));
+        Assert.IsFalse(MatchClock.IsSecondHalf(4499, MatchLength.Compressed));
+        Assert.IsTrue(MatchClock.IsSecondHalf(4500, MatchLength.Compressed), "4500틱 = 45:00부터 후반");
+        Assert.AreEqual(45, MatchClock.MinuteOf(MatchTuning.HalfTimeTick, MatchLength.Compressed));
     }
 
     [Test]
@@ -36,21 +36,21 @@ public class MatchClockTests
     {
         var added = new AddedTime(1, 3);   // 전반 +1, 후반 +3 → 표시 94분 = 5,640초를 9,000틱에
         Assert.AreEqual(5640, MatchClock.TotalDisplaySeconds(added));
-        Assert.AreEqual(5640, MatchClock.TotalSecondsOf(9000, added), "종료 틱 = 90+3:00");
-        int ht = MatchClock.HalfTimeTick(added);
-        Assert.AreEqual(2760, MatchClock.TotalSecondsOf(ht, added), "하프타임 틱에서 표시 시계가 정확히 45+1:00");
-        Assert.Less(MatchClock.TotalSecondsOf(ht - 1, added), 2760);
+        Assert.AreEqual(5640, MatchClock.TotalSecondsOf(9000, added, MatchLength.Compressed), "종료 틱 = 90+3:00");
+        int ht = MatchClock.HalfTimeTick(added, MatchLength.Compressed);
+        Assert.AreEqual(2760, MatchClock.TotalSecondsOf(ht, added, MatchLength.Compressed), "하프타임 틱에서 표시 시계가 정확히 45+1:00");
+        Assert.Less(MatchClock.TotalSecondsOf(ht - 1, added, MatchLength.Compressed), 2760);
 
-        ClockReading before = MatchClock.Describe(ht - 1, added);
+        ClockReading before = MatchClock.Describe(ht - 1, added, MatchLength.Compressed);
         Assert.IsFalse(before.IsSecondHalf); Assert.IsTrue(before.InAddedTime); Assert.AreEqual(45, before.Minute); Assert.AreEqual(0, before.AddedMinute);
-        ClockReading start2 = MatchClock.Describe(ht, added);
+        ClockReading start2 = MatchClock.Describe(ht, added, MatchLength.Compressed);
         Assert.IsTrue(start2.IsSecondHalf); Assert.IsFalse(start2.InAddedTime); Assert.AreEqual(45, start2.Minute); Assert.AreEqual(0, start2.Second, "후반은 45:00부터");
-        ClockReading end = MatchClock.Describe(9000, added);
+        ClockReading end = MatchClock.Describe(9000, added, MatchLength.Compressed);
         Assert.IsTrue(end.IsSecondHalf); Assert.IsTrue(end.InAddedTime); Assert.AreEqual(90, end.Minute); Assert.AreEqual(3, end.AddedMinute); Assert.AreEqual(0, end.AddedSecond);
 
-        ClockReading none = MatchClock.Describe(9000, AddedTime.None);
+        ClockReading none = MatchClock.Describe(9000, AddedTime.None, MatchLength.Compressed);
         Assert.IsFalse(none.InAddedTime); Assert.AreEqual(90, none.Minute);
-        Assert.AreEqual(4500, MatchClock.HalfTimeTick(AddedTime.None));
+        Assert.AreEqual(4500, MatchClock.HalfTimeTick(AddedTime.None, MatchLength.Compressed));
     }
 
     [Test]
@@ -72,5 +72,6 @@ public class MatchClockTests
     {
         Assert.AreEqual(9000, MatchTuning.MatchTicks);
         Assert.AreEqual(MatchTuning.MatchSeconds, MatchTuning.MatchTicks * MatchTuning.FixedStep, 1e-3f);
+        Assert.AreEqual(MatchClock.DisplaySeconds, MatchTuning.RealTimeTicks * MatchTuning.FixedStep, 1e-2f, "실제 90분 = 5,400초");
     }
 }

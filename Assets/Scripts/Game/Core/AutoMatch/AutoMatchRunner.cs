@@ -6,7 +6,7 @@ using Game.Core.Tactics;
 namespace Game.Core.AutoMatch
 {
     // 자동 대전 러너(플랜 09-23): 같은 세팅을 시드만 바꿔 N판 돌린다. "세팅을 바꾸면 결과가 바뀐다"를 숫자로 확인하는 도구.
-    // 한 판 = MatchAssembler.Create → MatchProbe.Run(9,000틱). 엔진 없음, 결정적(시드 = 판 번호)
+    // 한 판 = MatchAssembler.Create → MatchProbe.Run(경기 길이만큼, 기본 3분 압축 9,000틱). 엔진 없음, 결정적(시드 = 판 번호)
     public static class AutoMatchRunner
     {
 
@@ -17,7 +17,7 @@ namespace Game.Core.AutoMatch
             {
                 MatchSimulation sim = MatchAssembler.Create(table, rows, home, away, seed, threat);
                 var probe = new MatchProbe(sim);
-                probe.Run(MatchTuning.MatchTicks, MatchTuning.FixedStep);
+                probe.Run(sim.TotalTicks, MatchTuning.FixedStep);
                 results.Add(probe.Summarize(seed, home.PresetId, away.PresetId));
             }
             return results;

@@ -18,7 +18,7 @@ public class MatchManager : InGameManager
     [SerializeField] private float kickoffSetSec = 1f;     // 킥오프 전 제자리 멈춤(연출, 09-29). 경기 시작·골 뒤. 하프타임은 halfTimeHoldSec이 맡는다
     [SerializeField] private float goalKickHoldSec = 1f;   // 빗나간 슛 뒤 골킥 전 멈춤(연출, 10-23). 공이 골라인 근처에 멈춰 보이다 GK 발로 스냅한다
 
-    public int Ticks { get; private set; }                       // 킥오프부터 센 고정 스텝 수. float 누적은 종료 틱이 9000/9001로 갈려 러너와 어긋난다
+    public int Ticks { get; private set; }                       // 킥오프부터 센 고정 스텝 수. float 누적은 종료 틱이 TotalTicks와 그 다음 틱으로 갈려 러너와 어긋난다
     public float Elapsed => Ticks * MatchTuning.FixedStep;     // 로그용 초
     public MatchSimulation Simulation { get; private set; }
     public string OpponentName { get; private set; }            // HUD용. 이번 경기 정보는 Match 한 곳에서(참조 1개 규칙)
@@ -149,14 +149,14 @@ public class MatchManager : InGameManager
             if (holdTicksLeft == 0 && snapAfterHold) { EndHoldWithSnap(); }
             return;
         }
-        if (Ticks >= MatchTuning.MatchTicks)
+        if (Ticks >= Simulation.TotalTicks)
         {
             EndMatch(WinnerByGoals());   // 마지막 틱 골: 세리머니를 본 뒤에 끝낸다
             return;
         }
 
         // 이번 틱이 하프타임 틱인지 미리 안다. 전제: Ticks와 시뮬 내부 tickCount가 늘 같다(Simulation.Tick을 부르는 곳은 여기 한 곳, 09-30 리뷰)
-        bool halfTimeTick = Ticks + 1 == MatchClock.HalfTimeTick(Simulation.Added);
+        bool halfTimeTick = Ticks + 1 == Simulation.HalfTimeTick;
         goalScorerId = BallState.NoOwner;
         shotMissedThisTick = false;
         Simulation.Tick(MatchTuning.FixedStep);   // Unity 설정(Fixed Timestep)이 아니라 코어 상수로 흐른다: 설정이 바뀌어도 같은 시드 = 같은 경기(러너와 동일). 호출 주기만 설정이 정한다
@@ -171,7 +171,7 @@ public class MatchManager : InGameManager
             BeginCelebration();
             return;
         }
-        if (shotMissedThisTick && goalKickHoldSec > 0f && !halfTimeTick && Ticks < MatchTuning.MatchTicks)
+        if (shotMissedThisTick && goalKickHoldSec > 0f && !halfTimeTick && Ticks < Simulation.TotalTicks)
         {
             // 빗나간 슛: 시뮬은 이 틱에 공을 GK 발(골킥)로 옮겼다. 화면은 직전 자리(골라인 근처)에 잠깐 멈췄다가 스냅한다(10-23 유저 "공이 GK에게 순간이동")
             HoldAllViews();
@@ -187,7 +187,7 @@ public class MatchManager : InGameManager
             SnapViews();
             Hold(halfTimeHoldSec, halfTime: true);
         }
-        if (Ticks >= MatchTuning.MatchTicks)   // 러너(MatchProbe.Run)와 같은 틱 수에서 끝난다
+        if (Ticks >= Simulation.TotalTicks)   // 러너(MatchProbe.Run)와 같은 틱 수에서 끝난다
         {
             EndMatch(WinnerByGoals());
         }
@@ -276,7 +276,7 @@ public class MatchManager : InGameManager
     private void EndCelebration()
     {
         SnapViews();
-        if (Ticks >= MatchTuning.MatchTicks) { return; }
+        if (Ticks >= Simulation.TotalTicks) { return; }
         if (celebrationBeforeHalfTime)
         {
             Hold(halfTimeHoldSec, halfTime: true);

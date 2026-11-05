@@ -2,8 +2,8 @@ using System;
 
 namespace Game.Core.Match
 {
-    // 경기 시계 순수 함수(09-27 HUD): 틱 → 표시 분·초·전후반·추가시간. 실시간 3분 = 9,000틱 = 게임 내 90분 + 추가시간(스펙 §7).
-    // 경기 길이는 늘 MatchTicks. 추가시간은 표시 시계의 흐름 속도만 바꾼다(AddedTime 주석)
+    // 경기 시계 순수 함수(09-27 HUD): 틱 → 표시 분·초·전후반·추가시간(스펙 §7). 경기 길이는 MatchLength가 정한다(11-05 S1).
+    // 3분 압축은 추가시간이 표시 시계의 흐름 속도만 바꾸고, 실제 90분은 추가시간만큼 틱이 늘어 1틱 = 0.02초가 그대로다. 식은 둘이 같다(전체 틱에 전체 표시 초를 나눈다)
     public static class MatchClock
     {
         public const int DisplayMinutes = 90;
@@ -15,29 +15,30 @@ namespace Game.Core.Match
             return DisplaySeconds + 60 * (added.FirstHalfMinutes + added.SecondHalfMinutes);
         }
 
-        public static int TotalSecondsOf(int ticks, AddedTime added)
+        public static int TotalSecondsOf(int ticks, AddedTime added, MatchLength length)
         {
-            int clamped = Math.Clamp(ticks, 0, MatchTuning.MatchTicks);
-            return clamped * TotalDisplaySeconds(added) / MatchTuning.MatchTicks;   // 정수 나눗셈. 종료 틱에서 정확히 전체 초
+            int totalTicks = length.TotalTicks(added);
+            int clamped = Math.Clamp(ticks, 0, totalTicks);
+            return (int)((long)clamped * TotalDisplaySeconds(added) / totalTicks);   // 정수 나눗셈. 종료 틱에서 정확히 전체 초. 실제 90분 최대 291,000틱 × 5,820초 ≈ 1.7e9라 int 안이지만 여유가 1.3배뿐이라 long
         }
 
         // 하프타임 틱 = 표시 시계가 45:00 + 전반 추가시간에 처음 닿는 틱. 추가시간 없으면 4,500
-        public static int HalfTimeTick(AddedTime added)
+        public static int HalfTimeTick(AddedTime added, MatchLength length)
         {
             int firstHalfEnd = HalfSeconds + 60 * added.FirstHalfMinutes;
             int total = TotalDisplaySeconds(added);
-            return (firstHalfEnd * MatchTuning.MatchTicks + total - 1) / total;
+            return (int)(((long)firstHalfEnd * length.TotalTicks(added) + total - 1) / total);
         }
 
-        public static bool IsSecondHalf(int ticks, AddedTime added)
+        public static bool IsSecondHalf(int ticks, AddedTime added, MatchLength length)
         {
-            return ticks >= HalfTimeTick(added);
+            return ticks >= HalfTimeTick(added, length);
         }
 
-        public static ClockReading Describe(int ticks, AddedTime added)
+        public static ClockReading Describe(int ticks, AddedTime added, MatchLength length)
         {
-            int total = TotalSecondsOf(ticks, added);
-            if (!IsSecondHalf(ticks, added))
+            int total = TotalSecondsOf(ticks, added, length);
+            if (!IsSecondHalf(ticks, added, length))
             {
                 if (total < HalfSeconds) { return new ClockReading(false, total / 60, total % 60, false, 0, 0); }
                 int over = total - HalfSeconds;
@@ -53,9 +54,9 @@ namespace Game.Core.Match
         }
 
         // ── 추가시간 없는 단축형(테스트·로그용)
-        public static int MinuteOf(int ticks) => TotalSecondsOf(ticks, AddedTime.None) / 60;
-        public static int SecondOf(int ticks) => TotalSecondsOf(ticks, AddedTime.None) % 60;
-        public static int TotalSecondsOf(int ticks) => TotalSecondsOf(ticks, AddedTime.None);
-        public static bool IsSecondHalf(int ticks) => IsSecondHalf(ticks, AddedTime.None);
+        public static int MinuteOf(int ticks, MatchLength length) => TotalSecondsOf(ticks, AddedTime.None, length) / 60;
+        public static int SecondOf(int ticks, MatchLength length) => TotalSecondsOf(ticks, AddedTime.None, length) % 60;
+        public static int TotalSecondsOf(int ticks, MatchLength length) => TotalSecondsOf(ticks, AddedTime.None, length);
+        public static bool IsSecondHalf(int ticks, MatchLength length) => IsSecondHalf(ticks, AddedTime.None, length);
     }
 }

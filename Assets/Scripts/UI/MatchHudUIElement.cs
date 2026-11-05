@@ -60,11 +60,11 @@ public class MatchHudUIElement : UIElement
         MatchSimulation sim = match.Simulation;
         UpdateCaption(match, sim);
 
-        int totalSecond = MatchClock.TotalSecondsOf(match.Ticks, sim.Added);
+        int totalSecond = MatchClock.TotalSecondsOf(match.Ticks, sim.Added, sim.Length);
         if (totalSecond != shownSecond)
         {
             shownSecond = totalSecond;
-            ClockReading c = MatchClock.Describe(match.Ticks, sim.Added);
+            ClockReading c = MatchClock.Describe(match.Ticks, sim.Added, sim.Length);
             string half = c.IsSecondHalf ? "후반" : "전반";
             clockText.text = c.InAddedTime
                 ? $"{half} {c.Minute}+{c.AddedMinute}:{c.AddedSecond:00}"      // 중계식 "45+1:30", "90+3:12"
@@ -129,7 +129,7 @@ public class MatchHudUIElement : UIElement
     private string DesiredCaption(MatchManager match)
     {
         if (match.InCelebration) { return goalCaption; }
-        if (match.Ticks >= MatchTuning.MatchTicks) { return FullTimeCaption; }
+        if (match.Ticks >= match.Simulation.TotalTicks) { return FullTimeCaption; }
         if (match.InHalfTimeHold) { return HalfTimeCaption; }
         if (Time.time < goalCaptionUntil) { return goalCaption; }
         return string.Empty;

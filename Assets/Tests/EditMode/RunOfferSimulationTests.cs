@@ -220,7 +220,7 @@ public class RunOfferSimulationTests
     {
         Scene scene = Build(holdUp: 0.5f, carrierX: 5f);
         scene.Sim.KickoffBy(firstKickoffTeam);
-        int halfTime = MatchClock.HalfTimeTick(scene.Sim.Added);
+        int halfTime = scene.Sim.HalfTimeTick;
         int observed = 0;
         for (int i = 0; i < halfTime + 120; i++)
         {

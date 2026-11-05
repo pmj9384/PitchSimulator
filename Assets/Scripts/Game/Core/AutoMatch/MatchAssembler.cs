@@ -13,19 +13,19 @@ namespace Game.Core.AutoMatch
     public static class MatchAssembler
     {
         // 편성 행(StageComposition) → 라인업 2개 → 시뮬. 러너·테스트가 쓰는 입구
-        public static MatchSimulation Create(IReadOnlyList<PlayerStats> table, IReadOnlyList<StageEntry> rows, TeamTactics home, TeamTactics away, int seed, ThreatGrid threat, BehaviorNode? tree = null)
+        public static MatchSimulation Create(IReadOnlyList<PlayerStats> table, IReadOnlyList<StageEntry> rows, TeamTactics home, TeamTactics away, int seed, ThreatGrid threat, BehaviorNode? tree = null, MatchLength? length = null)
         {
             if (rows.Count == 0) { throw new InvalidOperationException("[MatchAssembler] 편성 행이 없다"); }
-            return Create(ToLineup(table, rows, 0), ToLineup(table, rows, 1), home, away, seed, threat, tree);
+            return Create(ToLineup(table, rows, 0), ToLineup(table, rows, 1), home, away, seed, threat, tree, length);
         }
 
         // 라인업(선수 + 자리 2쌍) → 시뮬. 생성 팀(부 총점으로 축소된 빌드)·내 로스터가 이 입구를 쓴다. 조립 경로는 이것 하나다
-        public static MatchSimulation Create(IReadOnlyList<LineupSlot> home, IReadOnlyList<LineupSlot> away, TeamTactics homeTactics, TeamTactics awayTactics, int seed, ThreatGrid threat, BehaviorNode? tree = null)
+        public static MatchSimulation Create(IReadOnlyList<LineupSlot> home, IReadOnlyList<LineupSlot> away, TeamTactics homeTactics, TeamTactics awayTactics, int seed, ThreatGrid threat, BehaviorNode? tree = null, MatchLength? length = null)
         {
             if (home.Count == 0 || away.Count == 0) { throw new InvalidOperationException("[MatchAssembler] 라인업이 비었다"); }
 
             var rng = new Random(seed);
-            var sim = new MatchSimulation(() => (float)rng.NextDouble(), tree ?? PlayerTreeBuilder.Build(), threat) { ResetAfterEveryShot = false };
+            var sim = new MatchSimulation(() => (float)rng.NextDouble(), tree ?? PlayerTreeBuilder.Build(), threat, length) { ResetAfterEveryShot = false };
             sim.SetTactics(0, homeTactics);
             sim.SetTactics(1, awayTactics);
 

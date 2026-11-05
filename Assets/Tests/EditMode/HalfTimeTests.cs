@@ -45,7 +45,7 @@ public class HalfTimeTests
         Assert.AreEqual(0, sim.OwnerTeam(), "전반 킥오프 = 팀 0");
         float gk0Before = KeeperX(sim, 0);
         Assert.Less(gk0Before, 0f, "전반 팀 0 GK는 -X 골 앞");
-        int ht = MatchClock.HalfTimeTick(sim.Added);
+        int ht = sim.HalfTimeTick;
         for (int i = 0; i < ht - 1; i++) { sim.Tick(MatchTuning.FixedStep); }
         Assert.IsFalse(sim.IsSecondHalf);
         Assert.IsFalse(sim.SidesSwitched);
@@ -71,7 +71,7 @@ public class HalfTimeTests
     {
         MatchSimulation sim = Assemble(seed: 3);
         Assert.AreEqual(1, sim.OwnerTeam());
-        int ht = MatchClock.HalfTimeTick(sim.Added);
+        int ht = sim.HalfTimeTick;
         for (int i = 0; i < ht; i++) { sim.Tick(MatchTuning.FixedStep); }
         Assert.AreEqual(0, sim.OwnerTeam());
     }

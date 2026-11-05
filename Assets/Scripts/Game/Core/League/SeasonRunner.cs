@@ -90,7 +90,7 @@ namespace Game.Core.League
                 var f = new Fixture(otherTier.Matches, home.TeamId, away.TeamId);
                 MatchSimulation sim = MatchAssembler.Create(home.ToLineup(asHome: true), away.ToLineup(asHome: false), FindPreset(presets, home.PresetId), FindPreset(presets, away.PresetId), MatchSeed(seasonSeed, f), threat);
                 var probe = new MatchProbe(sim);
-                probe.Run(MatchTuning.MatchTicks, MatchTuning.FixedStep);
+                probe.Run(sim.TotalTicks, MatchTuning.FixedStep);
                 picked = LeagueRules.PlayoffWinner(home.TeamId, away.TeamId, sim.HomeGoals, sim.AwayGoals) == home.TeamId ? home : away;
             }
             return new GeneratedTeam(PlayoffRules.ForeignTeamIdBase + picked.TeamId, $"{picked.Name} ({otherTier.Tier}부)", picked.FormationId, picked.PresetId,
@@ -154,7 +154,7 @@ namespace Game.Core.League
         {
             MatchSimulation sim = Assemble(seasonSeed, f, opponents, presets, threat);
             var probe = new MatchProbe(sim);
-            probe.Run(MatchTuning.MatchTicks, MatchTuning.FixedStep);
+            probe.Run(sim.TotalTicks, MatchTuning.FixedStep);
             return new MatchResult(f.HomeTeamId, f.AwayTeamId, sim.HomeGoals, sim.AwayGoals);
         }
 
