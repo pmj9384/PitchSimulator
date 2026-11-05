@@ -64,6 +64,12 @@ namespace Game.Core.Placement
             return rows;
         }
 
+        // 터치라인 쪽 면(Far·Near)은 X축을 따라 달리고 골대 뒤 면은 Z축을 따라 달린다. 프리팹 생성기·프리팹 테스트가 같은 판정을 쓴다
+        public static bool IsAlongX(StandSide side)
+        {
+            return side == StandSide.Far || side == StandSide.Near;
+        }
+
         public static List<SeatSlot> Seats(StadiumSpec spec)
         {
             var seats = new List<SeatSlot>();
