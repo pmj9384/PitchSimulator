@@ -153,7 +153,7 @@ public class ShotDirectionTests
         float depth = MatchTuning.BoxStepOutDepth;   // 21.5
         Assert.IsTrue(PressRules.IsInStepOutZone(-52.5f + 20f, 0f, +1, depth), "골라인에서 20m, 중앙");
         Assert.IsFalse(PressRules.IsInStepOutZone(-52.5f + 23f, 0f, +1, depth), "23m는 밖");
-        Assert.IsFalse(PressRules.IsInStepOutZone(-52.5f + 10f, 25f, +1, depth), "박스 폭(±20.15) 밖 측면");
+        Assert.IsFalse(PressRules.IsInStepOutZone(-52.5f + 10f, 25f, +1, depth), "박스 폭(±20.16) 밖 측면");
         Assert.IsTrue(PressRules.IsInStepOutZone(52.5f - 10f, 0f, -1, depth), "팀 1은 +X 골라인");
         Assert.IsTrue(PressRules.IsInStepOutZone(-52.5f + 21.5f, 0f, +1, depth), "정확히 21.5m는 안(경계 포함, 09-30 리뷰)");
         Assert.IsFalse(PressRules.IsInStepOutZone(-52.5f + 21.6f, 0f, +1, depth), "21.6m는 밖");

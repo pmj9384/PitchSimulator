@@ -129,7 +129,7 @@ public class ShotProbabilityTests
     [Test]
     public void 내_페널티_박스_판정()
     {
-        // 팀 0(+X 공격)의 내 골은 -X. 골라인 -52.5에서 16.5m 안, 폭 ±20.15
+        // 팀 0(+X 공격)의 내 골은 -X. 골라인 -52.5에서 16.5m 안, 폭 ±20.16
         Assert.IsTrue(MatchRules.IsInOwnPenaltyBox(-50f, 0f, +1));
         Assert.IsTrue(MatchRules.IsInOwnPenaltyBox(-36f, 20.15f, +1), "경계 포함");
         Assert.IsFalse(MatchRules.IsInOwnPenaltyBox(-35.9f, 0f, +1), "깊이 밖");
