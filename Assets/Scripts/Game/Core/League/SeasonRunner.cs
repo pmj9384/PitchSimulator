@@ -65,7 +65,7 @@ namespace Game.Core.League
             int opponentId = mine.HomeTeamId == SeasonState.MyTeamId ? mine.AwayTeamId : mine.HomeTeamId;
             GeneratedTeam opponent = Find(opponents, opponentId);
             return new MatchSetup(mine, MatchSeed(state.SeasonSeed, mine), state.MyLineup(table, defenseRoles), opponent.ToLineup(asHome: false),
-                state.MyTactics(presets), FindPreset(presets, opponent.PresetId), opponent.Name, KitRules.Of(state.SeasonSeed, state.Tier, opponent.TeamId));   // 내 전술 = 바꾼 값 또는 기준 카드
+                state.MyTactics(presets), FindPreset(presets, opponent.PresetId), opponent.Name, KitRules.Of(state.SeasonSeed, state.Tier, opponent.TeamId), state.Tier);   // 내 전술 = 바꾼 값 또는 기준 카드. 리그는 양 팀이 같은 부라 경기장은 내 부
         }
 
         // ── 승강전(10-08, 스펙 §10 10-08 구현 설계). 내 팀이 걸린 경기만 치른다
@@ -130,8 +130,17 @@ namespace Game.Core.League
             int homeId = myHome ? me : opponent.TeamId;
             int awayId = myHome ? opponent.TeamId : me;
             var fixture = new Fixture(tier.Matches + (int)stage - 1, homeId, awayId);
+            int stadiumTier = StadiumTierOf(state.Tier, plan.OtherTier, stage, myHome);
             return new MatchSetup(fixture, MatchSeed(state.SeasonSeed, fixture), state.MyLineup(table, defenseRoles), opponent.ToLineup(asHome: false),
-                state.MyTactics(presets), FindPreset(presets, opponent.PresetId), opponent.Name, KitRules.Of(state.SeasonSeed, state.Tier, opponent.TeamId));
+                state.MyTactics(presets), FindPreset(presets, opponent.PresetId), opponent.Name, KitRules.Of(state.SeasonSeed, state.Tier, opponent.TeamId), stadiumTier);
+        }
+
+        // 경기장 = 홈 팀이 속한 부(11-06). 내가 홈이거나 단판(같은 부)이면 내 부, 1·2차전 원정이면 상대가 있는 부
+        public static int StadiumTierOf(int myTier, int otherTier, PlayoffStage stage, bool myHome)
+        {
+            if (myHome) { return myTier; }
+            if (stage == PlayoffStage.Semifinal) { return myTier; }
+            return otherTier;
         }
 
         // 내 승강전 경기의 결과. 2차전에서 합산 동점이면 승부차기까지 여기서 정한다(주사위 = 경기 시드 + 1, 결정적)
