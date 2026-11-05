@@ -28,7 +28,7 @@ public class StallGuardTests
         var wideBySeed = new List<string>(); float wideSum = 0f; int shapeSeeds = 0; var roleShareSum = new Dictionary<string, float>();
         for (int seed = 1; seed <= Seeds; seed++)
         {
-            MatchSimulation sim = MatchAssembler.Create(table, rows, balanced, balanced, seed);
+            MatchSimulation sim = MatchAssembler.Create(table, rows, balanced, balanced, seed, TestThreat.Real);
             int lastEventTick = 0;
             var owners = new List<int>();
             float pingPongStartX = 0f;

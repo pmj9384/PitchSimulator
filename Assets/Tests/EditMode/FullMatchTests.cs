@@ -60,7 +60,7 @@ public class FullMatchTests
         TeamTactics balanced = TeamTacticsParser.Parse(File.ReadAllText("Assets/Resources/Tables/TacticPresets.csv")).Find(t => t.PresetId == "balanced");
         Assert.IsNotNull(balanced, "TacticPresets에 balanced");
 
-        MatchSimulation sim = MatchAssembler.Create(table, rows, balanced, balanced, seed);   // 러너·매니저와 같은 조립(09-23)
+        MatchSimulation sim = MatchAssembler.Create(table, rows, balanced, balanced, seed, TestThreat.Real);   // 러너·매니저와 같은 조립(09-23)
 
         sim.ShotResolved += r =>
         {

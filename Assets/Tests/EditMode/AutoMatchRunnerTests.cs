@@ -21,8 +21,8 @@ public class AutoMatchRunnerTests
     public void 시드_5개면_결과_5행이고_같은_시드는_같은_행이다()
     {
         var (table, rows, balanced) = Load();
-        List<MatchSummary> a = AutoMatchRunner.Run(table, rows, balanced, balanced, firstSeed: 1, matches: 5);
-        List<MatchSummary> b = AutoMatchRunner.Run(table, rows, balanced, balanced, firstSeed: 1, matches: 5);
+        List<MatchSummary> a = AutoMatchRunner.Run(table, rows, balanced, balanced, firstSeed: 1, matches: 5, threat: TestThreat.Real);
+        List<MatchSummary> b = AutoMatchRunner.Run(table, rows, balanced, balanced, firstSeed: 1, matches: 5, threat: TestThreat.Real);
 
         Assert.AreEqual(5, a.Count);
         for (int i = 0; i < 5; i++)
@@ -47,7 +47,7 @@ public class AutoMatchRunnerTests
     public void CSV는_헤더_한_줄과_판_수만큼의_행이다()
     {
         var (table, rows, balanced) = Load();
-        List<MatchSummary> results = AutoMatchRunner.Run(table, rows, balanced, balanced, firstSeed: 1, matches: 2);
+        List<MatchSummary> results = AutoMatchRunner.Run(table, rows, balanced, balanced, firstSeed: 1, matches: 2, threat: TestThreat.Real);
         string csv = AutoMatchCsv.Serialize(results);
 
         string[] lines = csv.TrimEnd('\n').Split('\n');

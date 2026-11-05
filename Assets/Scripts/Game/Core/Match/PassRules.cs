@@ -75,14 +75,27 @@ namespace Game.Core.Match
             return (kickSpeed + arrival) * 0.5f;
         }
 
+        // 패스 리스크 허용치: 서드별 팀 값(안전·균형·모험 단계)과 개인 다이얼 중 큰 쪽. 트리(BestPass)와 런 제안(시뮬)이 같은 값을 쓰게 한 곳에 둔다(11-03 ⑤)
+        public static float RiskAllow(int teamRiskLevel, float individualRisk)
+        {
+            return Math.Max(MatchTuning.PassRiskAllow[teamRiskLevel], individualRisk);
+        }
+
+        // 스루 허용치(11-03 ⑤): 실측 맞춘 기준값(MatchTuning.ThroughRiskAllow)에 팀·개인 허용치가 균형(PassRiskAllow[1])에서 벗어난 만큼을 얹는다
+        public static float ThroughAllow(int teamRiskLevel, float individualRisk)
+        {
+            float deviation = RiskAllow(teamRiskLevel, individualRisk) - MatchTuning.PassRiskAllow[1];
+            return Math.Clamp(MatchTuning.ThroughRiskAllow + deviation, 0f, 1f);
+        }
+
         // 리스크 허용치 이하면 안전. 경계 포함(허용치와 같으면 통과). 위험도 1은 허용치가 1이 아닌 한 안 함
         public static bool IsPassSafe(float interceptRisk, float riskAllow)
         {
             return interceptRisk <= riskAllow;
         }
 
-        // 안전 가중(10-29 가속 E): 후보 점수에 곱한다. (1 − 위험도) × 경계 띠. 띠는 허용치 ± band에서 1 → 0으로 선형으로 줄어
-        // 허용치 바로 위·아래 후보가 통과/탈락으로 튀지 않는다. 전엔 위험도 ≤ 허용치면 점수 그대로, 넘으면 탈락이라
+        // 안전 가중(10-29 가속 E): 패스 값의 성공 확률로 쓴다(ThreatRules.PassValue, 11-03 P1). (1 − 위험도) × 경계 띠. 띠는 허용치 ± band에서 1 → 0으로 선형으로 줄어
+        // 허용치 바로 위·아래 후보가 통과/탈락으로 튀지 않는다. 전엔 위험도 ≤ 허용치면 그대로, 넘으면 탈락이라
         // 10-25 격자에서 슬라이드 계수 0.18/0.20/0.25에 4부 승률이 46/74/48%로 튀었다(실험/2026-10-25-슬라이드-수축-격자.md)
         public static float SafetyWeight(float interceptRisk, float riskAllow, float band)
         {
@@ -96,22 +109,55 @@ namespace Game.Core.Match
             return (1f - interceptRisk) * taper;
         }
 
-        // 되돌림 패스(방금 준 선수에게 곧바로 뒤로)는 안전한(허용치 이하) 다른 후보가 없을 때만 쓴다(W↔ST 측면 왕복 22회, 09-21).
-        // 10-29 리뷰: 안전 가중 띠 안의 허용치 넘는 후보가 안전한 되돌림을 늘 이겼다(전엔 안전한 후보만 골랐다)
-        public static bool PrefersOverReturn(bool bestFound, bool bestIsSafe, bool returnFound)
+        // 로빙 후보(11-02 S2): 같은 리시버에게 띄워 주는 착지점(긴 리드)과 그 위험. 거리가 로빙 범위 밖이면 PassLanding.None.
+        // 위험은 도달 경쟁(InterceptRules)으로 잰다: 패서 자리에서 그 착지점으로 차는 공을 만들어, 리시버와 상대 각자의 가장 이른 포획 시각을 비교한다.
+        // 공이 낮은 발사 구간(킥 지점에 붙은 상대는 T≈0)과 하강 구간(착지 2.2m 앞 상대가 착지점의 리시버보다 먼저 잡음)을 따로 식으로 두지 않아도 같은 궤적이 잡는다.
+        // 리시버도 정지 출발이라 ReactionTime을 똑같이 잃는다(11-02 번복: 옛 "리시버 반응 0"은 가속 등가값을 지각 반응으로 오해한 전제였다).
+        // 상대 GK(opponentKeeperId)는 자기 박스 안에서 손이 닿는 높이로 잰다. 상대의 공격 방향은 패서와 반대
+        // 리드는 로빙의 수평 속도로 잰다(체공 시간 = 거리 ÷ 수평 속도). 지금 상수에선 로빙 범위(15m 이상)의 리드가 늘 상한 PassLeadMax 8m에 걸려 땅볼 속도로 재도 같지만, 상한이나 범위를 바꾸면 차이가 난다
+        // 착지 뒤 굴러가는 공도 코어가 정지까지 따라가므로, 리시버가 놓친 공을 상대가 줍는 것까지 위험에 들어간다
+        public static PassLanding LobLanding(float passerX, float passerZ, float receiverX, float receiverZ, int attackSign, IReadOnlyList<TargetInfo> opponents, int opponentKeeperId)
         {
-            if (!bestFound) { return false; }
-            if (!returnFound) { return true; }
-            return bestIsSafe;
+            float toReceiver = Distance(passerX, passerZ, receiverX, receiverZ);
+            if (toReceiver <= 0f) { return PassLanding.None; }
+            float horizontal = LobHorizontalSpeed(toReceiver);
+            (float x, float z) point = LeadTarget(passerX, receiverX, receiverZ, attackSign, toReceiver, horizontal, MatchTuning.SpeedMpsAt50, MatchTuning.PassLeadOptions[0]);
+
+            float distance = Distance(passerX, passerZ, point.x, point.z);
+            if (distance < MatchTuning.LobMinDistance) { return PassLanding.None; }
+            if (distance > MatchTuning.LobMaxDistance) { return PassLanding.None; }
+
+            BallState lob = BallRules.KickLobTo(BallState.FreeAt(passerX, passerZ), point.x - passerX, point.z - passerZ);
+
+            var receiver = InterceptRules.EarliestCatch(lob, receiverX, receiverZ, MatchTuning.InterceptRunSpeed, MatchTuning.ReactionTime,
+                MatchTuning.CaptureRadius, isKeeper: false, keeperAttackSign: 0);
+            float opponentTime = float.PositiveInfinity;
+            float opponentArrival = float.PositiveInfinity;
+            for (int i = 0; i < opponents.Count; i++)
+            {
+                bool isKeeper = opponents[i].PlayerId == opponentKeeperId;
+                var catchAt = InterceptRules.EarliestCatchBefore(lob, opponents[i].X, opponents[i].Z, MatchTuning.InterceptRunSpeed, MatchTuning.ReactionTime,
+                    MatchTuning.CaptureRadius, isKeeper: isKeeper, keeperAttackSign: -attackSign, bestOpponentTime: opponentTime);
+                if (InterceptRules.IsBetterOpponent(catchAt.time, catchAt.arrival, opponentTime, opponentArrival))
+                {
+                    opponentTime = catchAt.time;
+                    opponentArrival = catchAt.arrival;
+                }
+            }
+            float risk = InterceptRules.Contest(receiver.time, receiver.arrival, opponentTime, opponentArrival, MatchTuning.ArrivalSigma);
+            return new PassLanding(point.x, point.z, risk);
         }
 
-        // 리시버 후보 점수. 앞선(공격 방향) 아군은 전진 거리 + 선호 거리 근접 + 측면 가중.
-        // 옆·뒤 아군(09-21, C)은 같은 근접·측면 항에 배율 0.3을 곱하고 뒤 거리만큼 깎는다: 앞 후보를 절대 못 이기므로 앞이 전부
-        // 막혔을 때만 돌릴 곳이 되고, 깊은 백패스는 0 이하로 떨어져 후보에서 빠진다(호출자는 0 초과만 본다).
-        // passStyle(짧게 0·직접 1·롱볼 2)이 "먼 후보를 얼마나 선호하나"를, widthLevel이 "측면 후보를 얼마나 선호하나"를 정한다
-        public static float ScoreReceiver(float passerX, float passerZ, float candX, float candZ, int attackSign, int passStyle, float passLength, int widthLevel)
+        private static float LobHorizontalSpeed(float distance)
         {
-            float forward = (candX - passerX) * attackSign;
+            (float horizontal, float vertical, float flightTime) v = BallRules.LobVelocity(distance, MatchTuning.LobLaunchAngleDeg, MatchTuning.Gravity);
+            return v.horizontal;
+        }
+
+        // 리시버 후보의 적합도(11-03 P1): 선호 거리에 가까울수록, 폭을 넓게 쓸수록 높다. 전진·뒤 감점은 없다. 그건 착지점의 xT 값(ThreatRules.PassValue)이 센다.
+        // passStyle(짧게 0·직접 1·롱볼 2)이 "먼 후보를 얼마나 선호하나"를, widthLevel이 "측면 후보를 얼마나 선호하나"를 정한다
+        public static float ReceiverFit(float passerX, float passerZ, float candX, float candZ, int passStyle, float passLength, int widthLevel)
+        {
             float dx = candX - passerX;
             float dz = candZ - passerZ;
             float dist = (float)Math.Sqrt(dx * dx + dz * dz);
@@ -119,10 +165,13 @@ namespace Game.Core.Match
             float preferred = passLength * MatchTuning.PassStyleLengthScale[passStyle];   // 짧게 ×0.6 · 직접 ×1.0 · 롱볼 ×1.8
             float distFit = 1f - Math.Abs(dist - preferred) / (preferred + dist);         // 0~1, 선호 거리에 가까울수록 1
             float lateral = Math.Abs(candZ) * MatchTuning.WidthScale[widthLevel] * MatchTuning.LateralScoreScale; // 측면 가중(폭 넓게일수록). 크기는 MatchTuning 주석
+            return distFit + lateral;
+        }
 
-            if (forward > 0f) { return forward * 0.05f + distFit + lateral; }
-
-            return (distFit + lateral) * MatchTuning.BackPassScale + forward * MatchTuning.BackPassDepthPenalty;   // forward ≤ 0이라 감점
+        // ReceiverFit의 상한: 선호 거리 적합이 1일 때. 착지 z가 같으면 어떤 거리에서도 ReceiverFit ≤ 이 값이다(가지치기가 이 식을 따로 베끼지 않게 여기 둔다)
+        public static float ReceiverFitCeiling(float candZ, int widthLevel)
+        {
+            return 1f + Math.Abs(candZ) * MatchTuning.WidthScale[widthLevel] * MatchTuning.LateralScoreScale;
         }
 
         // 리드 패스 목표(09-18 Play 진단): 리시버의 지금 위치로 차면 리시버는 이미 움직여 공이 뒤에 떨어진다.
@@ -164,10 +213,10 @@ namespace Game.Core.Match
         // 앞이 비면 공간으로, 수비 라인이 가까우면 짧게, 그래도 막히면 발밑으로. Simple Soccer GetBestPassToReceiver(후보 3점 중 안전하고 골에 가까운 것)와 같은 구조.
         // 전부 허용치를 넘으면 가장 덜 위험한 후보(동률은 긴 쪽)를 돌려준다. 호출자(트리)는 Risk로 안전 가중(SafetyWeight)을 매긴다.
         // 착지점은 이진 판정(IsPassSafe)으로 "안전한 가장 긴 리드"를 고르고, 리시버끼리 비교만 연속 가중으로 한다(10-29 가속 E).
-        // 착지점까지 가중으로 고르면 위험 0인 발밑이 늘 이겨 공간 패스가 사라진다. 리드 길이의 가치는 ScoreReceiver에 없다
+        // 착지점까지 가중으로 고르면 위험 0인 발밑이 늘 이겨 공간 패스가 사라진다. 리드 길이의 가치는 ReceiverFit에 없다
         public static PassLanding PickLanding(float passerX, float passerZ, float receiverX, float receiverZ, int attackSign, float averageSpeed, IReadOnlyList<TargetInfo> opponents, float riskAllow)
         {
-            PassLanding leastRisky = default;
+            PassLanding leastRisky = PassLanding.None;
             for (int i = 0; i < MatchTuning.PassLeadOptions.Length; i++)
             {
                 (float x, float z) point = LandingPoint(passerX, passerZ, receiverX, receiverZ, attackSign, averageSpeed, MatchTuning.PassLeadOptions[i]);
@@ -265,32 +314,44 @@ namespace Game.Core.Match
     // 착지점 하나와 그 점까지의 가로채기 위험(0~1)
     public readonly struct PassLanding
     {
+        public static readonly PassLanding None = new PassLanding(0f, 0f, 1f, false);   // 후보가 없다(로빙 범위 밖 등). 위험 1과 구별한다
+
         public readonly float X;
         public readonly float Z;
         public readonly float Risk;
+        public readonly bool Found;
 
-        public PassLanding(float x, float z, float risk)
+        public PassLanding(float x, float z, float risk) : this(x, z, risk, true)
+        {
+        }
+
+        private PassLanding(float x, float z, float risk, bool found)
         {
             X = x;
             Z = z;
             Risk = risk;
+            Found = found;
         }
     }
 
     // 패스 한 번의 선택: 누구에게, 어느 점으로. 트리가 고르고 시뮬은 그 점으로 찬다
     public readonly struct PassChoice
     {
-        public static readonly PassChoice None = new PassChoice(-1, 0f, 0f);
+        public static readonly PassChoice None = new PassChoice(-1, 0f, 0f, false, false);
 
         public readonly int ReceiverId;
         public readonly float X;
         public readonly float Z;
+        public readonly bool IsLob;   // 띄워 준다(10-29 ④-1)
+        public readonly bool IsRun;   // 사전 런 제안의 점으로 준다(11-03 ⑤). 시뮬이 런 패스(수신 Seek)로 기록한다
 
-        public PassChoice(int receiverId, float x, float z)
+        public PassChoice(int receiverId, float x, float z, bool isLob, bool isRun)
         {
             ReceiverId = receiverId;
             X = x;
             Z = z;
+            IsLob = isLob;
+            IsRun = isRun;
         }
 
         public bool Found => ReceiverId != -1;

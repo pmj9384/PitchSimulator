@@ -57,8 +57,13 @@ namespace Game.Core.Match
         public bool IsKeeperAlternate { get; set; }
         public int LastPasserId { get; set; } = -1;   // 방금 나에게 패스한 아군. 곧바로 뒤로 되돌리지 않는다(09-23 측면 왕복 22회)
         public PlayerStats? OpponentKeeper { get; set; }
+        public int OpponentKeeperId { get; set; } = -1;   // 상대 GK의 PlayerId. 시뮬이 스냅샷에 같이 넣는다(11-02 S2)
+
+        public ThreatGrid Threat { get; set; } = null!;   // xT 격자. 시뮬이 스냅샷에 넣는다(생성자 주입, non-null). 시뮬 밖에서 만든 PlayerState는 트리가 돌기 전엔 비어 있다
+        public IReadOnlyList<RunOffer> RunOffers { get; set; } = System.Array.Empty<RunOffer>();   // 우리 팀의 사전 런 제안(11-03 ⑤). 시뮬이 팀마다 한 곳에서 정해 넣는다
 
         public bool IsPassTarget { get; set; }
+        public bool IsRunPass { get; set; }          // 나에게 오는 패스가 런 제안 착지점으로 찬 것인가. 시뮬이 킥 때 기록한 값을 스냅샷에 넣는다
         public float PassTargetX { get; set; }
         public float PassTargetZ { get; set; }
         public bool WaitingForShot { get; set; }     // 내 골로 유효 슛이 오는데 아직 반응 차례가 아님(GK만). 시뮬이 넣는다(10-25)
@@ -73,6 +78,8 @@ namespace Game.Core.Match
         public float MoveTargetZ { get; private set; }
         public bool WantsShoot { get; private set; }
         public bool WantsPass { get; private set; }
+        public bool PassIsRun { get; private set; }   // 런 제안 착지점으로 차는 패스(11-03 ⑤). WantsPass일 때만 뜻이 있다
+        public bool PassIsLob { get; private set; }   // 띄워 차는 패스(10-29 ④-1). WantsPass일 때만 뜻이 있다
         public int PassReceiverId { get; private set; } = -1;
         public float PassLandingX { get; private set; }   // 내가 차는 패스의 착지점(트리가 고른 점). WantsPass일 때만 뜻이 있다. 위의 PassTargetX·Z는 나에게 오는 패스의 도착점이라 방향이 반대다
         public float PassLandingZ { get; private set; }
@@ -139,9 +146,23 @@ namespace Game.Core.Match
         public void Pass(int receiverId, float landingX, float landingZ)
         {
             WantsPass = true;
+            PassIsLob = false;
+            PassIsRun = false;
             PassReceiverId = receiverId;
             PassLandingX = landingX;
             PassLandingZ = landingZ;
+        }
+
+        public void PassLob(int receiverId, float landingX, float landingZ)
+        {
+            Pass(receiverId, landingX, landingZ);
+            PassIsLob = true;
+        }
+
+        public void PassRun(int receiverId, float landingX, float landingZ)
+        {
+            Pass(receiverId, landingX, landingZ);
+            PassIsRun = true;
         }
 
         // 태클. 시뮬이 틱마다 줄인다. 정지 중엔 이동 안 함(제쳐짐), 쿨다운 중엔 재시도 안 함
@@ -168,6 +189,8 @@ namespace Game.Core.Match
             MoveMode = MoveMode.Arrive;
             WantsShoot = false;
             WantsPass = false;
+            PassIsLob = false;
+            PassIsRun = false;
             PassReceiverId = -1;
         }
 

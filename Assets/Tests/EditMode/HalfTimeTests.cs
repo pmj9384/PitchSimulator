@@ -15,7 +15,7 @@ public class HalfTimeTests
         List<PlayerStats> table = PlayerTableParser.Parse(File.ReadAllText("Assets/Resources/Tables/PlayerTable.csv"));
         List<StageEntry> rows = StageCompositionParser.Parse(File.ReadAllText("Assets/Resources/Tables/StageComposition.csv")).FindAll(r => r.Stage == 1);
         TeamTactics balanced = TeamTacticsParser.Parse(File.ReadAllText("Assets/Resources/Tables/TacticPresets.csv")).Find(t => t.PresetId == "balanced");
-        return MatchAssembler.Create(table, rows, balanced, balanced, seed);
+        return MatchAssembler.Create(table, rows, balanced, balanced, seed, TestThreat.Real);
     }
 
     private static float KeeperX(MatchSimulation sim, int team)

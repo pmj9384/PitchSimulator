@@ -134,7 +134,7 @@ public class MatchSimulationTests
 
     private static MatchSimulation LitmusMatch(RollQueue rolls)
     {
-        var sim = new MatchSimulation(rolls.Next, PlayerTreeBuilder.BuildLitmus()) { ResetAfterEveryShot = true };
+        var sim = new MatchSimulation(rolls.Next, PlayerTreeBuilder.BuildLitmus(), TestThreat.Real) { ResetAfterEveryShot = true };
         sim.AddPlayer(new PlayerState(playerId: 0, team: 0, Striker(), x: -10f, z: 0f));   // StageComposition 1스테이지와 같은 자리
         sim.AddPlayer(new PlayerState(playerId: 1, team: 1, Keeper(), x: 50f, z: 0f));
         sim.Kickoff();
@@ -204,7 +204,7 @@ public class MatchSimulationTests
     public void 노골_유효_슛을_GK가_못_닿으면_포스트_밖으로_밀려_빗나간다()
     {
         // 골 roll 0.99(노골), 조준 roll 0 → 왼쪽 끝(shot 90 반폭 3.4, 골문 안). GK 자리 z +3이라 가로 6.4m를 다이빙 8m/s로도 비행 0.3초 안에 못 간다
-        var sim = new MatchSimulation(new RollQueue(new[] { 0.99f, 0f, 0.5f, 0.5f, 0.5f }).Next, PlayerTreeBuilder.BuildLitmus()) { ResetAfterEveryShot = true };
+        var sim = new MatchSimulation(new RollQueue(new[] { 0.99f, 0f, 0.5f, 0.5f, 0.5f }).Next, PlayerTreeBuilder.BuildLitmus(), TestThreat.Real) { ResetAfterEveryShot = true };
         sim.AddPlayer(new PlayerState(0, 0, Striker(), -10f, 0f));
         PlayerState keeper = sim.AddPlayer(new PlayerState(1, 1, Keeper(), 50f, 3f));
         sim.Kickoff();
@@ -220,7 +220,7 @@ public class MatchSimulationTests
     {
         // 조준 roll 0.3 → z -1.36(골문 안). GK z 0: 가로 1.36m 중 발 반경 0.8을 빼면 0.56m라 다이빙 8m/s로 반응 지연 뒤에도 닿는다 → 유효 슛 유지.
         // 리트머스 트리엔 GK 이동 노드가 없어 접촉(0.8m)은 안 생기고 골라인에서 세이브
-        var sim = new MatchSimulation(new RollQueue(new[] { 0.99f, 0.3f, 0.5f, 0.5f, 0.5f }).Next, PlayerTreeBuilder.BuildLitmus()) { ResetAfterEveryShot = true };
+        var sim = new MatchSimulation(new RollQueue(new[] { 0.99f, 0.3f, 0.5f, 0.5f, 0.5f }).Next, PlayerTreeBuilder.BuildLitmus(), TestThreat.Real) { ResetAfterEveryShot = true };
         sim.AddPlayer(new PlayerState(0, 0, Striker(), -10f, 0f));
         PlayerState keeper = sim.AddPlayer(new PlayerState(1, 1, Keeper(), 50f, 0f));
         sim.Kickoff();
@@ -236,7 +236,7 @@ public class MatchSimulationTests
     [Test]
     public void GK는_슛이_뜬_뒤_반응_지연이_지나야_조준점으로_움직일_차례가_된다()
     {
-        var sim = new MatchSimulation(new RollQueue(new[] { 0.99f, 0.3f, 0.5f, 0.5f, 0.5f }).Next, PlayerTreeBuilder.BuildLitmus()) { ResetAfterEveryShot = true };
+        var sim = new MatchSimulation(new RollQueue(new[] { 0.99f, 0.3f, 0.5f, 0.5f, 0.5f }).Next, PlayerTreeBuilder.BuildLitmus(), TestThreat.Real) { ResetAfterEveryShot = true };
         PlayerState striker = sim.AddPlayer(new PlayerState(0, 0, Striker(), -10f, 0f));
         PlayerState keeper = sim.AddPlayer(new PlayerState(1, 1, Keeper(), 50f, 0f));
         float shotX = 0f;
@@ -262,7 +262,7 @@ public class MatchSimulationTests
     public void GK는_슛에_반응하는_동안_스탯이_아니라_다이빙_속도로_조준점까지_간다()
     {
         // 전체 트리(⑨b). 골 roll 0.99(노골), 조준 roll 0.3 → z -1.14. 반응 지연이 지난 첫 틱에 GK가 움직인 거리 = 8m/s × 0.02 = 0.16m(스탯 30이면 0.084)
-        var sim = new MatchSimulation(new RollQueue(new[] { 0.99f, 0.3f, 0.5f, 0.5f, 0.5f }).Next, PlayerTreeBuilder.Build()) { ResetAfterEveryShot = true };
+        var sim = new MatchSimulation(new RollQueue(new[] { 0.99f, 0.3f, 0.5f, 0.5f, 0.5f }).Next, PlayerTreeBuilder.Build(), TestThreat.Real) { ResetAfterEveryShot = true };
         sim.AddPlayer(new PlayerState(0, 0, Striker(), 30f, 0f));
         PlayerState keeper = sim.AddPlayer(new PlayerState(1, 1, Keeper(), 50f, 0f));
         sim.Kickoff();
@@ -280,7 +280,7 @@ public class MatchSimulationTests
     public void 골로_정해진_슛은_GK_자리에서_먼_구석으로_조준되고_GK는_버스트_없이_간다()
     {
         // 골 roll 0.05, 조준 roll 0.5 → 중앙 0. GK z 0 → 파생 간격만큼 밀린다. 반응 ×2(20틱) 뒤 한 틱 이동 ≤ 스탯 30(4.2m/s) × 0.02 = 0.084(가속을 타서 더 짧다)
-        var sim = new MatchSimulation(new RollQueue(new[] { 0.05f, 0.5f, 0.5f, 0.5f, 0.5f }).Next, PlayerTreeBuilder.Build()) { ResetAfterEveryShot = true };
+        var sim = new MatchSimulation(new RollQueue(new[] { 0.05f, 0.5f, 0.5f, 0.5f, 0.5f }).Next, PlayerTreeBuilder.Build(), TestThreat.Real) { ResetAfterEveryShot = true };
         PlayerState striker = sim.AddPlayer(new PlayerState(0, 0, Striker(), 30f, 0f));
         PlayerState keeper = sim.AddPlayer(new PlayerState(1, 1, Keeper(), 50f, 0f));
         float shotX = 0f;
@@ -318,7 +318,7 @@ public class MatchSimulationTests
     {
         // 10-25 GK 간격 probe: 골의 56%가 마감 때 GK가 공 0.8m 안이었다. GK가 반응 ×2 전에도 자리 규칙(공 z 추적)으로 움직여
         // 간격 파생의 전제("지연 뒤에만 움직임")와 달랐다. 골 roll 0.05, 조준 roll 0.5(중앙, 유효) → 반응 ×2 = 20틱 동안 제자리
-        var sim = new MatchSimulation(new RollQueue(new[] { 0.05f, 0.5f, 0.5f, 0.5f, 0.5f }).Next, PlayerTreeBuilder.Build()) { ResetAfterEveryShot = true };
+        var sim = new MatchSimulation(new RollQueue(new[] { 0.05f, 0.5f, 0.5f, 0.5f, 0.5f }).Next, PlayerTreeBuilder.Build(), TestThreat.Real) { ResetAfterEveryShot = true };
         sim.AddPlayer(new PlayerState(0, 0, Striker(), 30f, 0f));
         PlayerState keeper = sim.AddPlayer(new PlayerState(1, 1, Keeper(), 50f, 1.5f));   // 공 z 0과 다른 자리: 추적 슬라이드가 있었다면 움직인다
         sim.Kickoff();
@@ -342,7 +342,7 @@ public class MatchSimulationTests
     public void 노골_유효_슛도_GK는_반응_차례_전엔_제자리고_차례는_반응_1배다()
     {
         // 골 roll 0.99(노골), 조준 roll 0.3(골문 안). 닿음 판정(KeeperCanReach)도 "지연 뒤부터 움직인다"고 보므로 대기는 노골도 같다
-        var sim = new MatchSimulation(new RollQueue(new[] { 0.99f, 0.3f, 0.5f, 0.5f, 0.5f }).Next, PlayerTreeBuilder.Build()) { ResetAfterEveryShot = true };
+        var sim = new MatchSimulation(new RollQueue(new[] { 0.99f, 0.3f, 0.5f, 0.5f, 0.5f }).Next, PlayerTreeBuilder.Build(), TestThreat.Real) { ResetAfterEveryShot = true };
         sim.AddPlayer(new PlayerState(0, 0, Striker(), 30f, 0f));
         PlayerState keeper = sim.AddPlayer(new PlayerState(1, 1, Keeper(), 50f, 1.5f));
         sim.Kickoff();
@@ -365,7 +365,7 @@ public class MatchSimulationTests
     {
         // 10-25 유저 Play "잡자마자 바로 패스하니 어색". 잡은 소유의 볼 끌기 대기 = KeeperHoldAfterCatchSeconds(FIFA 6초 안).
         // 주사위 상수 0.52: 골 roll은 22m 슛 확률(0.3 안팎)보다 커서 노골, 조준은 중앙 근처(유효), 캐치는 handling 60의 확률 0.54 아래라 캐치. 전체 트리는 돌파 주사위도 굴려 수열 대신 상수
-        var sim = new MatchSimulation(() => 0.52f, PlayerTreeBuilder.Build());
+        var sim = new MatchSimulation(() => 0.52f, PlayerTreeBuilder.Build(), TestThreat.Real);
         sim.AddPlayer(new PlayerState(0, 0, Striker(), 30f, 0f));
         PlayerState keeper = sim.AddPlayer(new PlayerState(1, 1, Keeper(), 50f, 0f));
         sim.AddPlayer(new PlayerState(2, 1, Striker(), 30f, 5f));   // GK가 줄 동료
@@ -388,7 +388,7 @@ public class MatchSimulationTests
     public void GK가_없는_시뮬에서_골문_안_노골_슛은_빗나감으로_끝난다()
     {
         // 10-24 리뷰 🟡 ④: ResolveSaveAtLine은 GK가 없으면 false → 골라인에서 Missed. 골 roll 0.99(노골), 조준 roll 0.5(중앙, 유효)
-        var sim = new MatchSimulation(new RollQueue(new[] { 0.99f, 0.5f }).Next, PlayerTreeBuilder.BuildLitmus()) { ResetAfterEveryShot = true };
+        var sim = new MatchSimulation(new RollQueue(new[] { 0.99f, 0.5f }).Next, PlayerTreeBuilder.BuildLitmus(), TestThreat.Real) { ResetAfterEveryShot = true };
         sim.AddPlayer(new PlayerState(0, 0, Striker(), -10f, 0f));
         sim.Kickoff();
 
@@ -402,7 +402,7 @@ public class MatchSimulationTests
     {
         // 10-24 리뷰 🟡 ④: IncomingShotFor는 슈터의 공격 부호로 팀을 찾는다. 진영이 바뀌면 부호도 바뀌어야 같은 GK가 걸린다.
         // 주사위 상수 0.5: 조준 roll 0.5 = 골문 중앙(유효 슛). 골 roll 0.5는 p에 따라 골/노골 어느 쪽이든 되므로 반응 ×2 + 1틱까지 기다린다
-        var sim = new MatchSimulation(() => 0.5f, PlayerTreeBuilder.BuildLitmus()) { ResetAfterEveryShot = true };
+        var sim = new MatchSimulation(() => 0.5f, PlayerTreeBuilder.BuildLitmus(), TestThreat.Real) { ResetAfterEveryShot = true };
         sim.AddPlayer(new PlayerState(0, 0, Striker(), -10f, 0f));
         PlayerState keeper = sim.AddPlayer(new PlayerState(1, 1, Keeper(), 50f, 0f));
         sim.KickoffBy(0);   // 진영 교체는 첫 킥오프 팀을 아는 경기(KickoffBy)에서만 일어난다
@@ -432,7 +432,7 @@ public class MatchSimulationTests
     [Test]
     public void 킥오프_뒤_가장_가까운_선수가_공을_잡고_드리블하면_공이_따라간다()
     {
-        var sim = new MatchSimulation(() => 0.5f, PlayerTreeBuilder.BuildLitmus());
+        var sim = new MatchSimulation(() => 0.5f, PlayerTreeBuilder.BuildLitmus(), TestThreat.Real);
         PlayerState st = sim.AddPlayer(new PlayerState(0, 0, Striker(), -10f, 0f));
         sim.AddPlayer(new PlayerState(1, 1, Keeper(), 50f, 0f));
         sim.Kickoff();
@@ -474,7 +474,7 @@ public class MatchSimulationTests
     public void 붙은_상대는_면역이_끝난_뒤_태클해_성공하면_공을_뺏고_Turnover가_난다()
     {
         // 주사위 0 = 항상 성공. 소유자(팀0)는 가만히, 태클러(팀1, tackle 100)가 0.8m에 붙어 있다
-        var sim = new MatchSimulation(() => 0f, new PassFlightTestsHelper.ChaseBall());   // 자유 공이 되면 둘 다 쫓는다
+        var sim = new MatchSimulation(() => 0f, new PassFlightTestsHelper.ChaseBall(), TestThreat.Real);   // 자유 공이 되면 둘 다 쫓는다
         sim.AddPlayer(new PlayerState(0, 0, Striker(), 0f, 0f));
         sim.AddPlayer(new PlayerState(1, 1, Defender(100), 0.8f, 0f));
         var kinds = new List<PossessionChange>();
@@ -496,7 +496,7 @@ public class MatchSimulationTests
     [Test]
     public void 빗나간_슛_뒤_골킥이면_박스_안_상대는_박스_밖으로_나간다()
     {
-        var sim = new MatchSimulation(() => 0.99f, new PassFlightTestsHelper.ShootOnce());   // 0.99 = 골 안 됨·조준은 빗나감
+        var sim = new MatchSimulation(() => 0.99f, new PassFlightTestsHelper.ShootOnce(), TestThreat.Real);   // 0.99 = 골 안 됨·조준은 빗나감
         PlayerState st = sim.AddPlayer(new PlayerState(0, 0, Striker(), 44f, 0f));
         sim.AddPlayer(new PlayerState(1, 1, Keeper(), 48f, 0f));
         sim.AddPlayer(new PlayerState(2, 0, Striker(), 46f, 10f));   // 박스 안(깊이 6.5m, z 10)
@@ -512,7 +512,7 @@ public class MatchSimulationTests
     public void 공을_잡은_GK는_태클당하지_않는다()
     {
         // 규칙 12조. 주사위 0 = 시도하면 항상 성공인데도 GK 소유 중엔 시도 자체가 없어야 한다
-        var sim = new MatchSimulation(() => 0f, new PassFlightTestsHelper.ChaseBall());
+        var sim = new MatchSimulation(() => 0f, new PassFlightTestsHelper.ChaseBall(), TestThreat.Real);
         sim.AddPlayer(new PlayerState(0, 0, Keeper(), -48f, 0f));
         sim.AddPlayer(new PlayerState(1, 1, Defender(100), -47.2f, 0f));
         sim.Kickoff();
@@ -525,7 +525,7 @@ public class MatchSimulationTests
     [Test]
     public void 태클에_실패하면_태클러는_정지하고_쿨다운_동안_재시도하지_않는다()
     {
-        var sim = new MatchSimulation(() => 0.99f, new PassFlightTestsHelper.ChaseBall());   // 주사위 0.99 = 항상 실패
+        var sim = new MatchSimulation(() => 0.99f, new PassFlightTestsHelper.ChaseBall(), TestThreat.Real);   // 주사위 0.99 = 항상 실패
         sim.AddPlayer(new PlayerState(0, 0, Striker(), 0f, 0f));
         PlayerState t = sim.AddPlayer(new PlayerState(1, 1, Defender(80), 0.8f, 0f));
         sim.Kickoff();
@@ -545,7 +545,7 @@ public class MatchSimulationTests
     public void 킥오프는_지정_팀의_중앙_최근접_필드_플레이어가_공을_갖고_골_뒤엔_실점_팀이_킥오프한다()
     {
         // 팀0 ST(-8,0)·GK(-48,0), 팀1 ST(8,0)·GK(48,0). 주사위 0 = 슛은 항상 골
-        var sim = new MatchSimulation(() => 0f, new PassFlightTestsHelper.NoOp());
+        var sim = new MatchSimulation(() => 0f, new PassFlightTestsHelper.NoOp(), TestThreat.Real);
         sim.AddPlayer(new PlayerState(0, 0, Keeper(), -48f, 0f));
         sim.AddPlayer(new PlayerState(1, 0, Striker(), -8f, 0f));
         sim.AddPlayer(new PlayerState(2, 1, Keeper(), 48f, 0f));
@@ -559,7 +559,7 @@ public class MatchSimulationTests
         Assert.AreEqual(1, sim.Ball.OwnerId, "팀0 ST");
 
         // 팀0이 골을 넣으면 팀1이 킥오프
-        var shooter = new MatchSimulation(() => 0f, new PassFlightTestsHelper.ShootOnce());
+        var shooter = new MatchSimulation(() => 0f, new PassFlightTestsHelper.ShootOnce(), TestThreat.Real);
         shooter.AddPlayer(new PlayerState(0, 0, Striker(), 40f, 0f));
         shooter.AddPlayer(new PlayerState(1, 1, Keeper(), 48f, 0f));
         shooter.AddPlayer(new PlayerState(2, 1, Striker(), 8f, 0f));
@@ -574,7 +574,7 @@ public class MatchSimulationTests
     public void 세이브_뒤_튕긴_공은_멈추기_전에도_잡을_수_있다()
     {
         // 09-21 리뷰: 파링은 슛도 패스도 아닌 비행이라 잡기 분기가 없어 멈출 때까지(10-25 감속 1.2·4.4m/s = 약 3.7초) 아무도 못 잡았다
-        var sim = new MatchSimulation(() => 0.5f, PlayerTreeBuilder.BuildLitmus());
+        var sim = new MatchSimulation(() => 0.5f, PlayerTreeBuilder.BuildLitmus(), TestThreat.Real);
         sim.AddPlayer(new PlayerState(0, 0, Striker(), 3f, 0f));   // 튕긴 공의 경로 위 3m 앞
         sim.Kickoff();
         sim.Ball = BallRules.Kick(BallState.FreeAt(0f, 0f), 1f, 0f, MatchTuning.ParrySpeed);
@@ -592,7 +592,7 @@ public class MatchSimulationTests
     [Test]
     public void GK는_박스_밖_자유_공을_쫓지_않는다()
     {
-        var sim = new MatchSimulation(() => 0.5f, PlayerTreeBuilder.BuildLitmus());
+        var sim = new MatchSimulation(() => 0.5f, PlayerTreeBuilder.BuildLitmus(), TestThreat.Real);
         PlayerState gk = sim.AddPlayer(new PlayerState(1, 1, Keeper(), 50f, 0f));
         sim.Kickoff();   // 공은 중앙(0,0), GK 박스는 x ≥ 36
 
@@ -605,7 +605,7 @@ public class MatchSimulationTests
     [Test]
     public void 라인_밖으로_나간_공은_골킥_스로인_자리로_돌아온다()
     {
-        var sim = new MatchSimulation(() => 0.5f, PlayerTreeBuilder.BuildLitmus());
+        var sim = new MatchSimulation(() => 0.5f, PlayerTreeBuilder.BuildLitmus(), TestThreat.Real);
         sim.AddPlayer(new PlayerState(0, 0, Striker(), -40f, -30f));   // 아무도 공 근처에 없게
         sim.Kickoff();
 
@@ -622,7 +622,7 @@ public class MatchSimulationTests
     public void 킥오프는_키커가_센터_마크에_서고_상대는_센터서클_밖이며_첫_패스는_옆_뒤_동료에게_간다()
     {
         // IFAB 8조(09-29). 팀1 ST는 1-톱 편성처럼 서클 안(6m)에 서 있다가 밖으로 밀려나야 한다
-        var sim = new MatchSimulation(() => 0.99f, PlayerTreeBuilder.Build());
+        var sim = new MatchSimulation(() => 0.99f, PlayerTreeBuilder.Build(), TestThreat.Real);
         sim.AddPlayer(new PlayerState(0, 0, Keeper(), -48f, 0f));
         PlayerState st1 = sim.AddPlayer(new PlayerState(1, 0, Striker(), -8f, -6f));
         PlayerState st2 = sim.AddPlayer(new PlayerState(2, 0, Striker(), -8f, 6f));
@@ -657,7 +657,7 @@ public class MatchSimulationTests
     {
         // 09-29. 주사위 0 → 성향이 0보다 크면 의도가 선다. 우리 진영 서드·드리블 성향 0이면 굴리지 않는다
         PlayerStats winger = Striker(); winger.Dribble = 0.9f;
-        var sim = new MatchSimulation(() => 0f, new PassFlightTestsHelper.NoOp());
+        var sim = new MatchSimulation(() => 0f, new PassFlightTestsHelper.NoOp(), TestThreat.Real);
         PlayerState w = sim.AddPlayer(new PlayerState(0, 0, winger, 0f, 20f));
         PlayerState mate = sim.AddPlayer(new PlayerState(1, 0, Striker(), 10f, 0f));
         sim.AddPlayer(new PlayerState(2, 1, Keeper(), 48f, 0f));
@@ -668,7 +668,7 @@ public class MatchSimulationTests
         Assert.IsTrue(w.WantsTakeOn, "중원에서 잡음 + 성향 0.9 + 주사위 0");
         Assert.AreEqual(1, sim.TakeOnCount);
 
-        var own = new MatchSimulation(() => 0f, new PassFlightTestsHelper.NoOp());
+        var own = new MatchSimulation(() => 0f, new PassFlightTestsHelper.NoOp(), TestThreat.Real);
         PlayerState back = own.AddPlayer(new PlayerState(0, 0, winger, -30f, 20f));
         own.AddPlayer(new PlayerState(1, 1, Keeper(), 48f, 0f));
         own.Kickoff();
@@ -677,7 +677,7 @@ public class MatchSimulationTests
         Assert.AreEqual(0, own.Ball.OwnerId);
         Assert.IsFalse(back.WantsTakeOn, "우리 진영 서드에선 굴리지 않는다");
 
-        var pass = new MatchSimulation(() => 0f, new PassFlightTestsHelper.PassOnce(0, 1));
+        var pass = new MatchSimulation(() => 0f, new PassFlightTestsHelper.PassOnce(0, 1), TestThreat.Real);
         PlayerState passer = pass.AddPlayer(new PlayerState(0, 0, winger, 0f, 20f));
         pass.AddPlayer(new PlayerState(1, 0, Striker(), 10f, 0f));
         pass.AddPlayer(new PlayerState(2, 1, Keeper(), 48f, 0f));
@@ -693,7 +693,7 @@ public class MatchSimulationTests
     public void 공이_박스_앞에_오면_압박_거리_밖이어도_가장_가까운_센터백이_압박_1순위가_된다()
     {
         // 09-29 수비 D1. 팀 0 CB(압박 거리 6m)가 공에서 9m. 공은 팀 0 골라인에서 18m(전진 구역 안), 팀 1이 소유
-        var sim = new MatchSimulation(() => 0.99f, new PassFlightTestsHelper.NoOp());
+        var sim = new MatchSimulation(() => 0.99f, new PassFlightTestsHelper.NoOp(), TestThreat.Real);
         PlayerState near = sim.AddPlayer(new PlayerState(0, 0, CenterBack(), -43.5f, 0f));
         PlayerState far = sim.AddPlayer(new PlayerState(1, 0, CenterBack(), -45f, 15f));
         sim.AddPlayer(new PlayerState(2, 1, Striker(), -34.5f, 0f));
@@ -703,7 +703,7 @@ public class MatchSimulationTests
         Assert.AreEqual(0, near.PressRank, "가장 가까운 CB가 전진");
         Assert.AreEqual(int.MaxValue, far.PressRank, "다른 CB는 후보가 아니다(압박 거리 밖)");
 
-        var outside = new MatchSimulation(() => 0.99f, new PassFlightTestsHelper.NoOp());
+        var outside = new MatchSimulation(() => 0.99f, new PassFlightTestsHelper.NoOp(), TestThreat.Real);
         PlayerState cbOut = outside.AddPlayer(new PlayerState(0, 0, CenterBack(), -30f, 0f));
         outside.AddPlayer(new PlayerState(2, 1, Striker(), -21f, 0f));
         outside.Kickoff();
@@ -716,7 +716,7 @@ public class MatchSimulationTests
     public void 막힌_슛은_자유_공이_되고_슈터가_바로_되잡지_못한다()
     {
         // 09-29 수비 D3 + 리뷰 🔴: 슈터 (40,0), 수비수 1.5m 정면. 주사위 0 = 골 판정 성공이어도 블록(0 < 0.3)이 먼저
-        var sim = new MatchSimulation(() => 0f, new PassFlightTestsHelper.ShootOnce());
+        var sim = new MatchSimulation(() => 0f, new PassFlightTestsHelper.ShootOnce(), TestThreat.Real);
         sim.AddPlayer(new PlayerState(0, 0, Striker(), 40f, 0f));
         sim.AddPlayer(new PlayerState(1, 1, Keeper(), 50f, 0f));
         sim.AddPlayer(new PlayerState(2, 1, CenterBack(), 41.5f, -0.3f));   // 주사위 0이면 조준이 -Z 쪽(약 -12.6°)이라 그 쪽에 선다
@@ -737,7 +737,7 @@ public class MatchSimulationTests
     public void 팀_1도_박스_앞에서_가장_가까운_센터백이_압박_1순위가_된다()
     {
         // 09-30 리뷰: D1 대칭. 팀 1 골라인은 x = +52.5. 공은 거기서 18m, 팀 0이 소유
-        var sim = new MatchSimulation(() => 0.99f, new PassFlightTestsHelper.NoOp());
+        var sim = new MatchSimulation(() => 0.99f, new PassFlightTestsHelper.NoOp(), TestThreat.Real);
         sim.AddPlayer(new PlayerState(0, 0, Striker(), 34.5f, 0f));
         PlayerState near = sim.AddPlayer(new PlayerState(1, 1, CenterBack(), 43.5f, 0f));
         PlayerState far = sim.AddPlayer(new PlayerState(2, 1, CenterBack(), 45f, 15f));
@@ -753,7 +753,7 @@ public class MatchSimulationTests
     {
         // 09-30 리뷰: D3 대칭. 팀 1 슈터 (-40,0)가 -X 골로 슛. 블록 판정과 튕김 방향(+X)만 본다.
         // 튕김을 스냅샷 좌표로 계산하는 것(블로커가 먼저 움직인 틱)은 여기서 검증되지 않는다: ShootOnce가 블로커를 움직이지 않는다
-        var sim = new MatchSimulation(() => 0f, new PassFlightTestsHelper.ShootOnce());
+        var sim = new MatchSimulation(() => 0f, new PassFlightTestsHelper.ShootOnce(), TestThreat.Real);
         sim.AddPlayer(new PlayerState(0, 0, CenterBack(), -41.5f, -0.3f));
         sim.AddPlayer(new PlayerState(1, 0, Keeper(), -50f, 0f));
         sim.AddPlayer(new PlayerState(2, 1, Striker(), -40f, 0f));
@@ -771,7 +771,7 @@ public class MatchSimulationTests
     public void 태클에_실패해_얼어_있는_수비수는_슛을_막지_못한다()
     {
         // 09-30 리뷰: 블록 후보도 압박·루즈볼 후보처럼 얼어 있는 선수를 뺀다. 위치는 막힌 슛 테스트와 같다
-        var sim = new MatchSimulation(() => 0f, new PassFlightTestsHelper.ShootOnce());
+        var sim = new MatchSimulation(() => 0f, new PassFlightTestsHelper.ShootOnce(), TestThreat.Real);
         sim.AddPlayer(new PlayerState(0, 0, Striker(), 40f, 0f));
         sim.AddPlayer(new PlayerState(1, 1, Keeper(), 50f, 0f));
         PlayerState frozen = sim.AddPlayer(new PlayerState(2, 1, CenterBack(), 41.5f, -0.3f));
@@ -790,7 +790,7 @@ public class MatchSimulationTests
     private static (MatchSimulation sim, List<ShotOutcome> outcomes) ShotAtHalfTime(float roll)
     {
         var tree = new PassFlightTestsHelper.ShootWhenArmed();
-        var sim = new MatchSimulation(() => roll, tree);
+        var sim = new MatchSimulation(() => roll, tree, TestThreat.Real);
         PlayerState shooter = sim.AddPlayer(new PlayerState(0, 0, Striker(), -10f, 0f));
         sim.AddPlayer(new PlayerState(1, 1, Keeper(), 52f, 0f));
         sim.AddPlayer(new PlayerState(2, 1, Striker(), 30f, 25f));   // 후반 킥오프를 받을 팀 1 필드 선수. 슛 라인에서 멀리
@@ -835,7 +835,7 @@ public class MatchSimulationTests
     private static (MatchSimulation sim, List<ShotOutcome> outcomes) ShotAtFullTime(float roll)
     {
         var tree = new PassFlightTestsHelper.ShootWhenArmed();
-        var sim = new MatchSimulation(() => roll, tree);
+        var sim = new MatchSimulation(() => roll, tree, TestThreat.Real);
         PlayerState shooter = sim.AddPlayer(new PlayerState(0, 0, Striker(), -10f, 0f));
         sim.AddPlayer(new PlayerState(1, 1, Keeper(), 52f, 0f));
         sim.AddPlayer(new PlayerState(2, 1, Striker(), 30f, 25f));
@@ -878,7 +878,7 @@ public class MatchSimulationTests
     private static (MatchSimulation sim, List<ShotOutcome> outcomes, int resolvedTick) CloseRangeGoal(int armTick)
     {
         var tree = new PassFlightTestsHelper.ShootWhenArmed();
-        var sim = new MatchSimulation(() => 0f, tree);
+        var sim = new MatchSimulation(() => 0f, tree, TestThreat.Real);
         PlayerState shooter = sim.AddPlayer(new PlayerState(0, 0, Striker(), -10f, 0f));
         sim.AddPlayer(new PlayerState(1, 1, Keeper(), 52f, 0f));
         sim.AddPlayer(new PlayerState(2, 1, Striker(), 30f, 25f));

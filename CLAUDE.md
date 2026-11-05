@@ -34,7 +34,7 @@
 - **WarTableSimulator에서 옮겨 올 것**(장르 무관, 스펙 12절 표) — BT 엔진(`BehaviorNode`·`CompositeNodes`·`IUnitContext`), `TargetSelector`,
   `FieldBounds`(`PlacementRules`·`PlacementManager`·`PlacementInput`·`PlacementPanel`은 10-27 슬롯 격자로 대체해 삭제·이식 안 함), `StageComposition` 파서·리포지토리·`StageManager`,
   `UnitManager`(명부·풀)·`BattleManager` 틱 구조·`HudManager` 골격, CSV 관례·테스트 틀. 옮길 때 이름을 이 게임 말로 바꾼다(Unit→Player, Battle→Match)
-- **게임 코드** — 공·소유·패스·슛(`MatchRules`), 선수 트리, 스코어·시간 UI, 선수 세팅 화면. 템플릿에 안 올라간다
+- **게임 코드** — 공·소유·패스·슛(`MatchRules`), 침투 런(`RunRules`)·행동 값 비교(슛·운반·패스, `ThreatRules`·`ReceiverRules`의 되돌림 감점)·xT(`ThreatGrid`·`ThreatTableRepository`), 선수 트리, 스코어·시간 UI, 선수 세팅 화면. 템플릿에 안 올라간다
   `Scripts/OutGame/Screens/`의 `LobbyScreen`·`MatchdayScreen`·`MatchdayLines`·`ScoutScreen`도 게임 코드다(10-15). 폴더가 템플릿 출신이라도 로비 내용은 이 게임 것이라 역이식하지 않는다
 
 **제거한 모듈**: 스태미나·가챠·스킨·상점 (2026-09-15 세팅 때 뗌). **코인은 남겼다** — 용처는 3주차에 결정, 없으면 그때 제거.
@@ -96,7 +96,7 @@ cd "$HOME/Documents/Obsidian Vault/설계문서/신규게임-축구시뮬/실험
 - 오브젝트 생성은 ObjectPool. `FindObjectOfType`/`GameObject.Find` 금지
 - **경기 AI·이동·공은 고정 스텝(`FixedUpdate`)으로 돈다.** 공은 Rigidbody를 쓰지 않고 순수 계산으로 옮긴다(결정성). 기기가 달라도 결과가 같아야 한다
 - **선수 세팅은 StageComposition과 같은 데이터 형식으로 저장한다.** 재도전·상대 팀 데이터·멀티가 같은 것을 읽는다
-- 데이터는 CSV: `PlayerTable.csv` · `StageComposition.csv`(새 시즌의 내 기본 11명·러너 편성) · `TacticPresets.csv` · `FormationTemplates.csv` · `TierRules.csv` · `TeamNames.csv` · `DefenseRoles.csv`(수비 시 역할 5종 = 압박 거리 배율·라인 높이 오프셋, 10-25 슬롯 격자. 이탈 반경 배율은 10-29 삭제) · `StaminaLoadTable.csv`(체력 부담 게이지의 실측 표 81칸. 체력·압박 규칙을 바꾸면 테스트가 깨지고 러너로 다시 잰다). `StageTable.csv`는 09-27 시즌 연결 때 제거(스테이지 개념이 4부제 리그로 대체). 파싱은 CsvHelper + `ClassMap`, 자작 파서 금지
+- 데이터는 CSV: `PlayerTable.csv`(`runStyle` 열 = 침투 성향, 0 없음·1 뒤공간·2 내려와 받기·3 박스 늦게) · `StageComposition.csv`(새 시즌의 내 기본 11명·러너 편성) · `TacticPresets.csv` · `FormationTemplates.csv` · `TierRules.csv` · `TeamNames.csv` · `DefenseRoles.csv`(수비 시 역할 5종 = 압박 거리 배율·라인 높이 오프셋, 10-25 슬롯 격자. 이탈 반경 배율은 10-29 삭제) · `StaminaLoadTable.csv`(체력 부담 게이지의 실측 표 81칸. 체력·압박 규칙을 바꾸면 테스트가 깨지고 러너로 다시 잰다) · `ThreatTable.csv`(xT 12×8 격자 96칸. Karun Singh 2018 공식으로 8ebd41b 코어 2,240판 이벤트에서 직접 생성, 공개 격자 값은 라이선스 불명이라 안 씀. 헤더 `#` 줄에 생성 방법. 격자는 `MatchSimulation` 생성자로 주입한다(필수, null이면 예외). 게임 쪽 입구는 `ThreatTableRepository.Grid`(MatchManager·SeasonSystem), 러너는 `RunnerThreat.Grid`. 규칙을 바꾸면 러너 `xtgen`으로 다시 만든다) `StageTable.csv`는 09-27 시즌 연결 때 제거(스테이지 개념이 4부제 리그로 대체). 파싱은 CsvHelper + `ClassMap`, 자작 파서 금지
 - **코드 문체 앵커 = AnimalBreakOut 코드베이스** (유저가 손코딩기에 흡수한 팀 컨벤션, 2026-09-07 결정. 원본 = `WarTableSimulator/CLAUDE.md` 75~79행).
   이른 반환(가드 문) 선호, **여러 줄 `&&` 체인 지양**(조건이 길면 가드 문이나 이름 붙은 bool 메서드로), 메서드는 중괄호 블록(식 본문 `=>`는 한 줄 상태 변경·계산 정도만),
   람다는 외부 API가 함수를 요구할 때만(트리 노드 `ctx => ...`·주사위 `() => 0f` 같은 기존 자리). **콜백은 이름 붙은 private 메서드로 빼서 넘긴다**(`CreateUnit`·`OnGetFromPool`). `out var` 같은 압축 지양, 한 줄에 여러 선언·문장 지양. **한 줄 중괄호 블록은 문장 하나까지**(`if (x) { return; }`는 되고 `{ a(); return; }`은 여러 줄로. 10-08 유저 지적, 38건 펼침).
@@ -114,7 +114,7 @@ cd "$HOME/Documents/Obsidian Vault/설계문서/신규게임-축구시뮬/실험
 
 MonoBehaviour 의존 없는 판정은 순수 C#(`Game.Core` asmdef, `noEngineReferences`)으로 뺀다.
 
-- **EditMode 대상**: 공 소유 판정(가장 가까운 선수·타이브레이크), 패스 가로채기(상대 반응 지연·안전 가중·되돌림 우선순위, 10-29), 이동(개인 가속·반응 등가·Arrive/전력·자리 잡기 조깅·속도 자르기, 10-29 `MovementRules`), 슛 성공 확률(거리·각도), GK 슛 대응(닿음 판정·골 조준 간격·포스트 밖 밀기·반응 지연, 10-23~25), 압박 1순위 최소 재임(10-23), 팀 전술 미니 피치 자리(공 칸 9 × 공수 → 경기와 같은 Stand 함수, 10-29), 슬롯 격자 판정(역할군·GK 슬롯 보호·전환 거리 경고·포메이션 전환 재착석·격자 비겹침, 10-25~27. 자유 배치 판정은 10-27 ④에서 지움. 11명·GK 1은 선발 슬롯이 고정이라 늘 참. 로스터는 벤치 7까지 가변)·스쿼드 규칙(벤치 상한·같은 자리 교체·방출 코인·슬롯 기준 이월)·승강전 판정(계획·합산·승부차기), 파서 전건 대조
+- **EditMode 대상**: 공 소유 판정(가장 가까운 선수·타이브레이크), 패스 가로채기(상대 반응 지연·안전 가중, 10-29), 이동(개인 가속·반응 등가·Arrive/전력·자리 잡기 조깅·속도 자르기, 10-29 `MovementRules`), 슛 성공 확률(거리·각도), GK 슛 대응(닿음 판정·골 조준 간격·포스트 밖 밀기·반응 지연, 10-23~25), 공 높이·로빙·공 비행 코어(궤적 질의 해석식 vs 틱 적분·도달 경쟁 가장 이른 포획·동률 자리 선점·상대 GK 박스 안 2.6m, 11-02), 압박 1순위 최소 재임(10-23), 침투 사전 런(런 제안 생성·유지, 러너 도달 롤아웃 = 실행과 같은 이동 식, 11-03)·행동 값 비교(슛·운반·패스 값, 되돌림 감점, 운반 끝점·위험, 후보 상한 가지치기 = 켜고 꺼도 같은 결과, 11-03 P1)·xT 격자(보간·구간 최댓값, `ThreatTableParser`), 팀 전술 미니 피치 자리(공 칸 9 × 공수 → 경기와 같은 Stand 함수, 10-29), 슬롯 격자 판정(역할군·GK 슬롯 보호·전환 거리 경고·포메이션 전환 재착석·격자 비겹침, 10-25~27. 자유 배치 판정은 10-27 ④에서 지움. 11명·GK 1은 선발 슬롯이 고정이라 늘 참. 로스터는 벤치 7까지 가변)·스쿼드 규칙(벤치 상한·같은 자리 교체·방출 코인·슬롯 기준 이월)·승강전 판정(계획·합산·승부차기), 파서 전건 대조
 - **PlayMode·수동**: 트리 흐름, 이동, 카메라. 노드 안 판단은 `MatchRules` 순수 함수로 빼고 노드는 얇은 어댑터
 
 ## 레퍼런스 스킬

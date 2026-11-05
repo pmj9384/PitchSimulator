@@ -10,12 +10,12 @@ namespace Game.Core.AutoMatch
     public static class AutoMatchRunner
     {
 
-        public static List<MatchSummary> Run(IReadOnlyList<PlayerStats> table, IReadOnlyList<StageEntry> rows, TeamTactics home, TeamTactics away, int firstSeed, int matches)
+        public static List<MatchSummary> Run(IReadOnlyList<PlayerStats> table, IReadOnlyList<StageEntry> rows, TeamTactics home, TeamTactics away, int firstSeed, int matches, ThreatGrid threat)
         {
             var results = new List<MatchSummary>(matches);
             for (int seed = firstSeed; seed < firstSeed + matches; seed++)
             {
-                MatchSimulation sim = MatchAssembler.Create(table, rows, home, away, seed);
+                MatchSimulation sim = MatchAssembler.Create(table, rows, home, away, seed, threat);
                 var probe = new MatchProbe(sim);
                 probe.Run(MatchTuning.MatchTicks, MatchTuning.FixedStep);
                 results.Add(probe.Summarize(seed, home.PresetId, away.PresetId));

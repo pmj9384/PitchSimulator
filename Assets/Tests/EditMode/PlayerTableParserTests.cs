@@ -118,6 +118,53 @@ public class PlayerTableParserTests
     }
 
     [Test]
+    public void runStyle_열이_없는_옛_CSV는_0_침투_성향_없음으로_읽는다()
+    {
+        List<PlayerStats> roles = PlayerTableParser.Parse(ValidCsv);
+        Assert.AreEqual(0, roles[0].RunStyle);
+        Assert.AreEqual(0, roles[1].RunStyle);
+    }
+
+    [Test]
+    public void runStyle_열은_0에서_3까지_읽고_범위_밖은_행번호와_함께_예외다()
+    {
+        string withStyle = ValidHeader + ",runStyle\n" + StRow + ",1\n" + GkRow + ",0\n";
+        List<PlayerStats> roles = PlayerTableParser.Parse(withStyle);
+        Assert.AreEqual(1, roles[0].RunStyle);
+        Assert.AreEqual(0, roles[1].RunStyle);
+
+        string tooBig = ValidHeader + ",runStyle\n" + StRow + ",4\n";
+        var ex = Assert.Throws<FormatException>(() => PlayerTableParser.Parse(tooBig));
+        StringAssert.Contains("runStyle", ex!.Message);
+        StringAssert.Contains("2행", ex.Message);
+    }
+
+    [Test]
+    public void 실제_Resources_CSV의_침투_성향_기본값은_역할_설명과_맞는다()
+    {
+        List<PlayerStats> roles = PlayerTableParser.Parse(File.ReadAllText("Assets/Resources/Tables/PlayerTable.csv"));
+        Assert.AreEqual(Game.Core.Match.RunRules.StyleBehind, RunStyleOf(roles, "w_winger"), "윙어 기본 = 뒤공간(11-03 결정)");
+        Assert.AreEqual(Game.Core.Match.RunRules.StyleBehind, RunStyleOf(roles, "st_poacher"));
+        Assert.AreEqual(Game.Core.Match.RunRules.StyleShort, RunStyleOf(roles, "st_false9"));
+        Assert.AreEqual(Game.Core.Match.RunRules.StyleLate, RunStyleOf(roles, "dm_segundo"));
+        foreach (PlayerStats r in roles)
+        {
+            if (!IsDefensiveRole(r.RoleId)) { continue; }
+            Assert.AreEqual(0, r.RunStyle, $"{r.VariantId}: 수비 자리는 침투 성향 없음");
+        }
+    }
+
+    private static bool IsDefensiveRole(string roleId)
+    {
+        return roleId == "GK" || roleId == "CB" || roleId == "FB";
+    }
+
+    private static int RunStyleOf(List<PlayerStats> roles, string variantId)
+    {
+        return roles.Find(r => r.VariantId == variantId)!.RunStyle;
+    }
+
+    [Test]
     public void 헤더가_스키마와_다르면_예외()
     {
         string csv = ValidHeader.Replace("shot,", "SHOT오타,") + "\n" + StRow + "\n";   // shotBias는 건드리지 않는다

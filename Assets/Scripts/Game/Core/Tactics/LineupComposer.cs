@@ -31,7 +31,7 @@ namespace Game.Core.Tactics
             return string.Equals(player.VariantId, slotVariant.VariantId, StringComparison.OrdinalIgnoreCase);
         }
 
-        // 다이얼 11개를 변형과 기본 변형의 중간으로. 포커스(정수 3단)는 변형 것을 둔다
+        // 다이얼 12개를 변형과 기본 변형의 중간으로. 포커스(정수 3단)는 변형 것을 둔다
         private static void MidpointDials(PlayerStats target, PlayerStats variant, PlayerStats baseline)
         {
             target.PushUp = Mid(variant.PushUp, baseline.PushUp);
@@ -45,6 +45,7 @@ namespace Game.Core.Tactics
             target.Dribble = Mid(variant.Dribble, baseline.Dribble);
             target.HoldUp = Mid(variant.HoldUp, baseline.HoldUp);
             target.GkRushRadius = Mid(variant.GkRushRadius, baseline.GkRushRadius);
+            target.RunStyle = baseline.RunStyle;   // 범주라 중간값이 없다. 적성이 어긋나면 자리 기본 변형의 성향을 쓴다(11-03 ⑤)
         }
 
         private static float Mid(float a, float b)

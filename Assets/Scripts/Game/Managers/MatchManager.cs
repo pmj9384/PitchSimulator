@@ -68,7 +68,7 @@ public class MatchManager : InGameManager
         rng = new System.Random(setup.Seed);
         kickoffTeam = setup.KickoffTeam;
         OpponentName = setup.OpponentName;
-        Simulation = new MatchSimulation(NextRoll, SharedTree)
+        Simulation = new MatchSimulation(NextRoll, SharedTree, ThreatTableRepository.Grid)
         {
             ResetAfterEveryShot = false   // 4국면 트리: 세이브 뒤 GK가 배급한다. 리트머스 때만 true였다
         };

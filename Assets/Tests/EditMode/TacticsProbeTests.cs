@@ -26,7 +26,7 @@ public class TacticsProbeTests
     // 0번이 공을 쥐고 첫 틱에 1번에게 준다. 1번이 받을 때까지 돌린다
     private static TacticsProbe PassOnce(PlayerStats passerStats, float passerX)
     {
-        var sim = new MatchSimulation(() => 0.5f, new PassFlightTestsHelper.PassOnce(passer: 0, receiver: 1));
+        var sim = new MatchSimulation(() => 0.5f, new PassFlightTestsHelper.PassOnce(passer: 0, receiver: 1), TestThreat.Real);
         sim.AddPlayer(new PlayerState(0, 0, passerStats, passerX, 0f));
         sim.AddPlayer(new PlayerState(1, 0, Mid(), passerX + 12f, 0f));
         var probe = new TacticsProbe(sim, 0);
@@ -74,7 +74,7 @@ public class TacticsProbeTests
     public void 하프타임_킥오프는_새_소유라_역습을_다시_센다()
     {
         // 10-06 리뷰: 역습 표시는 상대가 공을 잡을 때만 지웠다. 전반 끝에 우리가 역습 소유 중이고 후반 킥오프도 우리면 표시가 남아 후반 첫 소유가 안 세졌다
-        var sim = new MatchSimulation(() => 0.5f, new PassFlightTestsHelper.NoOp());
+        var sim = new MatchSimulation(() => 0.5f, new PassFlightTestsHelper.NoOp(), TestThreat.Real);
         PlayerState mine = sim.AddPlayer(new PlayerState(0, 0, Mid(), -20f, 0f));
         sim.AddPlayer(new PlayerState(1, 1, Keeper(), 52f, 0f));
         sim.AddPlayer(new PlayerState(2, 1, Mid(), 30f, 20f));
@@ -120,7 +120,7 @@ public class TacticsProbeTests
         var (table, rows, presets) = Load();
         TeamTactics mine = presets.Find(t => t.PresetId == presetId);
         TeamTactics balanced = presets.Find(t => t.PresetId == "balanced");
-        MatchSimulation sim = MatchAssembler.Create(table, rows, mine, balanced, seed);
+        MatchSimulation sim = MatchAssembler.Create(table, rows, mine, balanced, seed, TestThreat.Real);
         var probe0 = new TacticsProbe(sim, 0);
         var probe1 = new TacticsProbe(sim, 1);
         for (int i = 0; i < MatchTuning.MatchTicks; i++)

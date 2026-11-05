@@ -44,12 +44,16 @@ public class CompositeNodeTests
         public bool WantsTakeOn => false;
         public bool IsKeeperAlternate => false;
         public int LastPasserId => -1;
+        public int OpponentKeeperId => -1;
         public PlayerStats OpponentKeeper => null;   // 테스트 asmdef는 nullable 미적용. 계약은 PlayerStats?
         public float AttackHomeX => 0f;
         public float AttackHomeZ => 0f;
         public float DefendHomeX => 0f;
         public float DefendHomeZ => 0f;
+        public IReadOnlyList<RunOffer> RunOffers => new List<RunOffer>();
+        public ThreatGrid Threat => TestThreat.Flat();
         public bool IsPassTarget => false;
+        public bool IsRunPass => false;
         public float PassTargetX => 0f;
         public float PassTargetZ => 0f;
         public bool WaitingForShot => false;
@@ -60,6 +64,8 @@ public class CompositeNodeTests
         public void JogToward(float x, float z) { }
         public void Shoot() { }
         public void Pass(int receiverId, float landingX, float landingZ) { }
+        public void PassLob(int receiverId, float landingX, float landingZ) { }
+        public void PassRun(int receiverId, float landingX, float landingZ) { }
     }
 
     private static BehaviorNode Cond(bool value)
@@ -108,6 +114,19 @@ public class CompositeNodeTests
         var node = new ConditionNode(ctx => ((FakePlayer)ctx).Flag);
         Assert.AreEqual(NodeState.Failure, node.Tick(new FakePlayer { Flag = false }));
         Assert.AreEqual(NodeState.Success, node.Tick(new FakePlayer { Flag = true }));
+    }
+
+    [Test]
+    public void TryAction은_행동에_성공하면_Success이고_못_하면_Failure로_다음_자식에게_넘긴다()
+    {
+        var player = new FakePlayer();
+        var done = new TryActionNode(ctx => { ((FakePlayer)ctx).ACalls++; return true; });
+        var skipped = new TryActionNode(ctx => { ((FakePlayer)ctx).BCalls++; return false; });
+
+        Assert.AreEqual(NodeState.Success, done.Tick(player));
+        Assert.AreEqual(NodeState.Failure, skipped.Tick(player));
+        Assert.AreEqual(1, player.ACalls);
+        Assert.AreEqual(1, player.BCalls);
     }
 
     [Test]

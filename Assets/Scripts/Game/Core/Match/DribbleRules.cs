@@ -25,6 +25,49 @@ namespace Game.Core.Match
             return false;
         }
 
+        // 운반 끝점: 골 중심 쪽으로 horizon만큼 간 점. 골까지가 horizon보다 짧으면 골 중심에서 멈추고, 그다음 필드 안으로 자른다.
+        // 지나친 점을 x·z 따로 자르면 반대편 z로 꺾여 실행(골 중심으로 RunToward)과 방향이 달라진다(11-05 리뷰 Y1)
+        public static (float x, float z) CarryEnd(float x, float z, float goalX, float goalZ, float horizon, float halfLength, float halfWidth)
+        {
+            float dx = goalX - x;
+            float dz = goalZ - z;
+            float distance = (float)Math.Sqrt(dx * dx + dz * dz);
+            if (distance <= 0f) { return (x, z); }
+
+            float reach = Math.Min(horizon, distance);
+            float endX = x + dx / distance * reach;
+            float endZ = z + dz / distance * reach;
+            return (Math.Clamp(endX, -halfLength, halfLength), Math.Clamp(endZ, -halfWidth, halfWidth));
+        }
+
+        // 운반 위험(11-03 P1 [가정 P-G1]): 운반 방향 앞 zone 안에 가까운 상대가 있을수록 크다. 돌파 판정(HasDefenderAhead)의 "앞쪽·사거리 안" 상대를 문턱 대신 연속값으로 바꾼 것이다.
+        // 상대마다 (1 − 거리 ÷ zone) × 운반 방향과 이룬 각의 코사인(정면 1, 옆 0, 뒤 0)을 재고, 가장 큰 값에 scale을 곱해 1로 자른다.
+        // 붙은 압박(pressedRadius 안)은 각과 무관하게 거리 항만 쓴다: 뒤에서 붙은 수비수도 태클을 건다. 상대가 없거나 zone 밖이면 0
+        public static float CarryRisk(float x, float z, float endX, float endZ, IReadOnlyList<TargetInfo> opponents, float zone, float pressedRadius, float scale)
+        {
+            float dirX = endX - x;
+            float dirZ = endZ - z;
+            float dirLength = (float)Math.Sqrt(dirX * dirX + dirZ * dirZ);
+            if (dirLength <= 0f) { return 0f; }
+
+            dirX /= dirLength;
+            dirZ /= dirLength;
+            float worst = 0f;
+            for (int i = 0; i < opponents.Count; i++)
+            {
+                float ox = opponents[i].X - x;
+                float oz = opponents[i].Z - z;
+                float distance = (float)Math.Sqrt(ox * ox + oz * oz);
+                if (distance >= zone) { continue; }
+
+                float proximity = 1f - distance / zone;
+                float alignment = 1f;
+                if (distance > pressedRadius) { alignment = Math.Max(0f, (ox * dirX + oz * dirZ) / distance); }
+                worst = Math.Max(worst, proximity * alignment);
+            }
+            return Math.Min(1f, worst * scale);
+        }
+
         // 돌파 목표점. 후보 = 정면 기준 -90°~+90°를 stepDeg 간격, 거리 lookahead. 후보마다 "내가 닿는 시간"과 "가장 빠른 상대가 닿는 시간"의 차(여유)를 잰다.
         // 여유가 양수인(상대보다 먼저 닿는) 후보 중 가장 앞으로 가는 것, 없으면 여유가 가장 큰 것. 동률은 정면에 가까운 각. 필드 밖 후보는 버린다
         public static (float x, float z) TakeOnTarget(float x, float z, int attackSign, IReadOnlyList<TargetInfo> opponents,

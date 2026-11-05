@@ -104,6 +104,21 @@ public class SlotTacticsTests
     }
 
     [Test]
+    public void 침투_성향은_범주라_적성이_어긋나면_중간값이_아니라_기본_변형의_성향을_쓴다()
+    {
+        PlayerStats poacher = BuildScaler.Copy(PlayerTableLookup.FindVariant(table, "st_poacher")!);
+        PlayerStats false9 = PlayerTableLookup.FindVariant(table, "st_false9")!;
+        int[] none = PlayerInstructions.Empty();
+
+        PlayerStats natural = LineupComposer.Compose(BuildScaler.Copy(false9), false9, none, null, table);
+        Assert.AreEqual(Game.Core.Match.RunRules.StyleShort, natural.RunStyle, "자연 변형이면 변형의 성향");
+
+        PlayerStats mismatched = LineupComposer.Compose(poacher, false9, none, null, table);
+        PlayerStats baseline = TeamGenerator.DefaultVariant(table, "ST");
+        Assert.AreEqual(baseline.RunStyle, mismatched.RunStyle, "어긋나면 자리 기본 변형의 성향(범주는 섞지 않는다)");
+    }
+
+    [Test]
     public void 포메이션을_바꾸면_자리가_바뀐_공격_슬롯만_기본_변형으로_돌아가고_수비_역할은_그대로다()
     {
         SeasonState state = NewState();

@@ -43,8 +43,9 @@ namespace Game.Core.AI
         bool WantsTakeOn { get; }                      // 이번 소유에서 돌파 의도가 살아 있나. 시뮬이 소유 때 드리블 성향으로 굴리고 2초·킥·소유 변경 때 푼다
         bool IsKickoffTaker { get; }                   // 킥오프 공을 쥔 키커이고 아직 첫 패스 전. 시뮬이 킥오프 때 정하고 첫 킥·소유 변경 때 푼다
         bool IsKeeperAlternate { get; }                  // GK 배급 "섞어"의 교대 스위치(팀별, 시뮬이 GK 패스마다 뒤집음). 09-23 R2
-        int LastPasserId { get; }                      // 방금 나에게 준 아군(패스로 받았을 때만, 아니면 -1). 되돌림 금지용
+        int LastPasserId { get; }                      // 방금 나에게 준 아군(패스로 받았을 때만, 아니면 -1). 되돌림 감점용(ReceiverRules.ReturnPenaltyFor)
         PlayerStats? OpponentKeeper { get; }
+        int OpponentKeeperId { get; }                  // 상대 GK의 PlayerId, 없으면 -1. 로빙 판정이 상대 GK만 손 높이(2.6m)로 재려고 쓴다(11-02 S2)
 
         // ── 자리 2쌍(배치 좌표. 오프셋은 PositionRules가 붙임)
         float AttackHomeX { get; }
@@ -52,8 +53,13 @@ namespace Game.Core.AI
         float DefendHomeX { get; }
         float DefendHomeZ { get; }
 
+        // ── 사전 런(11-03 ⑤): 패스가 오기 전에 러너가 달려갈 점. 러너는 자기 제안으로 달리고, 패서는 같은 점을 스루 후보로 본다
+        IReadOnlyList<RunOffer> RunOffers { get; }
+        ThreatGrid Threat { get; }     // xT 위협 격자(운반·패스 이득 비교). 시뮬이 생성자로 받아 모든 선수에게 같은 것을 준다
+
         // ── 패스 받기
         bool IsPassTarget { get; }     // 지금 날아오는 패스의 리시버가 나인가
+        bool IsRunPass { get; }        // 그 패스가 사전 런 제안(스루)으로 찬 것인가. 맞으면 감속 없이 달려 들어가며 받는다(A1, 11-03)
         float PassTargetX { get; }     // 그 패스의 도착점
         float PassTargetZ { get; }
 
@@ -69,5 +75,7 @@ namespace Game.Core.AI
         void RunToward(float x, float z);      // 멈출 생각 없이 전력으로(공 쫓기·공 몰기)
         void Shoot();
         void Pass(int receiverId, float landingX, float landingZ);   // 착지점까지 트리가 정한다. 시뮬은 그 점으로 찬다
+        void PassLob(int receiverId, float landingX, float landingZ);   // 띄워서 그 점에 떨어뜨린다(10-29 ④-1). 시뮬이 발사각·초속을 정한다
+        void PassRun(int receiverId, float landingX, float landingZ);   // 사전 런 제안의 점으로 찬다(11-03 ⑤). 받는 쪽이 감속 없이 달려 들어가며 받는다
     }
 }

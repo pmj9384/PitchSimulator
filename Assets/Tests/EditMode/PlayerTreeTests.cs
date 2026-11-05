@@ -38,11 +38,15 @@ public class PlayerTreeTests
         public bool IsKeeperAlternate { get; set; }
         public int LastPasserId { get; set; } = -1;
         public PlayerStats OpponentKeeper { get; set; } = null;
+        public int OpponentKeeperId { get; set; } = -1;
         public float AttackHomeX { get; set; }
         public float AttackHomeZ { get; set; }
         public float DefendHomeX { get; set; }
         public float DefendHomeZ { get; set; }
+        public IReadOnlyList<RunOffer> RunOffers { get; set; } = new List<RunOffer>();
+        public ThreatGrid Threat { get; set; } = TestThreat.Plateau();   // 높은 평지: 슛은 지고 운반은 위험이 있으면 음수, 안전한 패스는 적합도 가산만큼 양수라 후보가 있으면 패스가 이긴다(11-03 P1+). xT 차이가 필요한 테스트는 격자를 직접 준다
         public bool IsPassTarget { get; set; }
+        public bool IsRunPass { get; set; }
         public float PassTargetX { get; set; }
         public float PassTargetZ { get; set; }
         public bool WaitingForShot { get; set; }
@@ -74,16 +78,71 @@ public class PlayerTreeTests
             MoveZ = z;
         }
         public void Shoot() { Did = "shoot"; }
+        public bool Lob;   // 마지막 패스가 로빙이었나(10-29 ④-1)
         public void Pass(int receiverId, float landingX, float landingZ)
         {
             Did = "pass";
+            Lob = false;
+            Run = false;
             PassedTo = receiverId;
             PassX = landingX;
             PassZ = landingZ;
         }
+        public void PassLob(int receiverId, float landingX, float landingZ)
+        {
+            Pass(receiverId, landingX, landingZ);
+            Lob = true;
+        }
+        public bool Run;   // 마지막 패스가 런 제안 점으로 찬 것이었나(11-03 ⑤)
+        public void PassRun(int receiverId, float landingX, float landingZ)
+        {
+            Pass(receiverId, landingX, landingZ);
+            Run = true;
+        }
     }
 
     private static readonly BehaviorNode Tree = PlayerTreeBuilder.Build();
+
+    [Test]
+    public void 땅볼_길이_막히고_착지점이_비면_띄워_준다()
+    {
+        // 10-29 ④-1: 패서 (0,0) → 앞선 리시버 (24,0). 경로 한가운데 (12,0)에 상대 1명. 리시버 주변은 비었다
+        var cm = new Fake
+        {
+            PlayerId = 4, BallPhase = BallPhase.Owned, OwnsBall = true, BallOwnerTeam = 0, X = 0f, Z = 0f, Threat = TestThreat.Flat(),   // 골에서 52m라 슛이 없고, 평평한 격자에선 안전하지 않은 패스도 적합도 가산만큼 양수다
+            Teammates = new List<TargetInfo> { new TargetInfo(9, 24f, 0f) },
+            Opponents = new List<TargetInfo> { new TargetInfo(15, 12f, 0f), new TargetInfo(16, 40f, -15f), new TargetInfo(17, 42f, 15f), new TargetInfo(18, 50f, 0f) },   // 깊은 수비 2명 + GK 자리: 오프사이드 선 42
+        };
+        cm.Stats.PassLength = 25f;
+        cm.Tactics.PassStyle = new[] { 1, 1, 1 };   // 직접. 짧게(기본 0)는 안 띄운다
+        Tree.Tick(cm);
+        Assert.AreEqual("pass", cm.Did);
+        Assert.AreEqual(9, cm.PassedTo);
+        Assert.IsTrue(cm.Lob, "땅볼은 (12,0) 수비에 끊긴다");
+
+        cm.Tactics.PassStyle = new[] { 0, 0, 0 };
+        cm.Did = "";
+        cm.Lob = false;
+        Tree.Tick(cm);
+        Assert.IsFalse(cm.Lob, "짧게 서드에선 막혀도 안 띄운다(11-02)");
+    }
+
+    [Test]
+    public void 땅볼_길이_비어_있으면_띄우지_않는다()
+    {
+        // 위와 같은 자리에서 경로 위 상대만 뺐다. 땅볼과 로빙이 둘 다 안전하면(가중 동률) 땅볼
+        var cm = new Fake
+        {
+            PlayerId = 4, BallPhase = BallPhase.Owned, OwnsBall = true, BallOwnerTeam = 0, X = 0f, Z = 0f, Threat = TestThreat.Flat(),   // 골에서 52m라 슛이 없고, 평평한 격자에선 안전하지 않은 패스도 적합도 가산만큼 양수다
+            Teammates = new List<TargetInfo> { new TargetInfo(9, 24f, 0f) },
+            Opponents = new List<TargetInfo> { new TargetInfo(16, 40f, -15f), new TargetInfo(17, 42f, 15f), new TargetInfo(18, 50f, 0f) },
+        };
+        cm.Stats.PassLength = 25f;
+        cm.Tactics.PassStyle = new[] { 1, 1, 1 };
+        Tree.Tick(cm);
+        Assert.AreEqual("pass", cm.Did);
+        Assert.IsFalse(cm.Lob);
+    }
 
     [Test]
     public void GK가_잡으면_배급_패스다()
@@ -105,6 +164,7 @@ public class PlayerTreeTests
         Tree.Tick(gk);
         Assert.AreEqual("pass", gk.Did);
         Assert.AreEqual(2, gk.PassedTo, "붙어 있으면 길게(가장 앞선 아군)");
+        Assert.IsFalse(gk.Lob, "GK 배급은 로빙 판정을 안 탄다(PassUnchecked, 땅볼만)");
     }
 
     [Test]
@@ -146,15 +206,16 @@ public class PlayerTreeTests
     }
 
     [Test]
-    public void 드리블_성향이_낮으면_가까운_아군_쪽으로_몬다()
+    public void 드리블_성향이_낮아도_패스_후보가_있으면_패스한다_가까운_아군_쪽_드리블은_후보가_없을_때뿐이다()
     {
+        // 11-03 P1+: 보유 값 0 기준선이 없어 필드 선수는 운반이나 패스 중 하나를 늘 실행한다. ⑤ 드리블은 닿지 않는 안전망으로 남았다 [가정 P-G13]
         var mid = new Fake { PlayerId = 0, OwnsBall = true, BallPhase = BallPhase.Owned, BallOwnerTeam = 0, X = 0f,
-            Teammates = new List<TargetInfo> { new TargetInfo(1, -30f, 10f) },  // 30m 뒤라 감점으로 패스 후보 아님(09-21 C)
+            Teammates = new List<TargetInfo> { new TargetInfo(1, -30f, 10f) },
             Opponents = new List<TargetInfo>() };
         mid.Stats.ShotBias = 1f; mid.Stats.Dribble = 0.1f;
         Tree.Tick(mid);
-        Assert.AreEqual("move", mid.Did);
-        Assert.AreEqual(-30f, mid.MoveX, 1e-4f, "가까운 아군 쪽");
+        Assert.AreEqual("pass", mid.Did);
+        Assert.AreEqual(1, mid.PassedTo);
     }
 
     [Test]
@@ -190,22 +251,21 @@ public class PlayerTreeTests
     }
 
     [Test]
-    public void 방금_나에게_준_선수에게_곧바로_뒤로_되돌리지_않는다_다른_후보가_없을_때만()
+    public void 방금_나에게_준_선수에게_뒤로_되돌리는_패스는_감점이라_비슷한_값이면_다른_후보가_이긴다()
     {
-        // 압박(2m 안 상대) 중, 앞은 막힘. 뒤 후보 A(직전 패서)와 B. A는 되돌림이라 B로. B가 없으면 A로
-        var mid = new Fake { PlayerId = 0, OwnsBall = true, BallPhase = BallPhase.Owned, BallOwnerTeam = 0, X = 20f, BallX = 20f, LastPasserId = 1,
-            Teammates = new List<TargetInfo> { new TargetInfo(1, 12f, 8f), new TargetInfo(2, 12f, -8f) },
-            Opponents = new List<TargetInfo> { new TargetInfo(11, 21.5f, 0.3f) } };
+        // 11-03 P1 [가정 P-G2]: 옆 레인 A(18,28)와 B(18,-28)는 값이 같다. A가 직전 패서면 되돌림 감점으로 B가 이긴다. 후보가 A뿐이면 감점을 넘는 값이라 받는다
+        var mid = new Fake { PlayerId = 0, OwnsBall = true, BallPhase = BallPhase.Owned, BallOwnerTeam = 0, X = 20f, BallX = 20f, LastPasserId = 1, Threat = WideLaneGrid(),
+            Teammates = new List<TargetInfo> { new TargetInfo(1, 18f, 28f), new TargetInfo(2, 18f, -28f) } };
         mid.Stats.ShotBias = 1f;
         Tree.Tick(mid);
         Assert.AreEqual("pass", mid.Did);
         Assert.AreEqual(2, mid.PassedTo, "직전 패서(1)가 아닌 B(2)");
 
-        mid.Teammates = new List<TargetInfo> { new TargetInfo(1, 12f, 8f) };
+        mid.Teammates = new List<TargetInfo> { new TargetInfo(1, 18f, 28f) };
         mid.Did = "";
         Tree.Tick(mid);
         Assert.AreEqual("pass", mid.Did);
-        Assert.AreEqual(1, mid.PassedTo, "다른 후보가 없으면 되돌림 허용");
+        Assert.AreEqual(1, mid.PassedTo, "다른 후보가 없으면 되돌림도 값이 양수면 허용");
     }
 
     [Test]
@@ -229,25 +289,43 @@ public class PlayerTreeTests
         Assert.LessOrEqual(st.MoveX, 30.5f + 1e-4f, "온사이드 선 뒤");
     }
 
-    [Test]
-    public void 앞_아군이_막히면_압박받을_때만_뒤_아군에게_돌리고_아니면_드리블한다()
+    // 앞으로 갈수록 오르는 단조 격자: 뒤·옆 후보의 도착 xT가 항상 낮은 장면(실제 격자는 레인마다 요철이 있어 경계 값이 흔들린다)
+    private static ThreatGrid SlopeGrid()
     {
-        // 09-18 Play 진단 C: 앞 후보가 전부 불안전하면 옆·뒤 후보로 돌린다. 09-21: 단 압박(상대 3m 안)받을 때만.
-        // 앞 경로 위 상대(7, 0.2)는 앞 후보를 막지만 7m 떨어져 압박은 아니다 → 드리블
-        var mid = new Fake { PlayerId = 0, OwnsBall = true, BallPhase = BallPhase.Owned, BallOwnerTeam = 0, X = 0f,
+        return TestThreat.Slope();
+    }
+
+    // 폭 레인(행 0·7)이 중앙보다 위협이 큰 격자: 옆 레인으로 돌리는 값이 양수가 되는 장면을 만든다
+    private static ThreatGrid WideLaneGrid()
+    {
+        var cells = new float[ThreatGrid.Rows, ThreatGrid.Columns];
+        for (int r = 0; r < ThreatGrid.Rows; r++)
+        {
+            for (int c = 0; c < ThreatGrid.Columns; c++) { cells[r, c] = c * 0.01f + ((r == 0 || r == 7) ? 0.15f : 0f); }
+        }
+        return new ThreatGrid(cells);
+    }
+
+    [Test]
+    public void 옆_뒤_아군도_후보라서_앞이_막혀도_값이_음수면_돌리지_않고_양수면_압박과_무관하게_돌린다()
+    {
+        // 11-03 P1: 게이트(옆·뒤는 압박받을 때만)를 없앴다. 후보 전원의 값(성공 확률 × 도착 xT − 지금 xT)을 비교하고 0을 못 넘으면 드리블한다.
+        // 앞 아군 A(15,0)는 경로 위 상대(7,0.2)에 막혀 값이 음수, 뒤 아군 B(-6,8)는 도착 xT가 지금보다 낮아 음수 → 드리블
+        var mid = new Fake { PlayerId = 0, OwnsBall = true, BallPhase = BallPhase.Owned, BallOwnerTeam = 0, X = 0f, Threat = SlopeGrid(),
             Teammates = new List<TargetInfo> { new TargetInfo(1, 15f, 0f), new TargetInfo(2, -6f, 8f) },
             Opponents = new List<TargetInfo> { new TargetInfo(11, 7f, 0.2f) } };
         mid.Stats.ShotBias = 1f;
         Tree.Tick(mid);
-        Assert.AreEqual("move", mid.Did, "압박이 없으면 뒤로 안 돌리고 몬다");
+        Assert.AreEqual("move", mid.Did, "돌려도 xT가 오르지 않으면 몬다");
         Assert.Greater(mid.MoveX, 0f, "골 쪽으로");
 
-        // 상대가 1.5m 뒤에 붙으면(압박 = 태클 사거리 안) 뒤 아군에게 돌린다. 그 상대는 뒤 패스 경로 밖(z 반대, 발 뻗는 1.2m 밖)
-        mid.Opponents = new List<TargetInfo> { new TargetInfo(11, 7f, 0.2f), new TargetInfo(12, -1.4f, -0.8f) };
+        // 옆 레인의 xT가 높은 격자: 같은 깊이의 옆 아군 C(0,28)는 압박이 없어도 값이 양수라 받는다
+        mid.Threat = WideLaneGrid();
+        mid.Teammates = new List<TargetInfo> { new TargetInfo(1, 15f, 0f), new TargetInfo(3, 0f, 28f) };
         mid.Did = "";
         Tree.Tick(mid);
-        Assert.AreEqual("pass", mid.Did, "압박받으면 돌린다");
-        Assert.AreEqual(2, mid.PassedTo, "뒤 아군에게");
+        Assert.AreEqual("pass", mid.Did, "압박이 없어도 옆 레인이 더 위협적이면 돌린다");
+        Assert.AreEqual(3, mid.PassedTo);
     }
 
     [Test]
@@ -256,6 +334,18 @@ public class PlayerTreeTests
         var w = new Fake { PlayerId = 3, BallPhase = BallPhase.Flight, BallOwnerTeam = -1, IsPassTarget = true, PassTargetX = 20f, PassTargetZ = -10f };
         Tree.Tick(w);
         Assert.AreEqual("move", w.Did);
+        Assert.AreEqual(20f, w.MoveX);
+        Assert.AreEqual(-10f, w.MoveZ);
+        Assert.AreEqual("arrive", w.Gait, "일반 패스는 도착점에서 멈춰 받는다");
+    }
+
+    [Test]
+    public void 런_패스를_받는_선수는_감속_없이_도착점으로_달려_들어간다()
+    {
+        var w = new Fake { PlayerId = 3, BallPhase = BallPhase.Flight, BallOwnerTeam = -1, IsPassTarget = true, IsRunPass = true, PassTargetX = 20f, PassTargetZ = -10f };
+        Tree.Tick(w);
+        Assert.AreEqual("move", w.Did);
+        Assert.AreEqual("run", w.Gait);
         Assert.AreEqual(20f, w.MoveX);
         Assert.AreEqual(-10f, w.MoveZ);
     }
@@ -425,22 +515,22 @@ public class PlayerTreeTests
         Tree.Tick(kicker);
         Assert.AreEqual("pass", kicker.Did);
         Assert.AreEqual(7, kicker.PassedTo, "앞선 10번(5m)이 더 가까워도 뒤의 7번(10m)");
+        Assert.IsFalse(kicker.Lob, "킥오프는 땅볼만");
     }
 
     [Test]
-    public void 공격수는_슛_사거리_안에서_앞이_비면_안전한_패스가_있어도_골_쪽으로_몬다()
+    public void 앞이_비면_운반이_패스보다_값이_커서_역할과_위치와_무관하게_골_쪽으로_몬다()
     {
-        // 10-08 기회 생성 1: 슛 문턱 밖에서 받은 공격수가 늘 다시 패스해서 ST가 정면 11m에 서 있을 때만 득점이 났다
-        // 상대는 패스 길에서 멀리(측면 12m 앞 15m) 두어 패스는 늘 안전하고, 운반 여부만 결과를 가른다
-        var st = new Fake { PlayerId = 0, OwnsBall = true, BallPhase = BallPhase.Owned, BallOwnerTeam = 0, X = 20f, Z = 5f, BallThird = Third.Opponent,
-            Teammates = new List<TargetInfo> { new TargetInfo(1, 35f, -20f) },
+        // 11-03 P1+: 운반 자격(ST·AM·W, 슛 사거리 안, 우리 진영 밖)을 없앴다. 앞으로 갈수록 오르는 격자에서 앞이 비면 운반이 패스를 이긴다
+        var st = new Fake { PlayerId = 0, OwnsBall = true, BallPhase = BallPhase.Owned, BallOwnerTeam = 0, X = 20f, Z = 5f, BallThird = Third.Opponent, Threat = SlopeGrid(),
+            Teammates = new List<TargetInfo> { new TargetInfo(1, 30f, -8f) },
             Opponents = new List<TargetInfo> { new TargetInfo(11, 32f, 20f) } };
-        st.Stats.RoleId = "ST"; st.Stats.ShotBias = 1f;
+        st.Stats.RoleId = "ST"; st.Stats.ShotBias = 0f;
         Tree.Tick(st);
         Assert.AreEqual("move", st.Did, "운반");
         Assert.AreEqual(FieldBounds.HalfLength, st.MoveX, 0.01f, "골 쪽으로");
 
-        st.Opponents = new List<TargetInfo> { new TargetInfo(11, 22f, 8f) };   // 앞 3.6m: 여유(4m) 안 → 평소 판단(패스)
+        st.Opponents = new List<TargetInfo> { new TargetInfo(11, 22f, 6f) };   // 정면 2.2m: 운반 위험이 커서 운반 값이 음수 → 패스
         st.Did = "";
         Tree.Tick(st);
         Assert.AreEqual("pass", st.Did);
@@ -448,24 +538,19 @@ public class PlayerTreeTests
         st.Opponents = new List<TargetInfo> { new TargetInfo(11, 32f, 20f) };
         st.Stats.RoleId = "CM"; st.Did = "";
         Tree.Tick(st);
-        Assert.AreEqual("pass", st.Did, "미드필더는 운반 규칙을 안 탄다");
+        Assert.AreEqual("move", st.Did, "미드필더도 운반 후보다");
 
-        st.Stats.RoleId = "ST"; st.X = -20f; st.BallThird = Third.Middle; st.Did = "";   // 골에서 72m: 슛 사거리 밖
+        st.X = -20f; st.BallThird = Third.Own; st.Did = "";   // 우리 진영 서드·골에서 72m도 후보다
         st.Teammates = new List<TargetInfo> { new TargetInfo(1, -5f, -20f) };
         Tree.Tick(st);
-        Assert.AreEqual("pass", st.Did, "사거리 밖에선 안 몬다");
-
-        st.X = 20f; st.BallThird = Third.Own; st.Did = "";   // 서드 값이 우리 진영이면(공 위치 기준) 안 몬다
-        st.Teammates = new List<TargetInfo> { new TargetInfo(1, 35f, -20f) };
-        Tree.Tick(st);
-        Assert.AreEqual("pass", st.Did, "우리 진영 서드에선 안 몬다");
+        Assert.AreEqual("move", st.Did, "자격 조건이 없다");
     }
 
     [Test]
     public void 운반은_반대_진영_팀도_같은_규칙이고_골_앞에선_운반보다_슛이_먼저다()
     {
         // 팀 1은 -X 골을 노린다. 앞 = -X 쪽. 상대가 +X 쪽(뒤)에 있으면 앞이 빈 것
-        var st = new Fake { PlayerId = 11, Team = 1, OwnsBall = true, BallPhase = BallPhase.Owned, BallOwnerTeam = 1, X = -20f, Z = 5f, BallThird = Third.Opponent,
+        var st = new Fake { PlayerId = 11, Team = 1, OwnsBall = true, BallPhase = BallPhase.Owned, BallOwnerTeam = 1, X = -20f, Z = 5f, BallThird = Third.Opponent, Threat = SlopeGrid(),
             Teammates = new List<TargetInfo> { new TargetInfo(12, -35f, -20f) },
             Opponents = new List<TargetInfo> { new TargetInfo(1, -17f, 5f) } };   // 뒤 3m: 앞이 아니다
         st.Stats.RoleId = "ST"; st.Stats.ShotBias = 1f;
@@ -498,5 +583,335 @@ public class PlayerTreeTests
         free.Stats.ShotBias = 1f;
         Tree.Tick(free);
         Assert.AreEqual("pass", free.Did, "앞 8m에 상대가 없으면(이미 제침) 평소 판단");
+    }
+
+    // ── 사전 런·착지점 기준 게이트(11-03 ⑤)
+
+    // 패서 (20,0)가 슛 안 하는 설정. 수비 라인 42(깊은 수비 2 + GK). 러너 9는 패서보다 8m 뒤 (12,10)
+    private static Fake CarrierWithRunnerBehind(RunOffer offer, bool pressed = false)
+    {
+        var cm = new Fake
+        {
+            PlayerId = 4, BallPhase = BallPhase.Owned, OwnsBall = true, BallOwnerTeam = 0, X = 20f, Z = 0f,
+            Teammates = new List<TargetInfo> { new TargetInfo(9, 12f, 10f) },
+            Opponents = new List<TargetInfo> { new TargetInfo(16, 40f, -15f), new TargetInfo(17, 42f, 15f), new TargetInfo(18, 50f, 0f) },
+        };
+        cm.Stats.ShotBias = 1f;
+        if (offer.RunnerId != RunOffer.NoRunner) { cm.RunOffers = new List<RunOffer> { offer }; }
+        if (pressed) { cm.Opponents = new List<TargetInfo> { new TargetInfo(16, 40f, -15f), new TargetInfo(17, 42f, 15f), new TargetInfo(18, 50f, 0f), new TargetInfo(19, 20.5f, 0f) }; }
+        return cm;
+    }
+
+    [Test]
+    public void 패서_뒤의_러너도_런_목표가_앞이면_후보고_착지점은_그_목표점이다()
+    {
+        var cm = CarrierWithRunnerBehind(new RunOffer(9, 45f, 10f, 0f));
+        Tree.Tick(cm);
+        Assert.AreEqual("pass", cm.Did);
+        Assert.AreEqual(9, cm.PassedTo);
+        Assert.AreEqual(45f, cm.PassX, 1e-4f, "착지점 = 러너의 런 목표점(판정과 실행이 같은 점)");
+        Assert.AreEqual(10f, cm.PassZ, 1e-4f);
+        Assert.IsFalse(cm.Lob);
+    }
+
+    [Test]
+    public void 런_제안이_없으면_패서보다_한참_뒤의_아군은_도착_xT가_낮아_후보_값이_음수다()
+    {
+        var cm = CarrierWithRunnerBehind(RunOffer.None);
+        cm.Teammates = new List<TargetInfo> { new TargetInfo(9, 0f, 10f) };   // 20m 뒤
+        cm.Threat = SlopeGrid();
+        Tree.Tick(cm);
+        Assert.AreEqual("move", cm.Did, "운반: 20m 뒤 패스는 값이 더 낮다");
+    }
+
+    [Test]
+    public void 런_제안의_위험이_허용치를_넘으면_패스하지_않는다()
+    {
+        var cm = CarrierWithRunnerBehind(RunOffer.None);
+        cm.Teammates = new List<TargetInfo> { new TargetInfo(9, 0f, 10f) };
+        cm.RunOffers = new List<RunOffer> { new RunOffer(9, 45f, 10f, 1f) };
+        Tree.Tick(cm);
+        Assert.AreEqual("move", cm.Did, "러너가 아직 못 붙었다(위험 1)");
+    }
+
+    [Test]
+    public void 방금_나에게_준_선수가_앞_공간으로_달리면_되돌림이_아니라_전진형이다()
+    {
+        var cm = CarrierWithRunnerBehind(new RunOffer(9, 45f, 10f, 0f));
+        cm.LastPasserId = 9;
+        Tree.Tick(cm);
+        Assert.AreEqual("pass", cm.Did);
+        Assert.AreEqual(9, cm.PassedTo, "원투: 뒤에 있어도 착지가 앞이면 전진형");
+    }
+
+    [Test]
+    public void 러너는_런_목표점으로_가되_온사이드_선_뒤_여유까지만_간다()
+    {
+        // 러너 9(팀 0)가 아군 소유 중. 수비 라인 42 → 목표 x 45는 41.5로 잘린다. z는 목표 그대로, 이동 종류는 감속 도착(선에서 멈춘다)
+        var runner = new Fake
+        {
+            PlayerId = 9, Team = 0, BallPhase = BallPhase.Owned, BallOwnerTeam = 0, X = 12f, Z = 10f,
+            Opponents = new List<TargetInfo> { new TargetInfo(16, 40f, -15f), new TargetInfo(17, 42f, 15f), new TargetInfo(18, 50f, 0f) },
+            RunOffers = new List<RunOffer> { new RunOffer(9, 45f, 10f, 0.3f) },
+        };
+        Tree.Tick(runner);
+        Assert.AreEqual("move", runner.Did);
+        Assert.AreEqual("arrive", runner.Gait);
+        Assert.AreEqual(42f - MatchTuning.OnsideMargin, runner.MoveX, 1e-4f);
+        Assert.AreEqual(10f, runner.MoveZ, 1e-4f);
+
+        var inside = new Fake
+        {
+            PlayerId = 9, Team = 0, BallPhase = BallPhase.Owned, BallOwnerTeam = 0, X = 12f, Z = 10f,
+            Opponents = runner.Opponents,
+            RunOffers = new List<RunOffer> { new RunOffer(9, 36f, -8f, 0.3f) },
+        };
+        Tree.Tick(inside);
+        Assert.AreEqual(36f, inside.MoveX, 1e-4f, "선 안쪽 목표는 그대로");
+        Assert.AreEqual(-8f, inside.MoveZ, 1e-4f);
+    }
+
+    [Test]
+    public void 팀1_러너도_공격_방향_온사이드_선_뒤로_자른다()
+    {
+        var runner = new Fake
+        {
+            PlayerId = 9, Team = 1, BallPhase = BallPhase.Owned, BallOwnerTeam = 1, X = -12f, Z = 10f,
+            Opponents = new List<TargetInfo> { new TargetInfo(16, -40f, -15f), new TargetInfo(17, -42f, 15f), new TargetInfo(18, -50f, 0f) },
+            RunOffers = new List<RunOffer> { new RunOffer(9, -45f, 10f, 0.3f) },
+        };
+        Tree.Tick(runner);
+        Assert.AreEqual(-(42f - MatchTuning.OnsideMargin), runner.MoveX, 1e-4f);
+    }
+
+    [Test]
+    public void 다른_선수의_런_제안은_내_자리_이동에_영향이_없다()
+    {
+        var teammate = new Fake
+        {
+            PlayerId = 5, Team = 0, BallPhase = BallPhase.Owned, BallOwnerTeam = 0, X = 12f, Z = 10f, AttackHomeX = 20f, AttackHomeZ = 10f,
+            Opponents = new List<TargetInfo> { new TargetInfo(16, 40f, -15f), new TargetInfo(17, 42f, 15f), new TargetInfo(18, 50f, 0f) },
+            RunOffers = new List<RunOffer> { new RunOffer(9, 45f, 10f, 0.3f) },
+        };
+        Tree.Tick(teammate);
+        Assert.AreEqual("move", teammate.Did);
+        Assert.Less(teammate.MoveX, 41f, "자리(공격 시 자리 + 오프셋)로 간다. 러너 목표(41.5)가 아니다");
+    }
+
+    [Test]
+    public void GK_배급과_역습_패스는_런_제안이_있어도_스루를_만들지_않는다()
+    {
+        var gk = new Fake { PlayerId = 0, IsGoalkeeper = true, OwnsBall = true, BallPhase = BallPhase.Owned, BallOwnerTeam = 0, X = -48f,
+            Teammates = new List<TargetInfo> { new TargetInfo(1, -36f, 7f), new TargetInfo(2, -8f, 0f) },
+            RunOffers = new List<RunOffer> { new RunOffer(2, 30f, 5f, 0f) } };
+        Tree.Tick(gk);
+        Assert.AreEqual("pass", gk.Did);
+        Assert.AreEqual(1, gk.PassedTo, "GK 배급은 PassUnchecked 경로");
+        Assert.AreNotEqual(30f, gk.PassX);
+
+        var mid = new Fake { PlayerId = 0, OwnsBall = true, BallPhase = BallPhase.Owned, BallOwnerTeam = 0, IsCountering = true, X = 0f,
+            Teammates = new List<TargetInfo> { new TargetInfo(1, 10f, 0f), new TargetInfo(2, 30f, 5f) },
+            RunOffers = new List<RunOffer> { new RunOffer(1, 40f, 20f, 0f) } };
+        mid.Stats.ShotBias = 1f;
+        Tree.Tick(mid);
+        Assert.AreEqual(2, mid.PassedTo, "역습 패스는 최전방 아군에게, 착지는 PassLeadMax 리드");
+        Assert.LessOrEqual(mid.PassX, 30f + MatchTuning.PassLeadMax + 1e-3f);
+    }
+
+    [Test]
+    public void 런_제안이_있어도_운반_길이_비었으면_운반_값이_커서_운반하고_앞을_막으면_패스한다()
+    {
+        // ST(공격 자리 밖 중앙 22m)가 슛 사거리 안에서 공을 쥠. 러너 9는 뒤 (12,10), 런 지점은 박스 앞 (40,8). 격자는 앞으로 갈수록 오른다
+        var cells = new float[ThreatGrid.Rows, ThreatGrid.Columns];
+        for (int r = 0; r < ThreatGrid.Rows; r++)
+        {
+            for (int c = 0; c < ThreatGrid.Columns; c++) { cells[r, c] = c * 0.04f; }
+        }
+        var blocker = new TargetInfo(19, 24f, 0.5f);   // 운반 방향 정면 2m
+
+        Fake st = CarrierSt();
+        st.Threat = new ThreatGrid(cells);
+        Tree.Tick(st);
+        Assert.AreEqual("move", st.Did, "앞이 비면 운반이 CarryHorizon 앞의 xT를 얻어 런 지점보다 크다");
+
+        st = CarrierSt();
+        st.Threat = new ThreatGrid(cells);
+        st.Opponents = new List<TargetInfo>(st.Opponents) { blocker };
+        Tree.Tick(st);
+        Assert.AreEqual("pass", st.Did, "정면을 막으면 운반 위험이 커서 값이 음수: 런 지점 패스");
+        Assert.AreEqual(9, st.PassedTo);
+
+        st = CarrierSt(risk: 1f);
+        st.Threat = TestThreat.Plateau();
+        st.Opponents = new List<TargetInfo>(st.Opponents) { blocker };
+        Tree.Tick(st);
+        Assert.AreEqual("shoot", st.Did, "운반도 패스도 음수여도 가장 큰 행동을 실행한다: 슛 값(xG × 배율 − 지금 값)이 가장 덜 나쁘다");
+    }
+
+    private static Fake CarrierSt(float risk = 0f)
+    {
+        var st = new Fake
+        {
+            PlayerId = 4, BallPhase = BallPhase.Owned, OwnsBall = true, BallOwnerTeam = 0, X = 22f, Z = 0f,
+            Teammates = new List<TargetInfo> { new TargetInfo(9, 12f, 10f) },
+            Opponents = new List<TargetInfo> { new TargetInfo(16, 49f, -15f), new TargetInfo(17, 50f, 15f), new TargetInfo(18, 52f, 0f) },
+            RunOffers = new List<RunOffer> { new RunOffer(9, 40f, 8f, risk) },
+        };
+        st.Stats.RoleId = "ST";
+        st.Stats.Shot = 50;
+        st.Stats.ShotBias = 1f;
+        return st;
+    }
+
+    // ── 값 비교(11-03 P1+, 11-05 리뷰 반영)
+
+    // 같은 장면에서 xG가 0.14~0.18인 자리를 찾는다. 배율 1 + 4 × (1 − 성향)이라 성향 0.2는 4.2(xG 0.12 넘으면 쏨), 0.8은 1.8(xG 0.28 넘어야 쏨)이다(높은 평지 격자 V = 0.5, 운반 값 0)
+    private static float ShotBoundaryX()
+    {
+        for (float x = 20f; x < 50f; x += 0.25f)
+        {
+            float chance = MatchRules.ShotProbability(x, 0f, +1, 50, 50, 50);
+            if (chance > 0.14f && chance < 0.18f) { return x; }
+        }
+        Assert.Fail("xG 0.14~0.18 자리가 없다");
+        return 0f;
+    }
+
+    private static Fake ShooterAt(float x, float shotBias)
+    {
+        var st = new Fake { PlayerId = 9, OwnsBall = true, BallPhase = BallPhase.Owned, BallOwnerTeam = 0, X = x, Z = 0f, BallThird = Third.Opponent };
+        st.Stats.RoleId = "ST"; st.Stats.Shot = 50; st.Stats.ShotBias = shotBias;
+        return st;
+    }
+
+    [Test]
+    public void 슛_성향이_낮을수록_자주_쏜다_같은_장면에서_0점2는_쏘고_0점8은_안_쏜다()
+    {
+        float x = ShotBoundaryX();
+        Fake poacher = ShooterAt(x, 0.2f);
+        Tree.Tick(poacher);
+        Assert.AreEqual("shoot", poacher.Did, "포처(0.2): 배율 4.2 × xG가 지금 값 0.5를 넘는다");
+
+        Fake defender = ShooterAt(x, 0.8f);
+        Tree.Tick(defender);
+        Assert.AreNotEqual("shoot", defender.Did, "수비수(0.8): 배율 1.8 × xG가 지금 값 0.5에 못 미쳐 운반(값 0)이 이긴다");
+    }
+
+    [Test]
+    public void 슛_성향을_올리면_같은_자리에서_슛이_단조로_줄어든다()
+    {
+        float x = ShotBoundaryX();
+        bool stopped = false;
+        int shots = 0;
+        for (int i = 0; i <= 10; i++)
+        {
+            Fake st = ShooterAt(x, i / 10f);
+            Tree.Tick(st);
+            bool shoots = st.Did == "shoot";
+            Assert.IsFalse(stopped && shoots, $"성향 {i / 10f}에서 안 쏘다가 다시 쏜다");
+            if (shoots) { shots++; }
+            else { stopped = true; }
+        }
+        Assert.Greater(shots, 0, "낮은 성향은 쏜다");
+        Assert.Less(shots, 11, "높은 성향은 안 쏜다");
+    }
+
+    [Test]
+    public void 점수는_한_틱의_한_선수_것이라_같은_선수의_다음_틱과_다른_선수에게_이어지지_않는다()
+    {
+        var a = new Fake { PlayerId = 1, OwnsBall = true, BallPhase = BallPhase.Owned, BallOwnerTeam = 0, X = 0f, Threat = TestThreat.Flat(),
+            Teammates = new List<TargetInfo> { new TargetInfo(2, 15f, 0f) } };
+        Tree.Tick(a);
+        Assert.AreEqual("pass", a.Did);
+
+        a.Teammates = new List<TargetInfo>();   // 같은 선수, 다음 틱: 후보가 사라졌다
+        a.Did = "";
+        Tree.Tick(a);
+        Assert.AreEqual("move", a.Did, "지난 틱의 패스 결과를 이어받지 않는다");
+
+        var b = new Fake { PlayerId = 3, OwnsBall = true, BallPhase = BallPhase.Owned, BallOwnerTeam = 0, X = 0f, Threat = TestThreat.Flat(),
+            Teammates = new List<TargetInfo> { new TargetInfo(4, 15f, 0f) } };
+        Tree.Tick(b);
+        Assert.AreEqual("pass", b.Did);
+        Assert.AreEqual(4, b.PassedTo);
+        Tree.Tick(a);   // a는 여전히 후보가 없다
+        Assert.AreEqual("move", a.Did, "다른 선수의 점수를 이어받지 않는다");
+    }
+
+    [Test]
+    public void 후보_상한_가지치기를_끄고_켜도_고르는_행동이_같다_무작위_장면_300개()
+    {
+        // 패스 방식(짧게·직접·길게)과 폭을 섞어 로빙 후보를, 3장면에 1번 런 제안을 넣어 상한의 런 제안 분기도 탄다(11-05 리뷰)
+        var random = new System.Random(20261105);
+        for (int scene = 0; scene < 300; scene++)
+        {
+            var st = new Fake { PlayerId = 0, OwnsBall = true, BallPhase = BallPhase.Owned, BallOwnerTeam = 0, Threat = TestThreat.Real,
+                X = Next(random, -30f, 40f), Z = Next(random, -25f, 25f), LastPasserId = random.Next(0, 4) == 0 ? 1 : -1 };
+            st.Stats.RoleId = "CM"; st.Stats.Shot = 50; st.Stats.ShotBias = (float)random.NextDouble();
+            var mates = new List<TargetInfo>();
+            for (int i = 1; i <= random.Next(2, 10); i++) { mates.Add(new TargetInfo(i, Next(random, -40f, 50f), Next(random, -30f, 30f))); }
+            var opponents = new List<TargetInfo> { new TargetInfo(50, 48f, 0f) };
+            for (int i = 0; i < random.Next(3, 10); i++) { opponents.Add(new TargetInfo(51 + i, Next(random, -20f, 50f), Next(random, -30f, 30f))); }
+            st.Teammates = mates; st.Opponents = opponents;
+            int passStyle = random.Next(0, 3);
+            int width = random.Next(0, 3);
+            st.Tactics.PassStyle = new[] { passStyle, passStyle, passStyle };
+            st.Tactics.Width = new[] { width, width, width };
+            st.RunOffers = new List<RunOffer>();
+            if (random.Next(0, 3) == 0)
+            {
+                st.RunOffers = new List<RunOffer> { new RunOffer(mates[0].PlayerId, Next(random, 0f, 45f), Next(random, -25f, 25f), Next(random, 0f, 0.6f)) };
+            }
+
+            PlayerTreeBuilder.PruneByCeiling = true;
+            Tree.Tick(st);
+            string pruned = $"{st.Did}/{st.PassedTo}/{st.PassX:0.000}/{st.PassZ:0.000}/{st.MoveX:0.000}/{st.MoveZ:0.000}";
+            st.Did = ""; st.PassedTo = -1;
+            PlayerTreeBuilder.PruneByCeiling = false;
+            Tree.Tick(st);
+            string full = $"{st.Did}/{st.PassedTo}/{st.PassX:0.000}/{st.PassZ:0.000}/{st.MoveX:0.000}/{st.MoveZ:0.000}";
+            PlayerTreeBuilder.PruneByCeiling = true;
+            Assert.AreEqual(full, pruned, $"장면 {scene}");
+        }
+    }
+
+    private static float Next(System.Random random, float min, float max)
+    {
+        return min + (float)random.NextDouble() * (max - min);
+    }
+
+    [Test]
+    public void 실제_격자에서_운반이_역습과_돌파보다_먼저_정해진다_현재_순서_잠금()
+    {
+        // 11-05 리뷰 Y2: ②c(운반)가 ③ 역습·③b 돌파보다 앞이라 운반 ≥ 패스면 둘이 안 나온다. 순서가 정해지면 이 테스트를 바꾼다.
+        // 앞이 빈 중원: 운반 값이 패스 값보다 크다
+        var counter = new Fake { PlayerId = 0, OwnsBall = true, BallPhase = BallPhase.Owned, BallOwnerTeam = 0, IsCountering = true, X = 0f, Z = 0f, Threat = TestThreat.Real,
+            Teammates = new List<TargetInfo> { new TargetInfo(1, 4f, 0f) },   // 역습 대상(패서보다 CounterForwardMargin 이상 앞)이지만 5m도 안 되는 짧은 패스
+            Opponents = new List<TargetInfo> { new TargetInfo(11, 45f, -20f), new TargetInfo(12, 48f, 15f) } };
+        counter.Stats.RoleId = "CM"; counter.Stats.ShotBias = 1f;
+        Tree.Tick(counter);
+        Assert.AreEqual("move", counter.Did, "역습 중이어도 운반이 먼저(③ 역습 패스가 아니다)");
+        Assert.AreEqual(FieldBounds.HalfLength, counter.MoveX, 0.01f);
+
+        var takeOn = new Fake { PlayerId = 7, OwnsBall = true, BallPhase = BallPhase.Owned, BallOwnerTeam = 0, X = 10f, Z = 20f, WantsTakeOn = true, Threat = TestThreat.Real,
+            Teammates = new List<TargetInfo> { new TargetInfo(9, 22f, 5f) },
+            Opponents = new List<TargetInfo> { new TargetInfo(20, 17.5f, 20f), new TargetInfo(21, 48f, 0f) } };   // 정면 7.5m: 돌파 사거리(8m) 안, 운반 위험 존(6m) 밖
+        takeOn.Stats.RoleId = "W"; takeOn.Stats.ShotBias = 1f;
+        Tree.Tick(takeOn);
+        Assert.AreEqual("move", takeOn.Did);
+        Assert.AreEqual(FieldBounds.HalfLength, takeOn.MoveX, 0.01f, "돌파 목표(앞 4m)가 아니라 골 중심으로 간다: ②c가 ③b보다 먼저");
+    }
+
+    [Test]
+    public void 측면_가중만으로는_xT가_더_높은_중앙_후보를_못_이긴다()
+    {
+        // 지운 계약(옛 "라인 위 윙어가 중앙 앞 후보를 측면 가중만으로 이기지 않는다")을 값 식으로 다시 잠근다.
+        // 패서 (0, 20). 라인 위 윙어 (10, 31)과 5m 더 앞선 중앙 (15, 20). 격자는 앞으로 오른다
+        ThreatGrid grid = TestThreat.Slope();
+        float wingerFit = PassRules.ReceiverFit(0f, 20f, 10f, 31f, passStyle: 1, passLength: 15f, widthLevel: 2);
+        float centralFit = PassRules.ReceiverFit(0f, 20f, 15f, 20f, passStyle: 1, passLength: 15f, widthLevel: 2);
+        float winger = ThreatRules.PassValue(grid, 0f, 20f, 10f, 31f, +1, 1f, MatchTuning.ReceiverFitWeight * wingerFit);
+        float central = ThreatRules.PassValue(grid, 0f, 20f, 15f, 20f, +1, 1f, MatchTuning.ReceiverFitWeight * centralFit);
+        Assert.Less(winger, central, "전진 5m의 xT 이득이 측면 가중을 이긴다");
     }
 }
