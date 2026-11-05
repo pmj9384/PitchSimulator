@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Game.Core.Data;
 using Game.Core.League;
 using Game.Core.Match;
 using UnityEngine;
@@ -11,8 +12,13 @@ public class StageManager : InGameManager
 {
     public string DisplayName { get; private set; }    // "N라운드"(로그용. 상대 이름은 MatchManager.OpponentName)
 
+#if UNITY_EDITOR
+    [SerializeField] private int stadiumTierOverride;   // 에디터 전용. 1~4면 그 부의 경기장을 띄운다(0 = 사용 안 함). 읽는 곳도 에디터 전용이라 선언도 감싼다(빌드에서 CS0169 경고 = 오류)
+#endif
+
     private MatchSetup current;
     private bool isLoaded;
+    private GameObject stadium;
 
     public override void Initialize()
     {
@@ -29,8 +35,30 @@ public class StageManager : InGameManager
         current = GameDataManager.Instance.Season.CurrentMatch;
         DisplayName = $"{current.Fixture.Round + 1}라운드";
 
+        SpawnStadium();
         Spawn(current.Team0, 0, current.Kit0);
         Spawn(current.Team1, 1, current.Kit1);
+    }
+
+    // 이번 판 경기장(홈 팀이 속한 부)을 판당 1회 만든다. 반복 스폰이 아니라 ObjectPool 대상이 아니고, Clear에서 지운다
+    private void SpawnStadium()
+    {
+        int tier = current.StadiumTier;
+#if UNITY_EDITOR
+        if (stadiumTierOverride > 0)
+        {
+            tier = Mathf.Clamp(stadiumTierOverride, 1, 4);
+            Debug.Log($"[Stage] 경기장 부 강제 지정: {tier}부");
+        }
+#endif
+        string id = TierRuleRepository.Get(tier).Stadium;
+        GameObject prefab = Resources.Load<GameObject>("Stadiums/" + id);
+        if (prefab == null)
+        {
+            Debug.LogError($"[Stage] 경기장 프리팹 Stadiums/{id} 없음. Tools/Pitch/경기장 프리팹 만들기를 실행한다");
+            return;
+        }
+        stadium = Instantiate(prefab);
     }
 
     private void Spawn(IReadOnlyList<LineupSlot> slots, int team, int kit)
@@ -71,6 +99,8 @@ public class StageManager : InGameManager
         GameManager.RemoveGameStateEnterAction(GameManager.GameState.GameReady, Load);
         GameManager.Match.MatchEnded -= OnMatchEnded;
         isLoaded = false;
+        if (stadium != null) { Destroy(stadium); }
+        stadium = null;
         current = null;
         DisplayName = null;
     }
