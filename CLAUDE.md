@@ -47,7 +47,7 @@ CLI는 Homebrew cask `unity-cli`(2026-10-06 기준 `1.0.0-beta.12`, 올릴 땐 `
 ```bash
 unity command editor_status --result-only          # playMode가 stopped인지 먼저 본다(Play 중 재컴파일·테스트 금지)
 unity recompile --json                             # 컴파일하고 끝날 때까지 기다린다. data.failed == false, data.summary.errors == 0
-unity command run_tests --mode EditMode --timeout 300 --result-only   # Summary.Failed == 0. 10-06에 285개 약 55초
+unity command run_tests --mode EditMode --timeout 300 --result-only   # Summary.Failed == 0. 10-06에 285개 약 55초, 11-05 교착 테스트가 90분 5판(dotnet 77초)이 되어 더 길다
 unity command console_status --result-only         # compilationFailed·경고 수. 본문은 console --level warning --tail 30
 unity command get_scene_hierarchy --result-only    # 씬 읽기
 unity command screenshot --view game --result-only # Play 중 화면, path에 PNG 경로
@@ -67,10 +67,13 @@ unity command screenshot --view game --result-only # Play 중 화면, path에 PN
 그래서 **설계 루프에서 "이 값을 읽는 곳" 표를 먼저 내고, 구현 뒤엔 지표를 전부 한 번에 잰다.** 러너는 Vault `설계문서/신규게임-축구시뮬/실험/러너/`(dotnet, 에디터 불필요, 결정성).
 
 ```bash
-cd "$HOME/Documents/Obsidian Vault/설계문서/신규게임-축구시뮬/실험/러너" && ./dashboard.sh develop        # base(develop) vs 작업 트리, 약 5분. quick을 붙이면 2분
+cd "$HOME/Documents/Obsidian Vault/설계문서/신규게임-축구시뮬/실험/러너" && ./dashboard.sh develop        # base(develop) vs 작업 트리, 실제 90분, full. base 캐시 적중 약 1.6분, 미스 약 3.4분
+cd "$HOME/Documents/Obsidian Vault/설계문서/신규게임-축구시뮬/실험/러너" && ./dashboard.sh develop quick  # 약 0.8분(미스 1.5분). final은 최종 1칸에만(4부 300판·대칭 100판)
 ```
 
-지표: 4부 300판 골·승·무·0:0·슛·빗나감 / 대칭 100판 골·무·패스·가로채기 / 압박 교대·왕복 / 역할별 소유(ST 50% 넘으면 교착 테스트가 깨진다) / 폭·깊이·라인·스프린트 / GK 라인 세이브·골 중 접촉 / 체력 표 4칸 최대 차(1%p 넘으면 81칸 재생성, `실험/2026-09-30-LoadTable.cs.txt`).
+**11-05 S2부터 대시보드는 실제 90분**(`MatchLength.RealTime`)으로 잰다. 판은 6스레드로 나눠 돌리고 시드 순서로 합쳐 스레드 수와 무관하게 같은 출력이 나온다(`RUNNER_THREADS=1`로 확인). 표에 지표마다 95% 신뢰 구간과 실제 축구 기준(StatsBomb PL 15/16)·판정이 붙는다. base는 커밋 해시 + 러너 src + base Tables 해시로 캐시하고, base 빌드는 base 커밋의 CSV를 읽는다. 3분판 마지막 수치는 러너 폴더 `out-3min-final.txt`. 3분 압축으로 옛 수치와 대조할 땐 `RUNNER_LEN=short`.
+
+지표(90분 full): 4부 100판 골·승·무·0:0·슛·빗나감 / 대칭 50판 골·슛·무·0:0·패스·가로채기·태클탈취·소유전환 / 슛 블록·빗나감·세이브·골·박스안·거리 / 패스 성공·길이·10m 미만 / 압박 교대·왕복 / 역할별 소유(ST 50% 넘으면 교착 테스트가 깨진다) / 폭·깊이·라인·스프린트 / GK 라인 세이브·골 중 접촉 / 체력 표 4칸 최대 차(3분 표라 90분에서는 판정 제외, S3에서 81칸 재생성, `실험/2026-09-30-LoadTable.cs.txt`).
 개별 probe·격자 스윕 방법은 그 폴더 `README.md`.
 
 ## 정적 검사 (2026-09-15 세팅, 경고 0 정책)

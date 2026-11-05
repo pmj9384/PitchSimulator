@@ -7,27 +7,28 @@ using Game.Core.Match;
 using Game.Core.Tactics;
 using NUnit.Framework;
 
-// 교착 회귀 감시(09-23). 오늘 실제로 났던 정지 2종(발치 상대 되잡기 잠금·멈춘 패스 교착)과 탐지한 핑퐁을 시드 20개 × 3분에서 잠근다.
+// 교착 회귀 감시(09-23). 오늘 실제로 났던 정지 2종(발치 상대 되잡기 잠금·멈춘 패스 교착)과 탐지한 핑퐁을 시드 5개 × 실제 90분에서 잠근다
+// (11-05 S2: 3분 20판 → 90분 5판. 틱 수가 7.5배라 교착을 더 잘 잡고, 경기 길이 기본값과 무관하게 90분으로 돈다).
 // A 전원 정지(5초 이벤트 없음 + 공·선수 안 움직임) / B 자유 공 방치 / C 멈춘 공인데 패스 진행 중 / D 소유자 정지 / E 같은 둘 6회 교대(공 X 3m 안)
 public class StallGuardTests
 {
-    private const int Seeds = 20;
+    private const int Seeds = 5;
 
     [Test]
-    public void 시드_20개_3분에_교착_5종이_없다()
+    public void 시드_5개_실제_90분에_교착_5종이_없다()
     {
         List<PlayerStats> table = PlayerTableParser.Parse(File.ReadAllText("Assets/Resources/Tables/PlayerTable.csv"));
         List<StageEntry> rows = StageCompositionParser.Parse(File.ReadAllText("Assets/Resources/Tables/StageComposition.csv")).FindAll(r => r.Stage == 1);
         TeamTactics balanced = TeamTacticsParser.Parse(File.ReadAllText("Assets/Resources/Tables/TacticPresets.csv")).Find(t => t.PresetId == "balanced");
         FieldInfo passInFlight = typeof(MatchSimulation).GetField("passInFlight", BindingFlags.NonPublic | BindingFlags.Instance);
-        const float WideShareMax = 0.25f;   // 20판 평균의 상한. 09-26 수정 뒤 10경기 평균 13%(09-28 100판 17%). 평균 31%였을 때가 터치라인 빌드업
-        const float RoleShareMax = 0.5f;    // 20판 평균. 한 역할이 소유 절반 이상이면 형태 붕괴(09-26 전엔 W가 측면 소유의 86%)
+        const float WideShareMax = 0.25f;   // 판 평균의 상한(11-05부터 90분 5판). 09-26 수정 뒤 10경기 평균 13%(09-28 100판 17%). 평균 31%였을 때가 터치라인 빌드업
+        const float RoleShareMax = 0.5f;    // 판 평균(90분 5판). 한 역할이 소유 절반 이상이면 형태 붕괴(09-26 전엔 W가 측면 소유의 86%)
 
         var found = new List<string>();
         var wideBySeed = new List<string>(); float wideSum = 0f; int shapeSeeds = 0; var roleShareSum = new Dictionary<string, float>();
         for (int seed = 1; seed <= Seeds; seed++)
         {
-            MatchSimulation sim = MatchAssembler.Create(table, rows, balanced, balanced, seed, TestThreat.Real);
+            MatchSimulation sim = MatchAssembler.Create(table, rows, balanced, balanced, seed, TestThreat.Real, length: MatchLength.RealTime);
             int lastEventTick = 0;
             var owners = new List<int>();
             float pingPongStartX = 0f;
@@ -147,7 +148,7 @@ public class StallGuardTests
                 }
             }
         }
-        // F·G는 20판 평균으로 판정한다(09-28). 3분 한 판은 규칙을 조금만 바꿔도 전개가 통째로 달라져 판별 값이 흔들린다
+        // F·G는 판 평균으로 판정한다(09-28, 11-05부터 90분 5판). 3분 한 판은 규칙을 조금만 바꿔도 전개가 통째로 달라져 판별 값이 흔들린다
         // (F1b에서 시드 14가 22 → 27%인데 100판 평균은 17% 그대로). 잡으려던 건 09-26의 평균 31% 쏠림이다. 판별 값은 메시지에 남긴다
         if (shapeSeeds > 0)
         {
