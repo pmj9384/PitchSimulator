@@ -107,6 +107,7 @@ namespace Game.Core.Match
         public const float KeeperLineMinFraction = 0.2f; // 슈터 → 골라인 경로에서 GK 라인 비율의 하한. 슈터가 라인에 붙은 슛은 교차점을 경로 20% 지점으로 본다(÷비율 폭주 방지, 10-25) [가정]
         public const int KeeperReactionTicks = 10;       // GK가 슛에 반응해 라인 교차점으로 움직이기 시작하는 지연(0.2초). [가정] 사람 단순 반응 시간 0.2~0.25초. 골로 정해진 슛엔 ×2(못 막을 슛을 "늦게 반응한" 모양으로)
         public const float GoalAimPostInset = 0.3f;      // 골로 정해진 슛의 조준점이 포스트 안쪽으로 두는 여유(m). 포스트에 맞는 모양을 피한다 [가정]
+        public const float GoalKickSetupSeconds = 4f;          // 골킥(11-05 유저 Play "골킥 때 수비랑 공을 주고받는다"): GK가 공을 들고 기다리는 시간. 그동안 양 팀이 트리로 자기 자리로 가고 상대는 박스 밖에 머문다(IFAB 16조). [가정] 출처 없는 출발값. 3분 압축이면 경기 시간 2분이라 Play로 본다
         public const float KeeperHoldAfterCatchSeconds = 2f;   // GK가 슛을 잡은 뒤 배급까지 들고 있는 시간. FIFA 규칙은 6초 안(Law 12). 바로 차면 "잡자마자 패스"가 어색했다(10-25 유저 Play) [가정 2초]
         public const float FormationTransitionWarnMeters = 15f;   // 선수의 공격 자리·수비 자리 거리가 이보다 멀면 전술판이 경고(FM26 "둘 나란히" 경고처럼 막지 않음). 4-4-2 공수 차이 5m, 4-4-2↔4-3-3 대응 최대 15m쯤 [가정]
         public const float ShotWideMargin = 0.5f;        // 노골로 정해졌는데 GK가 못 닿을 유효 슛을 포스트 밖으로 미는 거리(m). 골대 안으로 들어가는 노골을 없앤다(10-23 유저 "안 들어가면 골대 안으로 가면 안 된다"). [가정] 출처 없음, 화면에서 확실히 밖으로 보이는 값

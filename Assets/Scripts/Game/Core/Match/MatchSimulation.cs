@@ -149,6 +149,8 @@ namespace Game.Core.Match
         private int immunityTicksLeft;        // 소유 면역: 소유 뒤 이 틱 동안 태클 불가
         private int holdUpTicksLeft;          // 볼 끌기(개인 holdUp): 소유 뒤 킥까지 대기 틱
         private bool keeperJustCaught;        // 직전 슛을 GK가 잡았다 → 그 소유의 볼 끌기 대기는 KeeperHoldAfterCatchSeconds(10-25)
+        private bool goalKickJustStarted;     // 골킥으로 GK에게 공을 쥐여 줬다 → 그 소유의 볼 끌기 대기는 GoalKickSetupSeconds(11-05)
+        private int goalKickKeeperId = BallState.NoOwner;   // 골킥을 들고 있는 GK. 그 GK가 공을 쥐고 있는 동안 상대는 박스 밖에 머문다
         private readonly bool[] keeperAlternate = new bool[2];   // GK 배급 "섞어"의 교대 스위치(팀별). GK 패스가 실행될 때 뒤집고 스냅샷으로 트리에 준다(09-23 R2)
         // 킥 릴리스(09-21 Play 진단): 찬 공은 킥 원점에서 잡기 반경을 벗어난 뒤에야 누구든 잡을 수 있다.
         // 발치에 붙은 상대가 첫 틱(0.3m)에 그 자리에서 가로채 소유가 0.4초마다 뒤집히던 잠금을 막는다
@@ -414,6 +416,8 @@ namespace Game.Core.Match
             ballOwnerAtLastTick = BallState.NoOwner;
             holdUpTicksLeft = 0;
             keeperJustCaught = false;
+            goalKickJustStarted = false;
+            goalKickKeeperId = BallState.NoOwner;
             immunityTicksLeft = 0;
             passReleased = true;
             lastKickerId = BallState.NoOwner;
@@ -526,6 +530,7 @@ namespace Game.Core.Match
                 float moved = Distance(beforeX, beforeZ, p.X, p.Z);
                 UpdateStamina(p, IsHighIntensity(p, moved / deltaTime, carrying && moved > 0f), Length.TimeScale);
             }
+            KeepGoalKickBoxClear();
         }
 
         // 고강도 틱(10-29 가속 D): 이번 틱 실제 속도가 개인 최고 속도 × HighIntensityFraction 이상, 또는 공을 몰고 움직였다.
@@ -979,9 +984,14 @@ namespace Game.Core.Match
             PossessionChanged?.Invoke(new PossessionReport(ownerNow, owner.Team, previousOwnerId, kind, Ball.X, Ball.Z));
         }
 
-        // 소유 직후 킥을 미루는 시간. 보통은 개인 볼 끌기(holdUp). GK가 슛을 잡은 소유는 KeeperHoldAfterCatchSeconds — 바로 차면 "잡자마자 패스"가 어색했다(10-25 유저 Play)
+        // 소유 직후 킥을 미루는 시간. 보통은 개인 볼 끌기(holdUp). 골킥 소유는 GoalKickSetupSeconds(11-05), GK가 슛을 잡은 소유는 KeeperHoldAfterCatchSeconds — 바로 차면 "잡자마자 패스"가 어색했다(10-25 유저 Play)
         private float HoldUpSecondsFor(PlayerState owner)
         {
+            if (goalKickJustStarted)
+            {
+                goalKickJustStarted = false;
+                return Math.Max(owner.Stats.HoldUp, MatchTuning.GoalKickSetupSeconds);
+            }
             if (!keeperJustCaught) { return owner.Stats.HoldUp; }
             keeperJustCaught = false;
             return Math.Max(owner.Stats.HoldUp, MatchTuning.KeeperHoldAfterCatchSeconds);
@@ -1172,13 +1182,43 @@ namespace Game.Core.Match
                 Kickoff();
                 return;
             }
+            StartGoalKick(keeper);
+        }
+
+        // 골킥(IFAB 16조, 11-05): GK가 공을 쥐고 GoalKickSetupSeconds 동안 기다린다. 그동안 우리 팀은 트리가 공격 자리로 보내고(GK 소유 = 우리 공),
+        // 상대는 박스 밖에 머문다. 09-23 Play: 빗나감 → GK 소유 → 붙은 ST가 배급을 릴리스 지점에서 가로채 7m 슛, 4회 만에 골.
+        // 11-05 Play: 기다림 없이 바로 차서 제자리의 수비와 공을 주고받았다
+        private void StartGoalKick(PlayerState keeper)
+        {
             Ball = BallRules.Own(Ball, keeper.PlayerId, keeper.X, keeper.Z);
-            // 골킥 때 상대는 박스 밖(규칙 16조). 09-23 Play: 빗나감 → GK 소유 → 붙은 ST가 배급을 릴리스 지점에서 가로채 7m 슛, 4회 만에 골
+            goalKickJustStarted = true;
+            goalKickKeeperId = keeper.PlayerId;
+            PushOpponentsOutOfBox(keeper);
+        }
+
+        // 골킥을 든 GK가 공을 쥐고 있는 동안 상대를 박스 밖에 둔다. GK가 차거나 공이 GK를 떠나면 끝
+        private void KeepGoalKickBoxClear()
+        {
+            if (goalKickKeeperId == BallState.NoOwner) { return; }
+            if (Ball.Phase != BallPhase.Owned || Ball.OwnerId != goalKickKeeperId)
+            {
+                goalKickKeeperId = BallState.NoOwner;
+                return;
+            }
+            PushOpponentsOutOfBox(FindPlayer(goalKickKeeperId));
+        }
+
+        private void PushOpponentsOutOfBox(PlayerState keeper)
+        {
             float outsideX = -(FieldBounds.HalfLength - FieldBounds.PenaltyBoxDepth - 1f) * keeper.AttackSign;
             for (int i = 0; i < players.Count; i++)
             {
                 PlayerState p = players[i];
-                if (p.Team != keeper.Team && MatchRules.IsInOwnPenaltyBox(p.X, p.Z, keeper.AttackSign)) { p.X = outsideX; }
+                if (p.Team != keeper.Team && MatchRules.IsInOwnPenaltyBox(p.X, p.Z, keeper.AttackSign))
+                {
+                    p.X = outsideX;
+                    p.Stop();   // 박스로 달려들던 속도를 지운다. 안 지우면 대기 내내 제자리 전력 질주로 체력이 깎이고 풀리는 순간 튀어 나간다(11-05 리뷰)
+                }
             }
         }
 
@@ -1308,7 +1348,7 @@ namespace Game.Core.Match
             return passer.Team;
         }
 
-        // 라인 밖(슛 비행 중은 제외: 골라인 판정이 먼저다) → 가까운 쪽 골킥/스로인 자리에 자유 공(스펙 §5)
+        // 라인 밖(슛 비행 중은 제외: 골라인 판정이 먼저다) → 골라인은 그 골을 지키는 팀 GK의 골킥(11-05), 터치라인은 스로인 자리에 자유 공(스펙 §5)
         private bool ResetIfOut()
         {
             if (Ball.Phase == BallPhase.Owned || shotInFlight) { return false; }
@@ -1320,8 +1360,15 @@ namespace Game.Core.Match
 
             if (Math.Abs(Ball.X) > FieldBounds.HalfLength)
             {
-                float sign = Math.Sign(Ball.X);
-                Ball = BallState.FreeAt(sign * (FieldBounds.HalfLength - MatchTuning.GoalKickOffset), 0f);
+                // 골라인 밖은 그 골을 지키는 팀의 골킥(11-05). 마지막에 수비가 건드린 공(코너킥)도 코너킥이 생길 때까지 골킥으로 둔다(스펙 §5 업데이트 1차)
+                int sign = Math.Sign(Ball.X);
+                PlayerState? keeper = FindGoalkeeper(1 - TeamOfSign(sign));
+                if (keeper == null)
+                {
+                    Ball = BallState.FreeAt(sign * (FieldBounds.HalfLength - MatchTuning.GoalKickOffset), 0f);   // GK 없는 시뮬(리트머스·테스트)은 예전처럼 자유 공
+                    return true;
+                }
+                StartGoalKick(keeper);
                 return true;
             }
             if (Math.Abs(Ball.Z) > FieldBounds.HalfWidth)
