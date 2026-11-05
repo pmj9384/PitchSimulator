@@ -17,12 +17,14 @@ namespace Game.Core.League
         public string OpponentName { get; }
         public int Kit0 => KitRules.MyKit;   // 내 유니폼 번호
         public int Kit1 { get; }             // 상대 유니폼 번호(KitRules.Of). 색은 화면 PlayerPalette
+        public int StadiumTier { get; }      // 경기장 = 홈 팀이 속한 부(11-06). 리그는 내 부, 승강전 1·2차전 원정만 상대 부. 화면 전용
 
         public MatchSetup(Fixture fixture, int seed, IReadOnlyList<LineupSlot> team0, IReadOnlyList<LineupSlot> team1,
-            TeamTactics tactics0, TeamTactics tactics1, string opponentName, int kit1)   // kit1에 기본값을 두지 않는다: 빠뜨리면 양 팀이 같은 색인데 에러가 안 난다
+            TeamTactics tactics0, TeamTactics tactics1, string opponentName, int kit1, int stadiumTier)   // kit1·stadiumTier에 기본값을 두지 않는다: 빠뜨리면 같은 색·내 부 경기장이 조용히 나온다
         {
             Fixture = fixture;
             Kit1 = kit1;
+            StadiumTier = stadiumTier;
             Seed = seed;
             Team0 = team0;
             Team1 = team1;

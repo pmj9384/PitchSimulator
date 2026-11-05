@@ -19,6 +19,7 @@ namespace Game.Core.Data
         public int DialVariance { get; set; }     // 0 기본 / 1 다이얼 1~2개 극단 / 2 넓게
         public bool DualPositions { get; set; }   // 공격 시/수비 시 자리를 다르게 쓰는가
         public bool Rebuild { get; set; }         // 빌드 재분배(피지컬 CB·기술 ST)를 쓰는가
+        public string Stadium { get; set; } = string.Empty;   // 이 부의 경기장(Stadiums.csv id). 경기장 = 홈 팀이 속한 부의 것(11-06 경기장 4종 1단계)
     }
 
     public static class TierRuleParser
@@ -48,11 +49,12 @@ namespace Game.Core.Data
                     List<string> formations = SplitList(row.Formations, "formations", line);
                     List<string> presets = SplitList(row.Presets, "presets", line);
                     if (row.DialVariance < 0 || row.DialVariance > 2) { throw new FormatException($"TierRules {line}행: dialVariance는 0~2"); }
+                    if (string.IsNullOrWhiteSpace(row.Stadium)) { throw new FormatException($"TierRules {line}행: stadium이 비어 있다"); }
                     rules.Add(new TierRule
                     {
                         Tier = row.Tier, Teams = row.Teams, Matches = row.Matches, TotalPoints = row.TotalPoints,
                         Formations = formations, Presets = presets, DialVariance = row.DialVariance,
-                        DualPositions = row.DualPositions != 0, Rebuild = row.Rebuild != 0,
+                        DualPositions = row.DualPositions != 0, Rebuild = row.Rebuild != 0, Stadium = row.Stadium.Trim(),
                     });
                 }
             }
@@ -98,6 +100,7 @@ namespace Game.Core.Data
             public int DialVariance { get; set; }
             public int DualPositions { get; set; }
             public int Rebuild { get; set; }
+            public string Stadium { get; set; } = string.Empty;
         }
 
         private sealed class RowMap : ClassMap<Row>
@@ -113,6 +116,7 @@ namespace Game.Core.Data
                 Map(r => r.DialVariance).Name("dialVariance");
                 Map(r => r.DualPositions).Name("dualPositions");
                 Map(r => r.Rebuild).Name("rebuild");
+                Map(r => r.Stadium).Name("stadium");
             }
         }
     }

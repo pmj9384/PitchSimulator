@@ -44,17 +44,17 @@ public class TeamGenerationDataTests
     [Test]
     public void 부_규칙은_1_4부_전부_있고_총점이_상위_부일수록_크며_경기_수는_팀_수_빼기_1이다()
     {
-        const string header = "tier,teams,matches,totalPoints,formations,presets,dialVariance,dualPositions,rebuild";
-        List<TierRule> rules = TierRuleParser.Parse(header + "\n4,6,5,260,4-4-2,balanced,0,0,0\n3,8,7,275,4-4-2|4-3-3,balanced|counter,1,0,0\n2,10,9,290,4-4-2,balanced,2,1,0\n1,12,11,300,4-4-2,balanced,2,1,1\n");
+        const string header = "tier,teams,matches,totalPoints,formations,presets,dialVariance,dualPositions,rebuild,stadium";
+        List<TierRule> rules = TierRuleParser.Parse(header + "\n4,6,5,260,4-4-2,balanced,0,0,0,stadium_t4\n3,8,7,275,4-4-2|4-3-3,balanced|counter,1,0,0,stadium_t3\n2,10,9,290,4-4-2,balanced,2,1,0,stadium_t2\n1,12,11,300,4-4-2,balanced,2,1,1,stadium_t1\n");
         Assert.AreEqual(1, rules[0].Tier, "1부부터 오름차순");
         Assert.AreEqual(2, rules[2].Formations.Count, "3부 포메이션 2종(| 구분)");
         Assert.AreEqual("counter", rules[2].Presets[1]);
         Assert.IsTrue(rules[0].Rebuild);
         Assert.IsFalse(rules[3].DualPositions);
 
-        StringAssert.Contains("matches", Assert.Throws<FormatException>(() => TierRuleParser.Parse(header + "\n4,6,6,260,4-4-2,balanced,0,0,0\n3,8,7,275,a,b,1,0,0\n2,10,9,290,a,b,2,1,0\n1,12,11,300,a,b,2,1,1\n")).Message);
-        StringAssert.Contains("총점", Assert.Throws<FormatException>(() => TierRuleParser.Parse(header + "\n4,6,5,300,a,b,0,0,0\n3,8,7,275,a,b,1,0,0\n2,10,9,290,a,b,2,1,0\n1,12,11,300,a,b,2,1,1\n")).Message);
-        StringAssert.Contains("전부", Assert.Throws<FormatException>(() => TierRuleParser.Parse(header + "\n4,6,5,260,a,b,0,0,0\n")).Message);
+        StringAssert.Contains("matches", Assert.Throws<FormatException>(() => TierRuleParser.Parse(header + "\n4,6,6,260,4-4-2,balanced,0,0,0,stadium_t4\n3,8,7,275,a,b,1,0,0,stadium_t3\n2,10,9,290,a,b,2,1,0,stadium_t2\n1,12,11,300,a,b,2,1,1,stadium_t1\n")).Message);
+        StringAssert.Contains("총점", Assert.Throws<FormatException>(() => TierRuleParser.Parse(header + "\n4,6,5,300,a,b,0,0,0,stadium_t4\n3,8,7,275,a,b,1,0,0,stadium_t3\n2,10,9,290,a,b,2,1,0,stadium_t2\n1,12,11,300,a,b,2,1,1,stadium_t1\n")).Message);
+        StringAssert.Contains("전부", Assert.Throws<FormatException>(() => TierRuleParser.Parse(header + "\n4,6,5,260,a,b,0,0,0,stadium_t4\n")).Message);
     }
 
     [Test]
