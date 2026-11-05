@@ -219,7 +219,7 @@ public class RunRulesTests
     {
         Assert.AreEqual(RunOffer.NoRunner, Find(OpenDefense(), Winger(x: 31f)).RunnerId, "선(30) 너머 러너");
         Assert.AreEqual(RunOffer.NoRunner, RunRules.FindOffer(10f, 0f, +1, Average, Allow, false, OpenDefense(), new[] { Winger(id: 99) }, new List<RunOffer>(), 99, TestThreat.Real, 1, 15f, 1).RunnerId, "운반자");
-        var existing = new List<RunOffer> { new RunOffer(1, 40f, 0f, 0.9f) };
+        var existing = new List<RunOffer> { new RunOffer(1, 40f, 0f, 0.9f, 0.9f) };
         Assert.AreEqual(RunOffer.NoRunner, RunRules.FindOffer(10f, 0f, +1, Average, Allow, false, OpenDefense(), new[] { Winger() }, existing, 99, TestThreat.Real, 1, 15f, 1).RunnerId, "이미 제안을 받은 선수");
     }
 
@@ -230,11 +230,14 @@ public class RunRulesTests
         RunOffer tie = Find(OpenDefense(), Winger(id: 7, z: 5f), Winger(id: 3, z: -5f));
         Assert.AreEqual(3, tie.RunnerId);
 
-        // "값이 큰 목표의 러너가 이긴다"는 지금 잠글 수 없다(11-05 재검증): 제안의 Risk는 "지금 패스하면"의 위험이라 늘 1이고,
-        // FindOffer가 그 값으로 성공 확률을 재서 모든 후보의 값이 같아진다. 그래서 러너는 사실상 PlayerId로 고른다.
-        // 값 비교를 "달리고 있을 때"의 위험으로 고치는 태스크가 장부에 있다. 고치면 TestThreat.CenterLane으로 중앙 러너가 이기는 단언을 넣는다
-        RunOffer offer = Find(OpenDefense(), Winger(id: 7, z: 2f));
-        Assert.AreEqual(1f, offer.Risk, 1e-6f, "지금 이 상태: 제안의 위험은 1(위 주석)");
+        // 중앙 레인이 높은 격자에선 중앙(z 2) 러너가 이긴다. 비교는 달릴 때의 위험(RunRisk)으로 한다(11-06 #17).
+        // 바깥(z 20) 러너도 혼자면 제안을 받는다는 것을 먼저 확인해야 "비교해서 이겼다"가 된다. 동률이면 PlayerId 작은 3이 이기므로 7은 값 차이로만 나온다
+        RunOffer outerAlone = RunRules.FindOffer(10f, 0f, +1, Average, Allow, false, OpenDefense(), new[] { Winger(id: 3, z: 20f) }, new List<RunOffer>(), 99, TestThreat.CenterLane(), 1, 15f, 1);
+        Assert.AreEqual(3, outerAlone.RunnerId, "바깥 러너 혼자서도 제안을 받는다");
+        RunOffer central = RunRules.FindOffer(10f, 0f, +1, Average, Allow, false, OpenDefense(), new[] { Winger(id: 3, z: 20f), Winger(id: 7, z: 2f) }, new List<RunOffer>(), 99, TestThreat.CenterLane(), 1, 15f, 1);
+        Assert.AreEqual(7, central.RunnerId, "중앙 러너가 값으로 이긴다");
+        Assert.AreEqual(1f, central.Risk, 1e-6f, "제안의 지금 위험은 1(지금은 위험해서 달려야 하는 런)");
+        Assert.LessOrEqual(central.RunRisk, Allow, "달릴 때 위험은 허용치 안");
     }
 
     [Test]
@@ -264,12 +267,13 @@ public class RunRulesTests
     }
 
     [Test]
-    public void 이미_있는_제안은_달리면_가능한_동안_유지되고_위험은_지금_값으로_갱신된다()
+    public void 이미_있는_제안은_달리면_가능한_동안_유지되고_지금_위험과_달릴_때_위험이_둘_다_갱신된다()
     {
-        var offer = new RunOffer(1, 45f, 0f, 1f);
+        var offer = new RunOffer(1, 45f, 0f, 1f, 1f);
         RunOffer kept = RunRules.Reevaluate(offer, 10f, 0f, Average, Allow, OpenDefense(), Winger(velX: WingerSpeed));
         Assert.AreEqual(1, kept.RunnerId);
         Assert.LessOrEqual(kept.Risk, Allow, "러너가 붙었으니 위험이 내려갔다");
+        Assert.LessOrEqual(kept.RunRisk, Allow, "달릴 때 위험도 다시 잰 값(유지 조건)");
 
         List<TargetInfo> blocked = OpenDefense();
         blocked.Add(new TargetInfo(103, 28f, 0.5f));

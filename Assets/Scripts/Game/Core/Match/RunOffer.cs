@@ -6,19 +6,22 @@ namespace Game.Core.Match
     public readonly struct RunOffer
     {
         public const int NoRunner = -1;
-        public static readonly RunOffer None = new RunOffer(NoRunner, 0f, 0f, 1f);
+        public static readonly RunOffer None = new RunOffer(NoRunner, 0f, 0f, 1f, 1f);
 
         public readonly int RunnerId;
         public readonly float X;
         public readonly float Z;
-        public readonly float Risk;   // 지금 상태(러너의 현재 속도)로 패스가 올 때의 위험. 러너가 붙을수록 내려간다
+        public readonly float Risk;      // 지금 상태(러너의 현재 속도)로 패스가 올 때의 위험. 러너가 붙을수록 내려간다. 킥 판정(PlayerTreeBuilder.RunLanding)이 쓴다
+        public readonly float RunRisk;   // 러너가 달리고 있을 때 그 점으로 패스가 올 때의 위험(SpotRisks의 run). 어느 러너에게 제안할지 값을 비교할 때(FindOffer) 쓴다.
+                                         // 생성 순간 Risk는 늘 1이라 비교에 못 쓴다(설계 실험/2026-11-06-설계-런제안-값비교.md)
 
-        public RunOffer(int runnerId, float x, float z, float risk)
+        public RunOffer(int runnerId, float x, float z, float risk, float runRisk)
         {
             RunnerId = runnerId;
             X = x;
             Z = z;
             Risk = risk;
+            RunRisk = runRisk;
         }
     }
 
