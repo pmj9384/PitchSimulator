@@ -226,7 +226,7 @@ public class SeasonSystem : ISaveLoad
         MatchSetup setup = CurrentMatch;
         MatchSimulation sim = MatchAssembler.Create(setup.Team0, setup.Team1, setup.Tactics0, setup.Tactics1, setup.Seed, ThreatTableRepository.Grid);
         var probe = new MatchProbe(sim);
-        probe.Run(MatchTuning.MatchTicks, MatchTuning.FixedStep);
+        probe.Run(sim.TotalTicks, MatchTuning.FixedStep);
         await ReportMyResultAsync(setup.ResultFor(sim.HomeGoals, sim.AwayGoals), null);
     }
 

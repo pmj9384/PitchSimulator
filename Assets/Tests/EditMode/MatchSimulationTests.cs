@@ -795,7 +795,7 @@ public class MatchSimulationTests
         sim.AddPlayer(new PlayerState(1, 1, Keeper(), 52f, 0f));
         sim.AddPlayer(new PlayerState(2, 1, Striker(), 30f, 25f));   // 후반 킥오프를 받을 팀 1 필드 선수. 슛 라인에서 멀리
         sim.KickoffBy(0);
-        int halfTimeTick = MatchClock.HalfTimeTick(AddedTime.None);
+        int halfTimeTick = MatchClock.HalfTimeTick(AddedTime.None, MatchLength.Compressed);
         for (int i = 0; i < halfTimeTick - 2; i++) { sim.Tick(Dt); }
 
         shooter.X = 20f;

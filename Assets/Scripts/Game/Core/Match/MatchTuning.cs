@@ -42,8 +42,9 @@ namespace Game.Core.Match
         public const int CounterPressWindowTicks = 300;                         // 역압박 창 6초(과르디올라 6초 룰, 2차 출처) ÷ 0.02s
         public const float ShotSpreadMin = 3f;                                  // shot 100의 조준 반폭(m). 2.5 → 3(10-23 격자): 2.5/6이면 유효 슛 97%라 빗나감이 거의 없었다. 격자는 3.5/7(빗나감 13~15%)이 좋았지만 shot 90의 반폭이 3.85로 골문(3.66)을 넘어 "주사위 0 = 골문 안" 전제(테스트 4개)가 깨져 3으로. shot 90 → 3.4
         public const float ShotSpreadMax = 7f;                                  // shot 0의 조준 반폭(m). 골문 밖까지 퍼진다. 6 → 7(10-23 격자, 위와 같이)
-        public const float MatchSeconds = 180f;   // 스펙 §0: 실시간 3분 = 게임 내 90분. 러너·시즌·인게임·테스트가 전부 이 한 곳을 본다(09-27 리뷰 X4)
+        public const float MatchSeconds = 180f;   // 3분 압축(MatchLength.Compressed): 실시간 3분 = 게임 내 90분(09-27 리뷰 X4). 경기마다 실제 길이는 MatchSimulation.TotalTicks가 정한다
         public const int MatchTicks = 9000;       // = MatchSeconds / FixedStep. float 나눗셈으로 파생하지 않고 정수로 못 박는다(테스트가 둘의 일치를 잠근다)
+        public const int RealTimeTicks = 270000;  // 실제 90분(MatchLength.RealTime, 11-05 S1) = 5,400초 / FixedStep. 위와 같이 정수로 못 박는다
         public const int HalfTimeTick = MatchTicks / 2;   // 추가시간이 없을 때의 45:00 틱. 시계 테스트만 쓴다. 실제 하프타임 틱은 표시 추가시간을 반영한 MatchClock.HalfTimeTick이고, 진영 교체·킥오프 교대는 MatchSimulation.Tick이 한다
         public const float FixedStep = 0.02f;                                   // 고정 스텝(초). 볼 끌기 초 → 틱 변환
         public const float PassLeadMax = 8f;                                    // 리드 패스가 리시버보다 앞설 수 있는 최대 거리(m). 너무 앞이면 상대 라인 뒤로 나간다
@@ -87,6 +88,7 @@ namespace Game.Core.Match
         // 끝 15분 고속 주행이 체력 없을 때보다 균형 FB -11%p·압박 FB -24%p·압박 W -14%p(레퍼런스 -8~-21%), 최고 속도 변화 0%.
         // 소모 0.02·상한 0.001·최저 0.85는 압박이 더 약해졌지만 균형 러너 골 1.82로 목표 밖이라 버렸다
         public const float HighIntensityFraction = 5.5f / SpeedMpsAt50;   // 체력이 줄어드는 고강도 = 개인 최고 속도의 이 비율 이상(10-29 가속 D). speed 50이면 5.5m/s = 19.8km/h, 트래킹 연구의 고강도 달리기(HSR) 표준 문턱(PMC11534638). 절대값으로 두면 speed 30(4.2m/s) 선수는 영원히 안 지쳐 비율로 둔다
+        // 아래 틱당 체력 값 3개는 3분 압축 기준이다. 다른 길이는 MatchLength.TimeScale을 곱한다(반감기는 나눈다, 11-05 S1). 실제 90분 값은 S3에서 다시 잰다
         public const float FatigueDrainPerTick = 0.00216f;       // 고강도 한 틱에 줄어드는 단기 체력(stamina 50 기준). 10-29 가속 D: 실제 속도로 세자 고강도 틱이 늘어 09-30 값(0.012)의 0.18배로 맞췄다(균형 칸 경기 끝 상한 0.77·압박 0.73, 09-30 기준 0.79·0.74)
         public const float FatigueCapLossPerTick = 0.000108f;    // 고강도 한 틱에 내려가는 장기 상한. 소모와 같은 0.18배(10-29). 경기 동안 쌓여 후반 회복 상한이 낮아진다
         public const float FatigueCapMin = 0.5f;                 // 장기 상한의 바닥

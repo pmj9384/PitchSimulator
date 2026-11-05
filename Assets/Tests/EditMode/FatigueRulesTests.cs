@@ -81,7 +81,7 @@ public class FatigueRulesTests
         PlayerState p = sim.AddPlayer(new PlayerState(0, 0, stats, -10f, 0f));
         sim.AddPlayer(new PlayerState(1, 1, stats, 10f, 0f));
         sim.KickoffBy(0);
-        int halfTime = MatchClock.HalfTimeTick(sim.Added);
+        int halfTime = sim.HalfTimeTick;
         while (sim.TickCount < halfTime - 1) { sim.Tick(0.02f); }
         p.Stamina = 0.1f;
         p.StaminaCap = 0.6f;

@@ -83,7 +83,10 @@ namespace Game.Core.Match
         public event Action<KickReport>? BallKicked;   // 선수가 공을 찼다. 화면 킥 애니용. 규칙·결정성과 무관
 
         public int TickCount => tickCount;                                   // 첫 Tick부터 센 수. 하프타임·HUD 시계의 기준(MatchManager.Ticks와 같은 값)
-        public bool IsSecondHalf => tickCount >= MatchClock.HalfTimeTick(Added);
+        public bool IsSecondHalf => tickCount >= HalfTimeTick;
+        public MatchLength Length { get; }
+        public int TotalTicks => Length.TotalTicks(Added);                  // 이 경기가 도는 틱 수. 매니저·러너·시즌이 이만큼 Tick을 부른다
+        public int HalfTimeTick => MatchClock.HalfTimeTick(Added, Length);
         public AddedTime Added { get; private set; } = AddedTime.None;         // 표시 추가시간(하프타임 틱을 정한다). 조립기·매니저가 시드에서 같은 값을 넣는다
         public bool SidesSwitched => sidesSwitched;
         private int tickCount;
@@ -168,11 +171,13 @@ namespace Game.Core.Match
         public int InterceptCount { get; private set; }
 
         // 격자는 전역이 아니라 생성자로 받는다: 생성 지점이 매니저(관전)·조립기(자동 대전)로 둘이라, 전역이면 한쪽이 안 넣을 때 같은 세팅의 판단이 갈린다
-        public MatchSimulation(Func<float> nextRoll, BehaviorNode tree, ThreatGrid threat)
+        // 경기 길이(11-05 S1)는 생성 때 정하고 바꾸지 않는다. 안 주면 게임 기본값(MatchLength.Default)
+        public MatchSimulation(Func<float> nextRoll, BehaviorNode tree, ThreatGrid threat, MatchLength? length = null)
         {
             this.nextRoll = nextRoll;
             this.tree = tree;
             this.threat = threat ?? throw new ArgumentNullException(nameof(threat));
+            Length = length ?? MatchLength.Default;
             Ball = BallState.FreeAt(0f, 0f);
         }
 
@@ -329,8 +334,10 @@ namespace Game.Core.Match
         // 킥오프를 하는 팀: 중앙 리셋 뒤 그 팀에서 중앙에 가장 가까운 필드 플레이어가 공을 갖는다. 실제 규칙(시작은 동전, 골 뒤엔
         // 실점 팀)과 같다. 자유 공 경합으로 두면 양 팀 ST가 등거리라 PlayerId 타이브레이크가 매 킥오프를 한 팀에 줬고(먼저 스폰된 팀이
         // 미러 세팅에서 75% 승·상대 0%), 스폰 순서를 뒤집으면 결과가 거울로 뒤집혔다. Kickoff(자유 공)는 리트머스·테스트용으로 남긴다
+        // 추가시간은 종료 틱·하프타임 틱을 정하므로 첫 Tick 전에만 넣는다(경기 길이와 같이 경기 중에는 안 바뀐다)
         public void SetAddedTime(AddedTime added)
         {
+            if (tickCount > 0) { throw new InvalidOperationException("[MatchSimulation] 추가시간은 첫 Tick 전에만 정한다"); }
             Added = added;
         }
 
@@ -428,18 +435,18 @@ namespace Game.Core.Match
             }
         }
 
-        // 고정 스텝 한 틱. 종료 틱이면 그 틱의 처리가 끝난 뒤에도 날아가는 슛을 마감한다(경기는 MatchTicks에서 멈춘다: 매니저·러너·시즌이 같은 수만큼 부른다)
+        // 고정 스텝 한 틱. 종료 틱이면 그 틱의 처리가 끝난 뒤에도 날아가는 슛을 마감한다(경기는 TotalTicks에서 멈춘다: 매니저·러너·시즌이 같은 수만큼 부른다)
         public void Tick(float deltaTime)
         {
             Advance(deltaTime);
-            if (tickCount == MatchTuning.MatchTicks) { FinishShotAtWhistle(); }
+            if (tickCount == TotalTicks) { FinishShotAtWhistle(); }
         }
 
         // 한 틱의 진행. 순서가 곧 규칙이다: 공 이동 → 라인 아웃 → 잡기/소유 → 슛 결과 → 선수 판단 → 선수 실행(PlayerId 순)
         private void Advance(float deltaTime)
         {
             tickCount++;
-            if (tickCount == MatchClock.HalfTimeTick(Added) && firstKickoffTeam >= 0)
+            if (tickCount == HalfTimeTick && firstKickoffTeam >= 0)
             {
                 // 하프타임(IFAB 8조, 09-27): 진영 교체 + 중앙 리셋 + 전반 킥오프를 안 한 팀이 킥오프. 난수를 안 써 결정성 그대로.
                 // 러너·시즌·인게임이 같은 Tick을 타므로 같은 시드 = 같은 경기
@@ -517,7 +524,7 @@ namespace Game.Core.Match
                 float beforeZ = p.Z;
                 Apply(p, deltaTime);
                 float moved = Distance(beforeX, beforeZ, p.X, p.Z);
-                UpdateStamina(p, IsHighIntensity(p, moved / deltaTime, carrying && moved > 0f));
+                UpdateStamina(p, IsHighIntensity(p, moved / deltaTime, carrying && moved > 0f), Length.TimeScale);
             }
         }
 
@@ -538,15 +545,16 @@ namespace Game.Core.Match
             return (float)Math.Sqrt(dx * dx + dz * dz);
         }
 
-        private static void UpdateStamina(PlayerState p, bool exerted)
+        // 틱당 체력 값은 3분 압축 기준이라 경기 길이의 TimeScale로 맞춘다(압축이면 1이라 그대로)
+        private static void UpdateStamina(PlayerState p, bool exerted, float timeScale)
         {
             if (!exerted)
             {
-                p.Stamina = FatigueRules.Recover(p.Stamina, p.StaminaCap, MatchTuning.FatigueRecoveryHalfLifeTicks);
+                p.Stamina = FatigueRules.Recover(p.Stamina, p.StaminaCap, MatchTuning.FatigueRecoveryHalfLifeTicks / timeScale);
                 return;
             }
             (float stamina, float cap) next = FatigueRules.Exert(p.Stamina, p.StaminaCap, p.Stats.Stamina,
-                MatchTuning.FatigueDrainPerTick, MatchTuning.FatigueCapLossPerTick, MatchTuning.FatigueCapMin);
+                MatchTuning.FatigueDrainPerTick * timeScale, MatchTuning.FatigueCapLossPerTick * timeScale, MatchTuning.FatigueCapMin);
             p.Stamina = next.stamina;
             p.StaminaCap = next.cap;
         }
@@ -1187,7 +1195,7 @@ namespace Game.Core.Match
         // 결과 보고 없이 슛이 사라졌고 골이 될 슛이면 골도 사라졌다(경기의 약 7%가 하프타임 순간 슛 비행 중, 골 소실 약 1%).
         // 휘슬을 슛 뒤로 미루면(방식 A) 시계·HUD·러너·연출 멈춤이 전부 하프타임 틱에 묶여 있어 같이 바뀐다. 결과는 찬 순간 정해져 있으니(shotWillScore) 그 결과로 마감한다.
         // 골이 아닌 슛은 세이브가 될 슛이었을 수도 있지만 GK에 닿기 전이라 빗나감으로 센다.
-        // 종료 휘슬도 같은 부류라 같이 쓴다: 경기가 MatchTicks에서 멈추면 그때 날아가던 슛은 결과 보고가 없었고 골이 될 슛이면 골도 사라졌다.
+        // 종료 휘슬도 같은 부류라 같이 쓴다: 경기가 TotalTicks에서 멈추면 그때 날아가던 슛은 결과 보고가 없었고 골이 될 슛이면 골도 사라졌다.
         // 종료 때는 킥오프로 리셋하지 않는다. 경기가 끝났다
         private void FinishShotAtWhistle()
         {

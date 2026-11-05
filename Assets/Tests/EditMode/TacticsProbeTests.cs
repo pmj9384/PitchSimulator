@@ -83,7 +83,7 @@ public class TacticsProbeTests
         sim.KickoffBy(1);   // 전반 킥오프가 상대면 후반 킥오프는 우리다
         sim.Ball = BallRules.Own(sim.Ball, 0, mine.X, mine.Z);
 
-        int halfTimeTick = MatchClock.HalfTimeTick(AddedTime.None);
+        int halfTimeTick = MatchClock.HalfTimeTick(AddedTime.None, MatchLength.Compressed);
         for (int i = 0; i < halfTimeTick - 1; i++)
         {
             sim.Tick(Dt);
