@@ -52,6 +52,19 @@ public static class TestThreat
         return new ThreatGrid(cells);
     }
 
+    // 중앙 레인이 높은 격자(11-05 재검증): 열과 무관하게 중앙 행(3·4)이 0.5, 바깥으로 한 행마다 0.05씩 낮다.
+    // "패서가 더 높게 값 매기는 목표의 러너가 이긴다"를 실제 격자의 한 칸 값에 기대지 않고 잠근다
+    public static ThreatGrid CenterLane()
+    {
+        var cells = new float[ThreatGrid.Rows, ThreatGrid.Columns];
+        for (int r = 0; r < ThreatGrid.Rows; r++)
+        {
+            float fromCenter = r < ThreatGrid.Rows / 2 ? ThreatGrid.Rows / 2 - 1 - r : r - ThreatGrid.Rows / 2;
+            for (int c = 0; c < ThreatGrid.Columns; c++) { cells[r, c] = 0.5f - 0.05f * fromCenter; }
+        }
+        return new ThreatGrid(cells);
+    }
+
     // 모든 칸 0.5: 지금 값이 커서 슛(xG × 배율 − 0.5)과 운반(위험이 있으면 음수)은 지고, 안전한 패스만 적합도 가산만큼 양수다(11-03 P1+).
     // 평평한 격자(0)에선 슛이 늘 양수라 슛이 먼저 나간다
     public static ThreatGrid Plateau()

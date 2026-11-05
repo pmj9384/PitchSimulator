@@ -230,10 +230,11 @@ public class RunRulesTests
         RunOffer tie = Find(OpenDefense(), Winger(id: 7, z: 5f), Winger(id: 3, z: -5f));
         Assert.AreEqual(3, tie.RunnerId);
 
-        // 두 목표가 x 45(실제 격자 열 11, 박스 앞)에 놓인다. 그 열은 중앙 행 xT가 측면보다 높아(z 2 → 0.448, z 5 → 0.440) 중앙 쪽 러너가 이긴다.
-        // 격자 전체가 중앙이 높은 것은 아니다(열 6~9는 측면이 높다). 적합도 가산이 작아 xT가 먼저다
-        RunOffer central = Find(OpenDefense(), Winger(id: 3, z: 2f), Winger(id: 7, z: 5f));
-        Assert.AreEqual(3, central.RunnerId);
+        // "값이 큰 목표의 러너가 이긴다"는 지금 잠글 수 없다(11-05 재검증): 제안의 Risk는 "지금 패스하면"의 위험이라 늘 1이고,
+        // FindOffer가 그 값으로 성공 확률을 재서 모든 후보의 값이 같아진다. 그래서 러너는 사실상 PlayerId로 고른다.
+        // 값 비교를 "달리고 있을 때"의 위험으로 고치는 태스크가 장부에 있다. 고치면 TestThreat.CenterLane으로 중앙 러너가 이기는 단언을 넣는다
+        RunOffer offer = Find(OpenDefense(), Winger(id: 7, z: 2f));
+        Assert.AreEqual(1f, offer.Risk, 1e-6f, "지금 이 상태: 제안의 위험은 1(위 주석)");
     }
 
     [Test]

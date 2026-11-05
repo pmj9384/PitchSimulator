@@ -16,6 +16,7 @@ namespace Game.Core.Match
 
         public MatchLength(int regulationTicks, bool playsAddedTime)
         {
+            if (regulationTicks <= 0) { throw new System.ArgumentOutOfRangeException(nameof(regulationTicks), "[MatchLength] 규정 틱은 1 이상"); }
             RegulationTicks = regulationTicks;
             PlaysAddedTime = playsAddedTime;
         }

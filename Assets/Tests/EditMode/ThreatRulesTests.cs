@@ -104,7 +104,9 @@ public class ThreatRulesTests
         var random = new System.Random(7);
         for (int i = 0; i < 100; i++)
         {
-            float a = (float)random.NextDouble() * 100f - 50f, b = a + (float)random.NextDouble() * 12f, z = (float)random.NextDouble() * 60f - 30f;
+            float a = (float)random.NextDouble() * 100f - 50f;
+            float b = a + (float)random.NextDouble() * 12f;
+            float z = (float)random.NextDouble() * 60f - 30f;
             float max = grid.MaxAlongX(a, b, z, +1);
             for (float x = a; x <= b; x += 0.25f) { Assert.LessOrEqual(grid.Value(x, z, +1), max + 1e-5f); }
         }

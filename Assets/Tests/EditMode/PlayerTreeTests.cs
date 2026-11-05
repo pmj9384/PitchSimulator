@@ -585,7 +585,7 @@ public class PlayerTreeTests
         Assert.AreEqual("pass", free.Did, "앞 8m에 상대가 없으면(이미 제침) 평소 판단");
     }
 
-    // ── 사전 런·착지점 기준 게이트(11-03 ⑤)
+    // ── 사전 런·착지점(11-03 ⑤. 후보 게이트는 11-03 P1에서 지웠다)
 
     // 패서 (20,0)가 슛 안 하는 설정. 수비 라인 42(깊은 수비 2 + GK). 러너 9는 패서보다 8m 뒤 (12,10)
     private static Fake CarrierWithRunnerBehind(RunOffer offer, bool pressed = false)
@@ -817,7 +817,7 @@ public class PlayerTreeTests
     }
 
     [Test]
-    public void 점수는_한_틱의_한_선수_것이라_같은_선수의_다음_틱과_다른_선수에게_이어지지_않는다()
+    public void 값_메모는_한_틱의_한_선수_것이라_같은_선수의_다음_틱과_다른_선수에게_이어지지_않는다()
     {
         var a = new Fake { PlayerId = 1, OwnsBall = true, BallPhase = BallPhase.Owned, BallOwnerTeam = 0, X = 0f, Threat = TestThreat.Flat(),
             Teammates = new List<TargetInfo> { new TargetInfo(2, 15f, 0f) } };
@@ -835,7 +835,7 @@ public class PlayerTreeTests
         Assert.AreEqual("pass", b.Did);
         Assert.AreEqual(4, b.PassedTo);
         Tree.Tick(a);   // a는 여전히 후보가 없다
-        Assert.AreEqual("move", a.Did, "다른 선수의 점수를 이어받지 않는다");
+        Assert.AreEqual("move", a.Did, "다른 선수의 값 메모를 이어받지 않는다");
     }
 
     [Test]

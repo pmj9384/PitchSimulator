@@ -190,7 +190,7 @@ public class LeagueSeasonTests
         }
         Game.Core.Match.MatchSimulation a = SeasonRunner.Assemble(3, fixture, opponents, presets, TestThreat.Real);
         Game.Core.Match.MatchSimulation b = SeasonRunner.Assemble(3, fixture, opponents, presets, TestThreat.Real);
-        for (int i = 0; i < MatchTuning.MatchTicks; i++)
+        for (int i = 0; i < a.TotalTicks; i++)
         {
             a.Tick(0.02f);
             b.Tick(0.02f);

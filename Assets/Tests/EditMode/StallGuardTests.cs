@@ -12,7 +12,6 @@ using NUnit.Framework;
 public class StallGuardTests
 {
     private const int Seeds = 20;
-    private const int Ticks = MatchTuning.MatchTicks;
 
     [Test]
     public void 시드_20개_3분에_교착_5종이_없다()
@@ -53,7 +52,7 @@ public class StallGuardTests
             }
             int quietSince = 0; float quietBallX = ballX, quietBallZ = ballZ; float quietMove = 0f;
             int shapeOwned = 0, shapeWide = 0; var shapeByRole = new Dictionary<string, int>();
-            for (int tick = 0; tick < Ticks; tick++)
+            for (int tick = 0; tick < sim.TotalTicks; tick++)
             {
                 bool wasSecondHalf = sim.IsSecondHalf;
                 sim.Tick(MatchTuning.FixedStep);
@@ -119,7 +118,7 @@ public class StallGuardTests
                         ownerX = sim.Ball.X;
                     }
                     // GK는 골킥 대기(GoalKickSetupSeconds)가 규칙이라 그보다 1초 더 서 있을 때만 정지로 본다(11-05). 필드 선수는 3초
-                    int stillLimit = sim.Players[ownerId].IsGoalkeeper ? (int)((MatchTuning.GoalKickSetupSeconds + 1f) / 0.02f) : 150;
+                    int stillLimit = sim.Players[ownerId].IsGoalkeeper ? (int)((MatchTuning.GoalKickSetupSeconds + 1f) / MatchTuning.FixedStep) : 150;
                     if (ownerTicks >= stillLimit && System.Math.Abs(sim.Ball.X - ownerX) < 0.3f) { found.Add($"D 시드{seed} t={tick * 0.02f:0.0} 소유자 #{ownerId} 정지"); break; }
                 }
                 else

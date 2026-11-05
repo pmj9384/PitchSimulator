@@ -101,8 +101,20 @@ public class RunOfferSimulationTests
         {
             scene.Sim.Tick(Dt);
             if (scene.FirstOfferTick < 0 && scene.Carrier.RunOffers.Count > 0) { scene.FirstOfferTick = scene.Sim.TickCount; }
-            if (scene.Carrier.FrozenTicks > 0 && scene.Carrier.RunOffers.Count > 0 && scene.Carrier.RunOffers[0].Risk < ReleaseRisk) { scene.Carrier.FrozenTicks = 0; scene.ReleaseTick = scene.Sim.TickCount; }
+            if (ShouldRelease(scene))
+            {
+                scene.Carrier.FrozenTicks = 0;
+                scene.ReleaseTick = scene.Sim.TickCount;
+            }
         }
+    }
+
+    // 얼려 둔 운반자를 푸는 때: 제안이 생겼고 그 위험이 ReleaseRisk 아래로 내려왔다
+    private static bool ShouldRelease(Scene scene)
+    {
+        if (scene.Carrier.FrozenTicks <= 0) { return false; }
+        if (scene.Carrier.RunOffers.Count == 0) { return false; }
+        return scene.Carrier.RunOffers[0].Risk < ReleaseRisk;
     }
 
     [Test]

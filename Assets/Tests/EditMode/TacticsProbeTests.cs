@@ -123,7 +123,7 @@ public class TacticsProbeTests
         MatchSimulation sim = MatchAssembler.Create(table, rows, mine, balanced, seed, TestThreat.Real);
         var probe0 = new TacticsProbe(sim, 0);
         var probe1 = new TacticsProbe(sim, 1);
-        for (int i = 0; i < MatchTuning.MatchTicks; i++)
+        for (int i = 0; i < sim.TotalTicks; i++)
         {
             sim.Tick(MatchTuning.FixedStep);
             probe0.Sample();
