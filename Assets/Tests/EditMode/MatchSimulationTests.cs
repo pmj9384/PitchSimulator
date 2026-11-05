@@ -566,12 +566,11 @@ public class MatchSimulationTests
         Assert.GreaterOrEqual(releaseTick, 0, "준비가 끝나면 배급한다");
         Assert.LessOrEqual(releaseTick - caughtTick, setupTicks + 5, "대기는 준비 시간만큼이다");
 
-        // 다음 소유자(배급 받은 아군)는 자기 볼 끌기(테스트 스탯 0)만큼만 기다린다. 4초가 이어지면 이 창 안에 다시 못 찬다
+        // 다음 소유자(배급 받은 아군)는 자기 볼 끌기(테스트 스탯 0)만큼만 기다린다. 골킥 4초가 이어지면 대기 틱이 200으로 남는다
         for (int i = 0; i < 200 && !(sim.Ball.Phase == BallPhase.Owned && sim.Ball.OwnerId == cb.PlayerId); i++) { sim.Tick(Dt); }
         Assert.AreEqual(cb.PlayerId, sim.Ball.OwnerId, "배급을 받는다");
-        float startX = cb.X;
-        for (int i = 0; i < 30; i++) { sim.Tick(Dt); }
-        Assert.IsTrue(sim.Ball.Phase != BallPhase.Owned || sim.Ball.OwnerId != cb.PlayerId || cb.X != startX, "받은 선수는 4초 동안 서 있지 않는다");
+        int ownHoldTicks = (int)System.Math.Round(cb.Stats.HoldUp / Dt);
+        Assert.LessOrEqual(sim.HoldUpTicksLeft, ownHoldTicks, "받은 선수의 대기는 자기 볼 끌기만큼이다");
     }
 
     [Test]
@@ -918,7 +917,7 @@ public class MatchSimulationTests
         sim.AddPlayer(new PlayerState(1, 1, Keeper(), 52f, 0f));
         sim.AddPlayer(new PlayerState(2, 1, Striker(), 30f, 25f));
         sim.KickoffBy(0);
-        for (int i = 0; i < MatchTuning.MatchTicks - 2; i++) { sim.Tick(Dt); }
+        for (int i = 0; i < sim.TotalTicks - 2; i++) { sim.Tick(Dt); }
         Assert.IsTrue(sim.SidesSwitched, "후반이다");
 
         shooter.X = -20f;
@@ -931,7 +930,7 @@ public class MatchSimulationTests
         Assert.AreEqual(BallPhase.Flight, sim.Ball.Phase, "종료 직전에 슛이 날아가는 중");
         Assert.IsEmpty(outcomes);
         sim.Tick(Dt);   // 종료 틱
-        Assert.AreEqual(MatchTuning.MatchTicks, sim.TickCount);
+        Assert.AreEqual(sim.TotalTicks, sim.TickCount);
         return (sim, outcomes);
     }
 
@@ -970,7 +969,7 @@ public class MatchSimulationTests
         var outcomes = new List<ShotOutcome>();
         sim.ShotResolved += r => outcomes.Add(r.Outcome);
         int resolvedTick = -1;
-        while (sim.TickCount < MatchTuning.MatchTicks)
+        while (sim.TickCount < sim.TotalTicks)
         {
             sim.Tick(Dt);
             if (resolvedTick == -1 && outcomes.Count > 0) { resolvedTick = sim.TickCount; }
@@ -983,12 +982,13 @@ public class MatchSimulationTests
     {
         // 종료 마감은 그 틱의 평소 처리가 끝난 뒤에도 날아가는 슛에만 걸린다. 종료 틱에 골라인에서 정상 판정된 슛을 한 번 더 세면 안 된다.
         // 먼저 쏜 틱부터 골라인까지 몇 틱인지 재고, 골라인 통과가 정확히 종료 틱이 되게 다시 쏜다(10-06 리뷰: 처음엔 종료 55틱 전에 골이 나서 경계를 안 봤다)
-        int earlyArmTick = MatchTuning.MatchTicks - 200;
+        int endTick = MatchLength.Default.RegulationTicks;   // 시뮬을 만들기 전에 정하는 틱. 이 장면의 시뮬은 기본 길이에 추가시간이 없다
+        int earlyArmTick = endTick - 200;
         int flightTicks = CloseRangeGoal(earlyArmTick).resolvedTick - earlyArmTick;
         Assert.Greater(flightTicks, 0);
 
-        (MatchSimulation sim, List<ShotOutcome> outcomes, int resolvedTick) = CloseRangeGoal(MatchTuning.MatchTicks - flightTicks);
-        Assert.AreEqual(MatchTuning.MatchTicks, resolvedTick, "골라인 통과가 종료 틱이다");
+        (MatchSimulation sim, List<ShotOutcome> outcomes, int resolvedTick) = CloseRangeGoal(endTick - flightTicks);
+        Assert.AreEqual(endTick, resolvedTick, "골라인 통과가 종료 틱이다");
         CollectionAssert.AreEqual(new[] { ShotOutcome.Goal }, outcomes);
         Assert.AreEqual(1, sim.HomeGoals);
     }

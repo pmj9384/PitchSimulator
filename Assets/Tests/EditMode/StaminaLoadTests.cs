@@ -169,7 +169,7 @@ public class StaminaLoadTests
         for (int seed = FirstSeed; seed < FirstSeed + matches; seed++)
         {
             MatchSimulation sim = MatchAssembler.Create(players, rows, mine, balanced, seed, TestThreat.Real);
-            for (int tick = 0; tick < MatchTuning.MatchTicks; tick++)
+            for (int tick = 0; tick < sim.TotalTicks; tick++)
             {
                 sim.Tick(MatchTuning.FixedStep);
                 if (tick % SampleEvery != 0) { continue; }

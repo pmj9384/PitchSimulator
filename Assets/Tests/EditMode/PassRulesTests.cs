@@ -3,7 +3,7 @@ using Game.Core.Match;
 using NUnit.Framework;
 
 // PassRules 검증(09-18 확정 스펙 §6). ①안전 판정 = Simple Soccer 로컬 좌표(상대가 공 뒤면 안전, 앞이면 도착 시간 t에
-// 속도×t + 잡기 반경이 수직 거리를 넘으면 위험) ②리스크 허용(0.2/0.5/0.8)이 판정을 가름 ③리시버 점수 = 전진·선호 거리·폭
+// 속도×t + 잡기 반경이 수직 거리를 넘으면 위험) ②리스크 허용(0.2/0.5/0.8)이 판정을 가름 ③리시버 적합도(ReceiverFit) = 선호 거리·폭(전진 가중은 11-03 P1에서 지우고 xT가 센다)
 // ④역습 리시버 = 최전방 1명 ⑤GK 배급 짧게·섞어·길게
 public class PassRulesTests
 {
@@ -85,9 +85,12 @@ public class PassRulesTests
         var random = new System.Random(1105);
         for (int i = 0; i < 100; i++)
         {
-            float passerX = (float)random.NextDouble() * 60f - 30f, passerZ = (float)random.NextDouble() * 50f - 25f;
-            float candX = (float)random.NextDouble() * 100f - 50f, candZ = (float)random.NextDouble() * 60f - 30f;
-            int style = random.Next(0, 3), width = random.Next(0, 3);
+            float passerX = (float)random.NextDouble() * 60f - 30f;
+            float passerZ = (float)random.NextDouble() * 50f - 25f;
+            float candX = (float)random.NextDouble() * 100f - 50f;
+            float candZ = (float)random.NextDouble() * 60f - 30f;
+            int style = random.Next(0, 3);
+            int width = random.Next(0, 3);
             float fit = PassRules.ReceiverFit(passerX, passerZ, candX, candZ, style, 15f, width);
             Assert.LessOrEqual(fit, PassRules.ReceiverFitCeiling(candZ, width) + 1e-5f, $"{i}번째");
         }

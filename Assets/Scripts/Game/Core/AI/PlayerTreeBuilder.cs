@@ -12,9 +12,9 @@ namespace Game.Core.AI
     public static class PlayerTreeBuilder
     {
         [ThreadStatic] private static List<TargetInfo>? candidateBuffer;
-        [ThreadStatic] private static IPlayerContext? scoredFor;   // 이번 틱에 운반·패스 점수를 낸 선수. ⓪이 틱마다 비운다
-        [ThreadStatic] private static float scoredCarry;
-        [ThreadStatic] private static ValuedPass scoredPass;
+        [ThreadStatic] private static IPlayerContext? valuedFor;   // 이번 틱에 운반·패스 값을 낸 선수. ⓪이 틱마다 비운다
+        [ThreadStatic] private static float valuedCarry;
+        [ThreadStatic] private static ValuedPass valuedPass;
         [ThreadStatic] private static float[]? ceilingBuffer;
 
         public static BehaviorNode Build()
@@ -22,7 +22,7 @@ namespace Game.Core.AI
             return new SelectorNode(
 
                 // ⓪ 틱마다 맨 앞에서 값 비교 메모를 비운다(Failure만 돌려 아래로 넘어간다). 메모는 ②·②c·④가 같은 틱 안에서만 잇는다
-                new ConditionNode(ClearScoreMemo),
+                new ConditionNode(ClearValueMemo),
 
                 // ── 공 소유 중 ────────────────────────────────────────────
                 // ① GK가 잡았으면 배급(팀 GK 배급 설정). 슛·드리블 대신 늘 패스
@@ -168,22 +168,22 @@ namespace Game.Core.AI
 
         // 행동 선택(11-03 P1+): 슛·운반·패스 후보 전원을 한 값(ThreatRules)으로 비교하고 가장 큰 것을 늘 실행한다(보유 값 0 기준선 없음).
         // 운반 자격도 없다: 전 지역·전 역할이 운반 위험이 든 CarryValue로 패스와 겨룬다. 돌파·역습은 ②c 아래 노드가 따로 본다.
-        // ②(ShouldShoot)·②c(CarryBeatsPass)·④(TryPass)가 같은 점수(ScoreCarryAndPass)를 이어받으니 셋이 다른 후보를 보는 일이 없다(R2: 판정과 실행이 같은 후보)
-        // 점수는 한 틱의 한 선수 것이라 ⓪이 틱마다 비운다. 조건 노드 자리에 두려고 늘 false를 돌려 다음 노드로 넘긴다(판정이 아니다)
-        private static bool ClearScoreMemo(IPlayerContext ctx)
+        // ②(ShouldShoot)·②c(CarryBeatsPass)·④(TryPass)가 같은 값(ValueCarryAndPass)을 이어받으니 셋이 다른 후보를 보는 일이 없다(R2: 판정과 실행이 같은 후보)
+        // 값 메모는 한 틱의 한 선수 것이라 ⓪이 틱마다 비운다. 조건 노드 자리에 두려고 늘 false를 돌려 다음 노드로 넘긴다(판정이 아니다)
+        private static bool ClearValueMemo(IPlayerContext ctx)
         {
-            scoredFor = null;
+            valuedFor = null;
             return false;
         }
 
-        private static void ScoreCarryAndPass(IPlayerContext ctx)
+        private static void ValueCarryAndPass(IPlayerContext ctx)
         {
-            if (ReferenceEquals(scoredFor, ctx)) { return; }
+            if (ReferenceEquals(valuedFor, ctx)) { return; }
 
-            scoredCarry = float.NegativeInfinity;
-            if (CanCarry(ctx)) { scoredCarry = CarryValue(ctx); }
-            scoredPass = BestPass(ctx, scoredCarry);
-            scoredFor = ctx;
+            valuedCarry = float.NegativeInfinity;
+            if (CanCarry(ctx)) { valuedCarry = CarryValue(ctx); }
+            valuedPass = BestPass(ctx, valuedCarry);
+            valuedFor = ctx;
         }
 
         // 슛 값 = xG(압박 보정) × (기본 + 이득 × (1 − 슛 성향)) − 지금 xT. 운반·패스 중 가장 큰 값보다 클 때만 쏜다 [가정 P-G17].
@@ -193,10 +193,10 @@ namespace Game.Core.AI
             float chance = ShotChance(ctx);
             if (chance <= 0f) { return false; }
 
-            ScoreCarryAndPass(ctx);
+            ValueCarryAndPass(ctx);
             float shotValue = ThreatRules.ShotValue(ctx.Threat, ctx.X, ctx.Z, ctx.AttackSign, chance, ShotDial(ctx));
-            float best = scoredCarry;
-            if (scoredPass.Found) { best = Math.Max(best, scoredPass.Value); }
+            float best = valuedCarry;
+            if (valuedPass.Found) { best = Math.Max(best, valuedPass.Value); }
             return shotValue > best;
         }
 
@@ -209,15 +209,15 @@ namespace Game.Core.AI
         {
             if (!CanCarry(ctx)) { return false; }
 
-            ScoreCarryAndPass(ctx);
-            return !scoredPass.Found;
+            ValueCarryAndPass(ctx);
+            return !valuedPass.Found;
         }
 
-        // ②c가 운반을 접었으면(패스가 더 크다) 같은 점수의 그 패스를 찬다. 운반 자격이 없는 선수(GK)는 후보가 있으면 늘 패스한다
+        // ②c가 운반을 접었으면(패스가 더 크다) 같은 값 비교의 그 패스를 찬다. 운반 자격이 없는 선수(GK)는 후보가 있으면 늘 패스한다
         private static bool TryPass(IPlayerContext ctx)
         {
-            ScoreCarryAndPass(ctx);
-            ValuedPass pass = scoredPass;
+            ValueCarryAndPass(ctx);
+            ValuedPass pass = valuedPass;
             if (!pass.Found) { return false; }
             PassTo(ctx, pass.Pass);
             return true;

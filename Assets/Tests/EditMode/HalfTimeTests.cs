@@ -81,7 +81,7 @@ public class HalfTimeTests
     {
         MatchSimulation a = Assemble(seed: 7);
         MatchSimulation b = Assemble(seed: 7);
-        for (int i = 0; i < MatchTuning.MatchTicks; i++)
+        for (int i = 0; i < a.TotalTicks; i++)
         {
             a.Tick(MatchTuning.FixedStep);
             b.Tick(MatchTuning.FixedStep);
@@ -109,7 +109,7 @@ public class HalfTimeTests
             for (int i = 0; i < sim.Players.Count; i++) { if (sim.Players[i].PlayerId == r.ShooterId) { shooter = sim.Players[i]; } }
             if (shooter.AttackSign != sim.AttackSignOf(shooter.Team)) { signMismatch = true; }
         };
-        for (int i = 0; i < MatchTuning.MatchTicks; i++) { sim.Tick(MatchTuning.FixedStep); }
+        for (int i = 0; i < sim.TotalTicks; i++) { sim.Tick(MatchTuning.FixedStep); }
         Assert.AreEqual(goals, sim.HomeGoals + sim.AwayGoals, "집계된 골 = 골 판정 수");
         Assert.IsFalse(signMismatch, "슈터의 부호는 늘 팀 부호와 같다(진영 교체가 선수·시뮬 양쪽에 반영)");
     }

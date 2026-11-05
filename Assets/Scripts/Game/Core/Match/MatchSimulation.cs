@@ -148,6 +148,7 @@ namespace Game.Core.Match
         private int ballOwnerAtLastTick = BallState.NoOwner;
         private int immunityTicksLeft;        // 소유 면역: 소유 뒤 이 틱 동안 태클 불가
         private int holdUpTicksLeft;          // 볼 끌기(개인 holdUp): 소유 뒤 킥까지 대기 틱
+        internal int HoldUpTicksLeft => holdUpTicksLeft;   // 테스트: 골킥 대기(4초)가 다음 소유자에게 이어지지 않는지 틱 수로 본다
         private bool keeperJustCaught;        // 직전 슛을 GK가 잡았다 → 그 소유의 볼 끌기 대기는 KeeperHoldAfterCatchSeconds(10-25)
         private bool goalKickJustStarted;     // 골킥으로 GK에게 공을 쥐여 줬다 → 그 소유의 볼 끌기 대기는 GoalKickSetupSeconds(11-05)
         private int goalKickKeeperId = BallState.NoOwner;   // 골킥을 들고 있는 GK. 그 GK가 공을 쥐고 있는 동안 상대는 박스 밖에 머문다

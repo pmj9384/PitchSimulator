@@ -16,7 +16,6 @@ using NUnit.Framework;
 public class FullMatchTests
 {
     private const float Dt = 0.02f;
-    private const int ThreeMinutesTicks = MatchTuning.MatchTicks;
 
     private sealed class Summary
     {
@@ -93,7 +92,7 @@ public class FullMatchTests
     {
         int flightTicks = 0;
         int kickTeam = -1; float kickX = 0f; bool prevOwned = false; float prevBallX = 0f; int prevOwnerId = -1; float prevOwnerX = 0f;
-        for (int i = 0; i < ThreeMinutesTicks; i++)
+        for (int i = 0; i < sim.TotalTicks; i++)
         {
             summary.TickNow = i;
             sim.Tick(Dt);
@@ -182,7 +181,7 @@ public class FullMatchTests
             var s = new Summary();
             MatchSimulation sim = FullMatch(seed, s);
             RunThreeMinutes(sim, s);
-            Assert.AreEqual(ThreeMinutesTicks, s.Ticks);
+            Assert.AreEqual(sim.TotalTicks, s.Ticks);
             UnityEngine.Debug.Log($"[FullMatch] seed {seed}: {Describe(sim, s)}");   // 파이프라인 결과 JSON엔 테스트 출력이 안 실려 콘솔로 남긴다
         }
     }
