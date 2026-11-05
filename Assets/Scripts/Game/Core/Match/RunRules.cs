@@ -82,17 +82,17 @@ namespace Game.Core.Match
             return (float)Math.Sqrt(dx * dx + dz * dz);
         }
 
-        // 이미 있는 제안을 다시 잰다. 허용치 안이면 유지(위험은 지금 값으로 갱신), 아니면 None.
+        // 이미 있는 제안을 다시 잰다. 허용치 안이면 유지(지금 위험·달릴 때 위험 둘 다 갱신), 아니면 None.
         // 유지 조건은 "달리고 있다면 가능"(run)이다. 지금 위험(now)이 허용치를 넘어도 러너가 속도를 내는 중일 수 있어서다
         public static RunOffer Reevaluate(RunOffer offer, float carrierX, float carrierZ, float averageSpeed, float allow, IReadOnlyList<TargetInfo> opponents, RunCandidate runner)
         {
             var risks = SpotRisks(carrierX, carrierZ, offer.X, offer.Z, averageSpeed, allow, opponents, runner);
             if (risks.run > allow) { return RunOffer.None; }
-            return new RunOffer(offer.RunnerId, offer.X, offer.Z, risks.now);
+            return new RunOffer(offer.RunnerId, offer.X, offer.Z, risks.now, risks.run);
         }
 
         // 새 제안 하나 찾기: 후보 러너마다 목표점을 고르고, 시작 조건(지금은 위험, 달리면 가능)을 만족하는 것 중
-        // 패서가 가장 높게 값 매길 목표를 가진 러너를 낸다. 값은 패서가 후보를 고를 때(PlayerTreeBuilder.BestPass)와 같은 함수다: 성공 확률 = PassRules.SafetyWeight, 값 = ThreatRules.PassValue (11-03 P1 [가정 P-G8]).
+        // 패서가 가장 높게 값 매길 목표를 가진 러너를 낸다. 값은 패서가 후보를 고를 때(PlayerTreeBuilder.BestPass)와 같은 함수다: 성공 확률 = PassRules.SafetyWeight(달릴 때 위험 RunRisk), 값 = ThreatRules.PassValue (11-03 P1 [가정 P-G8], 11-06 #17).
         // 되돌림 감점만 빠진다(FindOffer는 직전 패서를 모른다). 동률은 PlayerId 작은 쪽.
         // 가장 앞선 목표로 고르지 않는 이유: 수비 라인에 늘 가까운 스트라이커가 이겨 윙어가 달리지 않는다
         public static RunOffer FindOffer(float carrierX, float carrierZ, int attackSign, float averageSpeed, float allow, bool carrierPressed,
@@ -113,7 +113,7 @@ namespace Game.Core.Match
                 RunOffer offer = FindSpot(carrierX, carrierZ, attackSign, averageSpeed, allow, carrierPressed, opponents, runner, defenderLine);
                 if (offer.RunnerId == RunOffer.NoRunner) { continue; }
                 float fit = PassRules.ReceiverFit(carrierX, carrierZ, offer.X, offer.Z, passStyle, passLength, widthLevel);
-                float success = PassRules.SafetyWeight(offer.Risk, allow, MatchTuning.PassSafetyBand);
+                float success = PassRules.SafetyWeight(offer.RunRisk, allow, MatchTuning.PassSafetyBand);   // 달릴 때의 위험으로 비교한다(Risk는 생성 순간 늘 1, 11-06 #17)
                 float value = ThreatRules.PassValue(grid, carrierX, carrierZ, offer.X, offer.Z, attackSign, success, MatchTuning.ReceiverFitWeight * fit);
                 if (value < bestValue) { continue; }
                 if (value == bestValue && offer.RunnerId > best.RunnerId) { continue; }
@@ -155,7 +155,7 @@ namespace Game.Core.Match
                     var risks = SpotRisks(carrierX, carrierZ, spot.x, spot.z, averageSpeed, allow, opponents, runner);
                     if (risks.run > allow) { continue; }
                     if (risks.now <= allow) { return RunOffer.None; }   // 달리지 않아도 이미 가장 긴 안전한 패스가 된다. 런이 필요 없다
-                    return new RunOffer(runner.PlayerId, spot.x, spot.z, risks.now);
+                    return new RunOffer(runner.PlayerId, spot.x, spot.z, risks.now, risks.run);
                 }
             }
             return RunOffer.None;
@@ -177,7 +177,7 @@ namespace Game.Core.Match
             var risks = SpotRisks(carrierX, carrierZ, spotX, spotZ, averageSpeed, allow, opponents, runner);
             if (risks.run > allow) { return RunOffer.None; }
             if (risks.now <= allow) { return RunOffer.None; }
-            return new RunOffer(runner.PlayerId, spotX, spotZ, risks.now);
+            return new RunOffer(runner.PlayerId, spotX, spotZ, risks.now, risks.run);
         }
 
         // 방향 후보 a번째: 0은 정면, 이후 +, −를 번갈아 바깥으로 간다(1·3·5개에서 같은 앞부분을 공유)

@@ -605,7 +605,7 @@ public class PlayerTreeTests
     [Test]
     public void 패서_뒤의_러너도_런_목표가_앞이면_후보고_착지점은_그_목표점이다()
     {
-        var cm = CarrierWithRunnerBehind(new RunOffer(9, 45f, 10f, 0f));
+        var cm = CarrierWithRunnerBehind(new RunOffer(9, 45f, 10f, 0f, 0f));
         Tree.Tick(cm);
         Assert.AreEqual("pass", cm.Did);
         Assert.AreEqual(9, cm.PassedTo);
@@ -629,7 +629,7 @@ public class PlayerTreeTests
     {
         var cm = CarrierWithRunnerBehind(RunOffer.None);
         cm.Teammates = new List<TargetInfo> { new TargetInfo(9, 0f, 10f) };
-        cm.RunOffers = new List<RunOffer> { new RunOffer(9, 45f, 10f, 1f) };
+        cm.RunOffers = new List<RunOffer> { new RunOffer(9, 45f, 10f, 1f, 1f) };
         Tree.Tick(cm);
         Assert.AreEqual("move", cm.Did, "러너가 아직 못 붙었다(위험 1)");
     }
@@ -637,7 +637,7 @@ public class PlayerTreeTests
     [Test]
     public void 방금_나에게_준_선수가_앞_공간으로_달리면_되돌림이_아니라_전진형이다()
     {
-        var cm = CarrierWithRunnerBehind(new RunOffer(9, 45f, 10f, 0f));
+        var cm = CarrierWithRunnerBehind(new RunOffer(9, 45f, 10f, 0f, 0f));
         cm.LastPasserId = 9;
         Tree.Tick(cm);
         Assert.AreEqual("pass", cm.Did);
@@ -652,7 +652,7 @@ public class PlayerTreeTests
         {
             PlayerId = 9, Team = 0, BallPhase = BallPhase.Owned, BallOwnerTeam = 0, X = 12f, Z = 10f,
             Opponents = new List<TargetInfo> { new TargetInfo(16, 40f, -15f), new TargetInfo(17, 42f, 15f), new TargetInfo(18, 50f, 0f) },
-            RunOffers = new List<RunOffer> { new RunOffer(9, 45f, 10f, 0.3f) },
+            RunOffers = new List<RunOffer> { new RunOffer(9, 45f, 10f, 0.3f, 0.3f) },
         };
         Tree.Tick(runner);
         Assert.AreEqual("move", runner.Did);
@@ -664,7 +664,7 @@ public class PlayerTreeTests
         {
             PlayerId = 9, Team = 0, BallPhase = BallPhase.Owned, BallOwnerTeam = 0, X = 12f, Z = 10f,
             Opponents = runner.Opponents,
-            RunOffers = new List<RunOffer> { new RunOffer(9, 36f, -8f, 0.3f) },
+            RunOffers = new List<RunOffer> { new RunOffer(9, 36f, -8f, 0.3f, 0.3f) },
         };
         Tree.Tick(inside);
         Assert.AreEqual(36f, inside.MoveX, 1e-4f, "선 안쪽 목표는 그대로");
@@ -678,7 +678,7 @@ public class PlayerTreeTests
         {
             PlayerId = 9, Team = 1, BallPhase = BallPhase.Owned, BallOwnerTeam = 1, X = -12f, Z = 10f,
             Opponents = new List<TargetInfo> { new TargetInfo(16, -40f, -15f), new TargetInfo(17, -42f, 15f), new TargetInfo(18, -50f, 0f) },
-            RunOffers = new List<RunOffer> { new RunOffer(9, -45f, 10f, 0.3f) },
+            RunOffers = new List<RunOffer> { new RunOffer(9, -45f, 10f, 0.3f, 0.3f) },
         };
         Tree.Tick(runner);
         Assert.AreEqual(-(42f - MatchTuning.OnsideMargin), runner.MoveX, 1e-4f);
@@ -691,7 +691,7 @@ public class PlayerTreeTests
         {
             PlayerId = 5, Team = 0, BallPhase = BallPhase.Owned, BallOwnerTeam = 0, X = 12f, Z = 10f, AttackHomeX = 20f, AttackHomeZ = 10f,
             Opponents = new List<TargetInfo> { new TargetInfo(16, 40f, -15f), new TargetInfo(17, 42f, 15f), new TargetInfo(18, 50f, 0f) },
-            RunOffers = new List<RunOffer> { new RunOffer(9, 45f, 10f, 0.3f) },
+            RunOffers = new List<RunOffer> { new RunOffer(9, 45f, 10f, 0.3f, 0.3f) },
         };
         Tree.Tick(teammate);
         Assert.AreEqual("move", teammate.Did);
@@ -703,7 +703,7 @@ public class PlayerTreeTests
     {
         var gk = new Fake { PlayerId = 0, IsGoalkeeper = true, OwnsBall = true, BallPhase = BallPhase.Owned, BallOwnerTeam = 0, X = -48f,
             Teammates = new List<TargetInfo> { new TargetInfo(1, -36f, 7f), new TargetInfo(2, -8f, 0f) },
-            RunOffers = new List<RunOffer> { new RunOffer(2, 30f, 5f, 0f) } };
+            RunOffers = new List<RunOffer> { new RunOffer(2, 30f, 5f, 0f, 0f) } };
         Tree.Tick(gk);
         Assert.AreEqual("pass", gk.Did);
         Assert.AreEqual(1, gk.PassedTo, "GK 배급은 PassUnchecked 경로");
@@ -711,7 +711,7 @@ public class PlayerTreeTests
 
         var mid = new Fake { PlayerId = 0, OwnsBall = true, BallPhase = BallPhase.Owned, BallOwnerTeam = 0, IsCountering = true, X = 0f,
             Teammates = new List<TargetInfo> { new TargetInfo(1, 10f, 0f), new TargetInfo(2, 30f, 5f) },
-            RunOffers = new List<RunOffer> { new RunOffer(1, 40f, 20f, 0f) } };
+            RunOffers = new List<RunOffer> { new RunOffer(1, 40f, 20f, 0f, 0f) } };
         mid.Stats.ShotBias = 1f;
         Tree.Tick(mid);
         Assert.AreEqual(2, mid.PassedTo, "역습 패스는 최전방 아군에게, 착지는 PassLeadMax 리드");
@@ -755,7 +755,7 @@ public class PlayerTreeTests
             PlayerId = 4, BallPhase = BallPhase.Owned, OwnsBall = true, BallOwnerTeam = 0, X = 22f, Z = 0f,
             Teammates = new List<TargetInfo> { new TargetInfo(9, 12f, 10f) },
             Opponents = new List<TargetInfo> { new TargetInfo(16, 49f, -15f), new TargetInfo(17, 50f, 15f), new TargetInfo(18, 52f, 0f) },
-            RunOffers = new List<RunOffer> { new RunOffer(9, 40f, 8f, risk) },
+            RunOffers = new List<RunOffer> { new RunOffer(9, 40f, 8f, risk, risk) },
         };
         st.Stats.RoleId = "ST";
         st.Stats.Shot = 50;
@@ -860,7 +860,7 @@ public class PlayerTreeTests
             st.RunOffers = new List<RunOffer>();
             if (random.Next(0, 3) == 0)
             {
-                st.RunOffers = new List<RunOffer> { new RunOffer(mates[0].PlayerId, Next(random, 0f, 45f), Next(random, -25f, 25f), Next(random, 0f, 0.6f)) };
+                st.RunOffers = new List<RunOffer> { new RunOffer(mates[0].PlayerId, Next(random, 0f, 45f), Next(random, -25f, 25f), Next(random, 0f, 0.6f), Next(random, 0f, 0.6f)) };
             }
 
             PlayerTreeBuilder.PruneByCeiling = true;
