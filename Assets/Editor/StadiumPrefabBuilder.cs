@@ -16,9 +16,6 @@ public static class StadiumPrefabBuilder
     private const string CsvPath = "Assets/Resources/Tables/Stadiums.csv";
     private const string OutputFolder = "Assets/Resources/Stadiums";
     private const string StandsName = "Stands";
-    private const string GrassMaterialPath = "Assets/Materials/FieldGrass.mat";
-    private const string MaterialFolder = "Assets/Materials/Stadium";
-    private const float UnityPlaneSize = 10f;       // 유니티 기본 Plane 한 변(m)
 
     // 치수 근거 없는 값은 전부 [가정]
     private const float BaseFrontMargin = 0.2f;     // [가정] 기단이 첫 단 앞으로 내미는 폭(m)
@@ -55,18 +52,19 @@ public static class StadiumPrefabBuilder
     public static void Build()
     {
         GameObject pitch = AssetDatabase.LoadAssetAtPath<GameObject>(PitchPrefabBuilder.PrefabPath);
-        Material grass = AssetDatabase.LoadAssetAtPath<Material>(GrassMaterialPath);
-        if (pitch == null || grass == null)
+        if (pitch == null)
         {
-            Debug.LogError($"[StadiumPrefabBuilder] {PitchPrefabBuilder.PrefabPath} 또는 {GrassMaterialPath} 없음");
+            Debug.LogError($"[StadiumPrefabBuilder] {PitchPrefabBuilder.PrefabPath} 없음");
             return;
         }
 
         List<StadiumSpec> specs = StadiumSpecParser.Parse(File.ReadAllText(CsvPath));
+        GrassWearBuilder.Build(specs);   // 잔디 머티리얼 4개(부별 _Wear)를 먼저 최신으로
         Dictionary<Paint, Material> paints = LoadPaints();
         Directory.CreateDirectory(OutputFolder);
         for (int i = 0; i < specs.Count; i++)
         {
+            var grass = AssetDatabase.LoadAssetAtPath<Material>(GrassWearBuilder.MaterialPathOf(specs[i]));
             BuildOne(specs[i], pitch, grass, paints);
         }
         AssetDatabase.SaveAssets();
@@ -97,13 +95,11 @@ public static class StadiumPrefabBuilder
         Debug.Log($"[StadiumPrefabBuilder] {path} 저장");
     }
 
-    // 잔디 평면(런오프 포함). 유니티 Plane은 10×10m라 크기를 그 값으로 나눈다
+    // 잔디 평면(런오프 포함). 크기는 GrassWearBuilder가 낸다(마스크 UV 매핑과 같은 식)
     private static void BuildGrass(Transform root, StadiumSpec spec, Material grass)
     {
         GameObject go = Primitive(PrimitiveType.Plane, "Grass", root, grass);
-        float width = FieldBounds.HalfLength * 2f + spec.Runoff * 2f;
-        float depth = FieldBounds.HalfWidth * 2f + spec.Runoff * 2f;
-        go.transform.localScale = new Vector3(width / UnityPlaneSize, 1f, depth / UnityPlaneSize);
+        go.transform.localScale = GrassWearBuilder.PlaneScale(spec);
         go.GetComponent<MeshRenderer>().receiveShadows = true;
     }
 
@@ -306,7 +302,7 @@ public static class StadiumPrefabBuilder
     // 재질 2개: URP Lit 하나에 색만 다르게(SRP Batcher 호환)
     private static Dictionary<Paint, Material> LoadPaints()
     {
-        Directory.CreateDirectory(MaterialFolder);
+        Directory.CreateDirectory(GrassWearBuilder.MaterialFolder);
         return new Dictionary<Paint, Material>
         {
             { Paint.Light, LoadPaint("StadiumLight", new Color(0.72f, 0.73f, 0.75f)) },   // 단·지붕
@@ -316,7 +312,7 @@ public static class StadiumPrefabBuilder
 
     private static Material LoadPaint(string name, Color color)
     {
-        string path = $"{MaterialFolder}/{name}.mat";
+        string path = $"{GrassWearBuilder.MaterialFolder}/{name}.mat";
         var material = AssetDatabase.LoadAssetAtPath<Material>(path);
         if (material == null)
         {

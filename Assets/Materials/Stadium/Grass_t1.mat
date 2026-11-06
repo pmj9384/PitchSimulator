@@ -1,0 +1,53 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!21 &2100000
+Material:
+  serializedVersion: 8
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: Grass_t1
+  m_Shader: {fileID: 4800000, guid: cfa343f5f122840b0a2170111b702fe9, type: 3}
+  m_Parent: {fileID: 0}
+  m_ModifiedSerializedProperties: 0
+  m_ValidKeywords: []
+  m_InvalidKeywords: []
+  m_LightmapFlags: 4
+  m_EnableInstancingVariants: 0
+  m_DoubleSidedGI: 0
+  m_CustomRenderQueue: -1
+  stringTagMap: {}
+  disabledShaderPasses: []
+  m_LockedProperties: 
+  m_SavedProperties:
+    serializedVersion: 3
+    m_TexEnvs:
+    - _DryTex:
+        m_Texture: {fileID: 2800000, guid: 91a86384645014ffb98c0249c047216b, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _GoodTex:
+        m_Texture: {fileID: 2800000, guid: 02edff011c82c4e858c7312db55d755e, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _WearMask:
+        m_Texture: {fileID: 2800000, guid: ac6346cb4d982446b972baf13cb10b89, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    m_Ints: []
+    m_Floats:
+    - _Stripe: 1
+    - _StripeDark: 0.82
+    - _StripeWidth: 5
+    - _TileMeters: 4
+    - _Wear: 0
+    - _WearHigh: 0.8
+    - _WearLow: 0.1
+    m_Colors:
+    - _DryTint: {r: 1.3, g: 1.1, b: 0.7, a: 1}
+    - _GoodTint: {r: 1, g: 1, b: 1, a: 1}
+    - _MaskSize: {r: 117, g: 80, b: 0, a: 0}
+    - _PlaneSize: {r: 117, g: 80, b: 0, a: 0}
+  m_BuildTextureStacks: []
+  m_AllowLocking: 1

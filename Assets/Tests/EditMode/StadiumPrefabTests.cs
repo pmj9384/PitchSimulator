@@ -7,7 +7,7 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
 
-// 저장된 경기장 프리팹 4종이 Stadiums.csv·StadiumLayout과 같은지(11-06 경기장 4종 2단계). 어긋나면 Tools/Pitch/경기장 프리팹 만들기로 다시 만든다.
+// 저장된 경기장 프리팹 4종이 Stadiums.csv·StadiumLayout과 같은지(11-06 2단계), 잔디 머티리얼·텍스처 임포트가 CSV·모바일 설정과 같은지(11-06 3단계). 어긋나면 Tools/Pitch/경기장 프리팹 만들기로 다시 만든다.
 // UnityEditor를 쓰므로 Unity EditMode에서만 돈다(dotnet 러너 제외)
 public class StadiumPrefabTests
 {
@@ -151,6 +151,87 @@ public class StadiumPrefabTests
                 StringAssert.StartsWith(MaterialFolder, AssetDatabase.GetAssetPath(m), $"{spec.Id} {m.name} 경로");
                 Assert.IsFalse(m.enableInstancing, $"{spec.Id} {m.name} 인스턴싱");
             }
+        }
+    }
+
+    // 11-06 3단계: 부별 잔디 머티리얼(_Wear·_Stripe = Stadiums.csv), 4개 모두 같은 셰이더(SRP Batcher가 한 배치로 묶는 조건)
+    [Test]
+    public void 부별_프리팹_잔디가_그_부_머티리얼을_쓰고_마모와_줄무늬가_CSV와_같다()
+    {
+        foreach (StadiumSpec spec in Specs())
+        {
+            var renderer = Load(spec).transform.Find("Grass").GetComponent<MeshRenderer>();
+            Material material = renderer.sharedMaterial;
+            Assert.IsNotNull(material, $"{spec.Id} 잔디 재질 없음");
+            Assert.AreEqual($"{MaterialFolder}Grass_t{spec.Tier}.mat", AssetDatabase.GetAssetPath(material), $"{spec.Id} 잔디 재질 경로");
+            Assert.AreEqual(spec.Wear, material.GetFloat("_Wear"), Eps, $"{spec.Id} _Wear");
+            Assert.IsTrue(material.HasProperty("_Stripe"), $"{spec.Id} 셰이더에 _Stripe 있음(없으면 GetFloat가 0을 돌려준다)");
+            Assert.AreEqual(spec.Stripe, material.GetFloat("_Stripe"), Eps, $"{spec.Id} _Stripe");
+            Assert.AreEqual(1, renderer.sharedMaterials.Length, $"{spec.Id} 잔디 재질 슬롯(드로우 1회)");
+        }
+    }
+
+    // 셰이더는 uv × _PlaneSize로 미터 좌표를 만들고 _MaskSize로 마스크를 읽는다. 인스펙터에서 값이 어긋나면 마모 자리가 박스와 안 맞는다
+    [Test]
+    public void 잔디_머티리얼의_평면_크기는_프리팹_잔디_크기와_같고_마스크_크기는_4개가_같다()
+    {
+        float maxRunoff = 0f;
+        foreach (StadiumSpec spec in Specs())
+        {
+            maxRunoff = Mathf.Max(maxRunoff, spec.Runoff);
+        }
+        float maskX = FieldBounds.HalfLength * 2f + maxRunoff * 2f;
+        float maskZ = FieldBounds.HalfWidth * 2f + maxRunoff * 2f;
+        foreach (StadiumSpec spec in Specs())
+        {
+            Transform grass = Load(spec).transform.Find("Grass");
+            Material material = grass.GetComponent<MeshRenderer>().sharedMaterial;
+            Vector4 plane = material.GetVector("_PlaneSize");
+            Vector4 mask = material.GetVector("_MaskSize");
+            Assert.AreEqual(grass.localScale.x * UnityPlaneSize, plane.x, Eps, $"{spec.Id} _PlaneSize x");
+            Assert.AreEqual(grass.localScale.z * UnityPlaneSize, plane.y, Eps, $"{spec.Id} _PlaneSize z");
+            Assert.AreEqual(maskX, mask.x, Eps, $"{spec.Id} _MaskSize x(가장 큰 런오프 평면)");
+            Assert.AreEqual(maskZ, mask.y, Eps, $"{spec.Id} _MaskSize z");
+            Assert.IsNotNull(material.GetTexture("_GoodTex"), $"{spec.Id} 좋은 잔디 텍스처");
+            Assert.IsNotNull(material.GetTexture("_DryTex"), $"{spec.Id} 마른 잔디 텍스처");
+            Assert.IsNotNull(material.GetTexture("_WearMask"), $"{spec.Id} 마모 마스크");
+        }
+    }
+
+    // 모바일 임포트: 1K 이하·밉맵·Android ASTC 6x6. 마스크는 선형(sRGB 끔)·Clamp라야 값이 그대로 읽힌다
+    [Test]
+    public void 잔디_텍스처는_모바일_설정이고_마스크는_선형이다()
+    {
+        Material material = AssetDatabase.LoadAssetAtPath<Material>($"{MaterialFolder}Grass_t1.mat");
+        Assert.IsNotNull(material, "Grass_t1.mat 없음");
+        foreach (string property in new[] { "_GoodTex", "_DryTex", "_WearMask" })
+        {
+            string path = AssetDatabase.GetAssetPath(material.GetTexture(property));
+            var importer = (TextureImporter)AssetImporter.GetAtPath(path);
+            Assert.IsNotNull(importer, $"{property} 임포터");
+            Assert.LessOrEqual(importer.maxTextureSize, 1024, $"{property} 최대 크기");
+            Assert.IsTrue(importer.mipmapEnabled, $"{property} 밉맵");
+            TextureImporterPlatformSettings android = importer.GetPlatformTextureSettings("Android");
+            Assert.IsTrue(android.overridden, $"{property} Android 덮어쓰기");
+            Assert.AreEqual(TextureImporterFormat.ASTC_6x6, android.format, $"{property} Android 포맷");
+            bool isMask = property == "_WearMask";
+            Assert.AreEqual(!isMask, importer.sRGBTexture, $"{property} sRGB(알베도 켬, 마스크 끔)");
+            Assert.AreEqual(isMask ? TextureWrapMode.Clamp : TextureWrapMode.Repeat, importer.wrapMode, $"{property} 반복");
+        }
+    }
+
+    [Test]
+    public void 잔디_머티리얼_4개가_같은_셰이더이고_인스턴싱을_끈다()
+    {
+        Shader first = null;
+        foreach (StadiumSpec spec in Specs())
+        {
+            Material material = Load(spec).transform.Find("Grass").GetComponent<MeshRenderer>().sharedMaterial;
+            if (first == null) { first = material.shader; }
+
+            Assert.AreSame(first, material.shader, $"{spec.Id} 셰이더");
+            Assert.AreEqual("PitchSimulator/GrassWear", material.shader.name, $"{spec.Id} 셰이더 이름");
+            Assert.IsFalse(material.enableInstancing, $"{spec.Id} 인스턴싱");
         }
     }
 

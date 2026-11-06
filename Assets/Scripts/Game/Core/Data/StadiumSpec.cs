@@ -27,6 +27,7 @@ namespace Game.Core.Data
         public IReadOnlyList<StandSide> AdBoards { get; set; } = Array.Empty<StandSide>();   // 광고판을 두는 터치·골라인 쪽
         public int FillPercent { get; set; }         // 관중 채움 비율(%). 좌석 슬롯마다 시드 해시로 자른다
         public float Wear { get; set; }              // 잔디 마모 0(새 잔디)~1
+        public float Stripe { get; set; }            // 잔디 깎기 줄무늬 세기 0(없음)~1(선명). 마모와 따로 둔다(설계 §1 표의 별도 행, 11-06 리뷰)
         public float Runoff { get; set; }            // 선 바깥 잔디 폭(m). 관중석은 그 바깥에서 시작한다
     }
 
@@ -95,6 +96,7 @@ namespace Game.Core.Data
             if (row.BaseHeight < 0f) { throw new FormatException($"Stadiums {line}행: baseHeight는 0 이상"); }
             if (row.FillPercent < 0 || row.FillPercent > 100) { throw new FormatException($"Stadiums {line}행: fillPercent는 0~100"); }
             if (row.Wear < 0f || row.Wear > 1f) { throw new FormatException($"Stadiums {line}행: wear는 0~1"); }
+            if (row.Stripe < 0f || row.Stripe > 1f) { throw new FormatException($"Stadiums {line}행: stripe는 0~1"); }
             if (row.Runoff < 0f) { throw new FormatException($"Stadiums {line}행: runoff는 0 이상"); }
             return new StadiumSpec
             {
@@ -111,6 +113,7 @@ namespace Game.Core.Data
                 AdBoards = SplitSides(row.AdBoards, "adBoards", line),
                 FillPercent = row.FillPercent,
                 Wear = row.Wear,
+                Stripe = row.Stripe,
                 Runoff = row.Runoff,
             };
         }
@@ -157,6 +160,7 @@ namespace Game.Core.Data
             public string AdBoards { get; set; } = string.Empty;
             public int FillPercent { get; set; }
             public float Wear { get; set; }
+            public float Stripe { get; set; }
             public float Runoff { get; set; }
         }
 
@@ -177,6 +181,7 @@ namespace Game.Core.Data
                 Map(r => r.AdBoards).Name("adBoards");
                 Map(r => r.FillPercent).Name("fillPercent");
                 Map(r => r.Wear).Name("wear");
+                Map(r => r.Stripe).Name("stripe");
                 Map(r => r.Runoff).Name("runoff");
             }
         }
