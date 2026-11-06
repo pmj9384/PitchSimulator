@@ -7,7 +7,7 @@ using CsvHelper.Configuration;
 
 namespace Game.Core.Tactics
 {
-    // DefenseRoles.csv → DefenseRole 목록. CsvHelper + ClassMap(프로젝트 관례). id 중복·기본 역할 없음·범위 밖·행동 열 범위 밖은 던진다(파서가 데이터를 믿지 않는다)
+    // DefenseRoles.csv → DefenseRole 목록. CsvHelper + ClassMap(프로젝트 관례). id 중복·기본 역할 없음·marksAsSecond 0/1 밖은 FormatException, 값 범위는 DefenseRole 생성자가 ArgumentException(파서가 데이터를 믿지 않는다)
     public static class DefenseRoleParser
     {
         public static List<DefenseRole> Parse(string csvText)
@@ -25,7 +25,7 @@ namespace Game.Core.Tactics
                 line++;
                 if (!ids.Add(r.DefenseRoleId)) { throw new FormatException($"DefenseRoles {line}행: id 중복 ({r.DefenseRoleId})"); }
                 if (r.MarksAsSecond != 0 && r.MarksAsSecond != 1) { throw new FormatException($"DefenseRoles {line}행: marksAsSecond는 0 또는 1 ({r.MarksAsSecond})"); }
-                if (r.Screens < DefenseRole.ScreensNone || r.Screens > DefenseRole.ScreensAlways) { throw new FormatException($"DefenseRoles {line}행: screens는 0~2 ({r.Screens})"); }
+                // 값 범위(배율·오프셋·screens)는 DefenseRole 생성자 한 곳이 지킨다(ArgumentException). 파서는 CSV 인코딩(0/1 → bool)과 표 구조(id 중복·기본 역할)만 본다
                 roles.Add(new DefenseRole(r.DefenseRoleId, r.DisplayName, r.Description, r.PressRangeScale, r.LineHeightOffset, r.MarksAsSecond == 1, r.Screens));
             }
             if (!ids.Contains(DefenseRole.DefaultId)) { throw new FormatException($"DefenseRoles: 기본 역할 '{DefenseRole.DefaultId}' 행이 없다"); }

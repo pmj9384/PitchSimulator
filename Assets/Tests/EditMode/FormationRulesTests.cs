@@ -121,8 +121,8 @@ public class FormationRulesTests
             Assert.AreEqual(expectScreens, r.Screens, r.Id + " screens");
         }
         Assert.Throws<System.FormatException>(() => DefenseRoleParser.Parse(Header + "balanced,균형,,1,0,2,1\n"), "marksAsSecond 2");
-        Assert.Throws<System.FormatException>(() => DefenseRoleParser.Parse(Header + "balanced,균형,,1,0,0,3\n"), "screens 3");
-        Assert.Throws<System.ArgumentException>(() => new DefenseRole("x", "x", "", 1f, 0f, false, -1), "생성자도 screens 범위를 지킨다");
+        Assert.Throws<System.ArgumentException>(() => DefenseRoleParser.Parse(Header + "balanced,균형,,1,0,0,3\n"), "screens 3: 값 범위는 생성자 한 곳(배율·오프셋과 같은 예외)");
+        Assert.Throws<System.ArgumentException>(() => new DefenseRole("x", "x", "", 1f, 0f, false, -1), "생성자의 screens 범위");
     }
 
     [Test]
