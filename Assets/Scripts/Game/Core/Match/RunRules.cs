@@ -16,12 +16,15 @@ namespace Game.Core.Match
         public const int StyleShort = 2;    // 내려와 받기
         public const int StyleLate = 3;     // 박스에 늦게 도착. ⑤에선 값만 두고 동작은 ⑦ 컷백 단계에서 켠다
 
-        // 러너가 이 패스를 받을 수 있는가(실행과 같은 이동으로 굴린다). 두 조건을 같이 본다:
-        //  1) 목표점에 deadline(공 도착 시각 − 여유) 전에 든다. 러너가 먼저 자리를 잡고 있어야 한다
-        //  2) 실제로 공과 만난다: 어느 틱에서든 러너~공 거리가 잡기 반경 이내(공은 목표점 너머까지 굴러간다)
-        // 판정 롤아웃의 이동 모드 = 런 패스 수신 실행 모드(Seek, 감속 없음)다. 그래서 2)가 필요하다:
-        // 목표점에 일찍 닿은 러너가 멈추지 않고 지나가 버리면 공이 도착할 때 러너가 거기 없다(설계 A1 3절)
-        public static bool RunnerMeetsBall(RunCandidate runner, float velX, float velZ, float targetX, float targetZ, in BallState ball, float deadline)
+        // 러너가 이 패스를 받을 수 있는가(실행과 같은 이동으로 굴린다): horizon(공이 착지점에 닿는 시각)까지 어느 틱에서든 러너~공 거리가 잡기 반경 이내면 참.
+        // 범위를 착지점까지로 둔다. 그 너머는 상대 위험(LandingRisk)이 재지 않은 자유 공이다. 공이 멈출 때까지 굴리면 경기장 밖으로 갈 공까지 만남으로 세어
+        // 판정이 낙관이 된다(11-06 측정: 런 패스 수신 97 → 90%).
+        // 판정 롤아웃의 이동 = 런 패스 수신 실행(⑥ ChaseBall)과 같은 공 추격이다. 틱마다 그 틱의 공 위치·속도로 PressRules.PursuitPoint를 잡고
+        // MovementRules.Step(감속 없음)으로 한 틱 간다. 예측 속도 인자는 실행 ChaseBall과 같은 스탯 속도(MaxSpeed), 이동 상한은 피로 반영(TopSpeed).
+        // 11-06 W 침투: 고정 목표점 Seek로 받을 때는 러너의 선과 공의 선이 겹쳐야만 만나서, 옆에서 비스듬히 들어오는 W(교차각 중앙값 56°)는
+        // 만남 창이 1~2틱뿐이라 제안의 76%가 바로 사라졌다. 추격이면 러너가 공의 선으로 꺾어 들어간다(설계 실험/2026-11-06-설계-W-침투.md).
+        // 같은 이유로 "목표점에 먼저 든다" 조건도 뺐다. 목표점은 패서의 착지점으로만 남는다(킥 순간 온사이드는 FindOffer·RunToSpot이 보장)
+        public static bool RunnerMeetsBall(RunCandidate runner, float velX, float velZ, in BallState ball, float horizon)
         {
             if (runner.MaxSpeed <= 0f) { return false; }
 
@@ -30,28 +33,37 @@ namespace Game.Core.Match
             float x = runner.X;
             float z = runner.Z;
             (float vx, float vz) = MovementRules.ClampSpeed(velX, velZ, runner.MaxSpeed);
-            bool arrived = deadline >= 0f && Distance(x, z, targetX, targetZ) <= MatchTuning.CaptureRadius;
-            int steps = (int)Math.Floor(BallRules.StopTime(ball, BallRules.LandingTime(ball)) / MatchTuning.FixedStep);
-            int arriveLimit = (int)Math.Floor(deadline / MatchTuning.FixedStep);
+            int steps = (int)Math.Floor(horizon / MatchTuning.FixedStep);
             for (int i = 1; i <= steps; i++)
             {
-                var next = MovementRules.Step(x, z, vx, vz, targetX, targetZ, speed, accel, MatchTuning.FixedStep, arrive: false);
+                (float x, float z) aim = PursuitAim(runner.MaxSpeed, x, z, ball, i);
+                var next = MovementRules.Step(x, z, vx, vz, aim.x, aim.z, speed, accel, MatchTuning.FixedStep, arrive: false);
                 x = next.x;
                 z = next.z;
                 vx = next.vx;
                 vz = next.vz;
-                if (!arrived && i <= arriveLimit) { arrived = Distance(x, z, targetX, targetZ) <= MatchTuning.CaptureRadius; }
-                if (!arrived && i >= arriveLimit) { return false; }
 
                 var at = BallRules.PositionAt(ball, i * MatchTuning.FixedStep);
-                if (arrived && Distance(x, z, at.x, at.z) <= MatchTuning.CaptureRadius) { return true; }
+                if (Distance(x, z, at.x, at.z) <= MatchTuning.CaptureRadius) { return true; }
             }
             return false;
         }
 
+        // i번째 스텝에서 러너가 향할 추격점. 공은 (i−1)스텝 위치와 그 스텝 동안의 평균 속도로 본다. 실행 러너는 그 틱의 공 Step 뒤 위치를 보므로 한 스텝(≤ 약 0.2m) 차이가 있다.
+        // statSpeed = 실행 ChaseBall이 넘기는 스탯 속도
+        private static (float x, float z) PursuitAim(float statSpeed, float x, float z, in BallState ball, int tick)
+        {
+            var now = BallRules.PositionAt(ball, (tick - 1) * MatchTuning.FixedStep);
+            var next = BallRules.PositionAt(ball, tick * MatchTuning.FixedStep);
+            float ballVelX = (next.x - now.x) / MatchTuning.FixedStep;
+            float ballVelZ = (next.z - now.z) / MatchTuning.FixedStep;
+            return PressRules.PursuitPoint(x, z, statSpeed, now.x, now.z, ballVelX, ballVelZ);
+        }
+
         // 그 점으로 패스가 올 때의 위험 둘: 러너의 지금 상태 그대로(now)와 이미 최고 속도로 달리는 상태(run).
         // 위험 = 상대 가로채기 위험(PassRules.LandingRisk, 땅볼 판정 그대로)과 러너 도달 불가(1)의 큰 쪽.
-        // 도달 가능 = RunnerMeetsBall. 실행의 이동(MovementRules.Step)과 수신 모드를 그대로 굴려서 판정과 실행이 같은 식을 쓴다.
+        // 도달 가능 = RunnerMeetsBall. 실행의 이동(MovementRules.Step)과 수신 모드(공 추격)를 그대로 굴려서 판정과 실행이 같은 식을 쓴다.
+        // run의 출발 속도는 목표점을 향한 최고 속도다: 킥 전 사전 런(RunToSpot)이 목표점으로 달리고 있는 상태
         // 상대 위험이 허용치를 못 넘으면 도달은 안 잰다(비용)
         public static (float now, float run) SpotRisks(float carrierX, float carrierZ, float spotX, float spotZ, float averageSpeed, float allow,
             IReadOnlyList<TargetInfo> opponents, RunCandidate runner)
@@ -64,14 +76,14 @@ namespace Game.Core.Match
 
             float kickSpeed = PassRules.KickSpeed(distance, averageSpeed, MatchTuning.BallDeceleration, MatchTuning.PassSpeedMax);
             BallState ball = BallRules.Kick(BallState.FreeAt(carrierX, carrierZ), spotX - carrierX, spotZ - carrierZ, kickSpeed);
-            float deadline = BallRules.TimeToDistance(kickSpeed, distance) - MatchTuning.RunArrivalMargin;
+            float horizon = BallRules.TimeToDistance(kickSpeed, distance);
 
-            bool now = RunnerMeetsBall(runner, runner.VelX, runner.VelZ, spotX, spotZ, ball, deadline);
+            bool now = RunnerMeetsBall(runner, runner.VelX, runner.VelZ, ball, horizon);
             float toSpot = Distance(runner.X, runner.Z, spotX, spotZ);
             float runSpeed = runner.TopSpeed;
             float runVelX = toSpot > 0f ? (spotX - runner.X) / toSpot * runSpeed : 0f;
             float runVelZ = toSpot > 0f ? (spotZ - runner.Z) / toSpot * runSpeed : 0f;
-            bool run = RunnerMeetsBall(runner, runVelX, runVelZ, spotX, spotZ, ball, deadline);
+            bool run = RunnerMeetsBall(runner, runVelX, runVelZ, ball, horizon);
             return (now ? opponentRisk : 1f, run ? opponentRisk : 1f);
         }
 

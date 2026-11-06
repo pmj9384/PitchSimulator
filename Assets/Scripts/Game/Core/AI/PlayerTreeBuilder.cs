@@ -374,8 +374,9 @@ namespace Game.Core.AI
             return (ground, groundWeight, false);
         }
 
-        // 공을 쫓을 땐 공의 앞을 향해(추격 예측). 압박(⑧)과 자유 공(⑩)이 같이 쓴다
-        private static void ChaseBall(IPlayerContext ctx)
+        // 공을 쫓을 땐 공의 앞을 향해(추격 예측). 압박(⑧)·자유 공(⑩)·런 패스 수신(⑥)이 같이 쓴다.
+        // internal: 판정/실행 계약 테스트의 대본이 같은 함수를 부른다(복제하면 실행 식이 바뀌어도 테스트가 옛 식으로 통과한다)
+        internal static void ChaseBall(IPlayerContext ctx)
         {
             (float x, float z) aim = PressRules.PursuitPoint(ctx.X, ctx.Z, MatchRules.SpeedMps(ctx.Stats.Speed), ctx.BallX, ctx.BallZ, ctx.BallVelX, ctx.BallVelZ);
             ctx.RunToward(aim.x, aim.z);
@@ -511,14 +512,14 @@ namespace Game.Core.AI
             ctx.JogToward(x, slid.z);
         }
 
-        // 나에게 오는 패스 받기. 런 패스(스루)면 감속 없이 목표점으로 달려 들어가며 받는다: 공간에 서서 기다리지 않는다(FM "runs onto").
-        // 도착점에서 감속하면 공이 먼저 지나간다. 런 판정(RunRules.RunnerMeetsBall)도 같은 Seek로 굴려 판정과 실행이 같은 식을 쓴다(설계 A1 3절).
-        // 일반 패스는 도착점에서 멈춰 받는다
+        // 나에게 오는 패스 받기. 런 패스(스루)면 감속 없이 공을 쫓아 달려 들어가며 받는다: 공간에 서서 기다리지 않는다(FM "runs onto").
+        // 목표점이 아니라 공의 앞(추격점)을 향한다. 고정 목표점 Seek는 러너와 공의 선이 겹쳐야만 만나 측면에서 비스듬히 들어오는 W가 못 받았다(11-06).
+        // 런 판정(RunRules.RunnerMeetsBall)도 같은 추격으로 굴려 판정과 실행이 같은 식을 쓴다. 일반 패스는 도착점에서 멈춰 받는다
         private static void ReceivePass(IPlayerContext ctx)
         {
             if (ctx.IsRunPass)
             {
-                ctx.RunToward(ctx.PassTargetX, ctx.PassTargetZ);
+                ChaseBall(ctx);
                 return;
             }
             ctx.ArriveToward(ctx.PassTargetX, ctx.PassTargetZ);

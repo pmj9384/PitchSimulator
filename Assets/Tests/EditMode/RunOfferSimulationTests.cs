@@ -131,7 +131,8 @@ public class RunOfferSimulationTests
         Assert.LessOrEqual(scene.KickTick - scene.ReleaseTick, (int)(0.5f / Dt) + 3, "풀린 직후 트리가 런 제안 패스를 고른다(볼 끌기 0.5초 + 3틱 안에 킥)");
         Assert.IsTrue(scene.KickWasRun, "그 패스는 런 패스다");
         float secondsAfterOffer = (scene.KickTick - scene.FirstOfferTick) * Dt;
-        Assert.LessOrEqual(secondsAfterOffer, 2.5f, "런 시작 뒤 SkillCorner p75(2.1초) 근처에 패스");
+        // 11-06 추격 수신 뒤 2.56초(전 2.5초 안): 추격이면 더 먼 출발점에서도 만날 수 있어 제안이 몇 틱 일찍 선다. 상한을 2.6초로 넓혔다
+        Assert.LessOrEqual(secondsAfterOffer, 2.6f, "런 시작 뒤 2.6초 안에 패스(SkillCorner p75 2.1초 + 여유)");
         Assert.Greater(scene.RunnerSpeedAtKick, 0.5f * 11.2f, "킥 순간 러너는 질주 중");
         Assert.AreEqual(scene.OfferAtKick.X, scene.KickLandingX, 1e-3f, "착지점 = 러너가 달리던 목표점(같은 함수)");
         Assert.AreEqual(scene.OfferAtKick.Z, scene.KickLandingZ, 1e-3f);
@@ -149,7 +150,24 @@ public class RunOfferSimulationTests
         scene.Sim.Tick(Dt);   // 다음 틱 스냅샷에 수신자 표시 + 트리가 ⑥에서 수신 이동을 고른다
         Assert.IsTrue(scene.Runner.IsPassTarget);
         Assert.IsTrue(scene.Runner.IsRunPass, "수신자 스냅샷의 IsRunPass");
-        Assert.AreEqual(MoveMode.Run, scene.Runner.MoveMode, "Seek(감속 없음). Arrive가 아니다");
+        Assert.AreEqual(MoveMode.Run, scene.Runner.MoveMode, "감속 없는 이동. Arrive가 아니다");
+        AssertChasesBall(scene);
+    }
+
+    // 런 패스 수신은 목표점이 아니라 공의 앞(PursuitPoint = 공 + 공 속도 × t)을 향한다(11-06 W 침투). 그 점은 공이 굴러가는 직선 위에 있다
+    private static void AssertChasesBall(Scene scene)
+    {
+        BallState ball = scene.Sim.Ball;
+        float speed = (float)System.Math.Sqrt(ball.VelX * ball.VelX + ball.VelZ * ball.VelZ);
+        Assert.Greater(speed, 0.1f, "공이 굴러가는 중");
+        float dx = scene.Runner.MoveTargetX - ball.X;
+        float dz = scene.Runner.MoveTargetZ - ball.Z;
+        float offLine = System.Math.Abs(dx * ball.VelZ - dz * ball.VelX) / speed;
+        Assert.LessOrEqual(offLine, 0.05f, "이동 목표가 공의 선 위(추격점)");
+        float lx = scene.Runner.MoveTargetX - scene.Runner.PassTargetX;
+        float lz = scene.Runner.MoveTargetZ - scene.Runner.PassTargetZ;
+        float toLanding = (float)System.Math.Sqrt(lx * lx + lz * lz);
+        Assert.Greater(toLanding, 0.5f, "고정 착지점(Seek 목표)이 아니다");
     }
 
     [Test]
@@ -284,7 +302,7 @@ public class RunOfferSimulationTests
     }
 
     // 판정/실행 계약 장면의 트리: 패서는 공을 쥔 첫 틱에 지정한 점으로 런 패스를 차고, 러너는 찰 때까지 그 점으로 전력으로 달리며(판정의 "달리고 있다면" 가정)
-    // 패스가 날아오면 실제 트리의 수신(PlayerTreeBuilder.ReceivePass)과 같이 런 패스는 감속 없이, 아니면 도착점에서 멈춰 받는다
+    // 패스가 날아오면 실제 트리의 수신(PlayerTreeBuilder.ReceivePass)과 같이 런 패스는 공 추격(감속 없음), 아니면 도착점에서 멈춰 받는다
     private sealed class RunPassScript : BehaviorNode
     {
         private readonly float spotX;
@@ -304,7 +322,7 @@ public class RunOfferSimulationTests
                 return NodeState.Success;
             }
             if (!ctx.IsPassTarget) { ctx.RunToward(spotX, spotZ); }
-            else if (ctx.IsRunPass) { ctx.RunToward(ctx.PassTargetX, ctx.PassTargetZ); }
+            else if (ctx.IsRunPass) { PlayerTreeBuilder.ChaseBall(ctx); }
             else { ctx.ArriveToward(ctx.PassTargetX, ctx.PassTargetZ); }
             return NodeState.Success;
         }

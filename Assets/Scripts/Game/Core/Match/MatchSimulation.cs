@@ -141,7 +141,7 @@ namespace Game.Core.Match
         // 비행 중인 패스. 리시버는 스냅샷으로 "나한테 온다"를 알고 마중 나간다
         private bool passInFlight;
         private int passReceiverId = -1;
-        private bool passIsRun;               // 비행 중 패스가 런 제안 착지점으로 찬 것인가(트리가 고른 PassChoice.IsRun을 킥 때 받는다). 리시버가 Seek로 받을지 정한다
+        private bool passIsRun;               // 비행 중 패스가 런 제안 착지점으로 찬 것인가(트리가 고른 PassChoice.IsRun을 킥 때 받는다). 리시버가 공 추격(감속 없음)으로 받을지 정한다
         private int passPasserId = -1;        // 되돌림 감점용: 받은 선수의 LastPasserId에 기록
         private float passTargetX;
         private float passTargetZ;

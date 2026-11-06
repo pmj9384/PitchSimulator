@@ -28,12 +28,11 @@ public class RunRulesTests
 
     private const float PassDistance = 30f;
 
-    // 패서 (0,0) → 목표 (30,0) 땅볼과 공 도착 시각
+    // 패서 (0,0) → 목표 (30,0) 땅볼과 공이 착지점에 닿는 시각(롤아웃 범위)
     private static BallState PassBall(out float ballTime)
     {
         float kick = PassRules.KickSpeed(PassDistance, Average, MatchTuning.BallDeceleration, MatchTuning.PassSpeedMax);
-        float disc = kick * kick - 2f * MatchTuning.BallDeceleration * PassDistance;
-        ballTime = (kick - (float)System.Math.Sqrt(disc)) / MatchTuning.BallDeceleration;
+        ballTime = BallRules.TimeToDistance(kick, PassDistance);
         return BallRules.Kick(BallState.FreeAt(0f, 0f), PassDistance, 0f, kick);
     }
 
@@ -42,66 +41,66 @@ public class RunRulesTests
         return new RunCandidate(1, x, z, velX, velZ, 7f, RunRules.StyleBehind, effort);
     }
 
-    // Seek로 받으면 러너가 공과 만나는 창이 좁다(일찍 닿으면 지나쳐 가고 늦으면 공이 먼저 지나간다). 그래서 아래 테스트는 창의 모양을 성질로 잠그고 특정 거리 값에는 기대지 않는다
+    // 런 패스 수신 = 공 추격(11-06). 판정 롤아웃도 같은 추격이라 "만남"은 러너가 공의 선으로 꺾어 들어가 잡기 반경 안에 드는가다
     [Test]
-    public void 목표점에_서_있는_러너는_공을_받고_멀리_있는_러너는_못_받는다()
+    public void 목표점에_서_있는_러너는_공을_받는다()
     {
         BallState ball = PassBall(out float ballTime);
-        Assert.IsTrue(RunRules.RunnerMeetsBall(Runner(PassDistance, 0f), 0f, 0f, PassDistance, 0f, ball, ballTime - 0.1f));
-        Assert.IsFalse(RunRules.RunnerMeetsBall(Runner(PassDistance, 40f), 0f, 0f, PassDistance, 0f, ball, ballTime - 0.1f), "40m 옆은 공이 먼저 지나간다");
+        Assert.IsTrue(RunRules.RunnerMeetsBall(Runner(PassDistance, 0f), 0f, 0f, ball, ballTime));
     }
 
     [Test]
-    public void 감속_없이_목표를_일찍_지나치는_러너는_공이_도착할_때_거기_없어_못_받는다()
+    public void 롤아웃_범위를_늘리면_만나는_러너가_늘기만_하고_줄지_않는다()
     {
-        // 판정 롤아웃이 Seek(실행의 런 패스 수신 모드)이라서 필요한 성질. Arrive였다면 목표에서 멈춰 받는다(MovementRulesTests의 Arrive 대 Seek 대비)
+        // 롤아웃 범위 = 공이 착지점에 닿을 때까지. 그 너머의 공은 패스가 아니라 자유 공이라 상대 위험(LandingRisk)이 재지 않은 구간이다.
+        // 범위를 공이 멈출 때까지로 두면 경기장 밖으로 굴러갈 공까지 "만남"으로 세어 판정이 낙관이 된다(11-06 측정: 런 패스 수신 97 → 90%)
         BallState ball = PassBall(out float ballTime);
-        RunCandidate early = Runner(PassDistance, 2f, velZ: -7f);   // 공보다 훨씬 일찍 목표에 닿는다
-        Assert.IsFalse(RunRules.RunnerMeetsBall(early, early.VelX, early.VelZ, PassDistance, 0f, ball, ballTime - 0.1f), "Seek: 지나쳐 간다");
+        bool strictlyMore = false;
+        // 착지점 너머에서 공 진행 방향(+X)으로 달리고 있는 러너: 공이 착지점을 지난 뒤에 따라잡히는 거리가 있다
+        for (float offset = 0f; offset <= 30f; offset += 0.25f)
+        {
+            RunCandidate runner = Runner(PassDistance + offset, 0f, velX: 7f);
+            bool landing = RunRules.RunnerMeetsBall(runner, runner.VelX, 0f, ball, ballTime);
+            bool longer = RunRules.RunnerMeetsBall(runner, runner.VelX, 0f, ball, ballTime + 3f);
+            Assert.IsFalse(landing && !longer, $"offset {offset}: 착지점까지 만나는데 범위를 늘려 못 만날 수는 없다");
+            if (longer && !landing) { strictlyMore = true; }
+        }
+        Assert.IsTrue(strictlyMore, "착지점 뒤에야 만나는 러너가 있고 판정은 그 러너를 뺀다");
+    }
+
+    [Test]
+    public void 반대쪽으로_달리는_느린_러너는_공을_못_만난다()
+    {
+        // 공 진행 방향(+X)과 반대로 달리던 느린 러너가 패서 뒤에 있으면, 돌아서 쫓아도 공이 착지점에 닿기 전에 못 닿는다
+        BallState ball = PassBall(out float ballTime);
+        var slowBehind = new RunCandidate(1, -10f, 0f, -5f, 0f, 5f, RunRules.StyleBehind);
+        Assert.IsFalse(RunRules.RunnerMeetsBall(slowBehind, slowBehind.VelX, slowBehind.VelZ, ball, ballTime));
     }
 
     [Test]
     public void 정지_출발은_못_닿아도_이미_달리는_러너는_닿는_거리가_있다()
     {
         BallState ball = PassBall(out float ballTime);
-        float deadline = ballTime - 0.1f;
         bool found = false;
         for (float offset = 3f; offset <= 40f; offset += 0.25f)
         {
             RunCandidate runner = Runner(PassDistance, offset);
-            bool stand = RunRules.RunnerMeetsBall(runner, 0f, 0f, PassDistance, 0f, ball, deadline);
-            bool run = RunRules.RunnerMeetsBall(runner, 0f, -7f, PassDistance, 0f, ball, deadline);
+            bool stand = RunRules.RunnerMeetsBall(runner, 0f, 0f, ball, ballTime);
+            bool run = RunRules.RunnerMeetsBall(runner, 0f, -7f, ball, ballTime);
             if (!stand && run) { found = true; }
         }
         Assert.IsTrue(found, "가속 손실이 없는 러너가 닿는 거리");
     }
 
     [Test]
-    public void 여유를_두면_닿는_러너가_줄기만_하고_늘지_않는다()
-    {
-        BallState ball = PassBall(out float ballTime);
-        bool strictlyFewer = false;
-        for (float offset = 0f; offset <= 40f; offset += 0.25f)
-        {
-            RunCandidate runner = Runner(PassDistance, offset);
-            bool loose = RunRules.RunnerMeetsBall(runner, 0f, 0f, PassDistance, 0f, ball, ballTime);
-            bool strict = RunRules.RunnerMeetsBall(runner, 0f, 0f, PassDistance, 0f, ball, ballTime - 0.3f);
-            Assert.IsFalse(strict && !loose, $"offset {offset}: 여유 0.3초에 닿는데 여유 0에 못 닿을 수는 없다");
-            if (loose && !strict) { strictlyFewer = true; }
-        }
-        Assert.IsTrue(strictlyFewer, "여유가 판정을 바꾸는 러너가 있다");
-    }
-
-    [Test]
     public void 피로로_최고_속도가_깎이면_판정이_달라진다()
     {
         BallState ball = PassBall(out float ballTime);
-        float deadline = ballTime - 0.1f;
         bool differs = false;
         for (float offset = 3f; offset <= 40f; offset += 0.25f)
         {
-            bool fresh = RunRules.RunnerMeetsBall(Runner(PassDistance, offset), 0f, 0f, PassDistance, 0f, ball, deadline);
-            bool tired = RunRules.RunnerMeetsBall(Runner(PassDistance, offset, effort: 0.6f), 0f, 0f, PassDistance, 0f, ball, deadline);
+            bool fresh = RunRules.RunnerMeetsBall(Runner(PassDistance, offset), 0f, 0f, ball, ballTime);
+            bool tired = RunRules.RunnerMeetsBall(Runner(PassDistance, offset, effort: 0.6f), 0f, 0f, ball, ballTime);
             if (fresh != tired) { differs = true; }
         }
         Assert.IsTrue(differs, "Effort가 이동식에 들어간다");
@@ -110,7 +109,8 @@ public class RunRulesTests
     [Test]
     public void 정지한_빠른_러너는_지금은_위험하고_달리면_가능하다()
     {
-        (float now, float run) risks = RunRules.SpotRisks(10f, 0f, 45f, 0f, Average, Allow, OpenDefense(), Winger());
+        // z 4: 공의 선(z 0) 위에 서 있으면 지나가는 공을 그 자리에서 받으므로 런이 아니다. 선에서 비켜 선 러너로 잰다
+        (float now, float run) risks = RunRules.SpotRisks(10f, 0f, 45f, 0f, Average, Allow, OpenDefense(), Winger(z: 4f));
         Assert.Greater(risks.now, Allow, "서 있으면 공이 먼저 지나간다");
         Assert.LessOrEqual(risks.run, Allow, "달리고 있으면 착지점에서 만난다");
     }
@@ -118,7 +118,7 @@ public class RunRulesTests
     [Test]
     public void 이미_달리는_러너는_지금도_가능하다()
     {
-        // RunArrivalMargin(0.1초)보다 훨씬 넉넉한 구간을 잡는다: 달려오는 러너가 닿는 x 범위가 여유 0.1초가 만드는 차이(약 1m)보다 넓다
+        // 달려오는 러너가 지금 상태로도 닿는 출발 위치가 한 점이 아니라 폭으로 있다
         int feasible = 0;
         for (float x = 5f; x <= 30f; x += 0.5f)
         {
@@ -129,24 +129,18 @@ public class RunRulesTests
     }
 
     [Test]
-    public void 옆_20m의_윙어는_Seek_창_밖이라_달려도_공을_못_만난다_현재_한계()
+    public void 공의_선을_비스듬히_가로질러_들어오는_러너도_달리면_착지점_전에_만난다()
     {
-        // 알려진 한계(설계 A1): Seek로 받으면 공과 만나는 창이 좁아, 한참 옆에서 오는 러너는 목표를 일찍 지나치거나 늦게 닿는다.
-        // 이 테스트는 지금의 약점을 잠근다. 수신 방식을 바꿔 이 한계가 풀리면 일부러 이 단언을 뒤집는다
-        foreach (float z in new[] { 20f, -20f })
+        // 11-06 W 침투: 고정 목표점 Seek 때는 공의 선과 크게 교차하는 러너가 만남 창(1~2틱)을 못 맞춰 위험 1이었다.
+        // 추격 수신이면 러너가 공의 선으로 꺾어 들어가 착지점보다 앞에서 만난다. 너무 멀면(z 15) 착지점 전에는 여전히 못 만난다
+        foreach (float z in new[] { 10f, -10f })
         {
-            (float now, float run) risks = RunRules.SpotRisks(10f, 0f, 45f, 0f, Average, Allow, OpenDefense(), Winger(z: z));
-            Assert.AreEqual(1f, risks.run, 1e-5f, $"z={z}: 달려도 만나지 못한다");
+            (float now, float run) risks = RunRules.SpotRisks(10f, 0f, 45f, 0f, Average, Allow, OpenDefense(), Winger(x: 25f, z: z));
+            Assert.Greater(risks.now, Allow, $"z={z}: 서 있으면 못 만난다");
+            Assert.LessOrEqual(risks.run, Allow, $"z={z}: 달리면 만난다");
         }
-    }
-
-    [Test]
-    public void 공이_여유보다_빨리_오면_목표점에_서_있어도_도달_불가다()
-    {
-        // deadline < 0: 공 도착 − 여유가 이미 지났다. 러너가 목표점 위에 있어도 "먼저 자리를 잡고 있어야 한다"를 못 채운다
-        BallState ball = PassBall(out float ballTime);
-        Assert.IsFalse(RunRules.RunnerMeetsBall(Runner(PassDistance, 0f), 0f, 0f, PassDistance, 0f, ball, -0.1f));
-        Assert.IsTrue(RunRules.RunnerMeetsBall(Runner(PassDistance, 0f), 0f, 0f, PassDistance, 0f, ball, ballTime - 0.1f), "같은 러너가 여유 안이면 받는다(대조)");
+        (float now, float run) far = RunRules.SpotRisks(10f, 0f, 45f, 0f, Average, Allow, OpenDefense(), Winger(x: 25f, z: 15f));
+        Assert.AreEqual(1f, far.run, 1e-5f, "z 15는 착지점 전에 못 만난다");
     }
 
     [Test]
@@ -159,7 +153,7 @@ public class RunRulesTests
 
         var frozen = new RunCandidate(2, 15f, 0f, 0f, 0f, 0f, RunRules.StyleBehind);
         BallState ball = PassBall(out float ballTime);
-        Assert.IsFalse(RunRules.RunnerMeetsBall(frozen, 0f, 0f, PassDistance, 0f, ball, ballTime));
+        Assert.IsFalse(RunRules.RunnerMeetsBall(frozen, 0f, 0f, ball, ballTime));
         (float now, float run) stuck = RunRules.SpotRisks(10f, 0f, 45f, 0f, Average, Allow, OpenDefense(), frozen);
         Assert.AreEqual(1f, stuck.now, 1e-5f);
         Assert.AreEqual(1f, stuck.run, 1e-5f);
@@ -168,7 +162,7 @@ public class RunRulesTests
     [Test]
     public void 느린_러너는_달려도_공을_못_따라가_위험_1이다()
     {
-        var slow = new RunCandidate(2, 15f, 0f, 0f, 0f, 5f, RunRules.StyleBehind);
+        var slow = new RunCandidate(2, 15f, 4f, 0f, 0f, 5f, RunRules.StyleBehind);
         (float now, float run) risks = RunRules.SpotRisks(10f, 0f, 45f, 0f, Average, Allow, OpenDefense(), slow);
         Assert.AreEqual(1f, risks.run, 1e-5f);
         Assert.AreEqual(1f, risks.now, 1e-5f);
@@ -187,7 +181,7 @@ public class RunRulesTests
     [Test]
     public void 뒤공간_러너는_수비_라인_뒤_목표를_받고_위험은_지금_값이다()
     {
-        RunOffer offer = Find(OpenDefense(), Winger());
+        RunOffer offer = Find(OpenDefense(), Winger(z: 4f));   // 공의 선 위(z 0)는 런 없이 받는다. 비켜 선 러너
         Assert.AreEqual(1, offer.RunnerId);
         Assert.GreaterOrEqual(offer.X, 30f - MatchTuning.RunBehindMargin, "목표는 수비 라인(공 제외) 근처·너머");
         Assert.Greater(offer.Risk, Allow, "시작 조건: 지금은 허용치 밖");
