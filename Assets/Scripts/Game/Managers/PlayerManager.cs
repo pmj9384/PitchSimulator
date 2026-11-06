@@ -1,11 +1,11 @@
 using System;
 using System.Collections.Generic;
-using Game.Core.Data;
 using Game.Core.Match;
 using UnityEngine;
 using UnityEngine.Pool;
 
-// 선수의 수명 관리자. 선수 번호 발급·풀 대여/반환·팀별 명부. 이 세 가지가 전부다.
+// 선수 뷰의 수명 관리자. 풀 대여/반환·팀별 명부. 이 두 가지가 전부다.
+// 경기 상태(PlayerState·선수 번호)는 시뮬 조립(MyMatchAssembler)이 만든다. 여기는 이미 있는 상태에 몸을 붙일 뿐 상태를 만들거나 등록하지 않는다(11-06 S4-1).
 // 경기 진행은 MatchManager, 편성은 StageManager 몫. 여기는 "누가 필드에 있는가"의 명부만 안다.
 // 프리팹은 한 종류(Quaternius 모듈러 몸, 10-21). 겉모습 차이 = 머리 메시 하나 + 머티리얼(유니폼 KitRules, 피부·머리색 PortraitRules). 색은 PlayerPalette
 public class PlayerManager : InGameManager
@@ -16,31 +16,25 @@ public class PlayerManager : InGameManager
     private ObjectPool<GameObject> pool;
     private readonly List<PlayerController>[] rosters = { new List<PlayerController>(), new List<PlayerController>() };
     private readonly Dictionary<int, PlayerController> byId = new Dictionary<int, PlayerController>();
-    private int nextPlayerId;     // 스폰 순서로 발급하는 선수 번호. 타이브레이크 기준(GetInstanceID 금지)
     private readonly Dictionary<string, Material> looks = new Dictionary<string, Material>();   // "kit:3"·"skin:1"·"hair:4"·"boots" → 머티리얼. 색마다 1개를 22명이 공유
 
-    // attackHome = 아군 소유 때 자리(킥오프 위치이기도 하다), defendHome = 상대 소유 때 자리(스펙 §4-3 자리 2쌍)
-    // stats는 호출자가 준다: 시즌 로스터·부 총점으로 축소한 상대 빌드는 PlayerTable에 없는 사본이라 variantId 조회로는 못 세운다
+    // state = 시뮬에 이미 들어 있는 선수(MatchManager.Simulation.Players). 컨트롤러는 그 값을 비추는 뷰
     // portrait = 머리 번호(LineupSlot.Portrait), kit = 유니폼 번호(MatchSetup.Kit0/Kit1)
-    public PlayerController Spawn(PlayerStats stats, int team, Vector3 attackHome, Vector3 defendHome, int portrait, int kit)
+    public PlayerController Spawn(PlayerState state, int portrait, int kit)
     {
-        if (stats == null)
+        if (state == null)
         {
             // 풀에서 빌리기 전에 막는다. 빌린 뒤 터지면 몸이 반환되지 않고 NRE로 데이터 오류가 가려진다
-            throw new InvalidOperationException("[PlayerManager] stats가 null이다");
+            throw new InvalidOperationException("[PlayerManager] state가 null이다");
         }
 
         GameObject body = Pool().Get();
-
-        // 경기 상태는 순수 PlayerState가 갖고 시뮬(MatchManager)에 등록한다. 컨트롤러는 그 값을 비추는 뷰
-        var state = new PlayerState(nextPlayerId++, team, stats, attackHome.x, attackHome.z, defendHome.x, defendHome.z);
-        GameManager.Match.Register(state);
 
         PlayerController player = body.GetComponent<PlayerController>();
         player.Setup(state);
         ApplyLook(body, portrait, kit);
 
-        rosters[team].Add(player);
+        rosters[state.Team].Add(player);
         byId[player.PlayerId] = player;
         return player;
     }
@@ -130,7 +124,6 @@ public class PlayerManager : InGameManager
         rosters[0].Clear();
         rosters[1].Clear();
         byId.Clear();
-        nextPlayerId = 0;
         // new Material은 씬이 내려가도 안 사라진다(에셋 취급). 만든 쪽이 지운다
         foreach (Material material in looks.Values) { Destroy(material); }
         looks.Clear();
