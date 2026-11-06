@@ -168,6 +168,7 @@ namespace Game.Core.Match
         public const float MarkDistance = 1.5f;        // 마커가 서는 자리 = 상대에서 우리 골 중심 쪽으로 이 거리. 출발값 2(StatsBomb PL 15/16 블록 지점 중앙값 2.3~3m)는 반응 지연 몫만큼 늦어 압박 판정(PressedRadius 2m) 밖에 서서 압박 슛 28%였다. 11-06 quick 격자 {1.5, 2, 3}: 1.5에서 압박 슛 59%·슛 선 15m 안 수비 54%·블록 13% [가정 G1]
         public const int MaxMarkers = 2;               // 팀당 동시에 마크하는 인원 상한. 압박 1 + 마크 2 = 수비 3명이 사람을 보고 나머지는 지역. 11-06 격자 {2, 3}: 3은 압박 슛 55%·슛 선 50%로 2보다 나아지지 않고 슛만 늘었다(271 대 262/판) [가정 G1]
         public const float MarkReactionSpread = 0.5f;  // 마커 반응 지연의 positioning 폭: 50 = ReactionTime, 0·100 = ReactionTime × (1 ± 이 값) [가정 G1]
+        public const float MarkTargetMargin = 2f;      // 마크 대상 히스테리시스: 직전 틱 대상은 골 거리를 이만큼 짧게 쳐서 상한 경계에서 틱마다 교대하지 않게. 추격자 여유(ChaserSwitchMargin)와 같은 값 [가정]
 
         public const int MaxPressers = 1;                                       // 팀에서 동시에 압박(⑧)하는 인원 상한. 압박 거리 안인 선수를 공 거리순으로 세어 이 안만 간다(09-23 Play: 인원 제한이 없어 우리 진영 "적극"이면 CM 19.5m·FB/W/ST 12m 안 4~6명이 한꺼번에 달려들어 초등학교 경기처럼 뭉쳤다). Simple Soccer는 최근접 1명만 쫓고 FM도 1명 압박 + 커버. 러너에서 태클이 죽으면 2
     }

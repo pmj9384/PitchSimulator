@@ -5,7 +5,8 @@ using Game.Core.Placement;
 using NUnit.Framework;
 
 // MarkRules 검증(11-06 S3 ①). ①발동 = 공이 우리 골 중심 40m 안 ②대상 = 골에 가까운 상대 필드 선수(소유자·GK 제외) 상한까지
-// ③배정 = 대상마다 가장 가까운 마커, 동률 id, 히스테리시스 ④마크 지점 = 상대의 골 쪽 2m(반응 지연만큼 지난 자리 기준) ⑤반응 지연 = positioning
+// ③배정 = 대상마다 가장 가까운 마커, 동률 id, 히스테리시스(대상·마커 둘 다) ④마크 지점 = 상대의 골 쪽 MarkDistance(1.5m, 반응 지연만큼 지난 자리 기준, 실제 상대보다 공 쪽으로는 안 감)
+// ⑤반응 지연 = positioning ⑥패스 비행 중 리시버는 도착점 기준(선정·배정·지점 모두) ⑦교대 계측. 순수 함수 테스트의 거리 인자는 읽기 쉽게 2m를 직접 준다
 // 팀 0 기준(attackSign +1): 우리 골은 x = −52.5
 public class MarkRulesTests
 {
@@ -37,7 +38,7 @@ public class MarkRulesTests
             new TargetInfo(10, OwnGoalX + 15f, 0f),   // 15m, 13번과 동률 → id 작은 10번이 앞
         };
         var result = new List<TargetInfo>();
-        MarkRules.SelectTargets(opponents, ownerId: 12, keeperId: 14, Sign, max: 3, result);
+        MarkRules.SelectTargets(opponents, ownerId: 12, keeperId: 14, Sign, max: 3, System.Array.Empty<MarkAssignment>(), 2f, result);
 
         Assert.AreEqual(3, result.Count);
         Assert.AreEqual(10, result[0].PlayerId);
@@ -125,6 +126,94 @@ public class MarkRulesTests
         Assert.Less(MarkRules.ReactionDelay(80), MarkRules.ReactionDelay(40), "단조");
     }
 
+    [Test]
+    public void 직전_대상은_골_거리_여유를_받아_상한_경계에서_틱마다_교대하지_않는다()
+    {
+        // 상한 2명, 골 거리가 비슷한 3명. 직전 대상은 10번(15m)·11번(15.5m). 12번이 15m ± 0.4로 앞뒤로 흔들린다
+        var previous = new List<MarkAssignment> { new MarkAssignment(1, 10), new MarkAssignment(2, 11) };
+        var fresh = new List<TargetInfo>();
+        var result = new List<TargetInfo>();
+        for (int tick = 0; tick < 10; tick++)
+        {
+            float wobble = tick % 2 == 0 ? -0.4f : 0.4f;
+            List<TargetInfo> opponents = Wobbling(wobble);
+            MarkRules.SelectTargets(opponents, -1, -1, Sign, 2, previous, 2f, result);
+            Assert.IsFalse(Contains(result, 12), $"{tick}틱: 여유 2m 안이라 흔들리는 12번이 들어오지 않는다");
+            Assert.IsTrue(Contains(result, 10) && Contains(result, 11), $"{tick}틱: 대상 그대로");
+
+            MarkRules.SelectTargets(opponents, -1, -1, Sign, 2, System.Array.Empty<MarkAssignment>(), 2f, fresh);
+            if (tick % 2 == 0) { Assert.IsTrue(Contains(fresh, 12), "대조: 여유가 없으면 14.6m인 틱에 12번이 11번을 밀어낸다"); }
+        }
+
+        // 여유를 넘게 가까워지면(11번 순위 거리 13.5m보다 안쪽) 들어온다
+        var closer = new List<TargetInfo> { new TargetInfo(10, OwnGoalX + 15f, 0f), new TargetInfo(11, OwnGoalX + 15.5f, 0f), new TargetInfo(12, OwnGoalX + 12f, 1f) };
+        MarkRules.SelectTargets(closer, -1, -1, Sign, 2, previous, 2f, result);
+        Assert.AreEqual(12, result[0].PlayerId, "여유 넘게 가까우면 대상에 든다");
+    }
+
+    private static List<TargetInfo> Wobbling(float wobble)
+    {
+        return new List<TargetInfo>
+        {
+            new TargetInfo(10, OwnGoalX + 15f, 0f),
+            new TargetInfo(11, OwnGoalX + 15.5f, 0f),
+            new TargetInfo(12, OwnGoalX + 15f + wobble, 1f),
+        };
+    }
+
+    private static bool Contains(List<TargetInfo> targets, int playerId)
+    {
+        for (int i = 0; i < targets.Count; i++)
+        {
+            if (targets[i].PlayerId == playerId) { return true; }
+        }
+        return false;
+    }
+
+    [Test]
+    public void 리시버는_패스_도착점에_두고_나머지는_그대로_복사한다()
+    {
+        var opponents = new[] { new TargetInfo(10, 5f, 1f), new TargetInfo(11, -30f, 4f) };
+        var result = new List<TargetInfo>();
+        MarkRules.WithReceiverAt(opponents, receiverId: 11, landingX: -45f, landingZ: 2f, result);
+        Assert.AreEqual(2, result.Count);
+        Assert.AreEqual(5f, result[0].X, 1e-6f);
+        Assert.AreEqual(-45f, result[1].X, 1e-6f, "리시버는 도착점");
+        Assert.AreEqual(2f, result[1].Z, 1e-6f);
+    }
+
+    [Test]
+    public void 교대_수는_직전_틱에_없던_쌍이고_막_발동한_틱은_0이다()
+    {
+        var previous = new[] { new MarkAssignment(1, 20), new MarkAssignment(2, 21) };
+        var same = new[] { new MarkAssignment(1, 20), new MarkAssignment(2, 21) };
+        var swapped = new[] { new MarkAssignment(2, 20), new MarkAssignment(3, 22) };
+        Assert.AreEqual(0, MarkRules.NewPairs(previous, same));
+        Assert.AreEqual(2, MarkRules.NewPairs(previous, swapped), "마커가 바뀐 20번 + 새 대상 22번");
+        Assert.AreEqual(0, MarkRules.NewPairs(System.Array.Empty<MarkAssignment>(), swapped), "막 발동");
+    }
+
+    [Test]
+    public void 골_쪽으로_달리는_상대의_마크_지점은_실제_상대보다_공_쪽으로_넘어가지_않는다()
+    {
+        // 상대가 골 + 20에서 골 쪽(−X)으로 6m/s, 지연 0.5초 → 본 자리 골 + 23. 거기서 1.5m만 가면 골 + 21.5로 상대보다 공 쪽이 된다.
+        // 본 자리가 3m 뒤라 3m를 가서 상대와 나란히(골 + 20) 선다
+        (float x, float z) run = MarkRules.MarkPoint(OwnGoalX + 20f, 0f, -6f, 0f, 0.5f, Sign, 1.5f);
+        Assert.AreEqual(OwnGoalX + 20f, run.x, 1e-4f);
+        Assert.LessOrEqual(run.x - OwnGoalX, 20f + 1e-4f, "실제 상대의 골 쪽(또는 나란히)");
+
+        // 비스듬히 달려도 같다: (골 + 20, 10)에서 골 쪽으로 6m/s → 마크 지점의 골 거리 ≤ 상대의 골 거리
+        float speed = 6f;
+        float len = (float)System.Math.Sqrt(20f * 20f + 10f * 10f);
+        (float x, float z) diag = MarkRules.MarkPoint(OwnGoalX + 20f, 10f, -speed * 20f / len, -speed * 10f / len, 0.5f, Sign, 1.5f);
+        float diagDist = (float)System.Math.Sqrt((diag.x - OwnGoalX) * (diag.x - OwnGoalX) + diag.z * diag.z);
+        Assert.LessOrEqual(diagDist, len + 1e-3f);
+
+        // 지연이 짧아 본 자리가 1.5m 안쪽 뒤면 평소대로 본 자리에서 1.5m: 0.2초 → 본 자리 골 + 21.2 → 골 + 19.7
+        (float x, float z) small = MarkRules.MarkPoint(OwnGoalX + 20f, 0f, -6f, 0f, 0.2f, Sign, 1.5f);
+        Assert.AreEqual(OwnGoalX + 19.7f, small.x, 1e-4f);
+    }
+
     private static PlayerStats Defender(int positioning)
     {
         return new PlayerStats { RoleId = "CB", VariantId = "cb_test", Speed = 50, PressRange = 6f, ShotBias = 1f, PassLength = 20f, Positioning = positioning };
@@ -152,7 +241,7 @@ public class MarkRulesTests
         Assert.IsFalse(presser.IsMarker, "압박자는 마커가 아니다");
         Assert.IsTrue(marker.IsMarker);
         (float x, float z) expected = MarkRules.MarkPoint(OwnGoalX + 12f, 6f, 0f, 0f, MarkRules.ReactionDelay(50), Sign, MatchTuning.MarkDistance);
-        Assert.AreEqual(expected.x, marker.MarkX, 1e-3f, "리시버의 골 쪽 2m");
+        Assert.AreEqual(expected.x, marker.MarkX, 1e-3f, "리시버의 골 쪽 MarkDistance(1.5m)");
         Assert.AreEqual(expected.z, marker.MarkZ, 1e-3f);
 
         var far = new MatchSimulation(() => 0.99f, new PassFlightTestsHelper.NoOp(), TestThreat.Real);
@@ -163,5 +252,35 @@ public class MarkRulesTests
         far.Ball = BallRules.Own(far.Ball, 2, OwnGoalX + 45f, 0f);
         far.Tick(Dt);
         Assert.IsFalse(idle.IsMarker, "공이 골에서 45m면 마크 안 함");
+    }
+    [Test]
+    public void 상대_패스가_날아가는_중이면_리시버를_도착점_기준으로_고르고_그_골_쪽에_선다()
+    {
+        // 팀 1 패서가 우리 골에서 38m(발동 구역 안), 리시버는 측면 (골 + 30, 30) = 42.4m(지금 자리는 사거리 밖). 리드 패스 도착점은 리시버 앞(골 쪽)이라 40m 안
+        var sim = new MatchSimulation(() => 0.99f, new PassFlightTestsHelper.PassOnce(2, 3), TestThreat.Real);
+        PlayerState marker = sim.AddPlayer(new PlayerState(1, 0, Defender(50), OwnGoalX + 20f, 20f));
+        PlayerState passer = sim.AddPlayer(new PlayerState(2, 1, Attacker(), OwnGoalX + 38f, 0f));
+        PlayerState receiver = sim.AddPlayer(new PlayerState(3, 1, Attacker(), OwnGoalX + 30f, 30f));
+        sim.Kickoff();
+        sim.Ball = BallRules.Own(sim.Ball, 2, OwnGoalX + 38f, 0f);
+        sim.Tick(Dt);   // 패서가 찬다
+        Assert.AreEqual(1, sim.PassCount, "패스가 나갔다");
+        sim.Tick(Dt);   // 비행 중 스냅샷
+
+        Assert.IsTrue(receiver.IsPassTarget);
+        float landingX = receiver.PassTargetX;
+        float landingZ = receiver.PassTargetZ;
+        Assert.LessOrEqual(MathDistance(landingX - OwnGoalX, landingZ), MatchTuning.MaxShotRange, "전제: 도착점은 사거리 안");
+        Assert.Greater(MathDistance(receiver.X - OwnGoalX, receiver.Z), MatchTuning.MaxShotRange, "전제: 리시버 지금 자리는 사거리 밖");
+        Assert.IsTrue(marker.IsMarker, "도착점 기준이라 지금 대상이다");
+        (float x, float z) expected = MarkRules.MarkPoint(landingX, landingZ, 0f, 0f, 0f, Sign, MatchTuning.MarkDistance);
+        Assert.AreEqual(expected.x, marker.MarkX, 1e-3f, "도착점의 골 쪽");
+        Assert.AreEqual(expected.z, marker.MarkZ, 1e-3f);
+        Assert.IsFalse(passer.IsMarker);
+    }
+
+    private static float MathDistance(float dx, float dz)
+    {
+        return (float)System.Math.Sqrt(dx * dx + dz * dz);
     }
 }

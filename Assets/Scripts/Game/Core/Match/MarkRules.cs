@@ -31,8 +31,10 @@ namespace Game.Core.Match
         }
 
         // 마크 대상: 상대 필드 선수 중 우리 골 중심에서 MaxShotRange 안인 선수를 골에 가까운 순으로 max명까지.
-        // 공을 가진 선수(압박 몫)와 상대 GK는 뺀다. 날아가는 패스의 리시버는 소유자가 아니라 대상에 들어간다(착지 전 마크)
-        public static void SelectTargets(IReadOnlyList<TargetInfo> opponents, int ownerId, int keeperId, int attackSign, int max, List<TargetInfo> result)
+        // 공을 가진 선수(압박 몫)와 상대 GK는 뺀다. 날아가는 패스의 리시버는 소유자가 아니라 대상에 들어간다(착지 전 마크, 위치는 WithReceiverAt)
+        // 히스테리시스: 직전 틱 대상(previous)은 골 거리를 margin만큼 짧게 쳐서 순서를 매긴다. 골 거리가 비슷한 3명이 상한 2명 경계에서
+        // 틱마다 들고 나지 않게 한다(배정 Assign의 마커 여유와 같은 꼴). 사거리(40m) 판정은 실제 거리 그대로다
+        public static void SelectTargets(IReadOnlyList<TargetInfo> opponents, int ownerId, int keeperId, int attackSign, int max, IReadOnlyList<MarkAssignment> previous, float margin, List<TargetInfo> result)
         {
             result.Clear();
             for (int i = 0; i < opponents.Count; i++)
@@ -40,9 +42,26 @@ namespace Game.Core.Match
                 TargetInfo o = opponents[i];
                 if (o.PlayerId == ownerId || o.PlayerId == keeperId) { continue; }
                 if (DistanceToOwnGoal(o.X, o.Z, attackSign) > MatchTuning.MaxShotRange) { continue; }
-                InsertByGoalDistance(result, o, attackSign);
+                InsertByGoalDistance(result, o, attackSign, previous, margin);
             }
             if (result.Count > max) { result.RemoveRange(max, result.Count - max); }
+        }
+
+        // 상대 명부를 result에 복사하되 날아오는 패스의 리시버는 그 패스의 도착점에 둔다. 대상 선정·배정·마크 지점이 같은 점을 본다:
+        // 선정만 지금 자리로 보면 40m 밖에서 달려드는 리시버가 착지 직전까지 대상에서 빠졌다(11-06 리뷰)
+        public static void WithReceiverAt(IReadOnlyList<TargetInfo> opponents, int receiverId, float landingX, float landingZ, List<TargetInfo> result)
+        {
+            result.Clear();
+            for (int i = 0; i < opponents.Count; i++)
+            {
+                TargetInfo o = opponents[i];
+                if (o.PlayerId == receiverId)
+                {
+                    result.Add(new TargetInfo(o.PlayerId, landingX, landingZ));
+                    continue;
+                }
+                result.Add(o);
+            }
         }
 
         // 배정: 대상 순서(골에 가까운 순)대로, 아직 안 맡은 마커 후보 중 대상에게 가장 가까운 1명을 붙인다.
@@ -79,7 +98,9 @@ namespace Game.Core.Match
         }
 
         // 마크 지점: 상대가 delay초 전에 있던 자리(지금 위치 − 속도 × delay)에서 우리 골 중심 쪽으로 distance.
-        // 반응이 늦은 마커일수록 달리는 상대의 뒤를 본다(지연된 지각). 골까지가 distance보다 가까우면 골 중심에 선다. 필드 안으로 자른다
+        // 반응이 늦은 마커일수록 달리는 상대의 뒤를 본다(지연된 지각). 다만 본 자리가 실제 상대보다 골에서 멀면(골 쪽으로 달리는 상대) 그 차이만큼 더 골 쪽으로 가서,
+        // 마크 지점이 실제 상대보다 공 쪽으로 넘어가지 않게 한다(골 쪽 선 전제. 늦은 마커는 상대 옆까지만 따라붙는다, 11-06 리뷰).
+        // 골까지가 그보다 가까우면 골 중심에 선다(이때 GK 자리와 겹칠 수 있다. 골 중심 1.5m 안 상대는 드물어 따로 비키지 않는다). 필드 안으로 자른다
         public static (float x, float z) MarkPoint(float targetX, float targetZ, float targetVelX, float targetVelZ, float delay, int attackSign, float distance)
         {
             float seenX = targetX - targetVelX * delay;
@@ -88,15 +109,30 @@ namespace Game.Core.Match
             float dx = goalX - seenX;
             float dz = -seenZ;
             float len = (float)System.Math.Sqrt(dx * dx + dz * dz);
-            if (len <= distance) { return (goalX, 0f); }
+            float behind = len - DistanceToOwnGoal(targetX, targetZ, attackSign);
+            float advance = System.Math.Max(distance, behind);
+            if (len <= advance) { return (goalX, 0f); }
 
-            float x = seenX + dx / len * distance;
-            float z = seenZ + dz / len * distance;
+            float x = seenX + dx / len * advance;
+            float z = seenZ + dz / len * advance;
             float limitX = Placement.FieldBounds.HalfLength - Placement.FieldBounds.EdgeMargin;
             float limitZ = Placement.FieldBounds.HalfWidth - Placement.FieldBounds.EdgeMargin;
             float clampedX = System.Math.Max(-limitX, System.Math.Min(limitX, x));
             float clampedZ = System.Math.Max(-limitZ, System.Math.Min(limitZ, z));
             return (clampedX, clampedZ);
+        }
+
+        // 계측: 이번 배정에서 직전 틱에 없던 (마커, 대상) 쌍의 수. 직전 틱이 비었으면(막 발동) 0. 러너가 "마커 교대"로 센다
+        public static int NewPairs(IReadOnlyList<MarkAssignment> previous, IReadOnlyList<MarkAssignment> current)
+        {
+            if (previous.Count == 0) { return 0; }
+
+            int count = 0;
+            for (int i = 0; i < current.Count; i++)
+            {
+                if (PreviousMarkerOf(previous, current[i].TargetId) != current[i].MarkerId) { count++; }
+            }
+            return count;
         }
 
         // 우리 골 중심까지 거리. attackSign은 "우리 팀"의 공격 방향이라 우리 골은 그 반대쪽 골라인이다
@@ -106,14 +142,14 @@ namespace Game.Core.Match
             return (float)System.Math.Sqrt(dx * dx + z * z);
         }
 
-        // 골에 가까운 순으로 끼워 넣는다. 동률은 PlayerId 작은 쪽이 앞(목록 순서에 기대지 않는다)
-        private static void InsertByGoalDistance(List<TargetInfo> sorted, TargetInfo item, int attackSign)
+        // 골에 가까운 순으로 끼워 넣는다(직전 틱 대상은 margin만큼 가깝게). 동률은 PlayerId 작은 쪽이 앞(목록 순서에 기대지 않는다)
+        private static void InsertByGoalDistance(List<TargetInfo> sorted, TargetInfo item, int attackSign, IReadOnlyList<MarkAssignment> previous, float margin)
         {
-            float d = DistanceToOwnGoal(item.X, item.Z, attackSign);
+            float d = RankedGoalDistance(item, attackSign, previous, margin);
             int at = sorted.Count;
             for (int i = 0; i < sorted.Count; i++)
             {
-                float other = DistanceToOwnGoal(sorted[i].X, sorted[i].Z, attackSign);
+                float other = RankedGoalDistance(sorted[i], attackSign, previous, margin);
                 if (d < other || (d == other && item.PlayerId < sorted[i].PlayerId))
                 {
                     at = i;
@@ -121,6 +157,13 @@ namespace Game.Core.Match
                 }
             }
             sorted.Insert(at, item);
+        }
+
+        private static float RankedGoalDistance(TargetInfo t, int attackSign, IReadOnlyList<MarkAssignment> previous, float margin)
+        {
+            float d = DistanceToOwnGoal(t.X, t.Z, attackSign);
+            if (PreviousMarkerOf(previous, t.PlayerId) == -1) { return d; }
+            return System.Math.Max(0f, d - margin);
         }
 
         private static int PreviousMarkerOf(IReadOnlyList<MarkAssignment> previous, int targetId)
