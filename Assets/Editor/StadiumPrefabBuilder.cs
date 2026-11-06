@@ -33,7 +33,7 @@ public static class StadiumPrefabBuilder
     private const float ScoreboardLift = 3f;        // [가정] 놓인 바닥(스탠드 윗면 또는 지면) 위 높이
     private const float AdBoardHeight = 1f;         // [가정]
     private const float AdBoardThickness = 0.2f;    // [가정]
-    private const float AdBoardGap = 0.3f;          // [가정] 광고판이 런오프 바깥 끝에서 안쪽으로 들어온 거리
+    private const float AdBoardRunoffFraction = 0.75f; // [가정] 광고판 자리 = 선에서 런오프의 이 비율. 벤치(런오프 절반)와 관중석 벽 사이
     private const float BenchLength = 4f;           // [가정]
     private const float BenchSeatHeight = 0.45f;    // [가정]
     private const float BenchDepth = 0.6f;          // [가정]
@@ -60,6 +60,7 @@ public static class StadiumPrefabBuilder
 
         List<StadiumSpec> specs = StadiumSpecParser.Parse(File.ReadAllText(CsvPath));
         GrassWearBuilder.Build(specs);   // 잔디 머티리얼 4개(부별 _Wear)를 먼저 최신으로
+        CrowdAtlasBuilder.Build();       // 관중 아틀라스·머티리얼도 먼저 최신으로
         Dictionary<Paint, Material> paints = LoadPaints();
         Directory.CreateDirectory(OutputFolder);
         for (int i = 0; i < specs.Count; i++)
@@ -88,6 +89,7 @@ public static class StadiumPrefabBuilder
         BuildScoreboards(root.transform, spec, paints);
         BuildAdBoards(root.transform, spec, paints);
         BuildBenches(root.transform, spec, paints);
+        BuildCrowd(root);
 
         string path = PrefabPathOf(spec.Id);
         PrefabUtility.SaveAsPrefabAsset(root, path);
@@ -186,13 +188,13 @@ public static class StadiumPrefabBuilder
         }
     }
 
-    // 광고판: 런오프 바깥 끝 안쪽에 길게 1개씩
+    // 광고판: 선과 관중석 벽 사이에 길게 1개씩. 11-06 유저 Play: 런오프 끝(벽에서 0.1m)에 두었더니 기단 벽과 겹쳐 안 보였다
     private static void BuildAdBoards(Transform root, StadiumSpec spec, Dictionary<Paint, Material> paints)
     {
         if (spec.AdBoards.Count == 0) { return; }
 
         Transform parent = NewChild(root, "AdBoards");
-        float offset = spec.Runoff - AdBoardGap;
+        float offset = spec.Runoff * AdBoardRunoffFraction;
         for (int i = 0; i < spec.AdBoards.Count; i++)
         {
             StandSide side = spec.AdBoards[i];
@@ -214,6 +216,15 @@ public static class StadiumPrefabBuilder
                 Cube(parent, $"Dugout{i}", new Vector3(x, DugoutRoofHeight, z), new Vector3(BenchLength + DugoutOverhang, DugoutRoofThickness, BenchDepth * DugoutDepthScale), paints[Paint.Light]);
             }
         }
+    }
+
+    // 관중 컴포넌트. 메시는 만들지 않는다: 좌석 슬롯은 런타임에 StadiumLayout이 내고 Init(StageManager)이 행렬로 굳힌다. 머티리얼만 이어 둔다
+    private static void BuildCrowd(GameObject root)
+    {
+        var crowd = root.AddComponent<CrowdRenderer>();
+        var serialized = new SerializedObject(crowd);
+        serialized.FindProperty("sourceMaterial").objectReferenceValue = AssetDatabase.LoadAssetAtPath<Material>(CrowdAtlasBuilder.MaterialPath);
+        serialized.ApplyModifiedPropertiesWithoutUndo();
     }
 
     // 면마다 부모 하나(면 단위 컬링·분리 유지). 없으면 만든다

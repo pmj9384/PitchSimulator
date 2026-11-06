@@ -59,6 +59,23 @@ public class StageManager : InGameManager
             return;
         }
         stadium = Instantiate(prefab);
+        InitCrowd(stadium, id, tier);
+    }
+
+    // 관중 채움 시드 = (시즌 시드, 경기장 부, 홈 팀 id)라 같은 시즌·같은 홈 팀이면 재시작해도 빈자리가 같다. 홈 색 = 일정상 홈 팀의 유니폼
+    private void InitCrowd(GameObject instance, string stadiumId, int tier)
+    {
+        var crowd = instance.GetComponent<CrowdRenderer>();
+        if (crowd == null)
+        {
+            Debug.LogError($"[Stage] 경기장 프리팹 {stadiumId}에 CrowdRenderer가 없다. Tools/Pitch/경기장 프리팹 만들기를 실행한다");
+            return;
+        }
+
+        int seasonSeed = GameDataManager.Instance.Season.State.SeasonSeed;
+        uint fillSeed = StadiumRules.FillSeed(seasonSeed, tier, current.Fixture.HomeTeamId);
+        int homeKit = current.MyTeamIsHome ? current.Kit0 : current.Kit1;
+        crowd.Init(StadiumSpecRepository.Get(stadiumId), fillSeed, PlayerPalette.Kit(homeKit));
     }
 
     private void Spawn(IReadOnlyList<LineupSlot> slots, int team, int kit)
