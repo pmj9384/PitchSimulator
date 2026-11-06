@@ -33,7 +33,7 @@ public static class StadiumPrefabBuilder
     private const float ScoreboardLift = 3f;        // [가정] 놓인 바닥(스탠드 윗면 또는 지면) 위 높이
     private const float AdBoardHeight = 1f;         // [가정]
     private const float AdBoardThickness = 0.2f;    // [가정]
-    private const float AdBoardGap = 0.3f;          // [가정] 광고판이 런오프 바깥 끝에서 안쪽으로 들어온 거리
+    private const float AdBoardRunoffFraction = 0.75f; // [가정] 광고판 자리 = 선에서 런오프의 이 비율. 벤치(런오프 절반)와 관중석 벽 사이
     private const float BenchLength = 4f;           // [가정]
     private const float BenchSeatHeight = 0.45f;    // [가정]
     private const float BenchDepth = 0.6f;          // [가정]
@@ -188,13 +188,13 @@ public static class StadiumPrefabBuilder
         }
     }
 
-    // 광고판: 런오프 바깥 끝 안쪽에 길게 1개씩
+    // 광고판: 선과 관중석 벽 사이에 길게 1개씩. 11-06 유저 Play: 런오프 끝(벽에서 0.1m)에 두었더니 기단 벽과 겹쳐 안 보였다
     private static void BuildAdBoards(Transform root, StadiumSpec spec, Dictionary<Paint, Material> paints)
     {
         if (spec.AdBoards.Count == 0) { return; }
 
         Transform parent = NewChild(root, "AdBoards");
-        float offset = spec.Runoff - AdBoardGap;
+        float offset = spec.Runoff * AdBoardRunoffFraction;
         for (int i = 0; i < spec.AdBoards.Count; i++)
         {
             StandSide side = spec.AdBoards[i];

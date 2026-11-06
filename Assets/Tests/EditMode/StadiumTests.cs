@@ -62,11 +62,11 @@ public class StadiumTests
     [Test]
     public void 좌석_수는_면마다_단_수_곱하기_선_길이와_런오프를_좌석_간격으로_나눈_값이다()
     {
-        // 4부 888 · 3부 2,712 · 2부 6,160 · 1부 11,820(설계 §1 약 900·2,800·6,300·13,600. 1부 차이는 코너 관중석이 아직 없어서)
+        // 4부 888 · 3부 2,688 · 2부 7,560 · 1부 11,460(설계 §1 약 900·2,800·6,300·13,600. 11-06 런오프 축소·2부 4면 뒤. 1부 차이는 코너 관중석이 없어서)
         List<StadiumSpec> specs = Real();
-        Assert.AreEqual(11820, StadiumLayout.Seats(specs[0]).Count, "1부");
-        Assert.AreEqual(6160, StadiumLayout.Seats(specs[1]).Count, "2부");
-        Assert.AreEqual(2712, StadiumLayout.Seats(specs[2]).Count, "3부");
+        Assert.AreEqual(11460, StadiumLayout.Seats(specs[0]).Count, "1부");
+        Assert.AreEqual(7560, StadiumLayout.Seats(specs[1]).Count, "2부");
+        Assert.AreEqual(2688, StadiumLayout.Seats(specs[2]).Count, "3부");
         Assert.AreEqual(888, StadiumLayout.Seats(specs[3]).Count, "4부");
     }
 
