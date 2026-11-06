@@ -343,8 +343,10 @@ public class PassFlightTests
         PlayerStats presser = Mid(); presser.PressRange = 20f;
         sim.AddPlayer(new PlayerState(0, 1, Mid(), 0f, 0f));                            // 상대 소유자
         PlayerState first = sim.AddPlayer(new PlayerState(1, 0, presser, -5f, 0f));     // 5m: 첫 압박자
-        PlayerState second = sim.AddPlayer(new PlayerState(2, 0, presser, -10f, 0f));   // 10m: 압박 거리 안이지만 순위 2
-        PlayerState third = sim.AddPlayer(new PlayerState(3, 0, presser, -15f, 0f));    // 15m: 순위 3
+        // 수비 자리 = 스폰 자리가 되게 기본 상향(DefenseBaseLift, 11-06 F3)만큼 뒤를 홈으로 준다. 이 테스트는 "압박 순위 밖은 자리를 지킨다"만 본다
+        float lift = MatchTuning.DefenseBaseLift;
+        PlayerState second = sim.AddPlayer(new PlayerState(2, 0, presser, -10f, 0f, -10f - lift, 0f));   // 10m: 압박 거리 안이지만 순위 2
+        PlayerState third = sim.AddPlayer(new PlayerState(3, 0, presser, -15f, 0f, -15f - lift, 0f));    // 15m: 순위 3
         sim.SetTactics(0, new TeamTactics { PassRisk = new[] { 1, 1, 1 }, PressStart = new[] { 1, 1, 1 }, Width = new[] { 1, 1, 1 }, Tempo = new[] { 1, 1, 1 }, PassStyle = new[] { 1, 1, 1 }, Mentality = 1 });
         sim.SetTactics(1, new TeamTactics { PassRisk = new[] { 1, 1, 1 }, PressStart = new[] { 1, 1, 1 }, Width = new[] { 1, 1, 1 }, Tempo = new[] { 1, 1, 1 }, PassStyle = new[] { 1, 1, 1 }, Mentality = 1 });
         sim.Kickoff();

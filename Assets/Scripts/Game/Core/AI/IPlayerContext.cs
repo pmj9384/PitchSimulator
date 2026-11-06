@@ -39,6 +39,9 @@ namespace Game.Core.AI
         // ── 동료·상대·상대 GK(위치 스냅샷, 판정 함수 입력)
         IReadOnlyList<TargetInfo> Teammates { get; }   // 나 제외
         IReadOnlyList<TargetInfo> Opponents { get; }
+        bool IsMarker { get; }                         // 상대 소유·공이 우리 골 40m 안일 때 상대 리시버 1명을 맡았나. 시뮬이 MarkRules로 압박자 외에서 정한다(11-06 S3 ①)
+        float MarkX { get; }                           // 마크 지점 = 그 리시버의 골 쪽 MarkDistance(반응 지연 반영). IsMarker일 때만 뜻이 있다
+        float MarkZ { get; }
         bool IsLooseBallChaser { get; }                // 소유 팀 없는 공의 우리 팀 추격자(필드 플레이어). 시뮬이 팀별 최근접 + 히스테리시스로 정한다(09-28 F1b)
         bool WantsTakeOn { get; }                      // 이번 소유에서 돌파 의도가 살아 있나. 시뮬이 소유 때 드리블 성향으로 굴리고 2초·킥·소유 변경 때 푼다
         bool IsKickoffTaker { get; }                   // 킥오프 공을 쥔 키커이고 아직 첫 패스 전. 시뮬이 킥오프 때 정하고 첫 킥·소유 변경 때 푼다

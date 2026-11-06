@@ -45,6 +45,7 @@ public class RunOfferSimulationTests
         public int FirstOfferTick = -1;
         public int ReleaseTick = -1;   // 얼린 운반자를 푼 틱. 이 틱 뒤의 선택은 트리가 한다
         public bool KickWasRun;
+        public bool DefenderMarked;   // 킥 전에 팀 1 수비가 마커였던 틱이 있었나(11-06 S3 ①)
 
         private PlayerState KickerOf(int playerId)
         {
@@ -74,7 +75,7 @@ public class RunOfferSimulationTests
         }
     }
 
-    // 팀0: 운반자 CM(20,0), 러너 W(12,10, 뒤공간, 운반자보다 8m 뒤). 격자는 박스 쪽만 값이 있는 계단 격자(TestThreat.Step): 운반 이득이 작아 런 지점 패스가 이긴다. 팀1: GK(50,0)와 수비 둘(30, ±28). 가운데 길이 비어 있다
+    // 팀0: 운반자 CM(20,0), 러너 W(12,10, 뒤공간, 운반자보다 8m 뒤). 격자는 박스 쪽만 값이 있는 계단 격자(TestThreat.Step): 운반 이득이 작아 런 지점 패스가 이긴다. 팀1: GK(50,0)와 수비 둘(30, ±28). 가운데 길이 비어 있다. 공이 팀 1 골 34m라 리시버 마크(11-06)가 켜져 오른쪽 수비가 러너에게 붙는다
     private static Scene Build(float holdUp, int runStyle = RunRules.StyleBehind, float carrierX = 18.3f)
     {
         var scene = new Scene();
@@ -85,8 +86,10 @@ public class RunOfferSimulationTests
         scene.Carrier = sim.AddPlayer(new PlayerState(0, 0, Carrier(holdUp), carrierX, 4f, carrierX, 4f));
         scene.Runner = sim.AddPlayer(new PlayerState(1, 0, Winger(runStyle), 18.6f, 8.7f, 18.6f, 8.7f));
         sim.AddPlayer(new PlayerState(10, 1, Defender(keeper: true), 50f, 0f, 50f, 0f));
-        sim.AddPlayer(new PlayerState(11, 1, Defender(keeper: false), 30f, -28f, 30f, -28f));
-        sim.AddPlayer(new PlayerState(12, 1, Defender(keeper: false), 30f, 28f, 30f, 28f));
+        // 수비 홈은 기본 상향(DefenseBaseLift, 11-06 F3)만큼 팀 1 골 쪽(+X)에 둔다. 상향이 더해져 실제로 서는 자리가 손으로 맞춘 x 30이 되게
+        float home = 30f + MatchTuning.DefenseBaseLift;
+        sim.AddPlayer(new PlayerState(11, 1, Defender(keeper: false), 30f, -28f, home, -28f));
+        sim.AddPlayer(new PlayerState(12, 1, Defender(keeper: false), 30f, 28f, home, 28f));
         sim.Kickoff();
         sim.Ball = BallRules.Own(sim.Ball, 0, carrierX, 4f);
         scene.Carrier.FrozenTicks = HoldTicks;   // 11-03 P1+: 운반자는 패스·운반 후보를 늘 비교해 기다리지 않는다. 제안이 생길 때까지 얼려 공을 쥐게 한다
@@ -101,12 +104,22 @@ public class RunOfferSimulationTests
         {
             scene.Sim.Tick(Dt);
             if (scene.FirstOfferTick < 0 && scene.Carrier.RunOffers.Count > 0) { scene.FirstOfferTick = scene.Sim.TickCount; }
+            if (AnyDefenderMarking(scene)) { scene.DefenderMarked = true; }
             if (ShouldRelease(scene))
             {
                 scene.Carrier.FrozenTicks = 0;
                 scene.ReleaseTick = scene.Sim.TickCount;
             }
         }
+    }
+
+    private static bool AnyDefenderMarking(Scene scene)
+    {
+        foreach (PlayerState p in scene.Sim.Players)
+        {
+            if (p.Team == 1 && p.IsMarker) { return true; }
+        }
+        return false;
     }
 
     // 얼려 둔 운반자를 푸는 때: 제안이 생겼고 그 위험이 ReleaseRisk 아래로 내려왔다
@@ -118,7 +131,7 @@ public class RunOfferSimulationTests
     }
 
     [Test]
-    public void 볼_끌기가_0점5초여도_러너가_달리는_중에_패스가_나가고_착지는_런_목표점이다()
+    public void 볼_끌기가_0점5초여도_마커가_붙은_러너에게_런_패스가_나가고_착지는_런_목표점이다()
     {
         Scene scene = Build(holdUp: 0.5f);
         RunUntilKick(scene, 400);
@@ -131,8 +144,11 @@ public class RunOfferSimulationTests
         Assert.LessOrEqual(scene.KickTick - scene.ReleaseTick, (int)(0.5f / Dt) + 3, "풀린 직후 트리가 런 제안 패스를 고른다(볼 끌기 0.5초 + 3틱 안에 킥)");
         Assert.IsTrue(scene.KickWasRun, "그 패스는 런 패스다");
         float secondsAfterOffer = (scene.KickTick - scene.FirstOfferTick) * Dt;
-        // 11-06 추격 수신 뒤 2.56초(전 2.5초 안): 추격이면 더 먼 출발점에서도 만날 수 있어 제안이 몇 틱 일찍 선다. 상한을 2.6초로 넓혔다
-        Assert.LessOrEqual(secondsAfterOffer, 2.6f, "런 시작 뒤 2.6초 안에 패스(SkillCorner p75 2.1초 + 여유)");
+        // 11-06 S3 ①: 공이 팀 1 골 34m(40m 안)라 오른쪽 수비가 러너를 마크하러 와서 제안 위험이 늦게 내려간다. 빈 길(마크 전)일 땐 제안 뒤 2.56초에 찼고
+        // 마크가 생긴 뒤엔 7.2초다. 런이 마커를 떼어 내는 순간 차는지까지만 본다(8초 = 이 장면의 탐색 한도 400틱 안)
+        Assert.IsTrue(scene.DefenderMarked, "수비가 러너를 마크했다");
+        Assert.Greater(secondsAfterOffer, 2.6f, "마커가 붙어 빈 길(2.6초 안)보다 늦게 찬다");
+        Assert.LessOrEqual(secondsAfterOffer, 8f, "그래도 런이 위험을 낮추면 찬다");
         Assert.Greater(scene.RunnerSpeedAtKick, 0.5f * 11.2f, "킥 순간 러너는 질주 중");
         Assert.AreEqual(scene.OfferAtKick.X, scene.KickLandingX, 1e-3f, "착지점 = 러너가 달리던 목표점(같은 함수)");
         Assert.AreEqual(scene.OfferAtKick.Z, scene.KickLandingZ, 1e-3f);

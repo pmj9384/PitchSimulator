@@ -23,7 +23,10 @@ namespace Game.Core.Match
         // ── 전술 판정. 전부 밸런스 값: 자동 대전 러너로 조정한다
         public const float ThirdBoundary = 17.5f;                              // 필드 105m를 3등분한 경계. 우리 진영 ≤ −17.5 < 중원 < 17.5 ≤ 상대 진영
         public static readonly float[] MentalityOffset = { -5f, 0f, 5f };      // 전진 정도(수비적·균형·공격적) → 공격 시 자리 X 오프셋(m)
-        public static readonly float[] DefenseLineOffset = { -5f, 0f, 5f };    // 수비 라인 높이(깊게·표준·높게) → 수비 시 자리 X 오프셋(m), 필드 선수만. [가정] 전진 정도와 대칭. 10-27 FM Defensive Line. 기본 라인 자체가 현실보다 약 15m 낮은 문제(장부 F3)는 이 레버와 별개
+        public static readonly float[] DefenseLineOffset = { -5f, 0f, 5f };    // 수비 라인 높이(깊게·표준·높게) → 수비 시 자리 X 오프셋(m), 필드 선수만. [가정] 전진 정도와 대칭. 10-27 FM Defensive Line. 기본 라인 자체가 현실보다 낮은 문제(장부 F3)는 이 레버와 별개로 DefenseBaseLift가 맡는다
+        public const float DefenseBaseLift = 0f;   // F3 1단계(11-06): 블록 전체(GK 제외) 수비 자리를 앞으로 올리는 m. 3단 다이얼 공통이라 깊게/높게 차이는 그대로. 수비만 올리면 비소유 깊이가 줄어 블록 전체(설계초안-수비라인 5절 A안).
+                                                    // 러너 quick 격자(하한·마크 위) {0, 5, 8, 11, 14}: 수비 라인 20.3/22.3/25.6/27.6/29.9m로 오르지만 박스 안 슛 40/33/34/27/23%, 압박 슛 44/32/25/32/35%로 떨어졌다.
+                                                    // 라인이 오르면 공격수가 온사이드 선 앞(박스 밖)에서 받아 찬다. 지금은 0으로 두고 코드 경로만 남긴다. 슛 결정 시간(1단계) 뒤 재격자(실험/2026-11-06-엔진-레퍼런스-종합.md 3절)
         public const float LateralScoreScale = 0.005f;                          // 리시버 적합도의 측면 가중: |z| 1m당(× 폭 배율). 적합도는 ReceiverFitWeight(0.02)를 곱해 xT 단위로 패스 값에 더한다(11-03 P1, 전진 가중은 xT가 대신 센다). 09-18 0.02는 라인 위 윙어가 어디서든 최고점이라 소유 시간의 31%가 터치라인 9m 안이었다(86% W)
         public const float TouchlineMargin = 3f;                                // 자리 계산의 Z 클램프 여유(m). 필드 가장자리 0.5m로 두면 공 쪽 윙어가 슬라이드로 라인 밖까지 밀려 라인 위(z 33.5)에 붙어 빌드업했다
         public const float WideZoneZ = 25f;                                     // 형태 지표: |z|가 이 이상이면 "측면 구역"(터치라인 9m 안). 러너 CSV·감시 테스트가 소유 시간의 측면 비율을 잰다. 09-26 터치라인 빌드업(31%)을 정지 탐지·리뷰가 못 잡아 넣음
@@ -163,6 +166,16 @@ namespace Game.Core.Match
         // SkillCorner opendata A리그 20경기 749런의 "패스를 받은 런 성공률" 51.9%(339회 중 176, 95% 구간 46.6~57.2%)에 성공률이 가까운 값으로 맞췄다(실측 맞춤 [가정], 격자는 설계초안 9절: 0.5 → 63%, 0.55 → 58%, 0.6 → 59%, 0.65 이상은 72~95%로 튀거나 제안이 사라진다).
         // 팀 PassRisk와의 관계: 균형(0.5) 기준 편차를 그대로 얹는다(PassRules.ThroughAllow). 안전 카드는 스루도 덜 찬다
         public const float ThroughRiskAllow = 0.55f;   // 스루(런 제안 착지점) 위험 허용치 기준값
+
+        // 리시버 마크(11-06 S3 ①, MarkRules). 공이 우리 골 중심 MaxShotRange 안일 때 압박 1명 외에 상대 리시버를 골 쪽에서 막는다
+        public const float MarkDistance = 1.5f;        // 마커가 서는 자리 = 상대에서 우리 골 중심 쪽으로 이 거리. 출발값 2(StatsBomb PL 15/16 블록 지점 중앙값 2.3~3m)는 반응 지연 몫만큼 늦어 압박 판정(PressedRadius 2m) 밖에 서서 압박 슛 28%였다. 11-06 quick 격자 {1.5, 2, 3}: 1.5에서 압박 슛 59%·슛 선 15m 안 수비 54%·블록 13% [가정 G1]
+        public const int MaxMarkers = 2;               // 팀당 동시에 마크하는 인원 상한. 압박 1 + 마크 2 = 수비 3명이 사람을 보고 나머지는 지역. 11-06 격자 {2, 3}: 3은 압박 슛 55%·슛 선 50%로 2보다 나아지지 않고 슛만 늘었다(271 대 262/판) [가정 G1]
+        public const float MarkReactionSpread = 0.5f;  // 마커 반응 지연의 positioning 폭: 50 = ReactionTime, 0·100 = ReactionTime × (1 ± 이 값) [가정 G1]
+        public const float MarkTargetMargin = 2f;      // 마크 대상 히스테리시스: 직전 틱 대상은 골 거리를 이만큼 짧게 쳐서 상한 경계에서 틱마다 교대하지 않게. 추격자 여유(ChaserSwitchMargin)와 같은 값 [가정]
+
+        // 수비 하한(11-06, PositionRules.DefendFloorDepth). 수비 자리·마크 지점이 우리 골라인에서 이 깊이보다 뒤로 안 간다. GK는 따르지 않는다(KeeperLineX)
+        public const float DefendFloorBallOutsideBox = Placement.FieldBounds.PenaltyBoxDepth - 6.5f;   // 공이 박스 깊이 밖일 때 10m. 11-06 quick 격자(상향 0/5 × 하한 10/14.5): 상향 0에서 14.5m는 박스 안 슛 40%·압박 슛 44%·슛 선 수비 28%, 10m는 76%·60%·50%(마크만일 때 80·59·54와 비슷). 14.5m는 공격수를 박스 밖으로 밀었다. 10m도 GK 라인(최대 6.9m)보다 3m 앞이라 CB가 GK와 한 줄에 안 선다 [격자값]
+        public const float DefendFloorBallInBox = Placement.FieldBounds.GoalAreaDepth + 2f;         // 공이 박스 깊이 안일 때 7.5m. 골 에어리어 선에서 2m 밖 [가정]: GK 라인(편성 −48 = 골에서 4.5m, 스위퍼 lineHeight 8이면 6.9m)보다 앞이라 CB가 GK와 한 줄에 안 선다
 
         public const int MaxPressers = 1;                                       // 팀에서 동시에 압박(⑧)하는 인원 상한. 압박 거리 안인 선수를 공 거리순으로 세어 이 안만 간다(09-23 Play: 인원 제한이 없어 우리 진영 "적극"이면 CM 19.5m·FB/W/ST 12m 안 4~6명이 한꺼번에 달려들어 초등학교 경기처럼 뭉쳤다). Simple Soccer는 최근접 1명만 쫓고 FM도 1명 압박 + 커버. 러너에서 태클이 죽으면 2
     }
