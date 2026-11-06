@@ -8,8 +8,8 @@ using UnityEngine;
 public static class PitchPrefabBuilder
 {
     public const string PrefabPath = "Assets/Prefabs/Pitch/CommonPitch.prefab";
-    private const string LineMaterialPath = "Assets/Materials/FieldLine.mat";
-    private const float LineHeight = 0.04f;    // 기존 손 배치 선과 같은 두께(잔디 위로 살짝)
+    public const string LineMaterialPath = "Assets/Materials/FieldLine.mat";
+    public const float LineHeight = 0.04f;    // 기존 손 배치 선과 같은 두께(잔디 위로 살짝)
     private const float SpotDiameter = 0.22f;  // 마크 지름 22cm(IFAB 1조 "지름 0.22m 원")
 
     [MenuItem("Tools/Pitch/공통 피치 프리팹 만들기")]

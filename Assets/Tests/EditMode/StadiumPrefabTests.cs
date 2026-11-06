@@ -127,14 +127,15 @@ public class StadiumPrefabTests
         }
     }
 
-    // 잔디·CommonPitch 밖의 렌더러는 경기장 재질 2개만 쓰고, 그 재질은 GPU Instancing을 끈다(SRP Batcher와 겹치지 않게)
+    // 잔디·CommonPitch 밖의 렌더러 재질: 구조물 2개(StadiumLight·Dark) + 광고판 LedBoard 1개 + 테크니컬 에어리어 선(CommonPitch와 같은 FieldLine) 1개. 경기장 재질은 인스턴싱을 끈다(SRP Batcher와 겹치지 않게)
     [Test]
-    public void 경기장_구조물은_재질_2개만_쓰고_인스턴싱을_끈다()
+    public void 경기장_구조물은_재질_2개와_LED와_선_재질만_쓰고_인스턴싱을_끈다()
     {
         foreach (StadiumSpec spec in Specs())
         {
             Transform root = Load(spec).transform;
-            var materials = new HashSet<Material>();
+            var structure = new HashSet<Material>();
+            var all = new HashSet<Material>();
             foreach (Transform child in root)
             {
                 if (child.name == "Grass") { continue; }
@@ -142,14 +143,142 @@ public class StadiumPrefabTests
 
                 foreach (MeshRenderer r in child.GetComponentsInChildren<MeshRenderer>(true))
                 {
-                    materials.Add(r.sharedMaterial);
+                    all.Add(r.sharedMaterial);
+                    if (IsLineOrLed(r)) { continue; }
+
+                    structure.Add(r.sharedMaterial);
                 }
             }
-            Assert.AreEqual(2, materials.Count, $"{spec.Id} 재질 수");
-            foreach (Material m in materials)
+            Assert.AreEqual(2, structure.Count, $"{spec.Id} 구조물 재질 수");
+            Assert.AreEqual(4, all.Count, $"{spec.Id} 전체 재질 수(구조물 2 + LED 1 + 선 1)");
+            foreach (Material m in all)
             {
+                if (m.name == "FieldLine") { continue; }
+
                 StringAssert.StartsWith(MaterialFolder, AssetDatabase.GetAssetPath(m), $"{spec.Id} {m.name} 경로");
                 Assert.IsFalse(m.enableInstancing, $"{spec.Id} {m.name} 인스턴싱");
+            }
+        }
+    }
+
+    private static bool IsLineOrLed(MeshRenderer r)
+    {
+        return r.sharedMaterial.name == "FieldLine" || r.sharedMaterial.name == "LedBoard";
+    }
+
+    // 11-06 더그아웃·LED: 광고판은 면당 판 1장·LedBoard 재질, 렌더러 수가 면 수와 같다
+    [Test]
+    public void 광고판은_LedBoard_재질이고_면당_렌더러_1개다()
+    {
+        foreach (StadiumSpec spec in Specs())
+        {
+            Transform boards = Load(spec).transform.Find("AdBoards");
+            Assert.IsNotNull(boards, $"{spec.Id} AdBoards 없음");
+            MeshRenderer[] renderers = boards.GetComponentsInChildren<MeshRenderer>(true);
+            Assert.AreEqual(spec.AdBoards.Count, renderers.Length, $"{spec.Id} 광고판 렌더러 수");
+            foreach (MeshRenderer r in renderers)
+            {
+                Assert.AreEqual($"{MaterialFolder}LedBoard.mat", AssetDatabase.GetAssetPath(r.sharedMaterial), $"{spec.Id} {r.name} 재질");
+                Assert.AreEqual("PitchSimulator/LedBoard", r.sharedMaterial.shader.name, $"{spec.Id} {r.name} 셰이더");
+            }
+        }
+    }
+
+    // 벤치·더그아웃 지붕은 먼 쪽(+Z, 중계 카메라가 -Z라 화면 위쪽), 4개 부 모두 지붕이 있다
+    [Test]
+    public void 벤치와_더그아웃_지붕이_먼_쪽에_있고_모든_부에_지붕이_있다()
+    {
+        foreach (StadiumSpec spec in Specs())
+        {
+            Transform benches = Load(spec).transform.Find("Benches");
+            Assert.IsNotNull(benches, $"{spec.Id} Benches 없음");
+            Assert.AreEqual(2, CountPrefix(Load(spec).transform, "Benches", "Dugout"), $"{spec.Id} 더그아웃 지붕");
+            foreach (Transform t in benches)
+            {
+                Assert.Greater(t.localPosition.z, FieldBounds.HalfWidth, $"{spec.Id} {t.name} 터치라인 바깥(+Z)");
+                Assert.Less(t.localPosition.z, FieldBounds.HalfWidth + spec.Runoff * 0.75f, $"{spec.Id} {t.name} 광고판 선 쪽");
+            }
+        }
+    }
+
+    [Test]
+    public void 테크니컬_에어리어_선이_벤치마다_사각형으로_있다()
+    {
+        foreach (StadiumSpec spec in Specs())
+        {
+            Transform areas = Load(spec).transform.Find("TechnicalAreas");
+            Assert.IsNotNull(areas, $"{spec.Id} TechnicalAreas 없음");
+            Assert.AreEqual(2, areas.childCount, $"{spec.Id} 영역 수");
+            foreach (Transform area in areas)
+            {
+                Assert.AreEqual(4, area.childCount, $"{spec.Id} {area.name} 선 수");
+                foreach (Transform line in area)
+                {
+                    Assert.Greater(line.localPosition.z, FieldBounds.HalfWidth, $"{spec.Id} {area.name} {line.name} 터치라인 바깥");
+                    Assert.AreEqual("FieldLine", line.GetComponent<MeshRenderer>().sharedMaterial.name, $"{spec.Id} {line.name} 재질");
+                }
+            }
+        }
+    }
+
+    // IFAB Law 1 테크니컬 에어리어: 앞 선은 터치라인에서 1m, 옆 선은 좌석 양끝에서 1m. 벤치는 앞 선을 덮지 않고, 지붕·뒤 선은 먼 쪽 광고판 앞면을 넘지 않는다
+    [Test]
+    public void 테크니컬_에어리어가_IFAB_간격이고_벤치와_지붕이_선과_광고판을_침범하지_않는다()
+    {
+        const float benchHalfLength = 2f;
+        foreach (StadiumSpec spec in Specs())
+        {
+            Transform root = Load(spec).transform;
+            Transform benches = root.Find("Benches");
+            Transform areas = root.Find("TechnicalAreas");
+            float frontLineZ = FieldBounds.HalfWidth + 1f;
+            float adFrontZ = AdBoardFarFrontZ(root);
+            for (int i = 0; i < 2; i++)
+            {
+                Transform bench = benches.Find($"Bench{i}");
+                Transform dugout = benches.Find($"Dugout{i}");
+                Transform area = areas.Find($"TechnicalArea{i}");
+                float benchFrontZ = bench.localPosition.z - bench.localScale.z * 0.5f;
+                Assert.Greater(benchFrontZ, frontLineZ + FieldBounds.LineWidth * 0.5f, $"{spec.Id} 벤치{i} 앞면이 앞 선 바깥");
+                Assert.AreEqual(frontLineZ, area.Find("Line0").localPosition.z, Eps, $"{spec.Id} 영역{i} 앞 선 z");
+                Assert.AreEqual(bench.localPosition.x - benchHalfLength - 1f, area.Find("Line2").localPosition.x, Eps, $"{spec.Id} 영역{i} 왼쪽 선 x");
+                Assert.AreEqual(bench.localPosition.x + benchHalfLength + 1f, area.Find("Line3").localPosition.x, Eps, $"{spec.Id} 영역{i} 오른쪽 선 x");
+                float roofBackZ = dugout.localPosition.z + dugout.localScale.z * 0.5f;
+                Assert.Less(roofBackZ, adFrontZ, $"{spec.Id} 더그아웃{i} 지붕 뒤끝 < 광고판 앞면");
+                Transform backLine = area.Find("Line1");
+                float backLineOuterZ = backLine.localPosition.z + backLine.localScale.z * 0.5f;
+                Assert.Less(backLineOuterZ, adFrontZ, $"{spec.Id} 영역{i} 뒤 선 < 광고판 앞면");
+            }
+        }
+    }
+
+    private static float AdBoardFarFrontZ(Transform root)
+    {
+        Transform board = root.Find("AdBoards/AdBoard_Far");
+        Assert.IsNotNull(board, $"{root.name} AdBoard_Far 없음");
+        return board.localPosition.z - board.localScale.z * 0.5f;
+    }
+
+    // 코너에서 광고판끼리 관통하지 않는다(면이 맞닿는 것은 허용)
+    [Test]
+    public void 광고판끼리_코너에서_겹치지_않는다()
+    {
+        foreach (StadiumSpec spec in Specs())
+        {
+            Transform boards = Load(spec).transform.Find("AdBoards");
+            var bounds = new List<Bounds>();
+            foreach (Transform board in boards)
+            {
+                var b = new Bounds(board.localPosition, board.localScale);
+                b.Expand(-Eps * 2f);
+                bounds.Add(b);
+            }
+            for (int i = 0; i < bounds.Count; i++)
+            {
+                for (int j = i + 1; j < bounds.Count; j++)
+                {
+                    Assert.IsFalse(bounds[i].Intersects(bounds[j]), $"{spec.Id} 광고판 {i}·{j} 겹침");
+                }
             }
         }
     }

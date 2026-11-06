@@ -9,6 +9,7 @@ using UnityEngine.Rendering;
 // 경기장 프리팹 4종(11-06 경기장 4종 2단계, 설계 실험/2026-11-05-설계-경기장-4종.md §2).
 // Stadiums.csv의 부별 1행 → 잔디 평면 + CommonPitch 중첩 + 단 큐브·기단·지붕·조명탑·전광판·광고판·벤치를 큐브로 조립해 Resources/Stadiums/{id}.prefab으로 저장한다.
 // 단 큐브 자리는 StadiumLayout.Rows가 낸다(관중 4단계가 같은 Seats를 쓰므로 좌석 오브젝트는 만들지 않는다). StadiumPrefabTests가 저장본을 다시 대조한다.
+// 더그아웃·LED(11-06): 벤치·더그아웃 지붕(전 부)은 먼 쪽(+Z, 화면 위쪽) 터치라인 바깥, 앞 바닥에 테크니컬 에어리어 흰 선. 광고판은 LedBoard 재질(PitchSimulator/LedBoard) 면당 판 1장.
 // 모바일 성능(11-06 관중석 최적화 레퍼런스 2단계 적용): 스탠드 재질 2개(URP Lit, 색만 다름, SRP Batcher 호환, GPU Instancing 끔), 콜라이더 없음,
 // 정적 배칭 안 씀(URP 권고: SRP Batcher 켬·정적 배칭 끔), 스탠드·지붕·광고판 등은 그림자 드리움·받음 둘 다 끔(잔디만 받음 설정. 지금 씬 조명은 그림자를 안 켜서 잔디도 실제로는 받지 않는다), 단 큐브는 면별 부모 아래
 public static class StadiumPrefabBuilder
@@ -33,20 +34,32 @@ public static class StadiumPrefabBuilder
     private const float ScoreboardLift = 3f;        // [가정] 놓인 바닥(스탠드 윗면 또는 지면) 위 높이
     private const float AdBoardHeight = 1f;         // [가정]
     private const float AdBoardThickness = 0.2f;    // [가정]
-    private const float AdBoardRunoffFraction = 0.75f; // [가정] 광고판 자리 = 선에서 런오프의 이 비율. 벤치(런오프 절반)와 관중석 벽 사이
+    private const float AdBoardRunoffFraction = 0.75f; // [가정] 광고판 자리 = 선에서 런오프의 이 비율. 벤치·테크니컬 에어리어와 관중석 벽 사이
     private const float BenchLength = 4f;           // [가정]
     private const float BenchSeatHeight = 0.45f;    // [가정]
     private const float BenchDepth = 0.6f;          // [가정]
     private const float BenchCenterX = 12f;         // [가정] 중앙선에서 벤치 중심까지(m)
-    private const float DugoutRoofHeight = 2.2f;    // [가정] 1·2부 더그아웃 지붕 높이
+    private const float DugoutRoofHeight = 2.2f;    // [가정] 더그아웃 지붕 높이
     private const float DugoutRoofThickness = 0.1f; // [가정]
     private const float DugoutOverhang = 1f;        // [가정] 지붕이 벤치보다 긴 길이(m)
     private const float DugoutDepthScale = 2.5f;    // [가정] 지붕 깊이 = 벤치 깊이 × 이 값
     private const float RoofLightDepth = 0.3f;      // [가정] 1부 조명 띠 깊이(m)
     private const float ScoreboardGroundGap = 1f;   // [가정] 골대 뒤 관중석이 없을 때 런오프 끝에서 전광판까지(m)
-    private const int DugoutMaxTier = 2;
+    private const float BenchRunoffFraction = 0.4f; // [가정] 벤치 자리 = 먼 쪽 터치라인에서 런오프의 이 비율. 광고판(0.75)보다 선 쪽이고 지붕 뒤끝(1.5m 깊이)이 광고판 앞면을 넘지 않는다
+    // 테크니컬 에어리어(IFAB Law 1 기술 구역): 좌석 양옆 1m, 터치라인 쪽으로 1m 떨어진 선까지 사각형 테두리. 뒤쪽 여유는 규정 없음 [가정]
+    private const float TechAreaSideMargin = 1f;
+    private const float TechAreaTouchlineGap = 1f;
+    private const float TechAreaBackMargin = 0.2f;  // [가정] 벤치 뒤 가장자리에서 뒤 선까지. 4부(런오프 3)에서 뒤 선이 광고판 앞면(36.15)을 넘지 않는 값
+    private const float BenchLineClearance = 0.2f;  // [가정] 벤치 앞면과 테크니컬 에어리어 앞 선 바깥 면 사이 여유(m)
+    private const float DugoutBackOverhang = 0.2f;  // [가정] 더그아웃 지붕 뒤끝이 벤치 뒤 가장자리 너머로 나가는 길이(m). 지붕 깊이는 그대로, 앞쪽(경기장 쪽)으로 더 내민다
+    private const string LedMaterialName = "LedBoard";
+    private const string LitShaderName = "Universal Render Pipeline/Lit";
+    private const string LedShaderName = "PitchSimulator/LedBoard";
+    private const float LedPanelWidth = 6f;         // [가정] 패널 폭(m)
+    private const float LedSeamWidth = 0.15f;       // [가정] 이음매 폭(m)
+    private const float LedGlow = 1.25f;            // [가정] 발광 밝기 배율(HDR 블룸 없음 전제로 1을 약간 넘는 값)
 
-    private enum Paint { Light, Dark }
+    private enum Paint { Light, Dark, Led }
 
     [MenuItem("Tools/Pitch/경기장 프리팹 만들기")]
     public static void Build()
@@ -62,6 +75,8 @@ public static class StadiumPrefabBuilder
         GrassWearBuilder.Build(specs);   // 잔디 머티리얼 4개(부별 _Wear)를 먼저 최신으로
         CrowdAtlasBuilder.Build();       // 관중 아틀라스·머티리얼도 먼저 최신으로
         Dictionary<Paint, Material> paints = LoadPaints();
+        if (paints == null) { return; }
+
         Directory.CreateDirectory(OutputFolder);
         for (int i = 0; i < specs.Count; i++)
         {
@@ -89,6 +104,7 @@ public static class StadiumPrefabBuilder
         BuildScoreboards(root.transform, spec, paints);
         BuildAdBoards(root.transform, spec, paints);
         BuildBenches(root.transform, spec, paints);
+        BuildTechnicalAreas(root.transform, spec);
         BuildCrowd(root);
 
         string path = PrefabPathOf(spec.Id);
@@ -188,33 +204,90 @@ public static class StadiumPrefabBuilder
         }
     }
 
-    // 광고판: 선과 관중석 벽 사이에 길게 1개씩. 11-06 유저 Play: 런오프 끝(벽에서 0.1m)에 두었더니 기단 벽과 겹쳐 안 보였다
+    // 광고판: 선과 관중석 벽 사이에 길게 1개씩(LED 재질, 패널은 셰이더가 월드 미터 좌표로 나눈다). 11-06 유저 Play: 런오프 끝(벽에서 0.1m)에 두었더니 기단 벽과 겹쳐 안 보였다
     private static void BuildAdBoards(Transform root, StadiumSpec spec, Dictionary<Paint, Material> paints)
     {
         if (spec.AdBoards.Count == 0) { return; }
 
         Transform parent = NewChild(root, "AdBoards");
         float offset = spec.Runoff * AdBoardRunoffFraction;
+        float half = AdBoardThickness * 0.5f;
+        float y = AdBoardHeight * 0.5f;
+        float outerX = FieldBounds.HalfLength + offset + half;   // Far·Near는 코너 바깥 면까지
+        float innerZ = FieldBounds.HalfWidth + offset - half;    // 골대 뒤 판은 Far·Near 판의 안쪽 면에서 멈춘다(코너에서 맞닿고 겹치지 않음)
+        float lineX = FieldBounds.HalfLength + offset;
+        float lineZ = FieldBounds.HalfWidth + offset;
         for (int i = 0; i < spec.AdBoards.Count; i++)
         {
             StandSide side = spec.AdBoards[i];
-            Slab(parent, $"AdBoard_{side}", spec, side, offset - AdBoardThickness * 0.5f, offset + AdBoardThickness * 0.5f, 0f, AdBoardHeight, paints[Paint.Dark]);
+            string name = $"AdBoard_{side}";
+            switch (side)
+            {
+                case StandSide.Far:
+                    Cube(parent, name, new Vector3(0f, y, lineZ), new Vector3(outerX * 2f, AdBoardHeight, AdBoardThickness), paints[Paint.Led]);
+                    break;
+                case StandSide.Near:
+                    Cube(parent, name, new Vector3(0f, y, -lineZ), new Vector3(outerX * 2f, AdBoardHeight, AdBoardThickness), paints[Paint.Led]);
+                    break;
+                case StandSide.EndLeft:
+                    Cube(parent, name, new Vector3(-lineX, y, 0f), new Vector3(AdBoardThickness, AdBoardHeight, innerZ * 2f), paints[Paint.Led]);
+                    break;
+                default:
+                    Cube(parent, name, new Vector3(lineX, y, 0f), new Vector3(AdBoardThickness, AdBoardHeight, innerZ * 2f), paints[Paint.Led]);
+                    break;
+            }
         }
     }
 
-    // 벤치 2개(가까운 쪽 터치라인 바깥, 중앙선 양쪽). 1·2부는 더그아웃 지붕을 얹는다
+    // 벤치 2개(먼 쪽 +Z 터치라인 바깥, 중앙선 양쪽)와 더그아웃 지붕(전 부). 카메라가 -Z에서 보므로 화면 위쪽에 놓인다
     private static void BuildBenches(Transform root, StadiumSpec spec, Dictionary<Paint, Material> paints)
     {
         Transform parent = NewChild(root, "Benches");
-        float z = -FieldBounds.HalfWidth - spec.Runoff * 0.5f;
+        float z = BenchZ(spec);
+        float roofDepth = BenchDepth * DugoutDepthScale;
+        float roofZ = z + BenchDepth * 0.5f + DugoutBackOverhang - roofDepth * 0.5f;   // 뒤끝 고정, 앞쪽으로 내민다
         for (int i = 0; i < 2; i++)
         {
             float x = i == 0 ? -BenchCenterX : BenchCenterX;
             Cube(parent, $"Bench{i}", new Vector3(x, BenchSeatHeight * 0.5f, z), new Vector3(BenchLength, BenchSeatHeight, BenchDepth), paints[Paint.Dark]);
-            if (spec.Tier <= DugoutMaxTier)
-            {
-                Cube(parent, $"Dugout{i}", new Vector3(x, DugoutRoofHeight, z), new Vector3(BenchLength + DugoutOverhang, DugoutRoofThickness, BenchDepth * DugoutDepthScale), paints[Paint.Light]);
-            }
+            Cube(parent, $"Dugout{i}", new Vector3(x, DugoutRoofHeight, roofZ), new Vector3(BenchLength + DugoutOverhang, DugoutRoofThickness, roofDepth), paints[Paint.Light]);
+        }
+    }
+
+    // 런오프 비율 값과, 앞 선 바깥 면 + 여유 + 벤치 반 깊이 중 큰 쪽. 4부(런오프 3)는 비율 값이 앞 선(z = HalfWidth + 1)을 덮어서 하한이 이긴다
+    private static float BenchZ(StadiumSpec spec)
+    {
+        float byRunoff = FieldBounds.HalfWidth + spec.Runoff * BenchRunoffFraction;
+        float lineZ = FieldBounds.HalfWidth + TechAreaTouchlineGap;
+        float minZ = lineZ + FieldBounds.LineWidth * 0.5f + BenchLineClearance + BenchDepth * 0.5f;
+        return Mathf.Max(byRunoff, minZ);
+    }
+
+    // 벤치마다 사각형 테두리(선 4개). 선 재질·두께는 CommonPitch와 같다(FieldLine.mat, 폭 FieldBounds.LineWidth)
+    private static void BuildTechnicalAreas(Transform root, StadiumSpec spec)
+    {
+        var lineMaterial = AssetDatabase.LoadAssetAtPath<Material>(PitchPrefabBuilder.LineMaterialPath);
+        if (lineMaterial == null)
+        {
+            Debug.LogError($"[StadiumPrefabBuilder] {PitchPrefabBuilder.LineMaterialPath} 없음");
+            return;
+        }
+
+        Transform parent = NewChild(root, "TechnicalAreas");
+        float halfWidth = BenchLength * 0.5f + TechAreaSideMargin;
+        float zFront = FieldBounds.HalfWidth + TechAreaTouchlineGap;
+        float zBack = BenchZ(spec) + BenchDepth * 0.5f + TechAreaBackMargin;
+        float depth = zBack - zFront;
+        float lineWidth = FieldBounds.LineWidth;
+        float y = PitchPrefabBuilder.LineHeight * 0.5f;
+        for (int i = 0; i < 2; i++)
+        {
+            float x = i == 0 ? -BenchCenterX : BenchCenterX;
+            Transform area = NewChild(parent, $"TechnicalArea{i}");
+            Cube(area, "Line0", new Vector3(x, y, zFront), new Vector3(halfWidth * 2f + lineWidth, PitchPrefabBuilder.LineHeight, lineWidth), lineMaterial);
+            Cube(area, "Line1", new Vector3(x, y, zBack), new Vector3(halfWidth * 2f + lineWidth, PitchPrefabBuilder.LineHeight, lineWidth), lineMaterial);
+            Cube(area, "Line2", new Vector3(x - halfWidth, y, (zFront + zBack) * 0.5f), new Vector3(lineWidth, PitchPrefabBuilder.LineHeight, depth), lineMaterial);
+            Cube(area, "Line3", new Vector3(x + halfWidth, y, (zFront + zBack) * 0.5f), new Vector3(lineWidth, PitchPrefabBuilder.LineHeight, depth), lineMaterial);
         }
     }
 
@@ -310,24 +383,63 @@ public static class StadiumPrefabBuilder
         return go;
     }
 
-    // 재질 2개: URP Lit 하나에 색만 다르게(SRP Batcher 호환)
+    // 구조물 재질: URP Lit 하나에 색만 다른 2개(SRP Batcher 호환) + LED 1개. 셰이더를 못 찾으면 null
     private static Dictionary<Paint, Material> LoadPaints()
     {
         Directory.CreateDirectory(GrassWearBuilder.MaterialFolder);
+        Material light = LoadPaint("StadiumLight", new Color(0.72f, 0.73f, 0.75f));   // 단·지붕
+        Material dark = LoadPaint("StadiumDark", new Color(0.18f, 0.22f, 0.32f));     // 기단·탑·전광판·벤치·조명 띠
+        Material led = LoadLedBoard();                                                // 광고판
+        if (light == null || dark == null || led == null) { return null; }
+
         return new Dictionary<Paint, Material>
         {
-            { Paint.Light, LoadPaint("StadiumLight", new Color(0.72f, 0.73f, 0.75f)) },   // 단·지붕
-            { Paint.Dark, LoadPaint("StadiumDark", new Color(0.18f, 0.22f, 0.32f)) },     // 기단·탑·전광판·광고판·벤치·조명 띠
+            { Paint.Light, light },
+            { Paint.Dark, dark },
+            { Paint.Led, led },
         };
+    }
+
+    // LED 재질: 커스텀 셰이더 하나(SRP Batcher 호환), 인스턴싱 끔
+    private static Material LoadLedBoard()
+    {
+        string path = $"{GrassWearBuilder.MaterialFolder}/{LedMaterialName}.mat";
+        Shader shader = Shader.Find(LedShaderName);
+        if (shader == null)
+        {
+            Debug.LogError($"[StadiumPrefabBuilder] 셰이더 {LedShaderName} 없음");
+            return null;
+        }
+
+        var material = AssetDatabase.LoadAssetAtPath<Material>(path);
+        if (material == null)
+        {
+            material = new Material(shader);
+            AssetDatabase.CreateAsset(material, path);
+        }
+        material.shader = shader;
+        material.SetFloat("_PanelWidth", LedPanelWidth);
+        material.SetFloat("_SeamWidth", LedSeamWidth);
+        material.SetFloat("_Glow", LedGlow);
+        material.enableInstancing = false;
+        EditorUtility.SetDirty(material);
+        return material;
     }
 
     private static Material LoadPaint(string name, Color color)
     {
         string path = $"{GrassWearBuilder.MaterialFolder}/{name}.mat";
+        Shader shader = Shader.Find(LitShaderName);
+        if (shader == null)
+        {
+            Debug.LogError($"[StadiumPrefabBuilder] 셰이더 {LitShaderName} 없음");
+            return null;
+        }
+
         var material = AssetDatabase.LoadAssetAtPath<Material>(path);
         if (material == null)
         {
-            material = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+            material = new Material(shader);
             AssetDatabase.CreateAsset(material, path);
         }
         material.SetColor("_BaseColor", color);
