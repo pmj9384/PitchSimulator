@@ -24,7 +24,7 @@ namespace Game.Core.Match
         public int AttackSign { get; private set; }   // +1 = +X 골을 공격. 킥오프 때 팀 0이 +1, 후반 진영 교체 때 뒤집힌다
         public float X { get; set; }
         public float Z { get; set; }
-        public PlayerStats Stats { get; private set; }
+        public PlayerStats Stats { get; }
         public bool IsGoalkeeper { get; }
 
         // 자리 2쌍(스펙 §4-3). 배치 좌표 그대로. 킥오프 때 공격 시 자리로 돌아간다
@@ -103,15 +103,6 @@ namespace Game.Core.Match
             DefendHomeX = defendX;
             DefendHomeZ = defendZ;
             IsGoalkeeper = stats.IsKeeper;
-        }
-
-        // 킥오프 전 개인 전술: 선수는 세팅 국면에 스폰되므로, 그 화면에서 바꾼 역할·개인 지시 값을 킥오프 때 다시 받는다.
-        // 같은 자리 안의 값만 받는다. 골키퍼 여부가 바뀌면 시뮬의 명부(keeperIds)와 어긋나니 던진다
-        public void ReplaceStats(PlayerStats stats)
-        {
-            bool keeper = stats.IsKeeper;
-            if (keeper != IsGoalkeeper) { throw new System.InvalidOperationException($"[PlayerState] 선수 {PlayerId}: 골키퍼 여부가 다른 값({stats.RoleId})으로는 바꿀 수 없다"); }
-            Stats = stats;
         }
 
         public void ArriveToward(float x, float z)

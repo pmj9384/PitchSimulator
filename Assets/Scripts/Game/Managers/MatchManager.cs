@@ -79,7 +79,7 @@ public class MatchManager : InGameManager
         player.PlayKick(new Vector3(report.DirX, 0f, report.DirZ), report.IsShot);
     }
 
-    // 전술·개인 지시·킥오프는 ResetMatch의 조립에서 이미 들어갔다(11-06 S4-1: 킥오프 순간에 다시 넣던 SetTactics·ReplaceStats·KickoffBy를 지웠다).
+    // 전술·개인 지시·킥오프는 ResetMatch의 조립에서 이미 들어갔다(11-06 S4-1: 킥오프 순간에 다시 넣던 SetTactics·개인 지시 재대입·KickoffBy를 지웠다).
     // 10-13부터 편집 화면은 로비에만 있어 GameReady와 GamePlay 사이에 재료가 바뀔 길이 없다(09-30 확인). GamePlay 진입 훅은 경기당 한 번(일시정지 복귀는 훅을 다시 안 쏜다)
     private void StartMatch()
     {
