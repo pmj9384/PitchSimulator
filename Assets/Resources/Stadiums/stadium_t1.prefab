@@ -913,6 +913,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 5988609120807183480}
+  - component: {fileID: 6522554769609992180}
   m_Layer: 0
   m_Name: stadium_t1
   m_TagString: Untagged
@@ -942,6 +943,19 @@ Transform:
   - {fileID: 3543544516065713594}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &6522554769609992180
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1481746745943519170}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 984de574e1eaa4338b44d1a4a847a2ce, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CrowdRenderer
+  sourceMaterial: {fileID: 2100000, guid: 1a0171918939f410bba4e338c180ee90, type: 2}
 --- !u!1 &1525996634440515812
 GameObject:
   m_ObjectHideFlags: 0

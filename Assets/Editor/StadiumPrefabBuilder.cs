@@ -60,6 +60,7 @@ public static class StadiumPrefabBuilder
 
         List<StadiumSpec> specs = StadiumSpecParser.Parse(File.ReadAllText(CsvPath));
         GrassWearBuilder.Build(specs);   // 잔디 머티리얼 4개(부별 _Wear)를 먼저 최신으로
+        CrowdAtlasBuilder.Build();       // 관중 아틀라스·머티리얼도 먼저 최신으로
         Dictionary<Paint, Material> paints = LoadPaints();
         Directory.CreateDirectory(OutputFolder);
         for (int i = 0; i < specs.Count; i++)
@@ -88,6 +89,7 @@ public static class StadiumPrefabBuilder
         BuildScoreboards(root.transform, spec, paints);
         BuildAdBoards(root.transform, spec, paints);
         BuildBenches(root.transform, spec, paints);
+        BuildCrowd(root);
 
         string path = PrefabPathOf(spec.Id);
         PrefabUtility.SaveAsPrefabAsset(root, path);
@@ -214,6 +216,15 @@ public static class StadiumPrefabBuilder
                 Cube(parent, $"Dugout{i}", new Vector3(x, DugoutRoofHeight, z), new Vector3(BenchLength + DugoutOverhang, DugoutRoofThickness, BenchDepth * DugoutDepthScale), paints[Paint.Light]);
             }
         }
+    }
+
+    // 관중 컴포넌트. 메시는 만들지 않는다: 좌석 슬롯은 런타임에 StadiumLayout이 내고 Init(StageManager)이 행렬로 굳힌다. 머티리얼만 이어 둔다
+    private static void BuildCrowd(GameObject root)
+    {
+        var crowd = root.AddComponent<CrowdRenderer>();
+        var serialized = new SerializedObject(crowd);
+        serialized.FindProperty("sourceMaterial").objectReferenceValue = AssetDatabase.LoadAssetAtPath<Material>(CrowdAtlasBuilder.MaterialPath);
+        serialized.ApplyModifiedPropertiesWithoutUndo();
     }
 
     // 면마다 부모 하나(면 단위 컬링·분리 유지). 없으면 만든다
