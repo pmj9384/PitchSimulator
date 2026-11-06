@@ -28,6 +28,7 @@ public class StadiumTests
             Assert.Greater(upper.Rows, lower.Rows, $"{upper.Tier}부 단");
             Assert.Greater(upper.FillPercent, lower.FillPercent, $"{upper.Tier}부 채움");
             Assert.Less(upper.Wear, lower.Wear, $"{upper.Tier}부 마모");
+            Assert.GreaterOrEqual(upper.Stripe, lower.Stripe, $"{upper.Tier}부 줄무늬");
         }
         Assert.AreEqual(new[] { StandSide.Far }, specs[3].Stands, "4부 = 먼 쪽 한 면(본부석)");
     }
@@ -47,14 +48,15 @@ public class StadiumTests
     [Test]
     public void 잘못된_행은_행_번호와_함께_거부한다()
     {
-        const string Header = "id,tier,stands,rows,rowDepth,rowHeight,baseHeight,roof,lightTowers,scoreboards,adBoards,fillPercent,wear,runoff\n";
-        string ok = "a,1,far,1,0.8,0.4,1,,0,0,,10,0,3\nb,2,far,1,0.8,0.4,1,,0,0,,10,0,3\nc,3,far,1,0.8,0.4,1,,0,0,,10,0,3\n";
-        Assert.DoesNotThrow(() => StadiumSpecParser.Parse(Header + ok + "d,4,far,1,0.8,0.4,1,,0,0,,10,0,3\n"));
-        Assert.Throws<FormatException>(() => StadiumSpecParser.Parse(Header + ok + "d,4,top,1,0.8,0.4,1,,0,0,,10,0,3\n"), "모르는 면 이름");
-        Assert.Throws<FormatException>(() => StadiumSpecParser.Parse(Header + ok + "d,4,far|far,1,0.8,0.4,1,,0,0,,10,0,3\n"), "같은 면 중복");
-        Assert.Throws<FormatException>(() => StadiumSpecParser.Parse(Header + ok + "d,4,far,1,0.8,0.4,1,,0,0,,101,0,3\n"), "채움 100 초과");
-        Assert.Throws<FormatException>(() => StadiumSpecParser.Parse(Header + ok + "c,4,far,1,0.8,0.4,1,,0,0,,10,0,3\n"), "id 중복");
+        const string Header = "id,tier,stands,rows,rowDepth,rowHeight,baseHeight,roof,lightTowers,scoreboards,adBoards,fillPercent,wear,stripe,runoff\n";
+        string ok = "a,1,far,1,0.8,0.4,1,,0,0,,10,0,0,3\nb,2,far,1,0.8,0.4,1,,0,0,,10,0,0,3\nc,3,far,1,0.8,0.4,1,,0,0,,10,0,0,3\n";
+        Assert.DoesNotThrow(() => StadiumSpecParser.Parse(Header + ok + "d,4,far,1,0.8,0.4,1,,0,0,,10,0,0,3\n"));
+        Assert.Throws<FormatException>(() => StadiumSpecParser.Parse(Header + ok + "d,4,top,1,0.8,0.4,1,,0,0,,10,0,0,3\n"), "모르는 면 이름");
+        Assert.Throws<FormatException>(() => StadiumSpecParser.Parse(Header + ok + "d,4,far|far,1,0.8,0.4,1,,0,0,,10,0,0,3\n"), "같은 면 중복");
+        Assert.Throws<FormatException>(() => StadiumSpecParser.Parse(Header + ok + "d,4,far,1,0.8,0.4,1,,0,0,,101,0,0,3\n"), "채움 100 초과");
+        Assert.Throws<FormatException>(() => StadiumSpecParser.Parse(Header + ok + "c,4,far,1,0.8,0.4,1,,0,0,,10,0,0,3\n"), "id 중복");
         Assert.Throws<FormatException>(() => StadiumSpecParser.Parse(Header + ok), "4부 없음");
+        Assert.Throws<FormatException>(() => StadiumSpecParser.Parse(Header + ok + "d,4,far,1,0.8,0.4,1,,0,0,,10,0,1.5,3\n"), "줄무늬 1 초과");
     }
 
     [Test]
