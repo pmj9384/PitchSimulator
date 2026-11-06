@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using Game.Core.AI;
 using Game.Core.League;
 using Game.Core.Match;
 using UnityEngine;
@@ -27,9 +26,6 @@ public class MatchManager : InGameManager
     // 경기가 끝났음을 알린다(승리 팀 0/1, 무승부 -1). 결과 화면(3주차)과 검증 도구가 구독한다
     public event Action<int> MatchEnded;
 
-    private static readonly BehaviorNode SharedTree = PlayerTreeBuilder.Build();   // 22명이 공유하는 트리 하나(무상태). 4국면
-    private System.Random rng;
-    private int kickoffTeam;   // 일정상 홈이 킥오프(MatchSetup). 골 뒤엔 시뮬이 실점 팀에게 준다
     private int holdTicksLeft;   // 멈춤(하프타임·킥오프 준비) 남은 고정 스텝 수
     private bool holdIsHalfTime;
     private int goalScorerId = BallState.NoOwner;   // 이번 틱 골 넣은 선수. ShotResolved에서 받는다
@@ -51,7 +47,8 @@ public class MatchManager : InGameManager
     // 틱이 도는지는 플래그가 아니라 상태가 정한다. 일시정지(GameStop)·종료(GameOver/Clear)에서 저절로 멈춘다
     private bool IsRunning => GameManager.CurrentState == GameManager.GameState.GamePlay;
 
-    // 시드·전술·킥오프 팀은 시즌의 이번 경기(MatchSetup)에서. 같은 시즌·라운드·같은 세팅이면 같은 경기가 재현된다("막히면 재세팅")
+    // 시뮬은 시즌의 이번 경기(MatchSetup)를 MyMatchAssembler에 넘겨 만든다(선수 22명·전술·시드·추가시간·킥오프까지). 치트 헤드리스·테스트와 같은 함수라
+    // 같은 시즌·라운드·같은 세팅이면 같은 경기가 재현된다("막히면 재세팅", 11-06 S4-1). 선수 뷰는 이 시뮬의 Players를 비춘다(StageManager가 GameReady 다음 훅에서 스폰)
     private void ResetMatch()
     {
         // 입구가 어디든(로비·에디터에서 InGameScene 직접 Play) 끝난 시즌이면 여기서 다음 시즌을 연다. 안 끝났으면 아무 일도 안 한다(09-29 발견 A).
@@ -65,14 +62,8 @@ public class MatchManager : InGameManager
         goalScorerId = BallState.NoOwner;
         celebrationBeforeHalfTime = false;
         celebration.Stop();
-        rng = new System.Random(setup.Seed);
-        kickoffTeam = setup.KickoffTeam;
         OpponentName = setup.OpponentName;
-        Simulation = new MatchSimulation(NextRoll, SharedTree, ThreatTableRepository.Grid)
-        {
-            ResetAfterEveryShot = false   // 4국면 트리: 세이브 뒤 GK가 배급한다. 리트머스 때만 true였다
-        };
-        Simulation.SetAddedTime(AddedTime.FromSeed(setup.Seed));   // 러너(MatchAssembler)와 같은 식
+        Simulation = MyMatchAssembler.Create(setup, ThreatTableRepository.Grid);
         myProbe = new TacticsProbe(Simulation, 0);   // 내 팀 = 시뮬 팀 0
         Simulation.ShotResolved += LogShot;
         Simulation.ShotResolved += OnShotResolved;
@@ -88,45 +79,12 @@ public class MatchManager : InGameManager
         player.PlayKick(new Vector3(report.DirX, 0f, report.DirZ), report.IsShot);
     }
 
-    private float NextRoll()
-    {
-        return (float)rng.NextDouble();
-    }
-
-    // StageManager가 스폰한 선수를 시뮬 명부에 올린다(GameReady 훅 순서: Match 리셋 → Stage 스폰)
-    public void Register(PlayerState player)
-    {
-        Simulation.AddPlayer(player);
-    }
-
-    // 전술은 킥오프 순간에 확정한다. 10-13부터 편집 화면은 로비에만 있어 ResetMatch 뒤에 값이 바뀔 길은 없지만, "전술이 시뮬에 들어가는 곳은 킥오프 한 곳"을 지키려고 여기서 읽는다.
-    // 편집 입력(SeasonSystem.SetMyPreset·SetMyTactics)이 이번 경기 재료를 비워 두므로 여기서 읽으면 최신 전술이 들어가고, 시드·상대·킥오프 팀은 ResetMatch 때와 같다.
-    // 킥오프 전에 전술을 읽는 코드는 없다(스폰·자리·HUD 모두 라인업만 본다, 09-30 확인). GamePlay 진입 훅은 경기당 한 번(일시정지 복귀는 훅을 다시 안 쏜다)
+    // 전술·개인 지시·킥오프는 ResetMatch의 조립에서 이미 들어갔다(11-06 S4-1: 킥오프 순간에 다시 넣던 SetTactics·ReplaceStats·KickoffBy를 지웠다).
+    // 10-13부터 편집 화면은 로비에만 있어 GameReady와 GamePlay 사이에 재료가 바뀔 길이 없다(09-30 확인). GamePlay 진입 훅은 경기당 한 번(일시정지 복귀는 훅을 다시 안 쏜다)
     private void StartMatch()
     {
-        MatchSetup setup = GameDataManager.Instance.Season.CurrentMatch;
-        Simulation.SetTactics(0, setup.Tactics0);   // 내 전술(설정창·세이브)
-        Simulation.SetTactics(1, setup.Tactics1);   // 상대 프리셋(생성 팀)
-        ApplyMyPlayerTactics(setup.Team0);
-        Simulation.KickoffBy(kickoffTeam);
         SnapViews();   // 킥오프 자리로 순간이동(보간하면 전 자리에서 미끄러져 온다)
         Hold(kickoffSetSec, halfTime: false);
-    }
-
-    // 개인 전술도 킥오프 순간에 확정한다: 선수는 GameReady에 스폰돼 그때의 역할 값을 들고 있다. 로비에서 바꾼 역할·개인 지시를 여기서 넣는다.
-    // 내 팀은 시뮬 팀 0이고 스폰 순서가 라인업 순서다(StageManager.Spawn). 수가 안 맞으면 조용히 넘기지 않고 알린다
-    private void ApplyMyPlayerTactics(IReadOnlyList<LineupSlot> lineup)
-    {
-        IReadOnlyList<PlayerState> players = Simulation.Players;
-        int slot = 0;
-        for (int i = 0; i < players.Count; i++)
-        {
-            if (players[i].Team != 0) { continue; }
-            if (slot >= lineup.Count) { break; }
-            players[i].ReplaceStats(lineup[slot].Stats);
-            slot++;
-        }
-        if (slot != lineup.Count) { Debug.LogError($"[Match] 내 팀 선수 {slot}명 ≠ 라인업 {lineup.Count}명. 개인 전술이 일부만 들어갔다"); }
     }
 
     #region 심장: 고정 스텝 틱

@@ -220,11 +220,11 @@ public class SeasonSystem : ISaveLoad
     }
 
     // 개발용(에디터 치트 창): 이번 경기를 헤드리스로 끝까지 돌려 정식 보고 경로로 넣는다. 나머지 경기·저장·승강전은 보고가 알아서 한다.
-    // 실측 요약은 없어 홈의 실측 줄은 "아직 치른 경기가 없다"로 남는다
+    // 실측 요약은 없어 홈의 실측 줄은 "아직 치른 경기가 없다"로 남는다. 조립은 인게임(MatchManager)과 같은 MyMatchAssembler라 Play 한 판과 같은 경기가 나온다(11-06 S4-1)
     public async Awaitable AutoPlayCurrentMatchAsync()
     {
         MatchSetup setup = CurrentMatch;
-        MatchSimulation sim = MatchAssembler.Create(setup.Team0, setup.Team1, setup.Tactics0, setup.Tactics1, setup.Seed, ThreatTableRepository.Grid);
+        MatchSimulation sim = MyMatchAssembler.Create(setup, ThreatTableRepository.Grid);
         var probe = new MatchProbe(sim);
         probe.Run(sim.TotalTicks, MatchTuning.FixedStep);
         await ReportMyResultAsync(setup.ResultFor(sim.HomeGoals, sim.AwayGoals), null);
