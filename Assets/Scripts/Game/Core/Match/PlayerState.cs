@@ -51,6 +51,9 @@ namespace Game.Core.Match
 
         public IReadOnlyList<TargetInfo> Teammates { get; set; } = System.Array.Empty<TargetInfo>();
         public IReadOnlyList<TargetInfo> Opponents { get; set; } = System.Array.Empty<TargetInfo>();
+        public bool IsMarker { get; set; }            // 이번 틱 상대 리시버를 마크하나(시뮬이 MarkRules로 정함, 11-06 S3 ①)
+        public float MarkX { get; set; }              // 마크 지점(그 리시버의 골 쪽). IsMarker일 때만 뜻이 있다
+        public float MarkZ { get; set; }
         public bool IsLooseBallChaser { get; set; }   // 소유 팀 없는 공을 우리 팀에서 내가 맡았나(시뮬이 히스테리시스로 정함, 09-28 F1b)
         public bool IsKickoffTaker { get; set; }      // 킥오프 키커이고 첫 패스 전
         public bool WantsTakeOn { get; set; }         // 돌파 의도

@@ -87,6 +87,9 @@ public class RunOfferSimulationTests
         sim.AddPlayer(new PlayerState(10, 1, Defender(keeper: true), 50f, 0f, 50f, 0f));
         sim.AddPlayer(new PlayerState(11, 1, Defender(keeper: false), 30f, -28f, 30f, -28f));
         sim.AddPlayer(new PlayerState(12, 1, Defender(keeper: false), 30f, 28f, 30f, 28f));
+        // 11-06 S3 ①: 공이 팀 1 골 40m 안(34m)이라 수비가 러너를 마크하러 와 "가운데 길이 비어 있다" 전제가 깨진다(첫 제안 뒤 킥 2.6 → 7.2초).
+        // 이 장면은 지역 수비만 있는 빈 길에서 런 기계를 보므로 마크를 끈다. 마크 판정은 MarkRulesTests
+        sim.MarkingEnabled = false;
         sim.Kickoff();
         sim.Ball = BallRules.Own(sim.Ball, 0, carrierX, 4f);
         scene.Carrier.FrozenTicks = HoldTicks;   // 11-03 P1+: 운반자는 패스·운반 후보를 늘 비교해 기다리지 않는다. 제안이 생길 때까지 얼려 공을 쥐게 한다

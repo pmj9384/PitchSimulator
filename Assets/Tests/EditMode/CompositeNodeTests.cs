@@ -40,6 +40,9 @@ public class CompositeNodeTests
         public IReadOnlyList<TargetInfo> Teammates => System.Array.Empty<TargetInfo>();
         public IReadOnlyList<TargetInfo> Opponents => System.Array.Empty<TargetInfo>();
         public bool IsLooseBallChaser => false;
+        public bool IsMarker => false;
+        public float MarkX => 0f;
+        public float MarkZ => 0f;
         public bool IsKickoffTaker => false;
         public bool WantsTakeOn => false;
         public bool IsKeeperAlternate => false;
