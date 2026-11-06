@@ -6,7 +6,7 @@ namespace Game.Core.Match
     // 팀 전술은 서드별 "압박 시작"(안 감·표준·적극)으로 켜고 끄며 배율만 준다. 역압박 중엔 배율이 더 커진다.
     public static class PressRules
     {
-        // 센터백 전진 구역(09-29 수비 D1): 공이 이 팀의 골라인에서 depth 안이고 박스 폭 안인가
+        // 뒷줄 전진 구역(09-29 수비 D1, 11-06 CB → 뒷줄): 공이 이 팀의 골라인에서 depth 안이고 박스 폭 안인가
         public static bool IsInStepOutZone(float ballX, float ballZ, int attackSign, float depth)
         {
             float fromOwnGoalLine = Placement.FieldBounds.HalfLength + ballX * attackSign;

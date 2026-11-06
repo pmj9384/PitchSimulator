@@ -169,9 +169,8 @@ namespace Game.Core.Match
         // 찬 선수 가드(09-18, 09-21 재확인): 비행 중엔 소유 팀이 없어 자유 공 분기로 패서가 자기 공을 쫓는다.
         // 릴리스만 있으면 3틱째(공 0.9m, 패서 0.42m 따라옴)에 도로 잡아 0.15초마다 반복됐다. 공이 패서 반경을 벗어날 때까지 패서는 후보에서 뺀다
         private int lastKickerId = BallState.NoOwner;
-        // 박스 앞 CB 전진(09-29 수비 D1). 필드 역할 이름을 시뮬이 직접 보는 유일한 예외(GK 제외). 개인 압박 거리 다이얼로 끌 수 없다(09-30 리뷰, 1차 출시는 유지)
-        private const string CenterBackRole = "CB";
-        private readonly int[] stepOutCenterBack = { -1, -1 };   // 이번 틱 박스 앞에서 나설 팀별 CB. 압박 후보 계산 때 채운다
+        // 박스 앞 뒷줄 전진(09-29 수비 D1, 11-06 D1에 CB 이름 → 뒷줄(LineRules)로 일반화: 역할 이름을 시뮬이 보는 예외가 없어졌다). 개인 압박 거리 다이얼로 끌 수 없다(09-30 리뷰)
+        private readonly int[] stepOutBackLine = { -1, -1 };   // 이번 틱 박스 앞에서 나설 팀별 뒷줄 선수. 압박 후보 계산 때 채운다
         private int kickoffTakerId = BallState.NoOwner;   // 킥오프 공을 쥔 키커. 첫 킥이나 소유 변경 때 푼다. 스냅샷 IsKickoffTaker로 트리에 준다
         // 드리블 돌파 의도: 공을 잡을 때 드리블 성향으로 한 번 굴린다. 트리가 틱마다 굴리면 같은 소유 안에서 돌파·패스가 번갈아 흔들린다
         private int takeOnOwnerId = BallState.NoOwner;
@@ -238,19 +237,19 @@ namespace Game.Core.Match
             return PressRules.IsCounterPressing(behind, tactics[team].CounterPress, ticksSinceTurnover);
         }
 
-        // 팀별 압박 후보 목록. 누가 후보인지(개인 압박 거리 × 팀 배율, 역압박이면 그 배율 ×2, 박스 앞 CB 전진)는 시뮬이 여기서만 정하고
+        // 팀별 압박 후보 목록. 누가 후보인지(개인 압박 거리 × 팀 배율, 역압박이면 그 배율 ×2, 박스 앞 뒷줄 전진)는 시뮬이 여기서만 정하고
         // 팀 안에서 공 거리순 순위를 매긴다. 트리는 자기 순위만 보고 상한(MaxPressers) 안일 때만 간다(09-23 뭉침, 09-29 판정 한 곳으로)
         private void FillPressEligible()
         {
             pressEligible[0].Clear();
             pressEligible[1].Clear();
-            stepOutCenterBack[0] = StepOutCenterBack(0);
-            stepOutCenterBack[1] = StepOutCenterBack(1);
+            stepOutBackLine[0] = StepOutBackLine(0);
+            stepOutBackLine[1] = StepOutBackLine(1);
             for (int i = 0; i < players.Count; i++)
             {
                 PlayerState p = players[i];
                 if (p.FrozenTicks > 0) { continue; }   // 태클 실패로 얼어 있는 선수는 순위에서 뺀다: 남겨 두면 1순위를 차지한 채 못 움직여 그 팀 압박이 0.5초 빈다
-                if (p.PlayerId == stepOutCenterBack[p.Team] || InPressDistance(p))
+                if (p.PlayerId == stepOutBackLine[p.Team] || InPressDistance(p))
                 {
                     pressEligible[p.Team].Add(new TargetInfo(p.PlayerId, p.X, p.Z));
                 }
@@ -267,8 +266,9 @@ namespace Game.Core.Match
             return PressRules.ShouldPress(dist, p.Stats.PressRange, level, counterPressingByTeam[p.Team]);
         }
 
-        // 박스 앞에서 나설 센터백(09-29 수비 D1). 공이 전진 구역 밖이거나 얼지 않은 CB가 없으면 -1. 동률은 PlayerId 작은 쪽
-        private int StepOutCenterBack(int team)
+        // 박스 앞에서 나설 뒷줄 선수(09-29 수비 D1). 구역이 박스 폭이라 거의 CB가 나가고, 5-3-2처럼 FB가 뒷줄이면 가장자리 공엔 FB가 나간다(현실의 측면 공 = FB 몫).
+        // 공이 전진 구역 밖이거나 얼지 않은 뒷줄이 없으면 -1. 동률은 PlayerId 작은 쪽
+        private int StepOutBackLine(int team)
         {
             if (!PressRules.IsInStepOutZone(Ball.X, Ball.Z, AttackSignOf(team), MatchTuning.BoxStepOutDepth)) { return -1; }
 
@@ -277,11 +277,11 @@ namespace Game.Core.Match
             for (int i = 0; i < players.Count; i++)
             {
                 PlayerState p = players[i];
-                if (p.Team != team || p.FrozenTicks > 0 || p.Stats.RoleId != CenterBackRole) { continue; }
+                if (p.Team != team || p.FrozenTicks > 0 || !p.IsBackLine) { continue; }
                 float dx = Ball.X - p.X;
                 float dz = Ball.Z - p.Z;
                 float d2 = dx * dx + dz * dz;
-                if (!IsCloserCenterBack(d2, p.PlayerId, bestD2, best)) { continue; }
+                if (!IsCloserDefender(d2, p.PlayerId, bestD2, best)) { continue; }
                 bestD2 = d2;
                 best = p.PlayerId;
             }
@@ -289,7 +289,7 @@ namespace Game.Core.Match
         }
 
         // 동률은 PlayerId 작은 쪽(PressRules.PressRank와 같은 규칙). 목록 순서에 기대지 않고 명시 비교한다
-        private static bool IsCloserCenterBack(float d2, int playerId, float bestD2, int bestId)
+        private static bool IsCloserDefender(float d2, int playerId, float bestD2, int bestId)
         {
             if (d2 < bestD2) { return true; }
             return d2 == bestD2 && playerId < bestId;

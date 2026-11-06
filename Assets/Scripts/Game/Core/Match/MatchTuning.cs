@@ -98,7 +98,7 @@ namespace Game.Core.Match
         public const float FatigueRecoveryHalfLifeTicks = 95f;   // 회복 반감기. 전력 뒤 에너지(PCr) 재합성 반감기 약 57초(Bogdanis 1995)를 경기 시간으로 본다. 3분 = 90분이라 1틱(0.02초) = 경기 0.6초, 57 ÷ 0.6 ≈ 95틱
         public const float FatigueEffortThreshold = 0.3f;        // 단기 체력이 이 아래면 속도가 준다(RoboCup effort_dec_thr와 같은 비율)
         public const float FatigueEffortMin = 0.9f;              // 속도 배율 바닥(최대 10% 감소). 최고 속도는 거의 안 떨어진다는 레퍼런스라 감소 폭을 RoboCup(바닥 0.6, 40% 감소)보다 훨씬 작게
-        // 박스 앞 센터백 전진(09-29 수비 D1): 공이 우리 골라인에서 이 거리 안(박스 폭 안)에 오면 공에 가장 가까운 CB는 개인 압박 거리와 상관없이 압박 후보가 된다.
+        // 박스 앞 뒷줄 전진(09-29 수비 D1, 11-06 D1 뒷줄로 일반화): 공이 우리 골라인에서 이 거리 안(박스 폭 안)에 오면 공에 가장 가까운 뒷줄 선수(LineRules.IsBackLine)는 개인 압박 거리와 상관없이 압박 후보가 된다.
         // 코칭 원칙: 박스 근처에선 가장 가까운 CB가 나가고 나머지가 메운다(Coaches' Voice "The modern centre-back"). 박스 깊이 + 5m는 출처 없는 출발값
         public const float BoxStepOutDepth = Placement.FieldBounds.PenaltyBoxDepth + 5f;
         // 슈터 압박·슛 블록(09-29 수비 D3, MatchRules.PressuredShotProbability·ShotBlocker 주석). 블록 확률·튕기는 속도는 출처 없는 출발값
