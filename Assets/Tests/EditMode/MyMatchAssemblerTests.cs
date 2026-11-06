@@ -17,6 +17,7 @@ public class MyMatchAssemblerTests
     private static List<TierRule> tiers;
     private static List<TeamTactics> presets;
     private static List<StageEntry> myRows;
+    private static List<DefenseRole> defenseRoles;
     private static ThreatGrid threat;
 
     [OneTimeSetUp]
@@ -29,6 +30,7 @@ public class MyMatchAssemblerTests
         presets = TeamTacticsParser.Parse(File.ReadAllText("Assets/Resources/Tables/TacticPresets.csv"));
         myRows = StageCompositionParser.Parse(File.ReadAllText("Assets/Resources/Tables/StageComposition.csv")).FindAll(IsMyStageOneRow);
         threat = ThreatTableParser.Parse(File.ReadAllText("Assets/Resources/Tables/ThreatTable.csv"));
+        defenseRoles = DefenseRoleParser.Parse(File.ReadAllText("Assets/Resources/Tables/DefenseRoles.csv"));   // 인게임(SeasonSystem.CurrentMatch)과 같은 재료로 내 라인업을 만든다
     }
 
     private static bool IsMyStageOneRow(StageEntry row)
@@ -36,11 +38,21 @@ public class MyMatchAssemblerTests
         return row.Stage == 1 && row.Team == 0;
     }
 
+    private static TierRule Tier(int tier)
+    {
+        for (int i = 0; i < tiers.Count; i++)
+        {
+            if (tiers[i].Tier == tier) { return tiers[i]; }
+        }
+        Assert.Fail($"TierRules에 {tier}부가 없다");
+        return null;
+    }
+
     // 원정 경기 중 시드 홀짝 킥오프(옛 헤드리스 규칙)와 일정상 홈 킥오프가 갈리는 판. 두 규칙을 헷갈리면 테스트가 깨지게 이런 판을 고른다.
     // 경기 시드 홀짝 = 시즌 시드 + 라운드 + 상대 id(계수가 전부 홀수)라 시즌 시드 5의 원정 판은 전부 홀수로 우연히 맞는다. 그래서 시즌 시드를 돌며 찾는다
     private static MatchSetup AwaySetupWhereSeedParityDisagrees()
     {
-        TierRule tier = tiers.Find(t => t.Tier == 4);
+        TierRule tier = Tier(4);
         List<Fixture> schedule = SeasonSchedule.RoundRobin(tier.Teams);
         for (int seasonSeed = 1; seasonSeed <= 10; seasonSeed++)
         {
@@ -48,7 +60,7 @@ public class MyMatchAssemblerTests
             List<GeneratedTeam> opponents = TeamGenerator.Generate(seasonSeed, tier, table, formations, names);
             for (int round = 0; round < tier.Matches; round++)
             {
-                MatchSetup setup = SeasonRunner.SetupMyMatch(state, opponents, schedule, presets, round, table);
+                MatchSetup setup = SeasonRunner.SetupMyMatch(state, opponents, schedule, presets, round, table, defenseRoles);
                 if (setup.MyTeamIsHome) { continue; }
                 if (setup.KickoffTeam == MatchAssembler.KickoffTeamBySeed(setup.Seed)) { continue; }
                 return setup;
