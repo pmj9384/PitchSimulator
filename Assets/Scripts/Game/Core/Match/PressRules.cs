@@ -6,12 +6,11 @@ namespace Game.Core.Match
     // 팀 전술은 서드별 "압박 시작"(안 감·표준·적극)으로 켜고 끄며 배율만 준다. 역압박 중엔 배율이 더 커진다.
     public static class PressRules
     {
-        // 뒷줄 전진 구역(09-29 수비 D1, 11-06 CB → 뒷줄): 공이 이 팀의 골라인에서 depth 안이고 박스 폭 안인가
-        public static bool IsInStepOutZone(float ballX, float ballZ, int attackSign, float depth)
+        // 뒷줄 전진 구역(09-29 수비 D1, 11-06 CB → 뒷줄, 11-07 폭을 중앙 구역으로): 공이 이 팀의 골라인에서 depth 안이고 중앙 halfWidth 안인가. 경계 포함
+        public static bool IsInStepOutZone(float ballX, float ballZ, int attackSign, float depth, float halfWidth)
         {
-            float fromOwnGoalLine = Placement.FieldBounds.HalfLength + ballX * attackSign;
-            if (fromOwnGoalLine > depth) { return false; }
-            return System.Math.Abs(ballZ) <= Placement.FieldBounds.PenaltyBoxHalfWidth;
+            if (LineRules.HomeDepth(ballX, attackSign) > depth) { return false; }
+            return System.Math.Abs(ballZ) <= halfWidth;
         }
 
         // 공까지 거리가 개인 압박 거리 × 배율 안이면 압박. 경계 포함. 압박 시작이 "안 감"이면 역압박 중이어도 안 간다.

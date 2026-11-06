@@ -101,6 +101,9 @@ namespace Game.Core.Match
         // 박스 앞 뒷줄 전진(09-29 수비 D1, 11-06 D1 뒷줄로 일반화): 공이 우리 골라인에서 이 거리 안(박스 폭 안)에 오면 공에 가장 가까운 뒷줄 선수(LineRules.IsBackLine)는 개인 압박 거리와 상관없이 압박 후보가 된다.
         // 코칭 원칙: 박스 근처에선 가장 가까운 CB가 나가고 나머지가 메운다(Coaches' Voice "The modern centre-back"). 박스 깊이 + 5m는 출처 없는 출발값
         public const float BoxStepOutDepth = Placement.FieldBounds.PenaltyBoxDepth + 5f;
+        // 전진 구역의 폭(중앙 구역, 11-07 리뷰 🟡): 박스 폭 안쪽 절반(±10.08m). 박스 폭 전체(±20.16)면 4-4-2 FB(슬롯 z ±22)도 뒷줄이라 z 15~20 공에 FB가 안쪽으로 끌려 들어왔다.
+        // CB 슬롯 z(±7~±10)와 FB 슬롯 z(±22~±25)의 중간(약 ±14.5)보다 안쪽이라 가장자리 공은 지역 자리·압박 거리 규칙에 맡긴다 [가정]
+        public const float BoxStepOutHalfWidth = Placement.FieldBounds.PenaltyBoxHalfWidth * 0.5f;
         // 슈터 압박·슛 블록(09-29 수비 D3, MatchRules.PressuredShotProbability·ShotBlocker 주석). 블록 확률·튕기는 속도는 출처 없는 출발값
         public const float ShotPressureLogit = 0.4f;     // 압박받는 슛의 로짓 감소
         // GK 슛 대응(10-23 유저 Play 3·4차). 규칙은 MatchSimulation.Shoot·IncomingShotFor·ResolveSaveAtLine, 판정은 MatchRules.KeeperCanReach·GoalAimGap·PushWide·AimAwayFromKeeper

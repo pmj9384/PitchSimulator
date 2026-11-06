@@ -266,11 +266,12 @@ namespace Game.Core.Match
             return PressRules.ShouldPress(dist, p.Stats.PressRange, level, counterPressingByTeam[p.Team]);
         }
 
-        // 박스 앞에서 나설 뒷줄 선수(09-29 수비 D1). 구역이 박스 폭이라 거의 CB가 나가고, 5-3-2처럼 FB가 뒷줄이면 가장자리 공엔 FB가 나간다(현실의 측면 공 = FB 몫).
+        // 박스 앞에서 나설 뒷줄 선수(09-29 수비 D1). 구역은 골 앞 중앙(깊이 21.5m × 폭 ±10.08m)이라 나가는 선수는 사실상 그 레인의 CB다.
+        // 4-4-2 FB(슬롯 z ±22)도 뒷줄이어서 박스 폭 전체를 구역으로 두면 z 15~20 공에 FB가 안쪽으로 끌려 들어왔다(11-07 리뷰). 가장자리 공은 압박 거리·지역 자리 규칙에 맡긴다.
         // 공이 전진 구역 밖이거나 얼지 않은 뒷줄이 없으면 -1. 동률은 PlayerId 작은 쪽
         private int StepOutBackLine(int team)
         {
-            if (!PressRules.IsInStepOutZone(Ball.X, Ball.Z, AttackSignOf(team), MatchTuning.BoxStepOutDepth)) { return -1; }
+            if (!PressRules.IsInStepOutZone(Ball.X, Ball.Z, AttackSignOf(team), MatchTuning.BoxStepOutDepth, MatchTuning.BoxStepOutHalfWidth)) { return -1; }
 
             int best = -1;
             float bestD2 = float.MaxValue;
