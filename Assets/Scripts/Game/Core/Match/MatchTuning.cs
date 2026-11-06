@@ -174,7 +174,7 @@ namespace Game.Core.Match
         public const float MarkTargetMargin = 2f;      // 마크 대상 히스테리시스: 직전 틱 대상은 골 거리를 이만큼 짧게 쳐서 상한 경계에서 틱마다 교대하지 않게. 추격자 여유(ChaserSwitchMargin)와 같은 값 [가정]
 
         // 수비 하한(11-06, PositionRules.DefendFloorDepth). 수비 자리·마크 지점이 우리 골라인에서 이 깊이보다 뒤로 안 간다. GK는 따르지 않는다(KeeperLineX)
-        public const float DefendFloorBallOutsideBox = Placement.FieldBounds.PenaltyBoxDepth - 2f;   // 공이 박스 깊이 밖일 때 14.5m. 현실 라인은 공이 우리 서드에 있을 때 약 15m(Metrica, 움직임-현실성-대조 #8). 박스 선에서 2m 안쪽은 [가정]
+        public const float DefendFloorBallOutsideBox = Placement.FieldBounds.PenaltyBoxDepth - 2f;   // 공이 박스 깊이 밖일 때 14.5m. 현실 라인은 공이 우리 서드에 있을 때 약 15m(Metrica, 움직임-현실성-대조 #8). 박스 선에서 2m 안쪽은 [가정]. 11-06 quick 격자(상향 11 고정) {10, 12, 14.5}m: 박스 안 슛 27.4/28.2/27.3%, 패스 성공 70.4/70.7/70.8%, 압박 슛 35/34/32%, 수비 라인 27.5/27.6/27.6m로 차이가 잡음 안이다(상향된 지역 자리가 이미 하한 위라 거의 안 걸림). 현실값에 가까운 14.5 유지
         public const float DefendFloorBallInBox = Placement.FieldBounds.GoalAreaDepth + 2f;         // 공이 박스 깊이 안일 때 7.5m. 골 에어리어 선에서 2m 밖 [가정]: GK 라인(편성 −48 = 골에서 4.5m, 스위퍼 lineHeight 8이면 6.9m)보다 앞이라 CB가 GK와 한 줄에 안 선다
 
         public const int MaxPressers = 1;                                       // 팀에서 동시에 압박(⑧)하는 인원 상한. 압박 거리 안인 선수를 공 거리순으로 세어 이 안만 간다(09-23 Play: 인원 제한이 없어 우리 진영 "적극"이면 CM 19.5m·FB/W/ST 12m 안 4~6명이 한꺼번에 달려들어 초등학교 경기처럼 뭉쳤다). Simple Soccer는 최근접 1명만 쫓고 FM도 1명 압박 + 커버. 러너에서 태클이 죽으면 2
