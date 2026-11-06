@@ -80,7 +80,28 @@ namespace Game.Core.Match
         {
             float teamLine = TeamLineOffset(tactics.DefenseLine, goalkeeper);
             (float x, float z) home = DefendHome(baseX, baseZ, attackSign, stats.LineHeight, teamLine);
-            return SlideDefend(home.x, home.z, ballX, ballZ, goalkeeper);
+            (float x, float z) slid = SlideDefend(home.x, home.z, ballX, ballZ, goalkeeper);
+            if (goalkeeper) { return slid; }
+            return (AboveDefendFloor(slid.x, ballX, attackSign), slid.z);
+        }
+
+        // 수비 하한(11-06 유저 Play "센터백 라인이 골키퍼랑 동일선상"): 필드 선수의 수비 자리·마크 지점이 우리 골라인에서 이 깊이보다 뒤로 내려가지 않는다.
+        // 공이 박스 깊이(PenaltyBoxDepth) 밖이면 박스 선 근처, 안이면 골 에어리어 선 근처까지 허용한다. 공 z는 안 본다: 코너 쪽 깊은 공은 컷백이 골 에어리어 앞으로 오기 때문이다.
+        // 하한이 없을 때는 ①슬라이드 상한 10m가 CB 자리(골에서 13.3m)를 공이 우리 서드에 있는 동안 골에서 3.3m(GK 4.5m 뒤)로 끌어내렸고
+        // ②마크 지점이 GK 옆 상대의 골 쪽 1.5m라 CB가 GK 선까지 내려갔다. 수비가 내려가면 오프사이드 기준선(골 쪽 2번째 상대)도 같이 내려가 GK 옆 공격수가 온사이드였다
+        public static float DefendFloorDepth(float ballX, int attackSign)
+        {
+            float ballDepth = FieldBounds.HalfLength + ballX * attackSign;
+            if (ballDepth < FieldBounds.PenaltyBoxDepth) { return MatchTuning.DefendFloorBallInBox; }
+            return MatchTuning.DefendFloorBallOutsideBox;
+        }
+
+        // x가 하한보다 우리 골 쪽이면 하한 선으로 올린다. attackSign은 이 선수 팀의 공격 방향이라 우리 골은 x = −attackSign × HalfLength
+        public static float AboveDefendFloor(float x, float ballX, int attackSign)
+        {
+            float floorX = (DefendFloorDepth(ballX, attackSign) - FieldBounds.HalfLength) * attackSign;
+            if ((x - floorX) * attackSign >= 0f) { return x; }
+            return floorX;
         }
 
         // 공 지향 슬라이드 두 가지(09-21 유저 "자리가 완전 고정은 아닌 것 같다"). 공 좌표 기준이라 팀 부호가 필요 없다. 결과는 필드 안으로 클램프.

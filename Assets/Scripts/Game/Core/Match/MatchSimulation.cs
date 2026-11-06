@@ -386,9 +386,16 @@ namespace Game.Core.Match
             }
         }
 
+        // 지점은 수비 하한(PositionRules.AboveDefendFloor) 위로 자른다: 상대가 GK 옆까지 내려와도 마커는 하한에 서고, 그 상대는 오프사이드 위치가 된다(11-06 유저 Play)
+        private (float x, float z) MarkPointFor(PlayerState marker, PlayerState target)
+        {
+            (float x, float z) spot = UnflooredMarkPoint(marker, target);
+            return (PositionRules.AboveDefendFloor(spot.x, Ball.X, marker.AttackSign), spot.z);
+        }
+
         // 대상이 날아오는 패스의 리시버면 그 패스의 도착점을 기준으로 선다(공의 비행은 모두가 본다). 리드 패스는 리시버 앞 최대 8m라
         // 리시버 지금 자리를 보면 받는 순간 마커가 4m 뒤에 있었다(11-06 진단 받는 순간 최근접 수비 중앙값 4.1m). 아니면 대상의 지금 위치·속도와 내 반응 지연
-        private (float x, float z) MarkPointFor(PlayerState marker, PlayerState target)
+        private (float x, float z) UnflooredMarkPoint(PlayerState marker, PlayerState target)
         {
             if (passInFlight && passReceiverId == target.PlayerId)
             {

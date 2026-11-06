@@ -6,7 +6,7 @@ using NUnit.Framework;
 
 // MarkRules 검증(11-06 S3 ①). ①발동 = 공이 우리 골 중심 40m 안 ②대상 = 골에 가까운 상대 필드 선수(소유자·GK 제외) 상한까지
 // ③배정 = 대상마다 가장 가까운 마커, 동률 id, 히스테리시스(대상·마커 둘 다) ④마크 지점 = 상대의 골 쪽 MarkDistance(1.5m, 반응 지연만큼 지난 자리 기준, 실제 상대보다 공 쪽으로는 안 감)
-// ⑤반응 지연 = positioning ⑥패스 비행 중 리시버는 도착점 기준(선정·배정·지점 모두) ⑦교대 계측. 순수 함수 테스트의 거리 인자는 읽기 쉽게 2m를 직접 준다
+// ⑤반응 지연 = positioning ⑥패스 비행 중 리시버는 도착점 기준(선정·배정·지점 모두) ⑦교대 계측 ⑧시뮬의 지점은 수비 하한 위(GK 선으로 안 내려감, 11-06). 순수 함수 테스트의 거리 인자는 읽기 쉽게 2m를 직접 준다
 // 팀 0 기준(attackSign +1): 우리 골은 x = −52.5
 public class MarkRulesTests
 {
@@ -241,7 +241,8 @@ public class MarkRulesTests
         Assert.IsFalse(presser.IsMarker, "압박자는 마커가 아니다");
         Assert.IsTrue(marker.IsMarker);
         (float x, float z) expected = MarkRules.MarkPoint(OwnGoalX + 12f, 6f, 0f, 0f, MarkRules.ReactionDelay(50), Sign, MatchTuning.MarkDistance);
-        Assert.AreEqual(expected.x, marker.MarkX, 1e-3f, "리시버의 골 쪽 MarkDistance(1.5m)");
+        float expectedX = PositionRules.AboveDefendFloor(expected.x, OwnGoalX + 20f, Sign);
+        Assert.AreEqual(expectedX, marker.MarkX, 1e-3f, "리시버의 골 쪽 MarkDistance(1.5m), 공이 박스 밖이라 하한(14.5m) 위로");
         Assert.AreEqual(expected.z, marker.MarkZ, 1e-3f);
 
         var far = new MatchSimulation(() => 0.99f, new PassFlightTestsHelper.NoOp(), TestThreat.Real);
@@ -277,6 +278,51 @@ public class MarkRulesTests
         Assert.AreEqual(expected.x, marker.MarkX, 1e-3f, "도착점의 골 쪽");
         Assert.AreEqual(expected.z, marker.MarkZ, 1e-3f);
         Assert.IsFalse(passer.IsMarker);
+    }
+
+    [Test]
+    public void GK_옆_상대를_맡아도_마커는_수비_하한에_서고_그_상대는_오프사이드_위치다()
+    {
+        // 11-06 유저 Play "공격수가 GK 옆에 있으니까 붙지도 않고 슛 찰 각이 생김". 하한 전엔 마크 지점이 상대의 골 쪽 1.5m라 CB가 GK 선(골에서 4.5m)까지 내려갔고
+        // 오프사이드 기준선(골 쪽 2번째 상대)도 같이 내려가 GK 옆 공격수가 온사이드였다.
+        // 팀 1이 우리 골에서 20m(박스 밖) 공을 쥐었다. 0번은 공 옆(압박), 1번 마커는 GK 옆 상대(골 + 4.5, z 2) 근처
+        var sim = new MatchSimulation(() => 0.99f, new PassFlightTestsHelper.NoOp(), TestThreat.Real);
+        sim.AddPlayer(new PlayerState(0, 0, Defender(50), OwnGoalX + 19f, 0f));
+        PlayerState marker = sim.AddPlayer(new PlayerState(1, 0, Defender(50), OwnGoalX + 9f, 4f));
+        sim.AddPlayer(new PlayerState(2, 1, Attacker(), OwnGoalX + 20f, 0f));
+        PlayerState lurker = sim.AddPlayer(new PlayerState(3, 1, Attacker(), OwnGoalX + 4.5f, 2f));
+        sim.Kickoff();
+        sim.Ball = BallRules.Own(sim.Ball, 2, OwnGoalX + 20f, 0f);
+        sim.Tick(Dt);
+
+        Assert.IsTrue(marker.IsMarker, "전제: GK 옆 상대가 마크 대상");
+        Assert.AreEqual(OwnGoalX + MatchTuning.DefendFloorBallOutsideBox, marker.MarkX, 1e-3f, "공이 박스 밖이면 박스 선 근처 하한(14.5m)에 선다");
+
+        // 마커가 그 자리에 섰을 때 팀 1 기준 온사이드 선. 우리 GK는 편성 −48(골에서 4.5m)
+        var defenders = new List<TargetInfo>
+        {
+            new TargetInfo(10, -48f, 0f),
+            new TargetInfo(0, OwnGoalX + 19f, 0f),
+            new TargetInfo(1, marker.MarkX, marker.MarkZ),
+        };
+        float line = OffsideRules.OnsideLine(defenders, -1, sim.Ball.X);
+        Assert.IsTrue(OffsideRules.IsOffsidePosition(lurker.X, -1, line), "GK 옆 상대는 마커(골 쪽 2번째)보다 골 쪽이라 오프사이드 위치");
+
+        // 순수 함수 성질: 상대가 우리 진영 어디에 있든, 공이 박스 안이든 밖이든, 하한을 거친 마크 지점은 GK 라인(스위퍼 최댓값 6.9m)보다 앞이다
+        float keeperDepth = FieldBounds.HalfLength + PositionRules.KeeperLineX(-48f, 0f, Sign, 8f);
+        float[] ballDepths = { 5f, 12f, 16.5f, 25f, 39f };
+        for (int b = 0; b < ballDepths.Length; b++)
+        {
+            for (float tx = 0.5f; tx <= 40f; tx += 1.5f)
+            {
+                for (float tz = -20f; tz <= 20f; tz += 4f)
+                {
+                    (float x, float z) raw = MarkRules.MarkPoint(OwnGoalX + tx, tz, 0f, 0f, 0f, Sign, MatchTuning.MarkDistance);
+                    float floored = PositionRules.AboveDefendFloor(raw.x, OwnGoalX + ballDepths[b], Sign);
+                    Assert.GreaterOrEqual(floored - OwnGoalX, keeperDepth + 0.5f, $"공 깊이 {ballDepths[b]}, 상대 ({tx}, {tz})");
+                }
+            }
+        }
     }
 
     private static float MathDistance(float dx, float dz)

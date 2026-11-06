@@ -195,6 +195,42 @@ public class PositionRulesTests
         Assert.AreEqual(PositionRules.SlideDefend(home.x, home.z, 10f, -20f, goalkeeper: true), PositionRules.DefendStand(-48f, 0f, +1, tactics, keeper, 10f, -20f, goalkeeper: true), "GK는 팀 수비 라인 0 + GK 슬라이드");
     }
 
+    [TestCase(+1)]
+    [TestCase(-1)]
+    public void 수비_하한은_공이_박스_깊이_밖이면_박스_선_근처이고_안이면_골_에어리어_선_근처다(int sign)
+    {
+        // 우리 골은 x = −sign × 52.5. 공 깊이(골라인에서 잰 x 거리)가 박스 깊이 16.5m 이상이면 밖, z는 안 본다
+        float ownGoalX = -sign * FieldBounds.HalfLength;
+        Assert.AreEqual(MatchTuning.DefendFloorBallOutsideBox, PositionRules.DefendFloorDepth(ownGoalX + sign * 30f, sign));
+        Assert.AreEqual(MatchTuning.DefendFloorBallOutsideBox, PositionRules.DefendFloorDepth(ownGoalX + sign * FieldBounds.PenaltyBoxDepth, sign), "박스 선 위는 밖");
+        Assert.AreEqual(MatchTuning.DefendFloorBallInBox, PositionRules.DefendFloorDepth(ownGoalX + sign * 10f, sign));
+        Assert.That(MatchTuning.DefendFloorBallOutsideBox, Is.InRange(FieldBounds.PenaltyBoxDepth - 3f, FieldBounds.PenaltyBoxDepth), "박스 선 근처");
+        Assert.That(MatchTuning.DefendFloorBallInBox, Is.InRange(FieldBounds.GoalAreaDepth, FieldBounds.GoalAreaDepth + 3f), "골 에어리어 선 근처");
+
+        float floorX = ownGoalX + sign * MatchTuning.DefendFloorBallOutsideBox;
+        Assert.AreEqual(floorX, PositionRules.AboveDefendFloor(ownGoalX + sign * 3f, ownGoalX + sign * 25f, sign), 1e-4f, "하한보다 골 쪽이면 하한 선으로");
+        Assert.AreEqual(ownGoalX + sign * 20f, PositionRules.AboveDefendFloor(ownGoalX + sign * 20f, ownGoalX + sign * 25f, sign), 1e-4f, "하한보다 앞이면 그대로");
+    }
+
+    [Test]
+    public void 필드_선수의_수비_자리는_공이_어디에_있어도_GK_라인보다_앞이다()
+    {
+        // 11-06 유저 Play "센터백 라인이 골키퍼랑 동일선상". 하한 전엔 공이 우리 서드면 슬라이드 상한 10m가 CB(−41, 개인 6m)를 골에서 3.3m(GK 4.5m 뒤)로 끌어내렸다.
+        // 깊게 라인(가장 낮은 팀 다이얼)·개인 라인 높이 0으로 가장 깊은 CB를 만들고, 공을 우리 진영 격자 전역에 둔다.
+        // GK 라인은 편성 −48 + 스위퍼 lineHeight 8(표 최댓값) × 0.3 = 골에서 6.9m. 그보다 앞(여유 0.5m)이어야 한 줄로 안 보인다
+        var tactics = new TeamTactics { DefenseLine = 0 };
+        var cb = new PlayerStats { RoleId = "CB", LineHeight = 0f };
+        float keeperDepth = FieldBounds.HalfLength + PositionRules.KeeperLineX(-48f, 0f, +1, 8f);
+        for (float bx = -52f; bx <= 0f; bx += 2f)
+        {
+            for (float bz = -33f; bz <= 33f; bz += 6f)
+            {
+                (float x, float z) stand = PositionRules.DefendStand(-41f, 7f, +1, tactics, cb, bx, bz, goalkeeper: false);
+                Assert.GreaterOrEqual(FieldBounds.HalfLength + stand.x, keeperDepth + 0.5f, $"공 ({bx}, {bz})");
+            }
+        }
+    }
+
     [Test]
     public void GK_라인_x는_수비_시_자리의_x와_같다()
     {
