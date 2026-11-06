@@ -302,6 +302,87 @@ public class MarkRulesTests
         Assert.IsFalse(dm.IsMarker, "상한(뒷줄 2) 밖 셋째 대상은 대상이 아니다");
     }
 
+    [Test]
+    public void 이차_후보는_뒷줄_바로_앞_한_줄만이라_복귀_역할_공격수는_내려와_맡지_않는다()
+    {
+        // 11-07 리뷰 🟡: ST 슬롯에 tracking을 주면 공격수가 2차 마커가 됐다. 둘째 줄(뒷줄 아닌 선수 중 가장 깊은 자리 + 6m)만 2차.
+        // 팀 0: CB 2명(10.5) + DM(22, 둘째 줄) + tracking ST(수비 자리 35, 둘째 줄 밖). CB 한 명이 전진으로 빠져 자유 뒷줄 1, 대상 2. ST가 둘째 대상 옆에 있어도 안 맡는다
+        var sim = new MatchSimulation(() => 0.99f, new PassFlightTestsHelper.NoOp(), TestThreat.Real);
+        PlayerState stepOut = sim.AddPlayer(new PlayerState(0, 0, Defender(50), OwnGoalX + 10.5f, -7f));
+        PlayerState cover = sim.AddPlayer(new PlayerState(1, 0, Defender(50), OwnGoalX + 10.5f, 7f));
+        PlayerState dm = sim.AddPlayer(new PlayerState(2, 0, Midfielder(false), OwnGoalX + 22f, 0f));
+        PlayerState st = sim.AddPlayer(new PlayerState(3, 0, TrackingStriker(), OwnGoalX + 16f, -5f, OwnGoalX + 35f, -5f));
+        sim.AddPlayer(new PlayerState(4, 1, Attacker(), OwnGoalX + 18f, 0f));
+        sim.AddPlayer(new PlayerState(5, 1, Attacker(), OwnGoalX + 14f, 5f));
+        sim.AddPlayer(new PlayerState(6, 1, Attacker(), OwnGoalX + 14f, -5f));
+        sim.Kickoff();
+        st.X = OwnGoalX + 16f;   // 킥오프가 공격 시 자리로 돌려놓아도 실제 자리는 둘째 대상 옆 2m. 줄 판정은 수비 시 자리(35)라 바뀌지 않는다
+        st.Z = -5f;
+        sim.Ball = BallRules.Own(sim.Ball, 4, OwnGoalX + 18f, 0f);
+        sim.Tick(Dt);
+
+        Assert.AreEqual(0, stepOut.PressRank, "전제: CB 한 명이 전진");
+        Assert.IsTrue(dm.IsSecondLine, "DM은 둘째 줄");
+        Assert.IsFalse(st.IsSecondLine, "ST(35)는 둘째 줄 기준 22 + 6 밖");
+        Assert.IsTrue(cover.IsMarker);
+        Assert.IsFalse(st.IsMarker, "복귀 역할이라도 공격수는 2차 마커가 아니다");
+        Assert.IsFalse(dm.IsMarker, "DM은 marksAsSecond가 아니라 안 맡는다 → 둘째 대상은 비운다");
+    }
+
+    [Test]
+    public void 이차_마커가_맡던_상대는_뒷줄이_풀리면_뒷줄이_되찾는다()
+    {
+        // 전진으로 빠진 CB가 공이 구역 밖으로 가 풀리면, 1차(뒷줄) 배정이 먼저라 tracking 수미가 맡던 둘째 대상을 CB가 되찾고 수미는 지역 자리로
+        MatchSimulation sim = TwoTargetsOneFreeBack(Midfielder(true), out PlayerState stepOut, out PlayerState cover, out PlayerState dm);
+        Assert.IsTrue(dm.IsMarker, "전제: 수미가 둘째 대상을 맡고 있다");
+
+        sim.Ball = BallRules.Own(sim.Ball, 3, OwnGoalX + 30f, 0f);   // 전진 구역(21.5m) 밖으로
+        sim.Tick(Dt);
+        Assert.AreEqual(int.MaxValue, stepOut.PressRank, "전진이 풀렸다");
+        Assert.IsTrue(stepOut.IsMarker, "풀린 CB가 둘째 대상을 되찾는다(1차 배정이 먼저)");
+        Assert.IsTrue(cover.IsMarker);
+        Assert.IsFalse(dm.IsMarker, "수미는 지역 자리로");
+    }
+
+    [Test]
+    public void 진영_교체_뒤에도_뒷줄_판정과_마커는_같다()
+    {
+        // 수비 시 자리는 하프타임 SwitchSides에서 x 부호만 뒤집혀 깊이가 불변이다. 전반 장면(CB가 맡고 DM은 안 맡음)을 하프타임을 지나 미러로 다시 놓아도 같다.
+        // 진영 교체는 시뮬 경로(KickoffBy → HalfTimeTick)로 일으킨다: AttackSignOf도 같이 뒤집혀야 마크 발동(우리 골 40m)이 맞는 골을 본다
+        var sim = new MatchSimulation(() => 0.99f, new PassFlightTestsHelper.NoOp(), TestThreat.Real);
+        PlayerState cbLeft = sim.AddPlayer(new PlayerState(0, 0, Defender(50), OwnGoalX + 10.5f, -7f));
+        PlayerState cbRight = sim.AddPlayer(new PlayerState(1, 0, Defender(50), OwnGoalX + 10.5f, 7f));
+        PlayerState dm = sim.AddPlayer(new PlayerState(2, 0, Midfielder(true), OwnGoalX + 22f, 0f));
+        PlayerState owner = sim.AddPlayer(new PlayerState(3, 1, Attacker(), OwnGoalX + 30f, 0f));
+        PlayerState target = sim.AddPlayer(new PlayerState(4, 1, Attacker(), OwnGoalX + 19f, 0f));
+        sim.KickoffBy(0);
+        sim.Ball = BallRules.Own(sim.Ball, 3, OwnGoalX + 30f, 0f);
+        sim.Tick(Dt);
+        Assert.IsTrue(cbLeft.IsMarker && !dm.IsMarker, "전제: 전반");
+
+        int ht = sim.HalfTimeTick;
+        while (sim.TickCount < ht) { sim.Tick(Dt); }
+        Assert.IsTrue(sim.SidesSwitched, "전제: 하프타임을 지났다");
+        Assert.AreEqual(-OwnGoalX - 10.5f, cbLeft.DefendHomeX, 1e-4f, "수비 시 자리 x가 미러");
+
+        PlayerState[] all = { cbLeft, cbRight, dm, owner, target };
+        float[] mirroredX = { -(OwnGoalX + 10.5f), -(OwnGoalX + 10.5f), -(OwnGoalX + 22f), -(OwnGoalX + 30f), -(OwnGoalX + 19f) };
+        for (int i = 0; i < all.Length; i++) { all[i].X = mirroredX[i]; }
+        sim.Ball = BallRules.Own(sim.Ball, 3, owner.X, owner.Z);
+        sim.Tick(Dt);
+
+        Assert.IsTrue(cbLeft.IsBackLine && cbRight.IsBackLine, "뒷줄 그대로");
+        Assert.IsTrue(dm.IsSecondLine && !dm.IsBackLine, "둘째 줄 그대로");
+        Assert.IsTrue(cbLeft.IsMarker, "뒤집힌 진영에서도 CB가 맡는다");
+        Assert.IsFalse(cbRight.IsMarker);
+        Assert.IsFalse(dm.IsMarker);
+    }
+
+    private static PlayerStats TrackingStriker()
+    {
+        return new PlayerStats { RoleId = "ST", VariantId = "st_test", Speed = 50, PressRange = 12f, ShotBias = 1f, PassLength = 15f, Positioning = 50, MarksAsSecond = true };
+    }
+
     // 팀 0: CB 2명(깊이 10.5, z ±7) + 미드필더(깊이 22). 팀 1: 소유자 골에서 18m 중앙(박스 앞 전진 구역 안), 대상 2명 (골 + 14, ±5)
     private static MatchSimulation TwoTargetsOneFreeBack(PlayerStats midfielder, out PlayerState stepOut, out PlayerState cover, out PlayerState dm)
     {

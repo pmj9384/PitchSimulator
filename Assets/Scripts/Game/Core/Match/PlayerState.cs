@@ -52,6 +52,7 @@ namespace Game.Core.Match
         public IReadOnlyList<TargetInfo> Teammates { get; set; } = System.Array.Empty<TargetInfo>();
         public IReadOnlyList<TargetInfo> Opponents { get; set; } = System.Array.Empty<TargetInfo>();
         public bool IsBackLine { get; set; }          // 수비 시 자리가 팀의 뒷줄인가(시뮬이 LineRules로 정함, 11-06 D1). 리시버 마크 1차 후보·박스 앞 전진 후보의 기준
+        public bool IsSecondLine { get; set; }        // 뒷줄 바로 앞 한 줄인가(11-07). 수비 역할 marksAsSecond와 함께 리시버 마크 2차 후보의 기준
         public bool IsMarker { get; set; }            // 이번 틱 상대 리시버를 마크하나(시뮬이 MarkRules로 정함, 11-06 S3 ①)
         public float MarkX { get; set; }              // 마크 지점(그 리시버의 골 쪽). IsMarker일 때만 뜻이 있다
         public float MarkZ { get; set; }

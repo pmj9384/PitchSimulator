@@ -58,6 +58,23 @@ public class LineRulesTests
     }
 
     [Test]
+    public void 둘째_줄은_뒷줄_아닌_선수_중_가장_깊은_자리에서_밴드_안이고_뒷줄은_아니다()
+    {
+        // 4-2-3-1: 뒷줄 깊이 11.5(CB −41), 둘째 줄 기준 23.5(DM −29). W·AM(−19 → 33.5)은 10m 차라 둘째 줄이 아니고, ST(−11 → 41.5)도 아니다
+        float deepest = LineRules.HomeDepth(-41f, +1);
+        float second = LineRules.HomeDepth(-29f, +1);
+        Assert.IsTrue(LineRules.IsSecondLine(second, deepest, second), "DM");
+        Assert.IsFalse(LineRules.IsSecondLine(LineRules.HomeDepth(-19f, +1), deepest, second), "W·AM");
+        Assert.IsFalse(LineRules.IsSecondLine(LineRules.HomeDepth(-11f, +1), deepest, second), "ST");
+        Assert.IsFalse(LineRules.IsSecondLine(deepest, deepest, second), "뒷줄 선수는 둘째 줄이 아니다");
+        Assert.IsFalse(LineRules.IsSecondLine(LineRules.HomeDepth(-40f, +1), deepest, second), "뒷줄 FB(−40)도 아니다");
+        // 4-4-2: 둘째 줄 기준 = CM −25(27.5). W −23(29.5)은 2m 차로 같은 줄, ST −13(39.5)은 밖
+        float second442 = LineRules.HomeDepth(-25f, +1);
+        Assert.IsTrue(LineRules.IsSecondLine(LineRules.HomeDepth(-23f, +1), deepest, second442), "4-4-2 W는 CM과 같은 줄");
+        Assert.IsFalse(LineRules.IsSecondLine(LineRules.HomeDepth(-13f, +1), deepest, second442), "4-4-2 ST");
+    }
+
+    [Test]
     public void 백3_편성의_윙백은_뒷줄이_아니다()
     {
         // 3-5-2 FB posX2 −31(깊이 21.5) 대 CB −41(11.5): 10m 차. 현실의 윙백처럼 미드 줄로 분류돼 리시버 마크 1차 후보에서 빠진다

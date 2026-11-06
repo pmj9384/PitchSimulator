@@ -125,6 +125,8 @@ namespace Game.Core.Match
         private readonly List<TargetInfo>[] markCandidates = { new List<TargetInfo>(), new List<TargetInfo>() };         // 1차 후보 = 뒷줄(11-06 D1)
         private readonly List<TargetInfo>[] markSecondCandidates = { new List<TargetInfo>(), new List<TargetInfo>() };   // 2차 후보 = 수비 역할 tracking 미드필더
         private readonly int[] backLineCount = { 0, 0 };   // 팀별 뒷줄 수 = 마커 상한. FillBackLine이 틱마다 채운다
+        private readonly float[] lineDeepest = { 0f, 0f };         // 팀별 가장 깊은 수비 시 자리 깊이(뒷줄 기준). 틱마다 다시 재는 버퍼(할당 없음)
+        private readonly float[] secondLineDeepest = { 0f, 0f };   // 팀별 뒷줄 아닌 선수 중 가장 깊은 자리(둘째 줄 기준)
         private readonly List<TargetInfo> markOpponents = new List<TargetInfo>();   // 패스 비행 중 리시버를 도착점에 둔 상대 명부(대상 선정용)
         // 팀 국면 스냅샷 버퍼. 틱마다 새 배열을 만들면 3분에 9,000 × 3번 할당(09-21 전수조사 S5)
         private readonly bool[] counteringByTeam = new bool[2];
@@ -359,7 +361,8 @@ namespace Game.Core.Match
         }
 
         // 마커 후보: 트리 ⑧(압박)에 가는 선수는 뺀다. 판정은 스냅샷 PressRank와 같은 호출이라 ⑧과 ⑧b가 한 선수에게 겹치지 않는다.
-        // 1차 = 뒷줄(IsBackLine), 2차 = 뒷줄이 아니면서 수비 역할이 마크 2차를 허용한 선수(DefenseRoles.csv marksAsSecond). 그 외 미드필더·공격수는 지역 자리(⑨)로
+        // 1차 = 뒷줄(IsBackLine), 2차 = 둘째 줄(IsSecondLine, 뒷줄 바로 앞 한 줄)이면서 수비 역할이 마크 2차를 허용한 선수(DefenseRoles.csv marksAsSecond).
+        // 공격수 슬롯에 tracking을 줘도 2차가 못 되는 이유: 공격수가 내려와 마커가 되면 역습 출구가 사라진다(11-07 리뷰). 그 외는 지역 자리(⑨)로
         private void FillMarkCandidates(int team)
         {
             List<TargetInfo> candidates = markCandidates[team];
@@ -377,28 +380,39 @@ namespace Game.Core.Match
                     candidates.Add(new TargetInfo(p.PlayerId, p.X, p.Z));
                     continue;
                 }
-                if (p.Stats.MarksAsSecond) { second.Add(new TargetInfo(p.PlayerId, p.X, p.Z)); }
+                if (p.IsSecondLine && p.Stats.MarksAsSecond) { second.Add(new TargetInfo(p.PlayerId, p.X, p.Z)); }
             }
         }
 
-        // 뒷줄 플래그·뒷줄 수(11-06 D1, LineRules). 수비 시 자리는 진영 교체 때 부호만 뒤집혀 깊이가 불변이지만, 명부가 틱 사이에 바뀌는 테스트가 있어 틱마다 다시 센다(22명 두 바퀴)
+        // 뒷줄·둘째 줄 플래그와 뒷줄 수(11-06 D1, LineRules). 수비 시 자리는 진영 교체 때 부호만 뒤집혀 깊이가 불변이지만, 명부가 틱 사이에 바뀌는 테스트가 있어 틱마다 다시 센다(22명 세 바퀴)
         private void FillBackLine()
         {
-            float[] deepest = { float.MaxValue, float.MaxValue };
+            lineDeepest[0] = float.MaxValue;
+            lineDeepest[1] = float.MaxValue;
             for (int i = 0; i < players.Count; i++)
             {
                 PlayerState p = players[i];
                 if (p.IsGoalkeeper) { continue; }
                 float depth = LineRules.HomeDepth(p.DefendHomeX, p.AttackSign);
-                if (depth < deepest[p.Team]) { deepest[p.Team] = depth; }
+                if (depth < lineDeepest[p.Team]) { lineDeepest[p.Team] = depth; }
             }
             backLineCount[0] = 0;
             backLineCount[1] = 0;
+            secondLineDeepest[0] = float.MaxValue;
+            secondLineDeepest[1] = float.MaxValue;
             for (int i = 0; i < players.Count; i++)
             {
                 PlayerState p = players[i];
-                p.IsBackLine = !p.IsGoalkeeper && LineRules.IsBackLine(LineRules.HomeDepth(p.DefendHomeX, p.AttackSign), deepest[p.Team]);
+                float depth = LineRules.HomeDepth(p.DefendHomeX, p.AttackSign);
+                p.IsBackLine = !p.IsGoalkeeper && LineRules.IsBackLine(depth, lineDeepest[p.Team]);
                 if (p.IsBackLine) { backLineCount[p.Team]++; }
+                if (p.IsGoalkeeper || p.IsBackLine) { continue; }
+                if (depth < secondLineDeepest[p.Team]) { secondLineDeepest[p.Team] = depth; }
+            }
+            for (int i = 0; i < players.Count; i++)
+            {
+                PlayerState p = players[i];
+                p.IsSecondLine = !p.IsGoalkeeper && LineRules.IsSecondLine(LineRules.HomeDepth(p.DefendHomeX, p.AttackSign), lineDeepest[p.Team], secondLineDeepest[p.Team]);
             }
         }
 
