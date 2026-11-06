@@ -36,8 +36,7 @@ public class StageManager : InGameManager
         DisplayName = $"{current.Fixture.Round + 1}라운드";
 
         SpawnStadium();
-        Spawn(current.Team0, 0, current.Kit0);
-        Spawn(current.Team1, 1, current.Kit1);
+        SpawnPlayers();
     }
 
     // 이번 판 경기장(홈 팀이 속한 부)을 판당 1회 만든다. 반복 스폰이 아니라 ObjectPool 대상이 아니고, Clear에서 지운다
@@ -78,12 +77,17 @@ public class StageManager : InGameManager
         crowd.Init(StadiumSpecRepository.Get(stadiumId), fillSeed, PlayerPalette.Kit(homeKit));
     }
 
-    private void Spawn(IReadOnlyList<LineupSlot> slots, int team, int kit)
+    // 시뮬(MatchManager.ResetMatch가 GameReady 앞 훅에서 조립)에 이미 있는 22명에게 몸을 붙인다. 상태는 만들지 않는다(11-06 S4-1).
+    // 겉모습 재료(머리 번호)는 그 선수를 만든 라인업 칸에서, 유니폼은 팀별 번호에서
+    private void SpawnPlayers()
     {
-        for (int i = 0; i < slots.Count; i++)
+        IReadOnlyList<PlayerState> players = GameManager.Match.Simulation.Players;
+        for (int i = 0; i < players.Count; i++)
         {
-            LineupSlot slot = slots[i];
-            GameManager.Players.Spawn(slot.Stats, team, new Vector3(slot.AttackX, 0f, slot.AttackZ), new Vector3(slot.DefendX, 0f, slot.DefendZ), slot.Portrait, kit);
+            PlayerState player = players[i];
+            LineupSlot slot = MyMatchAssembler.SlotOf(current, player);
+            int kit = player.Team == 0 ? current.Kit0 : current.Kit1;
+            GameManager.Players.Spawn(player, slot.Portrait, kit);
         }
     }
 

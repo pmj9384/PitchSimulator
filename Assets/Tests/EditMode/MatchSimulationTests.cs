@@ -994,18 +994,6 @@ public class MatchSimulationTests
     }
 
     [Test]
-    public void 킥오프_전에_바꾼_역할_값은_선수에게_다시_준다()
-    {
-        // 09-30 개인 전술: 선수는 세팅 국면(GameReady)에 스폰되므로, 그 화면에서 바꾼 역할·지시는 킥오프 때 다시 넣는다. 자리가 바뀌는 교체는 막는다
-        PlayerState striker = new PlayerState(0, 0, Striker(), 10f, 0f);
-        PlayerStats changed = Striker();
-        changed.PressRange = 14f;
-        striker.ReplaceStats(changed);
-        Assert.AreEqual(14f, striker.Stats.PressRange);
-        Assert.Throws<System.InvalidOperationException>(() => striker.ReplaceStats(Keeper()), "필드 선수를 골키퍼 값으로 바꿀 수 없다");
-    }
-
-    [Test]
     public void 슛마다_찼다_이벤트가_슈터_번호로_온다()
     {
         // 화면 킥 애니용 BallKicked(10-21). 리트머스는 패스가 없어 슛 수 = 킥 수이고, 막힌 슛도 찬 것으로 센다
