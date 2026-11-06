@@ -33,6 +33,9 @@ public class PlayerTreeTests
         public IReadOnlyList<TargetInfo> Teammates { get; set; } = new List<TargetInfo>();
         public IReadOnlyList<TargetInfo> Opponents { get; set; } = new List<TargetInfo>();
         public bool IsLooseBallChaser { get; set; }
+        public bool IsMarker { get; set; }
+        public float MarkX { get; set; }
+        public float MarkZ { get; set; }
         public bool IsKickoffTaker { get; set; }
         public bool WantsTakeOn { get; set; }
         public bool IsKeeperAlternate { get; set; }

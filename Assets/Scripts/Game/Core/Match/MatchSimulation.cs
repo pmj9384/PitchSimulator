@@ -118,6 +118,12 @@ namespace Game.Core.Match
         private readonly int[] pressLeader = { -1, -1 };
         private readonly int[] pressLeaderSince = { 0, 0 };   // 지금 담당이 맡기 시작한 틱. 최소 재임(PressMinTenureTicks) 판정
         private readonly int[] looseChaser = { -1, -1 };
+        // 리시버 마크(11-06 S3 ①): 팀별 이번 틱 배정과 직전 틱 배정(히스테리시스 기준). 틱마다 두 목록을 바꿔 쓴다
+        private readonly List<MarkAssignment>[] marks = { new List<MarkAssignment>(), new List<MarkAssignment>() };
+        private readonly List<MarkAssignment>[] previousMarks = { new List<MarkAssignment>(), new List<MarkAssignment>() };
+        private readonly List<TargetInfo>[] markTargets = { new List<TargetInfo>(), new List<TargetInfo>() };
+        private readonly List<TargetInfo>[] markCandidates = { new List<TargetInfo>(), new List<TargetInfo>() };
+        private readonly List<TargetInfo> markOpponents = new List<TargetInfo>();   // 패스 비행 중 리시버를 도착점에 둔 상대 명부(대상 선정용)
         // 팀 국면 스냅샷 버퍼. 틱마다 새 배열을 만들면 3분에 9,000 × 3번 할당(09-21 전수조사 S5)
         private readonly bool[] counteringByTeam = new bool[2];
         private readonly bool[] counterPressingByTeam = new bool[2];
@@ -171,6 +177,7 @@ namespace Game.Core.Match
         public int TakeOnCount { get; private set; }       // 돌파 의도가 선 횟수(계측)
         public int TakeOnLostCount { get; private set; }   // 돌파 의도 중 태클로 뺏긴 횟수(계측). 성공률 = 1 - 뺏김 ÷ 시도의 근사
         public int PassCount { get; private set; }
+        public int MarkSwitchCount { get; private set; }   // 마크 배정에서 직전 틱에 없던 (마커, 대상) 쌍이 생긴 수(계측, 11-06 S3 ①). 틱마다 교대하면 폭주한다
         public int InterceptCount { get; private set; }
 
         // 격자는 전역이 아니라 생성자로 받는다: 생성 지점이 매니저(관전)·조립기(자동 대전)로 둘이라, 전역이면 한쪽이 안 넣을 때 같은 세팅의 판단이 갈린다
@@ -316,6 +323,81 @@ namespace Game.Core.Match
             }
         }
 
+        // 리시버 마크 배정(11-06 S3 ①). 상대 소유이고 공이 우리 골 MaxShotRange 안일 때만. 대상 = 우리 골에 가까운 상대 필드 선수(소유자·GK 제외),
+        // 마커 후보 = 압박 순위 밖(⑧에 안 가는)이고 얼지 않은 우리 필드 선수. 직전 틱 배정을 넘겨 대상(MarkTargetMargin)·마커(ChaserSwitchMargin) 히스테리시스를 건다.
+        // 직전 틱만 기억한다: 발동이 한 틱이라도 꺼지면(공이 40m 밖·자유 공) 다음 발동은 처음부터 고른다
+        private void UpdateMarks(int ownerTeam)
+        {
+            for (int team = 0; team < 2; team++)
+            {
+                List<MarkAssignment> last = marks[team];
+                marks[team] = previousMarks[team];
+                previousMarks[team] = last;
+                marks[team].Clear();
+                if (ownerTeam != 1 - team) { continue; }
+                if (!MarkRules.IsActive(Ball.X, Ball.Z, AttackSignOf(team))) { continue; }
+
+                int ownerId = Ball.Phase == BallPhase.Owned ? Ball.OwnerId : BallState.NoOwner;
+                MarkRules.SelectTargets(MarkOpponentsOf(team), ownerId, keeperIds[1 - team], AttackSignOf(team), MatchTuning.MaxMarkers,
+                    previousMarks[team], MatchTuning.MarkTargetMargin, markTargets[team]);
+                FillMarkCandidates(team);
+                MarkRules.Assign(markTargets[team], markCandidates[team], previousMarks[team], MatchTuning.ChaserSwitchMargin, marks[team]);
+                MarkSwitchCount += MarkRules.NewPairs(previousMarks[team], marks[team]);
+            }
+        }
+
+        // 대상 선정에 쓰는 상대 명부. 상대 패스가 날아가는 중이면 리시버를 도착점에 둔다(마크 지점 MarkPointFor와 같은 점)
+        private IReadOnlyList<TargetInfo> MarkOpponentsOf(int team)
+        {
+            if (!passInFlight) { return rosterSnapshot[1 - team]; }
+
+            MarkRules.WithReceiverAt(rosterSnapshot[1 - team], passReceiverId, passTargetX, passTargetZ, markOpponents);
+            return markOpponents;
+        }
+
+        // 마커 후보: 트리 ⑧(압박)에 가는 선수는 뺀다. 판정은 스냅샷 PressRank와 같은 호출이라 ⑧과 ⑧b가 한 선수에게 겹치지 않는다
+        private void FillMarkCandidates(int team)
+        {
+            List<TargetInfo> candidates = markCandidates[team];
+            candidates.Clear();
+            for (int i = 0; i < players.Count; i++)
+            {
+                PlayerState p = players[i];
+                if (p.Team != team || p.IsGoalkeeper || p.FrozenTicks > 0) { continue; }
+                int rank = PressRules.PressRank(p.PlayerId, pressEligible[team], Ball.X, Ball.Z, pressLeader[team], PressMargin(team));
+                if (rank < MatchTuning.MaxPressers) { continue; }
+                candidates.Add(new TargetInfo(p.PlayerId, p.X, p.Z));
+            }
+        }
+
+        // 마커면 대상의 지금 위치·속도와 내 반응 지연(positioning)으로 마크 지점을 넣는다. 아니면 끈다
+        private void FillMarkSnapshot(PlayerState p)
+        {
+            p.IsMarker = false;
+            List<MarkAssignment> teamMarks = marks[p.Team];
+            for (int i = 0; i < teamMarks.Count; i++)
+            {
+                if (teamMarks[i].MarkerId != p.PlayerId) { continue; }
+                (float x, float z) spot = MarkPointFor(p, FindPlayer(teamMarks[i].TargetId));
+                p.IsMarker = true;
+                p.MarkX = spot.x;
+                p.MarkZ = spot.z;
+                return;
+            }
+        }
+
+        // 대상이 날아오는 패스의 리시버면 그 패스의 도착점을 기준으로 선다(공의 비행은 모두가 본다). 리드 패스는 리시버 앞 최대 8m라
+        // 리시버 지금 자리를 보면 받는 순간 마커가 4m 뒤에 있었다(11-06 진단 받는 순간 최근접 수비 중앙값 4.1m). 아니면 대상의 지금 위치·속도와 내 반응 지연
+        private (float x, float z) MarkPointFor(PlayerState marker, PlayerState target)
+        {
+            if (passInFlight && passReceiverId == target.PlayerId)
+            {
+                return MarkRules.MarkPoint(passTargetX, passTargetZ, 0f, 0f, 0f, marker.AttackSign, MatchTuning.MarkDistance);
+            }
+            float delay = MarkRules.ReactionDelay(marker.Stats.Positioning);
+            return MarkRules.MarkPoint(target.X, target.Z, target.VelX, target.VelZ, delay, marker.AttackSign, MatchTuning.MarkDistance);
+        }
+
         // 압박 담당 교체 마진. 담당을 받은 지 최소 재임 안이면 사실상 무한(거리로 못 뺏김). 후보 목록에서 빠진 담당(얼음·범위 밖)은 마진과 무관하게 넘어간다(10-23 ③ probe 뒤 (b)안)
         private float PressMargin(int team)
         {
@@ -428,6 +510,11 @@ namespace Game.Core.Match
             pressLeader[0] = pressLeader[1] = -1;
             pressLeaderSince[0] = pressLeaderSince[1] = tickCount;
             looseChaser[0] = looseChaser[1] = -1;
+            for (int team = 0; team < 2; team++)
+            {
+                marks[team].Clear();
+                previousMarks[team].Clear();
+            }
             for (int i = 0; i < players.Count; i++)
             {
                 players[i].FrozenTicks = 0;
@@ -602,6 +689,7 @@ namespace Game.Core.Match
             }
             FillPressEligible();
             UpdateChasers(ownerTeam);
+            UpdateMarks(ownerTeam);
             UpdateRunOffers();
 
             for (int i = 0; i < players.Count; i++)
@@ -616,6 +704,7 @@ namespace Game.Core.Match
                 p.IsCounterPressing = counterPressingByTeam[p.Team];
                 p.PressRank = PressRules.PressRank(p.PlayerId, pressEligible[p.Team], Ball.X, Ball.Z, pressLeader[p.Team], PressMargin(p.Team));
                 p.IsLooseBallChaser = looseChaser[p.Team] == p.PlayerId;
+                FillMarkSnapshot(p);
                 p.RunOffers = runOffers[p.Team];
                 p.Threat = threat;
                 p.IsKickoffTaker = kickoffTakerId == p.PlayerId;
