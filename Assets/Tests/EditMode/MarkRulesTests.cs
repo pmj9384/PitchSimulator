@@ -242,7 +242,7 @@ public class MarkRulesTests
         Assert.IsTrue(marker.IsMarker);
         (float x, float z) expected = MarkRules.MarkPoint(OwnGoalX + 12f, 6f, 0f, 0f, MarkRules.ReactionDelay(50), Sign, MatchTuning.MarkDistance);
         float expectedX = PositionRules.AboveDefendFloor(expected.x, OwnGoalX + 20f, Sign);
-        Assert.AreEqual(expectedX, marker.MarkX, 1e-3f, "리시버의 골 쪽 MarkDistance(1.5m), 공이 박스 밖이라 하한(14.5m) 위로");
+        Assert.AreEqual(expectedX, marker.MarkX, 1e-3f, "리시버의 골 쪽 MarkDistance(1.5m), 공이 박스 밖이라 하한(10m) 위로");
         Assert.AreEqual(expected.z, marker.MarkZ, 1e-3f);
 
         var far = new MatchSimulation(() => 0.99f, new PassFlightTestsHelper.NoOp(), TestThreat.Real);
@@ -296,7 +296,7 @@ public class MarkRulesTests
         sim.Tick(Dt);
 
         Assert.IsTrue(marker.IsMarker, "전제: GK 옆 상대가 마크 대상");
-        Assert.AreEqual(OwnGoalX + MatchTuning.DefendFloorBallOutsideBox, marker.MarkX, 1e-3f, "공이 박스 밖이면 박스 선 근처 하한(14.5m)에 선다");
+        Assert.AreEqual(OwnGoalX + MatchTuning.DefendFloorBallOutsideBox, marker.MarkX, 1e-3f, "공이 박스 밖이면 박스 밖 하한(10m)에 선다");
 
         // 마커가 그 자리에 섰을 때 팀 1 기준 온사이드 선. 우리 GK는 편성 −48(골에서 4.5m)
         var defenders = new List<TargetInfo>

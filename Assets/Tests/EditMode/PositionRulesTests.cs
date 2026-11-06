@@ -202,14 +202,14 @@ public class PositionRulesTests
 
     [TestCase(+1)]
     [TestCase(-1)]
-    public void 수비_하한은_공이_박스_깊이_밖이면_박스_선_근처이고_안이면_골_에어리어_선_근처다(int sign)
+    public void 수비_하한은_공이_박스_깊이_밖이면_박스_안보다_높고_안이면_골_에어리어_선_근처다(int sign)
     {
         // 우리 골은 x = −sign × 52.5. 공 깊이(골라인에서 잰 x 거리)가 박스 깊이 16.5m 이상이면 밖, z는 안 본다
         float ownGoalX = -sign * FieldBounds.HalfLength;
         Assert.AreEqual(MatchTuning.DefendFloorBallOutsideBox, PositionRules.DefendFloorDepth(ownGoalX + sign * 30f, sign));
         Assert.AreEqual(MatchTuning.DefendFloorBallOutsideBox, PositionRules.DefendFloorDepth(ownGoalX + sign * FieldBounds.PenaltyBoxDepth, sign), "박스 선 위는 밖");
         Assert.AreEqual(MatchTuning.DefendFloorBallInBox, PositionRules.DefendFloorDepth(ownGoalX + sign * 10f, sign));
-        Assert.That(MatchTuning.DefendFloorBallOutsideBox, Is.InRange(FieldBounds.PenaltyBoxDepth - 3f, FieldBounds.PenaltyBoxDepth), "박스 선 근처");
+        Assert.That(MatchTuning.DefendFloorBallOutsideBox, Is.InRange(MatchTuning.DefendFloorBallInBox, FieldBounds.PenaltyBoxDepth), "박스 밖 하한은 박스 안 하한 이상, 박스 선 이하");
         Assert.That(MatchTuning.DefendFloorBallInBox, Is.InRange(FieldBounds.GoalAreaDepth, FieldBounds.GoalAreaDepth + 3f), "골 에어리어 선 근처");
 
         float floorX = ownGoalX + sign * MatchTuning.DefendFloorBallOutsideBox;
