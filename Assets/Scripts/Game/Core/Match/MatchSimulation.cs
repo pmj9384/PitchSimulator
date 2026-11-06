@@ -122,7 +122,9 @@ namespace Game.Core.Match
         private readonly List<MarkAssignment>[] marks = { new List<MarkAssignment>(), new List<MarkAssignment>() };
         private readonly List<MarkAssignment>[] previousMarks = { new List<MarkAssignment>(), new List<MarkAssignment>() };
         private readonly List<TargetInfo>[] markTargets = { new List<TargetInfo>(), new List<TargetInfo>() };
-        private readonly List<TargetInfo>[] markCandidates = { new List<TargetInfo>(), new List<TargetInfo>() };
+        private readonly List<TargetInfo>[] markCandidates = { new List<TargetInfo>(), new List<TargetInfo>() };         // 1차 후보 = 뒷줄(11-06 D1)
+        private readonly List<TargetInfo>[] markSecondCandidates = { new List<TargetInfo>(), new List<TargetInfo>() };   // 2차 후보 = 수비 역할 tracking 미드필더
+        private readonly int[] backLineCount = { 0, 0 };   // 팀별 뒷줄 수 = 마커 상한. FillBackLine이 틱마다 채운다
         private readonly List<TargetInfo> markOpponents = new List<TargetInfo>();   // 패스 비행 중 리시버를 도착점에 둔 상대 명부(대상 선정용)
         // 팀 국면 스냅샷 버퍼. 틱마다 새 배열을 만들면 3분에 9,000 × 3번 할당(09-21 전수조사 S5)
         private readonly bool[] counteringByTeam = new bool[2];
@@ -323,8 +325,8 @@ namespace Game.Core.Match
             }
         }
 
-        // 리시버 마크 배정(11-06 S3 ①). 상대 소유이고 공이 우리 골 MaxShotRange 안일 때만. 대상 = 우리 골에 가까운 상대 필드 선수(소유자·GK 제외),
-        // 마커 후보 = 압박 순위 밖(⑧에 안 가는)이고 얼지 않은 우리 필드 선수. 직전 틱 배정을 넘겨 대상(MarkTargetMargin)·마커(ChaserSwitchMargin) 히스테리시스를 건다.
+        // 리시버 마크 배정(11-06 S3 ①). 상대 소유이고 공이 우리 골 MaxShotRange 안일 때만. 대상 = 우리 골에 가까운 상대 필드 선수(소유자·GK 제외) 뒷줄 수까지,
+        // 마커 후보 = 압박 순위 밖(⑧에 안 가는)이고 얼지 않은 우리 뒷줄(1차), 모자라면 tracking 미드필더(2차, 11-06 D1). 직전 틱 배정을 넘겨 대상(MarkTargetMargin)·마커(ChaserSwitchMargin) 히스테리시스를 건다.
         // 직전 틱만 기억한다: 발동이 한 틱이라도 꺼지면(공이 40m 밖·자유 공) 다음 발동은 처음부터 고른다
         private void UpdateMarks(int ownerTeam)
         {
@@ -338,10 +340,10 @@ namespace Game.Core.Match
                 if (!MarkRules.IsActive(Ball.X, Ball.Z, AttackSignOf(team))) { continue; }
 
                 int ownerId = Ball.Phase == BallPhase.Owned ? Ball.OwnerId : BallState.NoOwner;
-                MarkRules.SelectTargets(MarkOpponentsOf(team), ownerId, keeperIds[1 - team], AttackSignOf(team), MatchTuning.MaxMarkers,
+                MarkRules.SelectTargets(MarkOpponentsOf(team), ownerId, keeperIds[1 - team], AttackSignOf(team), backLineCount[team],
                     previousMarks[team], MatchTuning.MarkTargetMargin, markTargets[team]);
                 FillMarkCandidates(team);
-                MarkRules.Assign(markTargets[team], markCandidates[team], previousMarks[team], MatchTuning.ChaserSwitchMargin, marks[team]);
+                MarkRules.AssignTiered(markTargets[team], markCandidates[team], markSecondCandidates[team], previousMarks[team], MatchTuning.ChaserSwitchMargin, marks[team]);
                 MarkSwitchCount += MarkRules.NewPairs(previousMarks[team], marks[team]);
             }
         }
@@ -355,18 +357,47 @@ namespace Game.Core.Match
             return markOpponents;
         }
 
-        // 마커 후보: 트리 ⑧(압박)에 가는 선수는 뺀다. 판정은 스냅샷 PressRank와 같은 호출이라 ⑧과 ⑧b가 한 선수에게 겹치지 않는다
+        // 마커 후보: 트리 ⑧(압박)에 가는 선수는 뺀다. 판정은 스냅샷 PressRank와 같은 호출이라 ⑧과 ⑧b가 한 선수에게 겹치지 않는다.
+        // 1차 = 뒷줄(IsBackLine), 2차 = 뒷줄이 아니면서 수비 역할이 마크 2차를 허용한 선수(DefenseRoles.csv marksAsSecond). 그 외 미드필더·공격수는 지역 자리(⑨)로
         private void FillMarkCandidates(int team)
         {
             List<TargetInfo> candidates = markCandidates[team];
+            List<TargetInfo> second = markSecondCandidates[team];
             candidates.Clear();
+            second.Clear();
             for (int i = 0; i < players.Count; i++)
             {
                 PlayerState p = players[i];
                 if (p.Team != team || p.IsGoalkeeper || p.FrozenTicks > 0) { continue; }
                 int rank = PressRules.PressRank(p.PlayerId, pressEligible[team], Ball.X, Ball.Z, pressLeader[team], PressMargin(team));
                 if (rank < MatchTuning.MaxPressers) { continue; }
-                candidates.Add(new TargetInfo(p.PlayerId, p.X, p.Z));
+                if (p.IsBackLine)
+                {
+                    candidates.Add(new TargetInfo(p.PlayerId, p.X, p.Z));
+                    continue;
+                }
+                if (p.Stats.MarksAsSecond) { second.Add(new TargetInfo(p.PlayerId, p.X, p.Z)); }
+            }
+        }
+
+        // 뒷줄 플래그·뒷줄 수(11-06 D1, LineRules). 수비 시 자리는 진영 교체 때 부호만 뒤집혀 깊이가 불변이지만, 명부가 틱 사이에 바뀌는 테스트가 있어 틱마다 다시 센다(22명 두 바퀴)
+        private void FillBackLine()
+        {
+            float[] deepest = { float.MaxValue, float.MaxValue };
+            for (int i = 0; i < players.Count; i++)
+            {
+                PlayerState p = players[i];
+                if (p.IsGoalkeeper) { continue; }
+                float depth = LineRules.HomeDepth(p.DefendHomeX, p.AttackSign);
+                if (depth < deepest[p.Team]) { deepest[p.Team] = depth; }
+            }
+            backLineCount[0] = 0;
+            backLineCount[1] = 0;
+            for (int i = 0; i < players.Count; i++)
+            {
+                PlayerState p = players[i];
+                p.IsBackLine = !p.IsGoalkeeper && LineRules.IsBackLine(LineRules.HomeDepth(p.DefendHomeX, p.AttackSign), deepest[p.Team]);
+                if (p.IsBackLine) { backLineCount[p.Team]++; }
             }
         }
 
@@ -694,6 +725,7 @@ namespace Game.Core.Match
                 counterPressingByTeam[team] = IsCounterPressing(team);
                 thirdByTeam[team] = BallThirdOf(team);
             }
+            FillBackLine();
             FillPressEligible();
             UpdateChasers(ownerTeam);
             UpdateMarks(ownerTeam);

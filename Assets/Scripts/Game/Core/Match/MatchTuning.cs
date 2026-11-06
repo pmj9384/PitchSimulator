@@ -169,7 +169,8 @@ namespace Game.Core.Match
 
         // 리시버 마크(11-06 S3 ①, MarkRules). 공이 우리 골 중심 MaxShotRange 안일 때 압박 1명 외에 상대 리시버를 골 쪽에서 막는다
         public const float MarkDistance = 1.5f;        // 마커가 서는 자리 = 상대에서 우리 골 중심 쪽으로 이 거리. 출발값 2(StatsBomb PL 15/16 블록 지점 중앙값 2.3~3m)는 반응 지연 몫만큼 늦어 압박 판정(PressedRadius 2m) 밖에 서서 압박 슛 28%였다. 11-06 quick 격자 {1.5, 2, 3}: 1.5에서 압박 슛 59%·슛 선 15m 안 수비 54%·블록 13% [가정 G1]
-        public const int MaxMarkers = 2;               // 팀당 동시에 마크하는 인원 상한. 압박 1 + 마크 2 = 수비 3명이 사람을 보고 나머지는 지역. 11-06 격자 {2, 3}: 3은 압박 슛 55%·슛 선 50%로 2보다 나아지지 않고 슛만 늘었다(271 대 262/판) [가정 G1]
+        // 마커 상한은 뒷줄 수다(상수 없음, 11-06 D1). 지역 수비는 박스 안에서 전원이 사람을 본다(FIFA D1·FC26 "박스 안 가까우면 맨마킹"). 옛 상수 MaxMarkers 2는 11-06 격자에서 {2,3}·{2,4}가 신뢰 구간 안이라 값 싸움이 아니었다
+        public const float BackLineBand = 6f;          // 뒷줄 판정(LineRules.IsBackLine): 수비 시 자리 깊이가 팀 최솟값 + 이 값 안이면 뒷줄. [가정] 편성 6종을 가르는 값: DM(−29, 12m 차)·3-5-2 윙백(−31, 10m)은 밖, 5-3-2 FB(−38, 4m)는 안
         public const float MarkReactionSpread = 0.5f;  // 마커 반응 지연의 positioning 폭: 50 = ReactionTime, 0·100 = ReactionTime × (1 ± 이 값) [가정 G1]
         public const float MarkTargetMargin = 2f;      // 마크 대상 히스테리시스: 직전 틱 대상은 골 거리를 이만큼 짧게 쳐서 상한 경계에서 틱마다 교대하지 않게. 추격자 여유(ChaserSwitchMargin)와 같은 값 [가정]
 
