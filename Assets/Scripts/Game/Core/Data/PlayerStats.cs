@@ -46,6 +46,9 @@ namespace Game.Core.Data
         public float GkRushRadius { get; set; }  // GK 출격 반경(m, 박스 상한). 스위퍼 키퍼. 필드 플레이어는 0
         public int RunStyle { get; set; }        // 침투 성향(11-03 ⑤): 0 없음 · 1 뒤공간 침투 · 2 내려와 받기 · 3 박스에 늦게 도착(RunRules.Style*). 범주라 값을 섞지 않는다
 
+        // ── 수비 역할이 얹는 행동(PlayerTable 열이 아니다. DefenseRoles.csv → DefenseRole.Apply가 채운다. 파서 ClassMap은 명시 매핑이라 CSV에 없어도 된다)
+        public bool MarksAsSecond { get; set; }  // 뒷줄이 아닌데도 리시버 마크 2차 후보(뒷줄이 모자랄 때). 11-06 수비 구조 D1, FM Tracking
+
         // ── 표시 텍스트(선수 세팅 화면, 3주차에 채움)
         public string DisplayName { get; set; } = string.Empty;
         public string Description { get; set; } = string.Empty;

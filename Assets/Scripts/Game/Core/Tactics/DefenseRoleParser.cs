@@ -7,7 +7,7 @@ using CsvHelper.Configuration;
 
 namespace Game.Core.Tactics
 {
-    // DefenseRoles.csv → DefenseRole 목록. CsvHelper + ClassMap(프로젝트 관례). id 중복·기본 역할 없음·범위 밖은 던진다(파서가 데이터를 믿지 않는다)
+    // DefenseRoles.csv → DefenseRole 목록. CsvHelper + ClassMap(프로젝트 관례). id 중복·기본 역할 없음·범위 밖·행동 열 범위 밖은 던진다(파서가 데이터를 믿지 않는다)
     public static class DefenseRoleParser
     {
         public static List<DefenseRole> Parse(string csvText)
@@ -24,7 +24,9 @@ namespace Game.Core.Tactics
             {
                 line++;
                 if (!ids.Add(r.DefenseRoleId)) { throw new FormatException($"DefenseRoles {line}행: id 중복 ({r.DefenseRoleId})"); }
-                roles.Add(new DefenseRole(r.DefenseRoleId, r.DisplayName, r.Description, r.PressRangeScale, r.LineHeightOffset));
+                if (r.MarksAsSecond != 0 && r.MarksAsSecond != 1) { throw new FormatException($"DefenseRoles {line}행: marksAsSecond는 0 또는 1 ({r.MarksAsSecond})"); }
+                if (r.Screens < DefenseRole.ScreensNone || r.Screens > DefenseRole.ScreensAlways) { throw new FormatException($"DefenseRoles {line}행: screens는 0~2 ({r.Screens})"); }
+                roles.Add(new DefenseRole(r.DefenseRoleId, r.DisplayName, r.Description, r.PressRangeScale, r.LineHeightOffset, r.MarksAsSecond == 1, r.Screens));
             }
             if (!ids.Contains(DefenseRole.DefaultId)) { throw new FormatException($"DefenseRoles: 기본 역할 '{DefenseRole.DefaultId}' 행이 없다"); }
             return roles;
@@ -46,6 +48,8 @@ namespace Game.Core.Tactics
             public string Description { get; set; } = string.Empty;
             public float PressRangeScale { get; set; }
             public float LineHeightOffset { get; set; }
+            public int MarksAsSecond { get; set; }   // 0/1. bool 변환에 기대지 않고 정수로 받아 범위를 직접 검사한다(0·1 밖은 데이터 오류)
+            public int Screens { get; set; }         // 0~2
         }
 
         private sealed class RowMap : ClassMap<Row>
@@ -57,6 +61,8 @@ namespace Game.Core.Tactics
                 Map(r => r.Description).Name("description");
                 Map(r => r.PressRangeScale).Name("pressRangeScale");
                 Map(r => r.LineHeightOffset).Name("lineHeightOffset");
+                Map(r => r.MarksAsSecond).Name("marksAsSecond");
+                Map(r => r.Screens).Name("screens");
             }
         }
     }
