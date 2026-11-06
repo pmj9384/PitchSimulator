@@ -141,7 +141,7 @@ namespace Game.Core.Match
         // 비행 중인 패스. 리시버는 스냅샷으로 "나한테 온다"를 알고 마중 나간다
         private bool passInFlight;
         private int passReceiverId = -1;
-        private bool passIsRun;               // 비행 중 패스가 런 제안 착지점으로 찬 것인가(트리가 고른 PassChoice.IsRun을 킥 때 받는다). 리시버가 Seek로 받을지 정한다
+        private bool passIsRun;               // 비행 중 패스가 런 제안 착지점으로 찬 것인가(트리가 고른 PassChoice.IsRun을 킥 때 받는다). 리시버가 공 추격(감속 없음)으로 받을지 정한다
         private int passPasserId = -1;        // 되돌림 감점용: 받은 선수의 LastPasserId에 기록
         private float passTargetX;
         private float passTargetZ;
@@ -1308,10 +1308,12 @@ namespace Game.Core.Match
 
             captureCandidates.Clear();
             int keeperKickTeam = ProtectedKeeperKickTeam();
+            int letThroughTeam = PassThroughTeam();
             for (int i = 0; i < players.Count; i++)
             {
                 PlayerState p = players[i];
                 if (keeperKickTeam != -1 && p.Team != keeperKickTeam) { continue; }   // GK가 찬 공은 그 박스 안에선 상대가 못 잡는다
+                if (p.Team == letThroughTeam && p.PlayerId != passReceiverId) { continue; }   // 받을 선수가 아닌 우리 편은 흘려 보낸다
                 if (p.PlayerId == lastKickerId)
                 {
                     float kdx = p.X - Ball.X;
@@ -1328,6 +1330,20 @@ namespace Game.Core.Match
 
             PlayerState owner = FindPlayer(ownerId);
             Ball = BallRules.Own(Ball, ownerId, owner.X, owner.Z);
+        }
+
+        // 공을 흘려 보내는 팀(11-06): 우리 편 패스가 착지점에 닿기 전이면 패서 팀, 아니면 -1. 그 팀에서 받을 선수가 아닌 선수는 공을 잡지 않는다.
+        // Simple Soccer도 ReceiveBall 상태 선수만 공을 잡고, 트리도 받을 선수가 아니면 공을 쫓지 않는다(09-23). 이게 없으면 사전 런으로 패스 길에 선 러너가
+        // 다른 선수에게 가는 패스를 길 중간에서 받아 가로채기로 셌다(추격 수신 뒤 판당 8 → 85, 패스 성공 79 → 71%).
+        // 착지점을 지난 공은 받을 선수가 놓친 자유 공이라 누구든 잡는다. 런 판정(RunRules.RunnerMeetsBall)의 범위도 착지점까지다
+        private int PassThroughTeam()
+        {
+            if (!passInFlight) { return -1; }
+
+            float toLandingX = passTargetX - Ball.X;
+            float toLandingZ = passTargetZ - Ball.Z;
+            if (toLandingX * Ball.VelX + toLandingZ * Ball.VelZ <= 0f) { return -1; }   // 착지점을 지났다(또는 공이 서 있다)
+            return OwnerTeam();
         }
 
         private static bool IsKeeperInOwnBox(PlayerState p)

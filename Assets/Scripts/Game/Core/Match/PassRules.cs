@@ -343,7 +343,7 @@ namespace Game.Core.Match
         public readonly float X;
         public readonly float Z;
         public readonly bool IsLob;   // 띄워 준다(10-29 ④-1)
-        public readonly bool IsRun;   // 사전 런 제안의 점으로 준다(11-03 ⑤). 시뮬이 런 패스(수신 Seek)로 기록한다
+        public readonly bool IsRun;   // 사전 런 제안의 점으로 준다(11-03 ⑤). 시뮬이 런 패스(수신 = 공 추격)로 기록한다
 
         public PassChoice(int receiverId, float x, float z, bool isLob, bool isRun)
         {

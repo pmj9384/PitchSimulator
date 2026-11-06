@@ -340,14 +340,18 @@ public class PlayerTreeTests
     }
 
     [Test]
-    public void 런_패스를_받는_선수는_감속_없이_도착점으로_달려_들어간다()
+    public void 런_패스를_받는_선수는_감속_없이_공의_앞을_쫓아_달려_들어간다()
     {
-        var w = new Fake { PlayerId = 3, BallPhase = BallPhase.Flight, BallOwnerTeam = -1, IsPassTarget = true, IsRunPass = true, PassTargetX = 20f, PassTargetZ = -10f };
+        // 11-06 W 침투: 런 패스 수신은 고정 도착점이 아니라 공 추격(PressRules.PursuitPoint). 판정 롤아웃(RunRules.RunnerMeetsBall)과 같은 식
+        var w = new Fake { PlayerId = 3, X = 15f, Z = -12f, BallPhase = BallPhase.Flight, BallOwnerTeam = -1, IsPassTarget = true, IsRunPass = true,
+            PassTargetX = 20f, PassTargetZ = -10f, BallX = 5f, BallZ = -5f, BallVelX = 10f, BallVelZ = -3f };
         Tree.Tick(w);
+        (float x, float z) aim = PressRules.PursuitPoint(15f, -12f, MatchRules.SpeedMps(w.Stats.Speed), 5f, -5f, 10f, -3f);
         Assert.AreEqual("move", w.Did);
         Assert.AreEqual("run", w.Gait);
-        Assert.AreEqual(20f, w.MoveX);
-        Assert.AreEqual(-10f, w.MoveZ);
+        Assert.AreEqual(aim.x, w.MoveX, 1e-4f);
+        Assert.AreEqual(aim.z, w.MoveZ, 1e-4f);
+        Assert.AreNotEqual(20f, w.MoveX, "고정 도착점이 아니다");
     }
 
     [Test]

@@ -127,7 +127,7 @@ public class MovementRulesTests
     [Test]
     public void 목표에_이르면_Arrive는_멈추고_Seek는_지나쳐_간다()
     {
-        // 런 패스 수신이 Seek인 이유(RunRules.RunnerMeetsBall): Arrive는 목표에서 서고 Seek는 멈출 생각 없이 지나간다
+        // 고정 목표점으로 Seek하면 멈출 생각 없이 지나간다. 런 패스 수신이 고정 목표점 대신 공 추격(RunRules.RunnerMeetsBall·⑥ ChaseBall)인 이유 중 하나(11-06)
         float top = MatchRules.SpeedMps(50);
         float accel = MovementRules.AccelerationFor(top, MatchTuning.ReactionTime);
         (float x, float z, float vx, float vz) arrive = (0f, 0f, top, 0f);

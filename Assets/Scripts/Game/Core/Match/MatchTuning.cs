@@ -164,8 +164,6 @@ namespace Game.Core.Match
         // 팀 PassRisk와의 관계: 균형(0.5) 기준 편차를 그대로 얹는다(PassRules.ThroughAllow). 안전 카드는 스루도 덜 찬다
         public const float ThroughRiskAllow = 0.55f;   // 스루(런 제안 착지점) 위험 허용치 기준값
 
-        // RunArrivalMargin: 실행의 작은 손실(제동·방향 틀기)에도 판정이 안 뒤집히게 하는 여유다. {0, 0.1, 0.2, 0.3} × ThroughRiskAllow 3값 24칸 중 완료 기준을 가장 많이 만족한 칸(설계 A1 8절). [가정]
-        public const float RunArrivalMargin = 0.1f;   // 런 판정: 러너가 목표점에 공 도착 시각보다 이만큼 일찍 닿아야 도달 가능
         public const int MaxPressers = 1;                                       // 팀에서 동시에 압박(⑧)하는 인원 상한. 압박 거리 안인 선수를 공 거리순으로 세어 이 안만 간다(09-23 Play: 인원 제한이 없어 우리 진영 "적극"이면 CM 19.5m·FB/W/ST 12m 안 4~6명이 한꺼번에 달려들어 초등학교 경기처럼 뭉쳤다). Simple Soccer는 최근접 1명만 쫓고 FM도 1명 압박 + 커버. 러너에서 태클이 죽으면 2
     }
 }
