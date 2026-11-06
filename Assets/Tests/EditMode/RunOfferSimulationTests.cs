@@ -380,4 +380,47 @@ public class RunOfferSimulationTests
         Assert.GreaterOrEqual(judgedFeasible, 3, "판정이 가능이라 한 출발 위치가 있다(검사가 비어 있지 않다)");
         Assert.IsEmpty(failures, "판정은 가능인데 실행에서 못 받은 위치: " + string.Join(" ", failures));
     }
+
+    // 패스 길에 선 우리 편(받을 선수 아님)은 공을 흘려 보내고 받을 선수가 받는다(11-06). 상대였다면 가로챈다(대조)
+    [Test]
+    public void 패스_길의_우리_편은_공을_흘려_보내고_받을_선수가_받는다()
+    {
+        Assert.AreEqual(2, OwnerAfterPassThrough(blockerTeam: 0), "우리 편은 흘려 보낸다");
+        Assert.AreEqual(1, OwnerAfterPassThrough(blockerTeam: 1), "상대는 가로챈다(대조)");
+    }
+
+    [Test]
+    public void 받을_선수가_놓쳐_착지점을_지난_공은_뒤의_우리_편이_잡는다()
+    {
+        // 흘려 보내기는 공이 착지점에 닿기 전까지만. 2번이 착지점 (20,0)에서 20m 옆에 서 있어 못 받으면 착지점 뒤 (23,0)의 1번이 줍는다
+        Assert.AreEqual(1, OwnerAfterPassThrough(blockerTeam: 0, blockerX: 23f, receiverZ: 20f));
+    }
+
+    // 패서 (0,0)이 (20,0)으로 2번에게 일반 패스. 1번은 (blockerX,0)에 서 있다. 처음 공을 가진 선수 id를 돌려준다(패서 제외)
+    private static int OwnerAfterPassThrough(int blockerTeam, float blockerX = 10f, float receiverZ = 0f)
+    {
+        var sim = new MatchSimulation(() => 0.5f, new PassThroughScript(), TestThreat.Real);
+        sim.AddPlayer(new PlayerState(0, 0, Carrier(0f), 0f, 0f));
+        sim.AddPlayer(new PlayerState(1, blockerTeam, Winger(RunRules.StyleNone), blockerX, 0f));
+        sim.AddPlayer(new PlayerState(2, 0, Winger(RunRules.StyleNone), 20f, receiverZ));
+        sim.Kickoff();
+        sim.Ball = BallRules.Own(sim.Ball, 0, 0f, 0f);
+        for (int i = 0; i < 250; i++)
+        {
+            sim.Tick(Dt);
+            if (sim.Ball.Phase != BallPhase.Owned) { continue; }
+            if (sim.Ball.OwnerId != 0) { return sim.Ball.OwnerId; }
+        }
+        return BallState.NoOwner;
+    }
+
+    // 0번은 공을 쥔 첫 틱에 (20,0)으로 2번에게 차고, 나머지는 제자리에 선다
+    private sealed class PassThroughScript : BehaviorNode
+    {
+        public override NodeState Tick(IPlayerContext ctx)
+        {
+            if (ctx.PlayerId == 0 && ctx.OwnsBall) { ctx.Pass(2, 20f, 0f); }
+            return NodeState.Success;
+        }
+    }
 }
