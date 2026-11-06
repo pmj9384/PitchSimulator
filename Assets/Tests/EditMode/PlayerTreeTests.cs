@@ -377,7 +377,7 @@ public class PlayerTreeTests
 
         var cb = new Fake { PlayerId = 2, BallPhase = BallPhase.Flight, BallOwnerTeam = 1, X = -36f, BallX = 10f, BallZ = 0f, DefendHomeX = -36f, PressRank = int.MaxValue };   // 압박 거리 밖 = 시뮬이 순위를 안 준다
         Tree.Tick(cb);
-        Assert.AreEqual(-36f + 10f * MatchTuning.SlideVerticalDefend, cb.MoveX, 1e-4f, "수비 자리 + 슬라이드. 비행 중이라고 공격 자리(⑪)로 안 간다");
+        Assert.AreEqual(-36f + MatchTuning.DefenseBaseLift + 10f * MatchTuning.SlideVerticalDefend, cb.MoveX, 1e-4f, "수비 자리 + 기본 상향 + 슬라이드. 비행 중이라고 공격 자리(⑪)로 안 간다");
     }
 
     [Test]
@@ -428,7 +428,7 @@ public class PlayerTreeTests
         var cb = new Fake { PlayerId = 2, BallPhase = BallPhase.Owned, BallOwnerTeam = 1, X = -36f, BallX = 10f, BallZ = 0f, DefendHomeX = -36f, DefendHomeZ = 7f, PressRank = int.MaxValue };   // 압박 거리 밖 = 시뮬이 순위를 안 준다
         cb.Stats.LineHeight = 6f;
         Tree.Tick(cb);
-        Assert.AreEqual(-36f + 6f * MatchTuning.PositionDialScale + 10f * MatchTuning.SlideVerticalDefend, cb.MoveX, 1e-4f, "수비 자리 + 라인 높이 × 0.3 + 공 지향 슬라이드(공 X 10 × 0.3)");
+        Assert.AreEqual(-36f + 6f * MatchTuning.PositionDialScale + MatchTuning.DefenseBaseLift + 10f * MatchTuning.SlideVerticalDefend, cb.MoveX, 1e-4f, "수비 자리 + 라인 높이 × 0.3 + 기본 상향 + 공 지향 슬라이드(공 X 10 × 0.3)");
     }
 
     [Test]
@@ -458,7 +458,7 @@ public class PlayerTreeTests
         var cm = new Fake { PlayerId = 6, BallPhase = BallPhase.Owned, BallOwnerTeam = 1, X = 0f, BallX = 10f, BallZ = 0f, DefendHomeX = -20f, PressRank = 1 };
         cm.Stats.PressRange = 12f;
         Tree.Tick(cm);
-        Assert.AreEqual(-20f + 10f * MatchTuning.SlideVerticalDefend, cm.MoveX, 1e-4f, "수비 자리 + 슬라이드. 공(10)으로 안 간다");
+        Assert.AreEqual(-20f + MatchTuning.DefenseBaseLift + 10f * MatchTuning.SlideVerticalDefend, cm.MoveX, 1e-4f, "수비 자리 + 기본 상향 + 슬라이드. 공(10)으로 안 간다");
     }
 
     [Test]
@@ -467,7 +467,7 @@ public class PlayerTreeTests
         // 09-29: 압박 후보(팀 압박 시작 "안 감" 포함)는 시뮬이 정하고 트리는 순위만 본다. "안 감"이면 거리와 무관하게 후보가 아니다(PressRulesTests)
         var st = new Fake { PlayerId = 9, BallPhase = BallPhase.Owned, BallOwnerTeam = 1, X = 9f, BallX = 10f, DefendHomeX = -10f, PressRank = int.MaxValue };
         Tree.Tick(st);
-        Assert.AreEqual(-7f, st.MoveX, 1e-4f, "1m 앞인데도 자리로(+ 슬라이드 공 X 10 × 0.3)");
+        Assert.AreEqual(-10f + MatchTuning.DefenseBaseLift + 3f, st.MoveX, 1e-4f, "1m 앞인데도 자리로(+ 기본 상향 + 슬라이드 공 X 10 × 0.3)");
     }
 
     [Test]

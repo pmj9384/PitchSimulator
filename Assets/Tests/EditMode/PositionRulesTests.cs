@@ -83,13 +83,18 @@ public class PositionRulesTests
         Assert.AreEqual(36f - 6f * MatchTuning.PositionDialScale, home.x, 1e-4f, "팀 1은 -X가 앞");
 
         // 10-27 팀 수비 라인 높이(FM Defensive Line): 깊게 −5 · 표준 0 · 높게 +5 [가정]. 필드 선수만, GK는 0(GK 라인은 슛 대응 기준)
-        Assert.AreEqual(-5f, PositionRules.TeamLineOffset(0, goalkeeper: false), 1e-4f);
-        Assert.AreEqual(5f, PositionRules.TeamLineOffset(2, goalkeeper: false), 1e-4f);
+        // 11-06 F3 1단계: 3단 공통으로 블록 전체 기본 상향(DefenseBaseLift)이 더해진다. 깊게/높게 차이는 계속 10m
+        float lift = MatchTuning.DefenseBaseLift;
+        Assert.AreEqual(lift - 5f, PositionRules.TeamLineOffset(0, goalkeeper: false), 1e-4f);
+        Assert.AreEqual(lift, PositionRules.TeamLineOffset(1, goalkeeper: false), 1e-4f, "표준 = 기본 상향만");
+        Assert.AreEqual(lift + 5f, PositionRules.TeamLineOffset(2, goalkeeper: false), 1e-4f);
+        Assert.AreEqual(10f, PositionRules.TeamLineOffset(2, goalkeeper: false) - PositionRules.TeamLineOffset(0, goalkeeper: false), 1e-4f, "깊게/높게 차이는 상향과 무관");
+        Assert.AreEqual(0f, PositionRules.TeamLineOffset(1, goalkeeper: true), 1e-4f, "GK는 기본 상향도 안 따른다");
         Assert.AreEqual(0f, PositionRules.TeamLineOffset(2, goalkeeper: true), 1e-4f, "GK는 팀 수비 라인을 안 따른다");
         home = PositionRules.DefendHome(-36f, 7f, +1, 6f, PositionRules.TeamLineOffset(2, goalkeeper: false));
-        Assert.AreEqual(-36f + 1.8f + 5f, home.x, 1e-4f, "높게면 5m 더 앞");
+        Assert.AreEqual(-36f + 1.8f + lift + 5f, home.x, 1e-4f, "높게면 기본 상향 + 5m 더 앞");
         home = PositionRules.DefendHome(36f, 7f, -1, 6f, PositionRules.TeamLineOffset(0, goalkeeper: false));
-        Assert.AreEqual(36f - 1.8f + 5f, home.x, 1e-4f, "팀 1 깊게면 +X 쪽으로 5m 물러남");
+        Assert.AreEqual(36f - 1.8f - lift + 5f, home.x, 1e-4f, "팀 1 깊게면 기본 상향만큼 −X로, 5m만큼 +X로");
     }
 
     // 공 지향 슬라이드(10-25 격자): 공격 가로만 (공 z − 자리 z) × 계수 수축, 수비 가로·세로는 공 좌표 × 계수 평행이동.

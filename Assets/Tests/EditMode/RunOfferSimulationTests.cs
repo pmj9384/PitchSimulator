@@ -86,8 +86,10 @@ public class RunOfferSimulationTests
         scene.Carrier = sim.AddPlayer(new PlayerState(0, 0, Carrier(holdUp), carrierX, 4f, carrierX, 4f));
         scene.Runner = sim.AddPlayer(new PlayerState(1, 0, Winger(runStyle), 18.6f, 8.7f, 18.6f, 8.7f));
         sim.AddPlayer(new PlayerState(10, 1, Defender(keeper: true), 50f, 0f, 50f, 0f));
-        sim.AddPlayer(new PlayerState(11, 1, Defender(keeper: false), 30f, -28f, 30f, -28f));
-        sim.AddPlayer(new PlayerState(12, 1, Defender(keeper: false), 30f, 28f, 30f, 28f));
+        // 수비 홈은 기본 상향(DefenseBaseLift, 11-06 F3)만큼 팀 1 골 쪽(+X)에 둔다. 상향이 더해져 실제로 서는 자리가 손으로 맞춘 x 30이 되게
+        float home = 30f + MatchTuning.DefenseBaseLift;
+        sim.AddPlayer(new PlayerState(11, 1, Defender(keeper: false), 30f, -28f, home, -28f));
+        sim.AddPlayer(new PlayerState(12, 1, Defender(keeper: false), 30f, 28f, home, 28f));
         sim.Kickoff();
         sim.Ball = BallRules.Own(sim.Ball, 0, carrierX, 4f);
         scene.Carrier.FrozenTicks = HoldTicks;   // 11-03 P1+: 운반자는 패스·운반 후보를 늘 비교해 기다리지 않는다. 제안이 생길 때까지 얼려 공을 쥐게 한다

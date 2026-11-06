@@ -23,7 +23,10 @@ namespace Game.Core.Match
         // ── 전술 판정. 전부 밸런스 값: 자동 대전 러너로 조정한다
         public const float ThirdBoundary = 17.5f;                              // 필드 105m를 3등분한 경계. 우리 진영 ≤ −17.5 < 중원 < 17.5 ≤ 상대 진영
         public static readonly float[] MentalityOffset = { -5f, 0f, 5f };      // 전진 정도(수비적·균형·공격적) → 공격 시 자리 X 오프셋(m)
-        public static readonly float[] DefenseLineOffset = { -5f, 0f, 5f };    // 수비 라인 높이(깊게·표준·높게) → 수비 시 자리 X 오프셋(m), 필드 선수만. [가정] 전진 정도와 대칭. 10-27 FM Defensive Line. 기본 라인 자체가 현실보다 약 15m 낮은 문제(장부 F3)는 이 레버와 별개
+        public static readonly float[] DefenseLineOffset = { -5f, 0f, 5f };    // 수비 라인 높이(깊게·표준·높게) → 수비 시 자리 X 오프셋(m), 필드 선수만. [가정] 전진 정도와 대칭. 10-27 FM Defensive Line. 기본 라인 자체가 현실보다 낮은 문제(장부 F3)는 이 레버와 별개로 DefenseBaseLift가 맡는다
+        public const float DefenseBaseLift = 11f;   // F3 1단계(11-06): 블록 전체(GK 제외) 수비 자리를 앞으로 올리는 m. 3단 다이얼 공통이라 깊게/높게 차이는 그대로. 수비만 올리면 비소유 깊이가 줄어 블록 전체(설계초안-수비라인 5절 A안).
+                                                    // 러너 quick 격자(수비 하한·마크 위) {0, 5, 8, 11, 14}: 수비 라인 20.3/22.3/25.6/27.6/29.9m, 대칭 슛 202/250/265/193/311/판. 11이 라인 목표(현실 약 31m)에 가깝고 슛이 가장 적다.
+                                                    // 09-28처럼 골이 무너지지 않았다(대칭 골 36.6 → 38.0). 14는 슛이 311로 튀었다 [가정, 격자값]
         public const float LateralScoreScale = 0.005f;                          // 리시버 적합도의 측면 가중: |z| 1m당(× 폭 배율). 적합도는 ReceiverFitWeight(0.02)를 곱해 xT 단위로 패스 값에 더한다(11-03 P1, 전진 가중은 xT가 대신 센다). 09-18 0.02는 라인 위 윙어가 어디서든 최고점이라 소유 시간의 31%가 터치라인 9m 안이었다(86% W)
         public const float TouchlineMargin = 3f;                                // 자리 계산의 Z 클램프 여유(m). 필드 가장자리 0.5m로 두면 공 쪽 윙어가 슬라이드로 라인 밖까지 밀려 라인 위(z 33.5)에 붙어 빌드업했다
         public const float WideZoneZ = 25f;                                     // 형태 지표: |z|가 이 이상이면 "측면 구역"(터치라인 9m 안). 러너 CSV·감시 테스트가 소유 시간의 측면 비율을 잰다. 09-26 터치라인 빌드업(31%)을 정지 탐지·리뷰가 못 잡아 넣음

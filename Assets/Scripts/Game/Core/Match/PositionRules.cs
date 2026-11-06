@@ -55,7 +55,7 @@ namespace Game.Core.Match
         public static float TeamLineOffset(int defenseLine, bool goalkeeper)
         {
             if (goalkeeper) { return 0f; }
-            return MatchTuning.DefenseLineOffset[defenseLine];
+            return MatchTuning.DefenseBaseLift + MatchTuning.DefenseLineOffset[defenseLine];
         }
 
         // GK가 지키는 라인 x = 수비 시 자리의 x. 시뮬의 닿음 판정(KeeperCanReachShot)과 트리의 이동(MoveToShotLine)이 이 한 함수를 써서 같은 점을 본다(10-25)
