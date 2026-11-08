@@ -192,10 +192,12 @@ namespace Game.Core.AI
             valuedFor = ctx;
         }
 
-        // 슛 값 = xG(압박 보정) × (기본 + 이득 × (1 − 슛 성향)) − 지금 xT. 운반·패스 중 가장 큰 값보다 클 때만 쏜다 [가정 P-G17].
+        // 슛 값 = xG(압박 보정) × (기본 + 이득 × (1 − 슛 성향)) − 지금 xT. 운반·패스 중 가장 큰 값보다 클 때만 쏜다 [가정 P-G17]. 준비 시간 중이면 비교 전에 거짓.
         // 슛 성향은 낮을수록 자주 쏘는 옛 의미 그대로다(포처 0.2, 수비수 0.8)
         private static bool ShouldShoot(IPlayerContext ctx)
         {
+            if (!ctx.ShotReady) { return false; }   // 준비 시간 중엔 운반·패스 값 비교만 한다(11-08 S3 1단계). 시뮬에서 막으면 트리는 슛을 원하는데 선수가 멈춰 선다
+
             float chance = ShotChance(ctx);
             if (chance <= 0f) { return false; }
 

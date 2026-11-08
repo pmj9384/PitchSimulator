@@ -448,7 +448,7 @@ public class MarkRulesTests
     [Test]
     public void 상대_패스가_날아가는_중이면_리시버를_도착점_기준으로_고르고_그_골_쪽에_선다()
     {
-        // 팀 1 패서가 우리 골에서 38m(발동 구역 안), 리시버는 측면 (골 + 30, 30) = 42.4m(지금 자리는 사거리 밖). 리드 패스 도착점은 리시버 앞(골 쪽)이라 40m 안
+        // 팀 1 패서가 우리 골에서 38m(발동 구역 안), 리시버는 측면 (골 + 30, 30) = 42.4m(지금 자리는 마크 구역 밖). 리드 패스 도착점은 리시버 앞(골 쪽)이라 40m 안
         var sim = new MatchSimulation(() => 0.99f, new PassFlightTestsHelper.PassOnce(2, 3), TestThreat.Real);
         PlayerState marker = sim.AddPlayer(new PlayerState(1, 0, Defender(50), OwnGoalX + 20f, 20f));
         PlayerState passer = sim.AddPlayer(new PlayerState(2, 1, Attacker(), OwnGoalX + 38f, 0f));
@@ -462,8 +462,8 @@ public class MarkRulesTests
         Assert.IsTrue(receiver.IsPassTarget);
         float landingX = receiver.PassTargetX;
         float landingZ = receiver.PassTargetZ;
-        Assert.LessOrEqual(MathDistance(landingX - OwnGoalX, landingZ), MatchTuning.MaxShotRange, "전제: 도착점은 사거리 안");
-        Assert.Greater(MathDistance(receiver.X - OwnGoalX, receiver.Z), MatchTuning.MaxShotRange, "전제: 리시버 지금 자리는 사거리 밖");
+        Assert.LessOrEqual(MathDistance(landingX - OwnGoalX, landingZ), MatchTuning.MarkZoneRadius, "전제: 도착점은 마크 구역 안");
+        Assert.Greater(MathDistance(receiver.X - OwnGoalX, receiver.Z), MatchTuning.MarkZoneRadius, "전제: 리시버 지금 자리는 마크 구역 밖");
         Assert.IsTrue(marker.IsMarker, "도착점 기준이라 지금 대상이다");
         (float x, float z) expected = MarkRules.MarkPoint(landingX, landingZ, 0f, 0f, 0f, Sign, MatchTuning.MarkDistance);
         Assert.AreEqual(expected.x, marker.MarkX, 1e-3f, "도착점의 골 쪽");

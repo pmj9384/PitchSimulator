@@ -179,6 +179,12 @@ namespace Game.Core.Match
         private int takeOnTicksLeft;
         public int TakeOnCount { get; private set; }       // 돌파 의도가 선 횟수(계측)
         public int TakeOnLostCount { get; private set; }   // 돌파 의도 중 태클로 뺏긴 횟수(계측). 성공률 = 1 - 뺏김 ÷ 시도의 근사
+        // 슛 결정 시간(11-08 S3 1단계): 소유를 얻을 때 퍼스트 터치를 한 번 굴리고, 못 얻으면 준비 틱이 끝날 때까지 트리가 슛을 고르지 않는다(스냅샷 ShotReady).
+        // 돌파 의도와 같은 이유로 소유 때 한 번만 굴린다. 트리가 틱마다 굴리면 같은 소유 안에서 슛 가능·불가가 흔들린다
+        private int shotPrepOwnerId = BallState.NoOwner;
+        private int shotPrepTicksLeft;
+        private int firstTouchOwnerId = BallState.NoOwner;   // 이번 소유에서 퍼스트 터치를 얻은 선수. 이 소유의 슛엔 볼 끌기를 안 건다
+        public int FirstTouchReadyCount { get; private set; }   // 퍼스트 터치 주사위가 성공한 소유 수(계측)
         public int PassCount { get; private set; }
         public int MarkSwitchCount { get; private set; }   // 마크 배정에서 직전 틱에 없던 (마커, 대상) 쌍이 생긴 수(계측, 11-06 S3 ①). 틱마다 교대하면 폭주한다
         public int InterceptCount { get; private set; }
@@ -328,9 +334,9 @@ namespace Game.Core.Match
             }
         }
 
-        // 리시버 마크 배정(11-06 S3 ①). 상대 소유이고 공이 우리 골 MaxShotRange 안일 때만. 대상 = 우리 골에 가까운 상대 필드 선수(소유자·GK 제외) 뒷줄 수까지,
+        // 리시버 마크 배정(11-06 S3 ①). 상대 소유이고 공이 우리 골 MarkZoneRadius 안일 때만. 대상 = 우리 골에 가까운 상대 필드 선수(소유자·GK 제외) 뒷줄 수까지,
         // 마커 후보 = 압박 순위 밖(⑧에 안 가는)이고 얼지 않은 우리 뒷줄(1차), 모자라면 둘째 줄 + tracking(2차, 11-06 D1·11-07 둘째 줄 한정). 직전 틱 배정을 넘겨 대상(MarkTargetMargin)·마커(ChaserSwitchMargin) 히스테리시스를 건다.
-        // 직전 틱만 기억한다: 발동이 한 틱이라도 꺼지면(공이 40m 밖·자유 공) 다음 발동은 처음부터 고른다
+        // 직전 틱만 기억한다: 발동이 한 틱이라도 꺼지면(공이 MarkZoneRadius 밖·자유 공) 다음 발동은 처음부터 고른다
         private void UpdateMarks(int ownerTeam)
         {
             for (int team = 0; team < 2; team++)
@@ -560,6 +566,9 @@ namespace Game.Core.Match
             kickoffTakerId = BallState.NoOwner;
             takeOnOwnerId = BallState.NoOwner;
             takeOnTicksLeft = 0;
+            shotPrepOwnerId = BallState.NoOwner;
+            shotPrepTicksLeft = 0;
+            firstTouchOwnerId = BallState.NoOwner;
             pressLeader[0] = pressLeader[1] = -1;
             pressLeaderSince[0] = pressLeaderSince[1] = tickCount;
             looseChaser[0] = looseChaser[1] = -1;
@@ -763,6 +772,8 @@ namespace Game.Core.Match
                 p.Threat = threat;
                 p.IsKickoffTaker = kickoffTakerId == p.PlayerId;
                 p.WantsTakeOn = takeOnOwnerId == p.PlayerId && takeOnTicksLeft > 0;
+                bool inShotPrep = shotPrepOwnerId == p.PlayerId && shotPrepTicksLeft > 0;
+                p.ShotReady = !inShotPrep;
                 p.Teammates = TeammatesExcluding(p);
                 p.Opponents = rosterSnapshot[other];
                 p.IsKeeperAlternate = keeperAlternate[p.Team];
@@ -774,6 +785,9 @@ namespace Game.Core.Match
                 p.PassTargetZ = passTargetZ;
                 FillKeeperShotSnapshot(p);
             }
+            // 슛 준비 틱은 스냅샷을 넣은 뒤에 준다: 소유한 틱을 포함해 정확히 PrepTicks 스냅샷 동안 ShotReady가 거짓(볼 끌기와 같은 N틱).
+            // 돌파 의도는 앞에서 줄여 1틱 짧은데, 그쪽은 상수 뜻이 "2초 안팎"이라 그대로 둔다
+            if (shotPrepTicksLeft > 0) { shotPrepTicksLeft--; }
         }
 
         // 사전 런 제안(11-03 ⑤): 팀의 공격 소유자(필드 플레이어)가 공을 쥐고 있는 동안만 있다. 공이 비행·자유 공이 되거나 운반자가 바뀌면 버린다
@@ -906,7 +920,7 @@ namespace Game.Core.Match
             bool owner = Ball.Phase == BallPhase.Owned && Ball.OwnerId == p.PlayerId;
 
             // 볼 끌기(개인 holdUp): 소유 직후엔 킥 의도를 대기 틱 동안 무시한다. 타깃맨이 버티는 시간
-            if (owner && holdUpTicksLeft > 0 && (p.WantsShoot || p.WantsPass))
+            if (owner && holdUpTicksLeft > 0 && HoldsUpKick(p))
             {
                 holdUpTicksLeft--;
                 p.Stop();   // 볼 끌기 = 공을 발밑에 두고 버틴다
@@ -1122,6 +1136,7 @@ namespace Game.Core.Match
                 if (previousOwnerId == takeOnOwnerId && takeOnTicksLeft > 0) { TakeOnLostCount++; }
             }
             RollTakeOn(owner);
+            RollShotPrep(owner);
 
             holdUpTicksLeft = (int)Math.Round(HoldUpSecondsFor(owner) / MatchTuning.FixedStep);
             immunityTicksLeft = MatchTuning.PossessionImmunityTicks;
@@ -1153,6 +1168,36 @@ namespace Game.Core.Match
             takeOnOwnerId = owner.PlayerId;
             takeOnTicksLeft = MatchTuning.TakeOnMaxTicks;
             TakeOnCount++;
+        }
+
+        // 볼 끌기가 이번 킥을 붙잡나. 패스는 늘 붙잡는다(타깃맨이 버티고 내준다). 슛은 퍼스트 터치를 얻은 소유면 안 붙잡는다:
+        // 퍼스트 터치 = 받자마자 차는 슛인데 볼 끌기(타깃맨 1초)가 다시 막으면 판정과 실행의 전제가 어긋난다(11-08 S3 1단계 리뷰 🔴)
+        private bool HoldsUpKick(PlayerState p)
+        {
+            if (p.WantsPass) { return true; }
+            if (!p.WantsShoot) { return false; }
+            bool firstTouch = firstTouchOwnerId == p.PlayerId;
+            return !firstTouch;
+        }
+
+        // 슛 준비 시간을 소유 때 정한다(11-08 S3 1단계). GK·킥오프 키커는 슛을 안 하니 막지 않는다.
+        // 사거리 밖에서 잡으면 주사위 없이 준비 시간만 건다: 몰고 들어와 차더라도 준비 시간은 소유한 순간부터 흐른다(StatsBomb 받기→슛 시간과 같은 기준)
+        private void RollShotPrep(PlayerState owner)
+        {
+            shotPrepOwnerId = owner.PlayerId;
+            shotPrepTicksLeft = 0;
+            firstTouchOwnerId = BallState.NoOwner;
+            if (owner.IsGoalkeeper || owner.PlayerId == kickoffTakerId) { return; }
+
+            shotPrepTicksLeft = ShotDecisionRules.PrepTicks(MatchTuning.ShotPrepSeconds);
+            float distance = MatchRules.ShotDistance(Ball.X, Ball.Z, owner.AttackSign);
+            if (distance > MatchTuning.MaxShotRange) { return; }
+
+            float chance = ShotDecisionRules.FirstTouchChance(distance, MatchTuning.FirstTouchShotBandEdges, MatchTuning.FirstTouchShotRates, MatchTuning.FirstTouchShotScale);
+            if (!MatchRules.Resolve(chance, nextRoll())) { return; }
+            shotPrepTicksLeft = 0;
+            firstTouchOwnerId = owner.PlayerId;
+            FirstTouchReadyCount++;
         }
 
         // 골라인을 넘은 슛: 골이면 득점, 아니면(GK가 못 건드렸으면) 빗나감. 둘 다 킥오프
