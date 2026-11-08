@@ -123,7 +123,7 @@ namespace Game.Core.Match
         private readonly List<MarkAssignment>[] previousMarks = { new List<MarkAssignment>(), new List<MarkAssignment>() };
         private readonly List<TargetInfo>[] markTargets = { new List<TargetInfo>(), new List<TargetInfo>() };
         private readonly List<TargetInfo>[] markCandidates = { new List<TargetInfo>(), new List<TargetInfo>() };         // 1차 후보 = 뒷줄(11-06 D1)
-        private readonly List<TargetInfo>[] markSecondCandidates = { new List<TargetInfo>(), new List<TargetInfo>() };   // 2차 후보 = 수비 역할 tracking 미드필더
+        private readonly List<TargetInfo>[] markSecondCandidates = { new List<TargetInfo>(), new List<TargetInfo>() };   // 2차 후보 = 둘째 줄 + tracking(marksAsSecond)
         private readonly int[] backLineCount = { 0, 0 };   // 팀별 뒷줄 수 = 마커 상한. FillBackLine이 틱마다 채운다
         private readonly float[] lineDeepest = { 0f, 0f };         // 팀별 가장 깊은 수비 시 자리 깊이(뒷줄 기준). 틱마다 다시 재는 버퍼(할당 없음)
         private readonly float[] secondLineDeepest = { 0f, 0f };   // 팀별 뒷줄 아닌 선수 중 가장 깊은 자리(둘째 줄 기준)
@@ -329,7 +329,7 @@ namespace Game.Core.Match
         }
 
         // 리시버 마크 배정(11-06 S3 ①). 상대 소유이고 공이 우리 골 MaxShotRange 안일 때만. 대상 = 우리 골에 가까운 상대 필드 선수(소유자·GK 제외) 뒷줄 수까지,
-        // 마커 후보 = 압박 순위 밖(⑧에 안 가는)이고 얼지 않은 우리 뒷줄(1차), 모자라면 tracking 미드필더(2차, 11-06 D1). 직전 틱 배정을 넘겨 대상(MarkTargetMargin)·마커(ChaserSwitchMargin) 히스테리시스를 건다.
+        // 마커 후보 = 압박 순위 밖(⑧에 안 가는)이고 얼지 않은 우리 뒷줄(1차), 모자라면 둘째 줄 + tracking(2차, 11-06 D1·11-07 둘째 줄 한정). 직전 틱 배정을 넘겨 대상(MarkTargetMargin)·마커(ChaserSwitchMargin) 히스테리시스를 건다.
         // 직전 틱만 기억한다: 발동이 한 틱이라도 꺼지면(공이 40m 밖·자유 공) 다음 발동은 처음부터 고른다
         private void UpdateMarks(int ownerTeam)
         {

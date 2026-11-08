@@ -87,7 +87,7 @@ namespace Game.Core.AI
                     new ConditionNode(ctx => ctx.BallOwnerTeam == 1 - ctx.Team && ctx.PressRank < MatchTuning.MaxPressers),
                     new ActionNode(ctx => ChaseBall(ctx))),
 
-                // ⑧b 리시버 마크(11-06 S3 ①): 공이 우리 골 40m 안이면 압박자 외 뒷줄(LineRules, 모자라면 tracking 미드필더)이 상대 리시버의 골 쪽 MarkDistance에 선다. 누가 누구를 맡는지는 시뮬이
+                // ⑧b 리시버 마크(11-06 S3 ①): 공이 우리 골 40m 안이면 압박자 외 뒷줄(LineRules, 모자라면 둘째 줄 + tracking)이 상대 리시버의 골 쪽 MarkDistance에 선다. 누가 누구를 맡는지는 시뮬이
                 // MarkRules로 정해 IsMarker·마크 지점으로 준다(압박 순위와 같은 구조). 지역 자리(⑨)는 마커가 아닌 선수만 간다
                 new SequenceNode(
                     new ConditionNode(ctx => ctx.BallOwnerTeam == 1 - ctx.Team && ctx.IsMarker),

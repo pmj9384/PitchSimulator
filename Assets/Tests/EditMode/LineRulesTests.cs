@@ -72,6 +72,10 @@ public class LineRulesTests
         float second442 = LineRules.HomeDepth(-25f, +1);
         Assert.IsTrue(LineRules.IsSecondLine(LineRules.HomeDepth(-23f, +1), deepest, second442), "4-4-2 W는 CM과 같은 줄");
         Assert.IsFalse(LineRules.IsSecondLine(LineRules.HomeDepth(-13f, +1), deepest, second442), "4-4-2 ST");
+        // 밴드 끝 포함: 4-3-3 DM −29(23.5)에서 CM −23(29.5)은 정확히 6m라 둘째 줄이다. 0.1m 더 앞이면 아니다
+        float second433 = LineRules.HomeDepth(-29f, +1);
+        Assert.IsTrue(LineRules.IsSecondLine(LineRules.HomeDepth(-23f, +1), deepest, second433), "4-3-3 CM은 밴드 끝 = 둘째 줄");
+        Assert.IsFalse(LineRules.IsSecondLine(LineRules.HomeDepth(-22.9f, +1), deepest, second433), "밴드 밖 0.1m");
     }
 
     [Test]

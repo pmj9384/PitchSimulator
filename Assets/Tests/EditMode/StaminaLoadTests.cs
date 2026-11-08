@@ -133,7 +133,7 @@ public class StaminaLoadTests
         int balanced = StaminaLoad.FilledSegments(table, Tactics(2, 1, 0, 1));   // 균형 카드의 압박 시작
         int forward = StaminaLoad.FilledSegments(table, Tactics(2, 1, 0, 2));    // 같은 압박에 전진 정도만 2
         Assert.AreEqual(StaminaLoadLevel.Low, StaminaLoad.LevelOf(none));
-        Assert.LessOrEqual(none, balanced);
+        Assert.Less(none, balanced);
         Assert.Less(balanced, forward);
         Assert.AreEqual(StaminaLoadLevel.High, StaminaLoad.LevelOf(forward));
     }

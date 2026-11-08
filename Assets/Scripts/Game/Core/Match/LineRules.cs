@@ -11,10 +11,11 @@ namespace Game.Core.Match
     // 쓰는 곳: 리시버 마크(⑧b) 1차 후보(뒷줄)·2차 후보(둘째 줄 + marksAsSecond)·상한, 박스 앞 전진(옛 StepOutCenterBack). 라인 깊이(D2)·상태(D3)도 여기에 모인다
     public static class LineRules
     {
-        // 수비 시 자리의 우리 골라인에서 깊이(m). attackSign은 그 선수 팀의 공격 방향이라 우리 골라인은 x = −attackSign × HalfLength
-        public static float HomeDepth(float defendHomeX, int attackSign)
+        // x의 우리 골라인에서 깊이(m). 수비 시 자리(DefendHomeX)와 공 x(박스 앞 전진)가 같은 식을 쓴다.
+        // attackSign은 그 팀의 공격 방향이라 우리 골라인은 x = −attackSign × HalfLength
+        public static float HomeDepth(float x, int attackSign)
         {
-            return FieldBounds.HalfLength + defendHomeX * attackSign;
+            return FieldBounds.HalfLength + x * attackSign;
         }
 
         // 가장 깊은 수비 자리에서 BackLineBand 안이면 뒷줄. 경계 포함
