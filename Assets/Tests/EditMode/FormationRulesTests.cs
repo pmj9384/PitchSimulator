@@ -85,7 +85,7 @@ public class FormationRulesTests
     }
 
     [Test]
-    public void 수비_역할_표는_기본_역할을_포함하고_다이얼_2개만_덮는다()
+    public void 수비_역할_표는_기본_역할을_포함하고_다이얼_2개와_마크_2차_플래그만_덮는다()
     {
         List<DefenseRole> roles = Roles();
         Assert.IsNotNull(DefenseRoleParser.Find(roles, DefenseRole.DefaultId));
@@ -96,8 +96,33 @@ public class FormationRulesTests
         Assert.AreEqual(7f, applied.LineHeight, 1e-4f, "+3");
         Assert.AreEqual(6f, applied.RoamRadius, 1e-4f, "이탈 반경은 수비 역할이 안 건드린다(10-29 배율 삭제)");
         Assert.AreEqual(15f, applied.PushUp, 1e-4f, "공격 다이얼은 그대로");
+        Assert.IsFalse(applied.MarksAsSecond, "압박 역할은 마크 2차 후보가 아니다");
         Assert.AreEqual(10f, stats.PressRange, "원본 불변");
-        Assert.Throws<System.FormatException>(() => DefenseRoleParser.Parse("defenseRoleId,displayName,description,pressRangeScale,lineHeightOffset\npressing,압박,,1.5,3\n"), "기본 역할 없음");
+
+        DefenseRole tracking = DefenseRoleParser.Find(roles, "tracking");
+        Assert.IsTrue(tracking.Apply(stats).MarksAsSecond, "복귀 역할만 뒷줄이 모자랄 때 마크 2차 후보(11-06 D1)");
+        Assert.IsFalse(stats.MarksAsSecond, "원본 불변");
+        Assert.Throws<System.FormatException>(() => DefenseRoleParser.Parse(Header + "pressing,압박,,1.5,3,0,0\n"), "기본 역할 없음");
+    }
+
+    private const string Header = "defenseRoleId,displayName,description,pressRangeScale,lineHeightOffset,marksAsSecond,screens\n";
+
+    [Test]
+    public void 수비_역할_행동_열은_전건이_설계값이고_범위_밖은_예외다()
+    {
+        // 11-06 수비 구조 D1(설계 3-1-②·③): 마크 2차 후보 = tracking만, 스크린(D4에서 읽음) = screening 항상 · balanced 공 쪽 1명 · 나머지 없음
+        List<DefenseRole> roles = Roles();
+        Assert.AreEqual(5, roles.Count);
+        foreach (DefenseRole r in roles)
+        {
+            bool expectSecond = r.Id == "tracking";
+            int expectScreens = r.Id == "screening" ? DefenseRole.ScreensAlways : r.Id == DefenseRole.DefaultId ? DefenseRole.ScreensBallSide : DefenseRole.ScreensNone;
+            Assert.AreEqual(expectSecond, r.MarksAsSecond, r.Id + " marksAsSecond");
+            Assert.AreEqual(expectScreens, r.Screens, r.Id + " screens");
+        }
+        Assert.Throws<System.FormatException>(() => DefenseRoleParser.Parse(Header + "balanced,균형,,1,0,2,1\n"), "marksAsSecond 2");
+        Assert.Throws<System.ArgumentException>(() => DefenseRoleParser.Parse(Header + "balanced,균형,,1,0,0,3\n"), "screens 3: 값 범위는 생성자 한 곳(배율·오프셋과 같은 예외)");
+        Assert.Throws<System.ArgumentException>(() => new DefenseRole("x", "x", "", 1f, 0f, false, -1), "생성자의 screens 범위");
     }
 
     [Test]

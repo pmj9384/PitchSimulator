@@ -123,6 +123,23 @@ public class MatchSimulationTests
         return cb;
     }
 
+    // 뒷줄 일반화(11-06 D1) 테스트용. 역할 이름만 다르고 값은 CB와 같다: 전진 후보는 이름이 아니라 수비 자리 깊이로 갈린다
+    private static PlayerStats FullBack()
+    {
+        PlayerStats fb = CenterBack();
+        fb.RoleId = "FB";
+        fb.VariantId = "fb_test";
+        return fb;
+    }
+
+    private static PlayerStats Midfielder()
+    {
+        PlayerStats dm = CenterBack();
+        dm.RoleId = "DM";
+        dm.VariantId = "dm_test";
+        return dm;
+    }
+
     // 주사위 수열. 다 쓰면 예외: 슛이 예상보다 많이 굴리면 테스트가 알아챈다
     private sealed class RollQueue
     {
@@ -808,6 +825,42 @@ public class MatchSimulationTests
         Assert.AreEqual(BallPhase.Flight, sim.Ball.Phase, "튕긴 공은 누구 것도 아닌 비행");
         sim.Tick(Dt);
         Assert.AreNotEqual(0, sim.Ball.OwnerId, "슈터는 바로 못 잡는다");
+    }
+
+    [Test]
+    public void 박스_앞_전진은_역할_이름이_아니라_뒷줄이_기준이라_더_가까운_수미는_안_나가고_가장자리_공엔_FB도_안_나간다()
+    {
+        // 11-06 D1: StepOutCenterBack(RoleId == "CB")을 LineRules 뒷줄로 일반화. 팀 0 CB(깊이 9)와 DM(깊이 16.5, 밴드 6m 밖)이 있고 공은 골라인에서 18m 중앙(전진 구역 안).
+        // DM이 공에서 1.5m로 더 가깝지만 뒷줄이 아니라 전진 후보가 아니고(압박 시작 0이라 거리 후보도 아님), 13.5m 떨어진 CB가 1순위
+        var sim = new MatchSimulation(() => 0.99f, new PassFlightTestsHelper.NoOp(), TestThreat.Real);
+        PlayerState back = sim.AddPlayer(new PlayerState(0, 0, CenterBack(), -43.5f, 10f));
+        PlayerState dm = sim.AddPlayer(new PlayerState(1, 0, Midfielder(), -36f, 0f));
+        sim.AddPlayer(new PlayerState(2, 1, Striker(), -34.5f, 0f));
+        sim.Kickoff();
+        sim.Ball = BallRules.Own(sim.Ball, 2, -34.5f, 0f);
+        sim.Tick(Dt);
+        Assert.IsTrue(back.IsBackLine);
+        Assert.IsFalse(dm.IsBackLine, "깊이 16.5는 9 + 6 밖");
+        Assert.AreEqual(0, back.PressRank, "뒷줄이 전진");
+        Assert.AreEqual(int.MaxValue, dm.PressRank, "수미는 더 가까워도 후보가 아니다");
+
+        // 4-4-2 FB(−40, z 22)도 뒷줄이다. 구역이 박스 폭 전체면 z 15~20 공에 FB가 안쪽으로 끌려 들어왔다(11-07 리뷰 🟡) → 구역 폭은 중앙 ±10.08m.
+        // 가장자리 공(z 19)엔 아무도 전진하지 않고(압박 시작 0), 중앙 공(z 5)엔 CB가 나간다
+        var wide = new MatchSimulation(() => 0.99f, new PassFlightTestsHelper.NoOp(), TestThreat.Real);
+        PlayerState cb = wide.AddPlayer(new PlayerState(0, 0, CenterBack(), -41f, 7f));
+        PlayerState fb = wide.AddPlayer(new PlayerState(1, 0, FullBack(), -40f, 22f));
+        wide.AddPlayer(new PlayerState(2, 1, Striker(), -36f, 19f));
+        wide.Kickoff();
+        wide.Ball = BallRules.Own(wide.Ball, 2, -36f, 19f);
+        wide.Tick(Dt);
+        Assert.IsTrue(fb.IsBackLine, "깊이 12.5는 11.5 + 6 안");
+        Assert.AreEqual(int.MaxValue, fb.PressRank, "가장자리(z 19) 공은 전진 구역 밖: FB가 안쪽으로 안 들어온다");
+        Assert.AreEqual(int.MaxValue, cb.PressRank);
+
+        wide.Ball = BallRules.Own(wide.Ball, 2, -36f, 5f);
+        wide.Tick(Dt);
+        Assert.AreEqual(0, cb.PressRank, "중앙(z 5) 공엔 가까운 CB가 전진");
+        Assert.AreEqual(int.MaxValue, fb.PressRank);
     }
 
     [Test]

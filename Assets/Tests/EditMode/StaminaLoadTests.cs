@@ -123,16 +123,19 @@ public class StaminaLoadTests
     }
 
     [Test]
-    public void 압박을_안_가면_막대가_낮고_전_구역_적극이면_높다()
+    public void 압박을_안_가면_막대가_낮고_전진을_올리면_높다()
     {
+        // 11-07 S3 D1(마크 = 뒷줄) 뒤 재측정: 전 구역 압박이 지치던 건 미드필더가 압박과 마크 사이를 전력으로 오가던 부작용이었고,
+        // 그게 사라지자 체력을 가르는 축이 압박 시작 높이에서 전진 정도로 옮겨 갔다(전진 2 칸 3.5~4.2%, 전 구역 압박·전진 1은 1.6%).
+        // "압박 시작을 높이면 체력을 더 쓴다"는 S3 ⑤에서 레퍼런스(FM 압박 강도 = 피로)로 압박 비용을 넣으며 다시 단언한다(장부)
         List<StaminaLoadEntry> table = RealTable();
         int none = StaminaLoad.FilledSegments(table, Tactics(0, 0, 0, 1));
         int balanced = StaminaLoad.FilledSegments(table, Tactics(2, 1, 0, 1));   // 균형 카드의 압박 시작
-        int all = StaminaLoad.FilledSegments(table, Tactics(2, 2, 2, 1));
+        int forward = StaminaLoad.FilledSegments(table, Tactics(2, 1, 0, 2));    // 같은 압박에 전진 정도만 2
         Assert.AreEqual(StaminaLoadLevel.Low, StaminaLoad.LevelOf(none));
         Assert.Less(none, balanced);
-        Assert.Less(balanced, all);
-        Assert.AreEqual(StaminaLoadLevel.High, StaminaLoad.LevelOf(all));
+        Assert.Less(balanced, forward);
+        Assert.AreEqual(StaminaLoadLevel.High, StaminaLoad.LevelOf(forward));
     }
 
     // 표는 러너로 잰 값이라 체력·압박 규칙이 바뀌면 낡는다. 4칸을 50판씩 다시 재서 표와 1%p 넘게 벌어지면 깨진다.

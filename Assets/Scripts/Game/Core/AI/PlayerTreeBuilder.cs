@@ -80,12 +80,18 @@ namespace Game.Core.AI
                     new ActionNode(ctx => MoveToAttackHome(ctx))),
 
                 // ── 상대 소유 ────────────────────────────────────────────
-                // ⑧ 압박: 팀 안 압박 순위가 상한 안이면 공으로. 누가 후보인지(팀 압박 시작[상대 공 서드] × 개인 압박 거리, 역압박 배율, 박스 앞 CB 전진)는
+                // ⑧ 압박: 팀 안 압박 순위가 상한 안이면 공으로. 누가 후보인지(팀 압박 시작[상대 공 서드] × 개인 압박 거리, 역압박 배율, 박스 앞 뒷줄 전진)는
                 // 시뮬이 한 곳에서 정해 순위(PressRank)로 준다(트리가 거리를 다시 재면 시뮬이 넣은 CB를 도로 걸러 판정과 실행이 갈렸다).
                 // 나머지는 ⑨ 수비 자리(슬라이드가 블록을 좁힌다)(09-23 뭉침)
                 new SequenceNode(
                     new ConditionNode(ctx => ctx.BallOwnerTeam == 1 - ctx.Team && ctx.PressRank < MatchTuning.MaxPressers),
                     new ActionNode(ctx => ChaseBall(ctx))),
+
+                // ⑧b 리시버 마크(11-06 S3 ①): 공이 우리 골 40m 안이면 압박자 외 뒷줄(LineRules, 모자라면 둘째 줄 + tracking)이 상대 리시버의 골 쪽 MarkDistance에 선다. 누가 누구를 맡는지는 시뮬이
+                // MarkRules로 정해 IsMarker·마크 지점으로 준다(압박 순위와 같은 구조). 지역 자리(⑨)는 마커가 아닌 선수만 간다
+                new SequenceNode(
+                    new ConditionNode(ctx => ctx.BallOwnerTeam == 1 - ctx.Team && ctx.IsMarker),
+                    new ActionNode(ctx => ctx.ArriveToward(ctx.MarkX, ctx.MarkZ))),
 
                 // ⑨ 아니면 수비 시 자리(+ 라인 높이)로
                 new SequenceNode(
