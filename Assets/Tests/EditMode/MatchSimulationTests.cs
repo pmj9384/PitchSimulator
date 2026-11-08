@@ -149,6 +149,26 @@ public class MatchSimulationTests
         public int Remaining => rolls.Count;
     }
 
+    // 첫 주사위만 따로 주고 나머지는 같은 값. 소유 때 굴리는 퍼스트 터치 주사위만 바꾸고 싶을 때(11-08)
+    private sealed class FirstRollThen
+    {
+        private readonly float rest;
+        private float? first;
+        public FirstRollThen(float firstRoll, float restRoll)
+        {
+            first = firstRoll;
+            rest = restRoll;
+        }
+
+        public float Next()
+        {
+            if (!first.HasValue) { return rest; }
+            float value = first.Value;
+            first = null;
+            return value;
+        }
+    }
+
     private static MatchSimulation LitmusMatch(RollQueue rolls)
     {
         var sim = new MatchSimulation(rolls.Next, PlayerTreeBuilder.BuildLitmus(), TestThreat.Real) { ResetAfterEveryShot = true };
@@ -553,7 +573,9 @@ public class MatchSimulationTests
     [Test]
     public void 빗나간_슛_뒤_골킥도_준비_시간_동안_들고_있다가_배급하고_다음_소유자에게는_대기가_이어지지_않는다()
     {
-        var sim = new MatchSimulation(() => 0.99f, PlayerTreeBuilder.Build(), TestThreat.Real);   // 0.99 = 골 안 됨·조준은 빗나감
+        // 첫 주사위 0 = 퍼스트 터치(11-08 S3 1단계). 준비 시간 동안 GK가 공을 뺏으면 이 테스트가 보려는 골킥 장면이 안 나온다. 그 뒤 0.99 = 골 안 됨·조준은 빗나감
+        var rolls = new FirstRollThen(0f, 0.99f);
+        var sim = new MatchSimulation(rolls.Next, PlayerTreeBuilder.Build(), TestThreat.Real);
         sim.AddPlayer(new PlayerState(0, 0, Keeper(), -48f, 0f));
         sim.AddPlayer(new PlayerState(1, 0, Striker(), 44f, 0f));
         PlayerState gk = sim.AddPlayer(new PlayerState(2, 1, Keeper(), 48f, 0f));
@@ -928,9 +950,9 @@ public class MatchSimulationTests
         int halfTimeTick = MatchClock.HalfTimeTick(AddedTime.None, MatchLength.Compressed);
         for (int i = 0; i < halfTimeTick - 2; i++) { sim.Tick(Dt); }
 
-        shooter.X = 20f;
+        shooter.X = 25f;   // 골 중심 27.5m. 11-08 사거리 30 전엔 20(32.5m)이었다
         shooter.Z = 0f;
-        sim.Ball = BallRules.Own(sim.Ball, 0, 20f, 0f);
+        sim.Ball = BallRules.Own(sim.Ball, 0, 25f, 0f);
         tree.Armed = true;
         var outcomes = new List<ShotOutcome>();
         sim.ShotResolved += r => outcomes.Add(r.Outcome);
@@ -973,9 +995,9 @@ public class MatchSimulationTests
         for (int i = 0; i < sim.TotalTicks - 2; i++) { sim.Tick(Dt); }
         Assert.IsTrue(sim.SidesSwitched, "후반이다");
 
-        shooter.X = -20f;
+        shooter.X = -25f;   // 후반이라 −X 골. 골 중심 27.5m(11-08 사거리 30)
         shooter.Z = 0f;
-        sim.Ball = BallRules.Own(sim.Ball, 0, -20f, 0f);
+        sim.Ball = BallRules.Own(sim.Ball, 0, -25f, 0f);
         tree.Armed = true;
         var outcomes = new List<ShotOutcome>();
         sim.ShotResolved += r => outcomes.Add(r.Outcome);
@@ -1063,5 +1085,76 @@ public class MatchSimulationTests
         Assert.AreEqual(10, shotFlags, "전부 슛");
         for (int i = 0; i < dirX.Count; i++) { Assert.Greater(dirX[i], 0f, $"{i}번째 슛 방향은 +X 골 쪽(찬 순간 공 속도가 0이라 방향은 보고가 들고 있어야 한다)"); }
         for (int i = 0; i < kickers.Count; i++) { Assert.AreEqual(0, kickers[i], "리트머스에서 차는 건 스트라이커(0)뿐"); }
+    }
+
+    // ── 슛 결정 시간(11-08 S3 1단계): 소유 때 퍼스트 터치를 한 번 굴리고, 못 얻으면 준비 시간 동안 슛을 판정에서 뺀다
+
+    private static MatchSimulation StrikerOwnsAt(System.Func<float> roll, float strikerX, out PlayerState striker)
+    {
+        var sim = new MatchSimulation(roll, PlayerTreeBuilder.Build(), TestThreat.Real);
+        striker = sim.AddPlayer(new PlayerState(0, 0, Striker(), strikerX, 0f));
+        sim.AddPlayer(new PlayerState(1, 1, Keeper(), FieldBounds.HalfLength - 0.5f, 0f));
+        sim.Kickoff();
+        striker.X = strikerX;   // 킥오프가 자리를 옮겼어도 잡는 자리를 못 박는다
+        striker.Z = 0f;
+        sim.Ball = BallRules.Own(sim.Ball, 0, strikerX, 0f);
+        return sim;
+    }
+
+    [Test]
+    public void 퍼스트_터치를_못_얻으면_준비_시간_전엔_슛을_차지_않는다()
+    {
+        // 골 중심 17.5m(16~22 구간 33.9%). 주사위 0.99 = 퍼스트 터치 실패
+        MatchSimulation sim = StrikerOwnsAt(() => 0.99f, 35f, out PlayerState striker);
+        int prep = ShotDecisionRules.PrepTicks(MatchTuning.ShotPrepSeconds);
+        int shotTick = -1;
+        int tick = 0;
+        sim.BallKicked += k =>
+        {
+            if (k.IsShot && shotTick < 0) { shotTick = tick; }
+        };
+        sim.Tick(Dt);
+        Assert.IsFalse(striker.ShotReady, "소유한 틱부터 준비 중");
+        Assert.AreEqual(0, sim.FirstTouchReadyCount);
+        for (tick = 1; tick < prep + 200 && shotTick < 0; tick++) { sim.Tick(Dt); }
+        Assert.GreaterOrEqual(shotTick, 0, "준비 시간이 끝나면 찬다(타이머가 안 풀리는 회귀를 잡는다)");
+        Assert.GreaterOrEqual(shotTick, prep, $"슛은 소유한 틱 포함 {prep}틱 뒤에만");
+    }
+
+    [Test]
+    public void 퍼스트_터치를_얻으면_소유한_틱부터_슛을_판정에_넣는다()
+    {
+        MatchSimulation sim = StrikerOwnsAt(() => 0f, 35f, out PlayerState striker);
+        sim.Tick(Dt);
+        Assert.IsTrue(striker.ShotReady);
+        Assert.AreEqual(1, sim.FirstTouchReadyCount);
+    }
+
+    [Test]
+    public void 퍼스트_터치를_얻은_소유는_볼_끌기가_슛을_붙잡지_않는다()
+    {
+        // 리뷰 🔴(11-08): 볼 끌기 1초(타깃맨)가 퍼스트 터치 슛을 다시 막으면 판정(바로 찬다)과 실행이 어긋난다. 골 중심 8.5m
+        MatchSimulation sim = StrikerOwnsAt(() => 0f, 44f, out PlayerState striker);
+        striker.Stats.HoldUp = 1f;
+        int holdUpTicks = (int)System.Math.Round(1f / MatchTuning.FixedStep);
+        int shotTick = -1;
+        int tick = 0;
+        sim.BallKicked += k =>
+        {
+            if (k.IsShot && shotTick < 0) { shotTick = tick; }
+        };
+        for (tick = 0; tick < holdUpTicks && shotTick < 0; tick++) { sim.Tick(Dt); }
+        Assert.GreaterOrEqual(shotTick, 0, "볼 끌기 1초가 끝나기 전에 찬다");
+    }
+
+    [Test]
+    public void 사거리_밖에서_잡으면_주사위를_안_쓰고_준비_시간만_건다()
+    {
+        // 골 중심 52.5m. 주사위 수열이 비어 있어 굴리면 예외
+        var rolls = new RollQueue(new float[0]);
+        MatchSimulation sim = StrikerOwnsAt(rolls.Next, 0f, out PlayerState striker);
+        sim.Tick(Dt);
+        Assert.IsFalse(striker.ShotReady);
+        Assert.AreEqual(0, sim.FirstTouchReadyCount);
     }
 }

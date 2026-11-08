@@ -45,6 +45,7 @@ public class CompositeNodeTests
         public float MarkZ => 0f;
         public bool IsKickoffTaker => false;
         public bool WantsTakeOn => false;
+        public bool ShotReady => true;
         public bool IsKeeperAlternate => false;
         public int LastPasserId => -1;
         public int OpponentKeeperId => -1;

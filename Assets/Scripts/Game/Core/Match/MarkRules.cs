@@ -16,26 +16,26 @@ namespace Game.Core.Match
     }
 
     // 리시버 마크 판정 순수 함수(11-06 S3 ①, 설계 2-1 A안).
-    // 상대 소유이고 공이 우리 골 중심에서 MaxShotRange 안이면, 압박하는 1명(⑧) 말고 우리 골에 가까운 상대 필드 선수(뒷줄 수까지)에게
+    // 상대 소유이고 공이 우리 골 중심에서 MarkZoneRadius 안이면, 압박하는 1명(⑧) 말고 우리 골에 가까운 상대 필드 선수(뒷줄 수까지)에게
     // 뒷줄(LineRules.IsBackLine) 중 가장 가까운 우리 수비 1명씩이 붙어 그 선수의 골 쪽(상대 → 우리 골 중심 선 위) MarkDistance에 선다.
     // 11-06 D1: 후보가 전 필드 선수였을 땐 내려오던 수미가 박스 앞 상대를 먼저 잡고 CB가 10m 뒤에 남았다(중앙 대상 마커 DM 49%·CB 27%, 설계 1-2). 뒷줄만 후보면 CB 95%.
     // 뒷줄이 모자라면 둘째 줄(LineRules.IsSecondLine)에서 수비 역할이 tracking인 선수가 2차로 든다(AssignTiered).
-    // 지역 방어(공 지향 슬라이드)는 그대로 두고 슛 사거리 안에서만 사람을 본다: 90분 깔때기에서 슛의 96%가 슛 선 15m 안에 수비가 없었고
+    // 지역 방어(공 지향 슬라이드)는 그대로 두고 마크 구역(MarkZoneRadius) 안에서만 사람을 본다: 90분 깔때기에서 슛의 96%가 슛 선 15m 안에 수비가 없었고
     // 압박받는 슛이 1.2%(StatsBomb 약 65%)였다. 수비는 골 쪽에 있되 공만 따라 움직여 리시버에서 6m 떨어져 있었다(설계 1-2).
     // 배정은 압박 순위(PressRules.PressRank)와 같은 방식: 거리순, 동률은 PlayerId 작은 쪽, 지금 맡은 쌍은 margin만큼 가깝게 친다(ChaserSwitchMargin).
     public static class MarkRules
     {
-        // 마크 발동: 공이 우리 골 중심(x = −attackSign × HalfLength, z = 0)에서 MaxShotRange 안. 경계 포함.
-        // 슛 확률이 0이 되는 거리(MatchRules.ShotProbability)와 같은 상수라 "슛이 나올 수 있는 구역 = 마크하는 구역"이다
+        // 마크 발동: 공이 우리 골 중심(x = −attackSign × HalfLength, z = 0)에서 MarkZoneRadius 안. 경계 포함.
+        // 11-06엔 슛 사거리(MaxShotRange 40)를 같이 읽었다. 11-08 S3 1단계에서 사거리만 30으로 줄이며 갈랐다: 마크 구역까지 줄이면 D1 행동이 바뀌어 원인이 섞인다
         public static bool IsActive(float ballX, float ballZ, int attackSign)
         {
-            return DistanceToOwnGoal(ballX, ballZ, attackSign) <= MatchTuning.MaxShotRange;
+            return DistanceToOwnGoal(ballX, ballZ, attackSign) <= MatchTuning.MarkZoneRadius;
         }
 
-        // 마크 대상: 상대 필드 선수 중 우리 골 중심에서 MaxShotRange 안인 선수를 골에 가까운 순으로 max명까지.
+        // 마크 대상: 상대 필드 선수 중 우리 골 중심에서 MarkZoneRadius 안인 선수를 골에 가까운 순으로 max명까지.
         // 공을 가진 선수(압박 몫)와 상대 GK는 뺀다. 날아가는 패스의 리시버는 소유자가 아니라 대상에 들어간다(착지 전 마크, 위치는 WithReceiverAt)
         // 히스테리시스: 직전 틱 대상(previous)은 골 거리를 margin만큼 짧게 쳐서 순서를 매긴다. 골 거리가 비슷한 3명이 상한 2명 경계에서
-        // 틱마다 들고 나지 않게 한다(배정 Assign의 마커 여유와 같은 꼴). 사거리(40m) 판정은 실제 거리 그대로다
+        // 틱마다 들고 나지 않게 한다(배정 Assign의 마커 여유와 같은 꼴). 마크 구역(MarkZoneRadius) 판정은 실제 거리 그대로다
         public static void SelectTargets(IReadOnlyList<TargetInfo> opponents, int ownerId, int keeperId, int attackSign, int max, IReadOnlyList<MarkAssignment> previous, float margin, List<TargetInfo> result)
         {
             result.Clear();
@@ -43,7 +43,7 @@ namespace Game.Core.Match
             {
                 TargetInfo o = opponents[i];
                 if (o.PlayerId == ownerId || o.PlayerId == keeperId) { continue; }
-                if (DistanceToOwnGoal(o.X, o.Z, attackSign) > MatchTuning.MaxShotRange) { continue; }
+                if (DistanceToOwnGoal(o.X, o.Z, attackSign) > MatchTuning.MarkZoneRadius) { continue; }
                 InsertByGoalDistance(result, o, attackSign, previous, margin);
             }
             if (result.Count > max) { result.RemoveRange(max, result.Count - max); }

@@ -17,7 +17,8 @@ namespace Game.Core.Match
         public const float ParrySpeed = 4.4f;         // 튕겨 나가는 공의 초속. 약 8m 가서 멈춤(√(2·1.2·8)). 감속 4 때 8m/s와 같은 거리(10-25)
         public const float GoalKickOffset = 5.5f;     // 골킥 자리 = 골라인에서 5.5m(골 에어리어 앞)
         public const float ThrowInInset = 1f;         // 스로인 자리 = 터치라인 안쪽 1m
-        public const float MaxShotRange = 40f;        // 골 중심에서 이 밖은 슛 확률 0. xG 다항식이 학습 범위 밖(원거리)에서 역주행해서 막는다
+        public const float MaxShotRange = 30f;        // 골 중심에서 이 밖은 슛 확률 0. xG 다항식이 학습 범위 밖(원거리)에서 역주행해서 막는다. 40 → 30(11-08 S3 1단계): StatsBomb PL 15/16 슛의 90%가 26.8m 안, 30m 밖 3.6%, HELIOS도 30m 컷
+        public const float MarkZoneRadius = 40f;      // 리시버 마크 발동 구역(MarkRules). 옛 MaxShotRange 40을 같이 읽다가 11-08 사거리를 30으로 줄이며 갈랐다. 마크 구역을 같이 줄이면 D1 행동이 바뀌어 원인이 섞인다
         public const float StatLogitScale = 1f;       // 능력치 보정 폭: 스탯 0↔100이 로짓을 ±1 움직인다(오즈 약 2.7배)
 
         // ── 전술 판정. 전부 밸런스 값: 자동 대전 러너로 조정한다
@@ -84,6 +85,15 @@ namespace Game.Core.Match
         // 비교 기준: Opta 25/26 EPL 돌파 성공률 평균 36.7%, 돌파 시도가 많은 윙어 90분당 6.5~9.5회(theanalyst "Premier League's Most Impactful Dribblers")
         public const float TakeOnChanceScale = 0.3f;    // 공을 잡을 때 돌파 의도 확률 = 드리블 성향 × 이 값(윙어 0.9 → 27%). 우리 진영 서드에선 안 굴린다. 돌파가 전진 패스를 대신해 늘릴수록 골이 준다. 09-29 러너(상대 사거리 = 태클 2m 기준, 100판·300판 시드 101~·401~): 0.2 1.94·2.06·2.09 / 0.3 2.16·2.02·2.02 / 0.4 2.07·1.85·2.08 → 세 표본 모두 목표(골 2~4) 안인 0.3
         public const int TakeOnMaxTicks = 100;          // 돌파 의도 유지 2초. 그 뒤엔 평소 판단(패스·슛·드리블)
+
+        // 슛 결정 시간(11-08 S3 1단계, ShotDecisionRules). 받자마자 차던 슛(0.1초 안 79%)을 실제 분포로: 퍼스트 터치로 바로 차거나, 아니면 준비 시간 뒤에만 찬다.
+        // 근거 = StatsBomb PL 15/16 380경기 직접 계산(실험/2026-11-06-슛-모델-레퍼런스.md 1-1): 퍼스트 터치 슛 31.3%, 아닌 오픈플레이 슛은 받은 뒤 중앙값 1.73초·P25 0.91초
+        public const float ShotPrepSeconds = 1.4f;      // 퍼스트 터치가 아니면 소유 뒤 이 시간 동안 슛을 판정에서 뺀다(운반·패스는 그대로). 격자 {1.0, 1.4, 1.7} 출발값 [가정 G4 대체]
+        public const float FirstTouchShotScale = 1f;    // 퍼스트 터치 확률표 배율. 격자 {1, 0.7}
+        // 퍼스트 터치 슛 비율의 거리 구간(골 중심 m, 상한 미포함)과 비율. 같은 출처의 거리별 계산: 0~6 37.9%, 6~11 32.2%, 11~16 40.4%, 16~22 33.9%, 22~30 20.8%, 30 밖 14.5%
+        // 마지막 구간(30 밖)은 MaxShotRange 가드 뒤라 지금은 읽히지 않는다(사거리 밖에서 잡으면 주사위 없이 준비 시간만). 사거리를 격자로 올리면 그때 읽힌다
+        public static readonly float[] FirstTouchShotBandEdges = { 6f, 11f, 16f, 22f, 30f };
+        public static readonly float[] FirstTouchShotRates = { 0.379f, 0.322f, 0.404f, 0.339f, 0.208f, 0.145f };
         public const float TakeOnEngageRange = 8f;      // 앞쪽 이 거리 안에 상대가 있을 때만 돌파 동작. 없으면 이미 제친 것
         public const float TakeOnLookahead = 4f;        // 방향 후보 지점까지 거리(m)
         public const float TakeOnAngleStep = 30f;       // 방향 후보 간격(°). HELIOS와 같은 값
@@ -170,7 +180,7 @@ namespace Game.Core.Match
         // 팀 PassRisk와의 관계: 균형(0.5) 기준 편차를 그대로 얹는다(PassRules.ThroughAllow). 안전 카드는 스루도 덜 찬다
         public const float ThroughRiskAllow = 0.55f;   // 스루(런 제안 착지점) 위험 허용치 기준값
 
-        // 리시버 마크(11-06 S3 ①, MarkRules). 공이 우리 골 중심 MaxShotRange 안일 때 압박 1명 외에 상대 리시버를 골 쪽에서 막는다
+        // 리시버 마크(11-06 S3 ①, MarkRules). 공이 우리 골 중심 MarkZoneRadius 안일 때 압박 1명 외에 상대 리시버를 골 쪽에서 막는다
         public const float MarkDistance = 1.5f;        // 마커가 서는 자리 = 상대에서 우리 골 중심 쪽으로 이 거리. 출발값 2(StatsBomb PL 15/16 블록 지점 중앙값 2.3~3m)는 반응 지연 몫만큼 늦어 압박 판정(PressedRadius 2m) 밖에 서서 압박 슛 28%였다. 11-06 quick 격자 {1.5, 2, 3}: 1.5에서 압박 슛 59%·슛 선 15m 안 수비 54%·블록 13% [가정 G1]
         // 마커 상한은 뒷줄 수다(상수 없음, 11-06 D1). 지역 수비는 박스 안에서 전원이 사람을 본다(FIFA D1·FC26 "박스 안 가까우면 맨마킹"). 옛 상수 MaxMarkers 2는 11-06 격자에서 {2,3}·{2,4}가 신뢰 구간 안이라 값 싸움이 아니었다
         public const float BackLineBand = 6f;          // 뒷줄 판정(LineRules.IsBackLine): 수비 시 자리 깊이가 팀 최솟값 + 이 값 안이면 뒷줄. [가정] 편성 6종을 가르는 값: DM(−29, 12m 차)·3-5-2 윙백(−31, 10m)은 밖, 5-3-2 FB(−38, 4m)는 안

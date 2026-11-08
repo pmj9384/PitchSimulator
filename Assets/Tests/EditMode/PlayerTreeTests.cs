@@ -38,6 +38,7 @@ public class PlayerTreeTests
         public float MarkZ { get; set; }
         public bool IsKickoffTaker { get; set; }
         public bool WantsTakeOn { get; set; }
+        public bool ShotReady { get; set; } = true;
         public bool IsKeeperAlternate { get; set; }
         public int LastPasserId { get; set; } = -1;
         public PlayerStats OpponentKeeper { get; set; } = null;
@@ -177,6 +178,17 @@ public class PlayerTreeTests
         st.Stats.Shot = 90; st.Stats.ShotBias = 0.1f;
         Tree.Tick(st);
         Assert.AreEqual("shoot", st.Did);
+    }
+
+    [Test]
+    public void 슛_준비_시간_중이면_같은_자리에서도_슛을_고르지_않는다()
+    {
+        // 11-08 S3 1단계: 위 테스트와 같은 자리·스탯인데 시뮬이 ShotReady 거짓을 주면 운반·패스 값 비교로 넘어간다
+        var st = new Fake { PlayerId = 0, OwnsBall = true, BallPhase = BallPhase.Owned, BallOwnerTeam = 0, X = 41.5f, Z = 0f, ShotReady = false };
+        st.Stats.Shot = 90;
+        st.Stats.ShotBias = 0.1f;
+        Tree.Tick(st);
+        Assert.That(st.Did, Is.EqualTo("move").Or.EqualTo("pass"), "운반이나 패스로 넘어간다");
     }
 
     [Test]
@@ -749,6 +761,7 @@ public class PlayerTreeTests
         Assert.AreEqual(9, st.PassedTo);
 
         st = CarrierSt(risk: 1f);
+        st.X = 23f;   // 골 중심 29.5m. 11-08 사거리 30 뒤로 22(30.5m)는 슛 후보 밖
         st.Threat = TestThreat.Plateau();
         st.Opponents = new List<TargetInfo>(st.Opponents) { blocker };
         Tree.Tick(st);

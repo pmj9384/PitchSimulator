@@ -118,12 +118,13 @@ public class ShotProbabilityTests
     }
 
     [Test]
-    public void 사거리_40m_밖은_확률_0이고_안은_양수다()
+    public void 사거리_30m_밖은_확률_0이고_안은_양수다()
     {
-        Assert.AreEqual(0f, Neutral(45f, 0f));
-        Assert.AreEqual(0f, Neutral(30f, 27f), "√(30²+27²) ≈ 40.4m");
-        Assert.Greater(Neutral(39f, 0f), 0f);
-        Assert.Greater(Neutral(30f, 26f), 0f, "√(30²+26²) ≈ 39.7m");
+        // 11-08 S3 1단계에서 40 → 30(StatsBomb PL 15/16 슛의 90%가 26.8m 안)
+        Assert.AreEqual(0f, Neutral(31f, 0f));
+        Assert.AreEqual(0f, Neutral(20f, 23f), "√(20²+23²) ≈ 30.5m");
+        Assert.Greater(Neutral(29f, 0f), 0f);
+        Assert.Greater(Neutral(20f, 22f), 0f, "√(20²+22²) ≈ 29.7m");
     }
 
     [Test]
