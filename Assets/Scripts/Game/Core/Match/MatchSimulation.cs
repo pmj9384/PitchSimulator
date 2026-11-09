@@ -1070,28 +1070,35 @@ namespace Game.Core.Match
             return p.IsGoalkeeper && p.IncomingShot && !shotWillScore;
         }
 
-        // 슛: 확률은 MatchRules, 결과는 주사위 하나로 여기서 정한다. 공은 골 중심으로 날아가고 결과는 도착할 때 확정 표시된다
+        // 슛(11-09 묶음 B 직렬): ① 블록(슛 선 안 수비, 거리 곡선 주사위) → ② 조준 → ③ 골/세이브 주사위 → 비행. 확률은 MatchRules, 주사위는 여기서만.
+        // 결과는 찬 순간 정해지고(shotWillScore) 도착할 때 확정 표시된다. 블록은 조준보다 먼저라 막힌 슛은 조준·골 주사위를 안 쓴다
         private void Shoot(PlayerState shooter)
         {
             PlayerState? keeper = FindGoalkeeper(1 - shooter.Team);
             int reflexes = keeper != null ? keeper.Stats.Reflexes : 0;
             int diving = keeper != null ? keeper.Stats.Diving : 0;
+            shooterId = shooter.PlayerId;
+            takeOnOwnerId = BallState.NoOwner;
+            shooterAttackSign = shooter.AttackSign;
+            shotStartX = shooter.X;
+            shotStartZ = shooter.Z;
+            shotTicks = 0;
+            float goalX = FieldBounds.HalfLength * shooter.AttackSign;
 
             shotProbability = MatchRules.ShotProbability(shooter.X, shooter.Z, shooter.AttackSign, shooter.Stats.Shot, reflexes, diving);
             if (IsPressed(shooter)) { shotProbability = MatchRules.PressuredShotProbability(shotProbability, MatchTuning.ShotPressureLogit); }   // 트리 ShouldShoot과 같은 식(09-29 D3)
             shotProbability = MatchRules.ResolveShotProbability(shotProbability, MatchTuning.ShotResolveLogitBonus);   // 확정만 보정. 판정(ShouldShoot)은 보정 전 값
-            shotWillScore = MatchRules.Resolve(shotProbability, nextRoll());
-            shotInFlight = true;
-            shooterId = shooter.PlayerId;
-            takeOnOwnerId = BallState.NoOwner;
-            shooterAttackSign = shooter.AttackSign;
 
-            // 조준: 골 중심이 아니라 shot 스탯에 따라 퍼진 지점. 골문 밖이면 골라인에서 빗나감으로 마감
-            shotStartX = shooter.X;
-            shotStartZ = shooter.Z;
+            // ① 블록: 슛 선은 골 중심으로 본다(조준은 그 뒤에 정해진다. 블로커가 서는 2~4m 앞에서 조준 차이는 수십 cm)
+            if (TryBlockShot(shooter, goalX, 0f)) { return; }
+
+            // ② 조준: 골 중심이 아니라 shot 스탯에 따라 퍼진 지점. 골문 밖이면 골라인에서 빗나감으로 마감
             shotAimZ = MatchRules.ShotAimZ(shooter.Stats.Shot, nextRoll());
+
+            // ③ 골/세이브
+            shotWillScore = MatchRules.Resolve(shotProbability, nextRoll());
             if (!MatchRules.IsOnTarget(shotAimZ)) { shotWillScore = false; }
-            float goalX = FieldBounds.HalfLength * shooter.AttackSign;
+            shotInFlight = true;
             if (shotWillScore && keeper != null)
             {
                 // 골은 GK가 못 닿는 구석으로(골 여부는 이미 정해져 조준만 바뀐다). GK는 자기 라인에서 공을 만나므로 간격은 라인 교차점에서 잰다:
@@ -1104,10 +1111,8 @@ namespace Game.Core.Match
                 float keeperZAtGoalLine = shooter.Z + (keeper.Z - shooter.Z) / fraction;   // GK z를 골라인 조준 좌표로 환산한 기준점
                 shotAimZ = MatchRules.AimAwayFromKeeper(shotAimZ, keeperZAtGoalLine, gapAtLine / fraction);
             }
-            shotTicks = 0;
             if (ShouldPushWide(keeper, shooter, goalX)) { shotAimZ = MatchRules.PushWide(shotAimZ); }
-            BallKicked?.Invoke(new KickReport(shooter.PlayerId, true, goalX - shooter.X, shotAimZ - shooter.Z));   // 막혀도 찬 건 찬 것
-            if (TryBlockShot(shooter, goalX)) { return; }
+            BallKicked?.Invoke(new KickReport(shooter.PlayerId, true, goalX - shooter.X, shotAimZ - shooter.Z));
             Ball = BallRules.Kick(Ball, goalX - shooter.X, shotAimZ - shooter.Z, MatchTuning.ShotSpeed);
         }
 
@@ -1125,18 +1130,20 @@ namespace Game.Core.Match
             return false;
         }
 
-        // 슛 블록(09-29 수비 D3): 슛 방향 앞의 수비수가 막으면 공은 옆·뒤로 튕겨 자유 공(루즈볼 경합)이 된다. 후보가 있을 때만 주사위를 쓴다
-        private bool TryBlockShot(PlayerState shooter, float goalX)
+        // 슛 블록(09-29 수비 D3 → 11-09 B1 거리 곡선): 슛 선(슈터 → targetZ) 안 최근접 수비가 거리 곡선 확률로 막으면 공은 옆·뒤로 튕겨 자유 공(루즈볼 경합)이 된다.
+        // 후보가 있을 때만 주사위를 쓴다. 막힌 슛도 찬 것이라 BallKicked를 결과(Finish)보다 먼저 알린다(러너·뷰가 찬 순간 재료를 결과와 묶는다)
+        private bool TryBlockShot(PlayerState shooter, float goalX, float targetZ)
         {
             List<TargetInfo> candidates = blockCandidates[1 - shooter.Team];
-            int blockerId = MatchRules.ShotBlocker(shooter.X, shooter.Z, goalX, shotAimZ, candidates, keeperIds[1 - shooter.Team],
-                MatchTuning.ShotBlockRange, MatchTuning.ShotBlockConeDeg);
-            if (blockerId == -1) { return false; }
-            if (!MatchRules.Resolve(MatchTuning.ShotBlockChance, nextRoll())) { return false; }
+            (int playerId, float distance) pick = MatchRules.ShotBlocker(shooter.X, shooter.Z, goalX, targetZ, candidates, keeperIds[1 - shooter.Team],
+                MatchTuning.ShotBlockLaneHalfWidth, MatchTuning.ShotBlockMaxAhead);
+            if (pick.playerId == -1) { return false; }
+            if (!MatchRules.Resolve(MatchRules.BlockChance(pick.distance), nextRoll())) { return false; }
 
+            BallKicked?.Invoke(new KickReport(shooter.PlayerId, true, goalX - shooter.X, targetZ - shooter.Z));
             // 튕김도 블로커를 고른 스냅샷 좌표로 계산한다. 라이브 위치는 PlayerId가 슈터보다 작으면 이번 틱에 이미 움직인 뒤다(판정과 실행의 시점 일치)
-            TargetInfo blocker = FindSnapshot(candidates, blockerId);
-            (float x, float z) dir = MatchRules.BlockReboundDirection(shooter.X, shooter.Z, goalX, shotAimZ, blocker.X, blocker.Z, MatchTuning.BlockReboundTurnDeg);
+            TargetInfo blocker = FindSnapshot(candidates, pick.playerId);
+            (float x, float z) dir = MatchRules.BlockReboundDirection(shooter.X, shooter.Z, goalX, targetZ, blocker.X, blocker.Z, MatchTuning.BlockReboundTurnDeg);
             // 09-29 리뷰: 슈터 쪽 직선으로 튕기면 슈터가 1~2틱 만에 도로 잡았다. 옆·뒤로 비틀고, 막은 선수 발(잡기 반경) 밖에서 출발시킨다
             float startX = blocker.X + dir.x * MatchTuning.BlockReboundStart;
             float startZ = blocker.Z + dir.z * MatchTuning.BlockReboundStart;

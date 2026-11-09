@@ -136,9 +136,12 @@ namespace Game.Core.Match
         public const float ShotResolveLogitBonus = 0.8f; // 슛 확정 확률에만 더하는 로짓(판정 ShouldShoot은 안 본다). 10-23 인게임 경로 계측: 슛이 현실의 절반(5.9/팀)이라 골 1.44·0:0 22%였다. 0.6 → 0.8은 GK 슛 대응·조준 반폭·압박 재임을 넣은 뒤 격자(최종 4부 20시즌 골 2.13·0:0 9%·무 27%). [가정] 임시 레버
                                                          // 문턱을 낮추면 나쁜 자리에서 일찍 쏴 골이 줄고(0.88), 확정만 올리면 슛 수 그대로 골 2.17·0:0 6%(+0.3 1.76 / +0.9 2.70). 유저 "중간점".
                                                          // 임시 레버: ⑦ 공격 장면·④ 침투로 슛이 늘면 0으로 되돌린다. 기록 실험/2026-10-23-골-가뭄-레버-격자.md
-        public const float ShotBlockRange = TackleRange;  // 슛을 막을 수 있는 수비수 거리(발 뻗어 막는 범위 = 태클 사거리)
-        public const float ShotBlockConeDeg = 20f;       // 슛 방향 기준 각도
-        public const float ShotBlockChance = 0.3f;       // 후보가 있을 때 실제로 막을 확률
+        // 슛 블록(11-09 묶음 B1, MatchRules.ShotBlocker·BlockChance). 09-29의 "2m·±20° 안 후보 × 0.3"은 블록 0.8%였다(슛 선 15m 안 수비 5%, 설계-B 1-6).
+        // 후보 = 슈터 → 조준점 슛 선에서 수직 거리 LaneHalfWidth 안, 앞 MaxAhead 안의 최근접 필드 수비. 확률은 그 거리의 StatsBomb 곡선. 후보가 없으면 블록 없음(튕김 자리를 못 정한다, 설계-B 결정 5)
+        public const float ShotBlockLaneHalfWidth = 1.3f;   // 잡기 반경 0.8 + 0.5 [가정 G-B1]
+        public const float ShotBlockMaxAhead = 15f;         // StatsBomb PL 15/16 블록 지점 P90 7~11m [직접 계산] + 여유
+        public static readonly float[] ShotBlockCurveEdges = { 2f, 4f, 8f, 15f };            // 최근접 수비 거리 구간 상한(m, 경계 포함)
+        public static readonly float[] ShotBlockCurveRates = { 0.65f, 0.58f, 0.42f, 0.32f };  // 그 구간의 블록률. StatsBomb PL 15/16 64.6/58.3/41.5/32.2% [직접 계산, 실험/2026-11-05-슛-블록-레퍼런스.md 2-3]
         public const float BlockReboundSpeed = 3.3f;     // 막힌 공이 튕겨 나가는 초속(m/s). 약 4.5m 가서 멈춤, 감속 4 때 6m/s와 같은 거리(10-25)
         public const float BlockReboundTurnDeg = 60f;    // 슛 반대 방향에서 비트는 각도. 슈터 쪽 직선이면 슈터가 도로 잡았다
         public const float BlockReboundStart = 0.9f;     // 튕긴 공이 막은 선수에게서 떨어져 출발하는 거리. 잡기 반경(0.8) 밖

@@ -80,32 +80,45 @@ namespace Game.Core.Match
             return Logistic(logit - logitPenalty);
         }
 
-        // 슛 블록 후보(09-29 수비 D3): 슈터에서 range 안이고 슛 방향 ±coneDeg 안인 상대 필드 선수 중 가장 가까운 선수. 없으면 -1.
-        // Opta는 슛을 막은 최종 수비수를 블록으로 센다. 각도 ±20°는 Wharton xG 논문의 각도 압박 기준
-        public static int ShotBlocker(float shooterX, float shooterZ, float aimX, float aimZ, IReadOnlyList<TargetInfo> opponents, int keeperId, float range, float coneDeg)
+        // 슛 블록 후보(09-29 수비 D3 → 11-09 B1 슛 선): 슈터 → 조준점 직선에서 수직 거리가 laneHalfWidth 안이고 슈터 앞(선 위 투영 0 < t ≤ maxAhead)인
+        // 상대 필드 선수 중 슈터에 가장 가까운 선수와 그 거리. 없으면 (-1, 0). 거리는 블록 확률 곡선(BlockChance)의 입력이다.
+        // StatsBomb은 "골 중심 ±10° 원뿔 최근접"으로 쟀고 우리는 실제 조준 선으로 판정한다(같은 거리 구간 확률을 쓰는 것은 근사, 설계-B G-B1)
+        public static (int playerId, float distance) ShotBlocker(float shooterX, float shooterZ, float aimX, float aimZ, IReadOnlyList<TargetInfo> opponents, int keeperId, float laneHalfWidth, float maxAhead)
         {
             float ax = aimX - shooterX;
             float az = aimZ - shooterZ;
             float aimLen = (float)Math.Sqrt(ax * ax + az * az);
-            if (aimLen <= 0f) { return -1; }
+            if (aimLen <= 0f) { return (-1, 0f); }
 
-            float cosLimit = (float)Math.Cos(coneDeg * Math.PI / 180.0);
             int best = -1;
-            float bestD2 = range * range;
+            float bestDistance = float.MaxValue;
             for (int i = 0; i < opponents.Count; i++)
             {
                 TargetInfo o = opponents[i];
                 if (o.PlayerId == keeperId) { continue; }
                 float ox = o.X - shooterX;
                 float oz = o.Z - shooterZ;
-                float d2 = ox * ox + oz * oz;
-                if (d2 > bestD2 || d2 <= 0f) { continue; }
-                float cos = (ox * ax + oz * az) / ((float)Math.Sqrt(d2) * aimLen);
-                if (cos < cosLimit) { continue; }
-                bestD2 = d2;
+                float along = (ox * ax + oz * az) / aimLen;
+                if (along <= 0f || along > maxAhead) { continue; }
+                float across = Math.Abs(ox * az - oz * ax) / aimLen;
+                if (across > laneHalfWidth) { continue; }
+                float distance = (float)Math.Sqrt(ox * ox + oz * oz);
+                if (distance >= bestDistance) { continue; }
+                bestDistance = distance;
                 best = o.PlayerId;
             }
-            return best;
+            if (best == -1) { return (-1, 0f); }
+            return (best, bestDistance);
+        }
+
+        // 블록 확률(11-09 B1): 최근접 수비 거리의 구간 곡선(MatchTuning.ShotBlockCurveEdges/Rates, 경계 포함). 마지막 구간 밖은 0(후보가 없는 슛과 같다)
+        public static float BlockChance(float blockerDistance)
+        {
+            for (int i = 0; i < MatchTuning.ShotBlockCurveEdges.Length; i++)
+            {
+                if (blockerDistance <= MatchTuning.ShotBlockCurveEdges[i]) { return MatchTuning.ShotBlockCurveRates[i]; }
+            }
+            return 0f;
         }
 
         // 막힌 공이 튕기는 방향(단위 벡터): 슛 반대 방향을 turnDeg만큼 비튼다. 블로커가 슛 라인의 왼쪽이면 왼쪽으로, 오른쪽이면 오른쪽으로(결정적)

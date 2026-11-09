@@ -196,10 +196,10 @@ public class MatchSimulationTests
     [Test]
     public void 리트머스_슛_10회_결과는_각각_Resolve_p_roll과_같다()
     {
-        // 슛마다 골 주사위 1 + 조준 주사위 1(09-18 슛 오차), 골이 아니고 골문 안이면 캐치 주사위 1. 30개면 넉넉하다.
+        // 슛마다 조준 주사위 1 + 골 주사위 1(11-09 B1: 블록 → 조준 → 골 순서. 블로커가 없어 블록 주사위는 안 쓴다), 골이 아니고 골문 안이면 캐치 주사위 1. 30개면 넉넉하다.
         // 조준 roll은 0.5(정중앙)로 고정해 골문 안이 되게 한다(오차 자체는 ShotDirectionTests가 검증)
         // 10-23 슛 확정 보정(ShotResolveLogitBonus) 뒤 p가 0.35~0.65라, 골 roll은 그 띠를 피해 0.15 이하(골) 또는 0.8 이상(아님)으로만 둔다. 골 5·세이브 5
-        float[] sequence = { 0.10f,0.5f, 0.95f,0.5f,0.50f, 0.90f,0.5f,0.20f, 0.05f,0.5f, 0.99f,0.5f,0.70f, 0.15f,0.5f, 0.85f,0.5f,0.99f, 0.12f,0.5f, 0.80f,0.5f,0.30f, 0.08f,0.5f, 0.5f,0.5f,0.5f };
+        float[] sequence = { 0.5f,0.10f, 0.5f,0.95f,0.50f, 0.5f,0.90f,0.20f, 0.5f,0.05f, 0.5f,0.99f,0.70f, 0.5f,0.15f, 0.5f,0.85f,0.99f, 0.5f,0.12f, 0.5f,0.80f,0.30f, 0.5f,0.08f, 0.5f,0.5f,0.5f };
         var rolls = new RollQueue(sequence);
         MatchSimulation sim = LitmusMatch(rolls);
 
@@ -212,8 +212,8 @@ public class MatchSimulationTests
         {
             Assert.AreEqual(0, r.ShooterId, "쏘는 건 ST뿐");
             expectedGoals += r.Probability;
-            float goalRoll = sequence[cursor++];
             float aimRoll = sequence[cursor++];
+            float goalRoll = sequence[cursor++];
             Assert.AreEqual(0.5f, aimRoll, "테스트 수열의 조준 roll 자리");
             if (MatchRules.Resolve(r.Probability, goalRoll))
             {
@@ -241,8 +241,8 @@ public class MatchSimulationTests
     [Test]
     public void 노골_유효_슛을_GK가_못_닿으면_포스트_밖으로_밀려_빗나간다()
     {
-        // 골 roll 0.99(노골), 조준 roll 0 → 왼쪽 끝(shot 90 반폭 3.4, 골문 안). GK 자리 z +3이라 가로 6.4m를 다이빙 8m/s로도 비행 0.3초 안에 못 간다
-        var sim = new MatchSimulation(new RollQueue(new[] { 0.99f, 0f, 0.5f, 0.5f, 0.5f }).Next, PlayerTreeBuilder.BuildLitmus(), TestThreat.Real) { ResetAfterEveryShot = true };
+        // 조준 roll 0 → 왼쪽 끝, 골 roll 0.99(노골)(11-09 B1 순서: 조준 → 골)(shot 90 반폭 3.4, 골문 안). GK 자리 z +3이라 가로 6.4m를 다이빙 8m/s로도 비행 0.3초 안에 못 간다
+        var sim = new MatchSimulation(new RollQueue(new[] { 0f, 0.99f, 0.5f, 0.5f, 0.5f }).Next, PlayerTreeBuilder.BuildLitmus(), TestThreat.Real) { ResetAfterEveryShot = true };
         sim.AddPlayer(new PlayerState(0, 0, Striker(), -10f, 0f));
         PlayerState keeper = sim.AddPlayer(new PlayerState(1, 1, Keeper(), 50f, 3f));
         sim.Kickoff();
@@ -256,9 +256,9 @@ public class MatchSimulationTests
     [Test]
     public void 노골_유효_슛을_GK가_닿을_수_있으면_접촉이_없어도_골라인에서_세이브로_끝난다()
     {
-        // 조준 roll 0.3 → z -1.36(골문 안). GK z 0: 가로 1.36m 중 발 반경 0.8을 빼면 0.56m라 다이빙 8m/s로 반응 지연 뒤에도 닿는다 → 유효 슛 유지.
+        // 조준 roll 0.3 → z -1.36(골문 안), 골 roll 0.99(노골). GK z 0: 가로 1.36m 중 발 반경 0.8을 빼면 0.56m라 다이빙 8m/s로 반응 지연 뒤에도 닿는다 → 유효 슛 유지.
         // 리트머스 트리엔 GK 이동 노드가 없어 접촉(0.8m)은 안 생기고 골라인에서 세이브
-        var sim = new MatchSimulation(new RollQueue(new[] { 0.99f, 0.3f, 0.5f, 0.5f, 0.5f }).Next, PlayerTreeBuilder.BuildLitmus(), TestThreat.Real) { ResetAfterEveryShot = true };
+        var sim = new MatchSimulation(new RollQueue(new[] { 0.3f, 0.99f, 0.5f, 0.5f, 0.5f }).Next, PlayerTreeBuilder.BuildLitmus(), TestThreat.Real) { ResetAfterEveryShot = true };
         sim.AddPlayer(new PlayerState(0, 0, Striker(), -10f, 0f));
         PlayerState keeper = sim.AddPlayer(new PlayerState(1, 1, Keeper(), 50f, 0f));
         sim.Kickoff();
@@ -274,7 +274,7 @@ public class MatchSimulationTests
     [Test]
     public void GK는_슛이_뜬_뒤_반응_지연이_지나야_조준점으로_움직일_차례가_된다()
     {
-        var sim = new MatchSimulation(new RollQueue(new[] { 0.99f, 0.3f, 0.5f, 0.5f, 0.5f }).Next, PlayerTreeBuilder.BuildLitmus(), TestThreat.Real) { ResetAfterEveryShot = true };
+        var sim = new MatchSimulation(new RollQueue(new[] { 0.3f, 0.99f, 0.5f, 0.5f, 0.5f }).Next, PlayerTreeBuilder.BuildLitmus(), TestThreat.Real) { ResetAfterEveryShot = true };
         PlayerState striker = sim.AddPlayer(new PlayerState(0, 0, Striker(), -10f, 0f));
         PlayerState keeper = sim.AddPlayer(new PlayerState(1, 1, Keeper(), 50f, 0f));
         float shotX = 0f;
@@ -299,8 +299,8 @@ public class MatchSimulationTests
     [Test]
     public void GK는_슛에_반응하는_동안_스탯이_아니라_다이빙_속도로_조준점까지_간다()
     {
-        // 전체 트리(⑨b). 골 roll 0.99(노골), 조준 roll 0.3 → z -1.14. 반응 지연이 지난 첫 틱에 GK가 움직인 거리 = 8m/s × 0.02 = 0.16m(스탯 30이면 0.084)
-        var sim = new MatchSimulation(new RollQueue(new[] { 0.99f, 0.3f, 0.5f, 0.5f, 0.5f }).Next, PlayerTreeBuilder.Build(), TestThreat.Real) { ResetAfterEveryShot = true };
+        // 전체 트리(⑨b). 조준 roll 0.3 → z -1.14, 골 roll 0.99(노골). 반응 지연이 지난 첫 틱에 GK가 움직인 거리 = 8m/s × 0.02 = 0.16m(스탯 30이면 0.084)
+        var sim = new MatchSimulation(new RollQueue(new[] { 0.3f, 0.99f, 0.5f, 0.5f, 0.5f }).Next, PlayerTreeBuilder.Build(), TestThreat.Real) { ResetAfterEveryShot = true };
         sim.AddPlayer(new PlayerState(0, 0, Striker(), 30f, 0f));
         PlayerState keeper = sim.AddPlayer(new PlayerState(1, 1, Keeper(), 50f, 0f));
         sim.Kickoff();
@@ -317,8 +317,8 @@ public class MatchSimulationTests
     [Test]
     public void 골로_정해진_슛은_GK_자리에서_먼_구석으로_조준되고_GK는_버스트_없이_간다()
     {
-        // 골 roll 0.05, 조준 roll 0.5 → 중앙 0. GK z 0 → 파생 간격만큼 밀린다. 반응 ×2(20틱) 뒤 한 틱 이동 ≤ 스탯 30(4.2m/s) × 0.02 = 0.084(가속을 타서 더 짧다)
-        var sim = new MatchSimulation(new RollQueue(new[] { 0.05f, 0.5f, 0.5f, 0.5f, 0.5f }).Next, PlayerTreeBuilder.Build(), TestThreat.Real) { ResetAfterEveryShot = true };
+        // 조준 roll 0.5 → 중앙 0, 골 roll 0.05(골). GK z 0 → 파생 간격만큼 밀린다. 반응 ×2(20틱) 뒤 한 틱 이동 ≤ 스탯 30(4.2m/s) × 0.02 = 0.084(가속을 타서 더 짧다)
+        var sim = new MatchSimulation(new RollQueue(new[] { 0.5f, 0.05f, 0.5f, 0.5f, 0.5f }).Next, PlayerTreeBuilder.Build(), TestThreat.Real) { ResetAfterEveryShot = true };
         PlayerState striker = sim.AddPlayer(new PlayerState(0, 0, Striker(), 30f, 0f));
         PlayerState keeper = sim.AddPlayer(new PlayerState(1, 1, Keeper(), 50f, 0f));
         float shotX = 0f;
@@ -355,8 +355,8 @@ public class MatchSimulationTests
     public void 유효_슛이_날아오는_동안_GK는_반응_차례_전엔_제자리다()
     {
         // 10-25 GK 간격 probe: 골의 56%가 마감 때 GK가 공 0.8m 안이었다. GK가 반응 ×2 전에도 자리 규칙(공 z 추적)으로 움직여
-        // 간격 파생의 전제("지연 뒤에만 움직임")와 달랐다. 골 roll 0.05, 조준 roll 0.5(중앙, 유효) → 반응 ×2 = 20틱 동안 제자리
-        var sim = new MatchSimulation(new RollQueue(new[] { 0.05f, 0.5f, 0.5f, 0.5f, 0.5f }).Next, PlayerTreeBuilder.Build(), TestThreat.Real) { ResetAfterEveryShot = true };
+        // 간격 파생의 전제("지연 뒤에만 움직임")와 달랐다. 조준 roll 0.5(중앙, 유효), 골 roll 0.05 → 반응 ×2 = 20틱 동안 제자리
+        var sim = new MatchSimulation(new RollQueue(new[] { 0.5f, 0.05f, 0.5f, 0.5f, 0.5f }).Next, PlayerTreeBuilder.Build(), TestThreat.Real) { ResetAfterEveryShot = true };
         sim.AddPlayer(new PlayerState(0, 0, Striker(), 30f, 0f));
         PlayerState keeper = sim.AddPlayer(new PlayerState(1, 1, Keeper(), 50f, 1.5f));   // 공 z 0과 다른 자리: 추적 슬라이드가 있었다면 움직인다
         sim.Kickoff();
@@ -379,8 +379,8 @@ public class MatchSimulationTests
     [Test]
     public void 노골_유효_슛도_GK는_반응_차례_전엔_제자리고_차례는_반응_1배다()
     {
-        // 골 roll 0.99(노골), 조준 roll 0.3(골문 안). 닿음 판정(KeeperCanReach)도 "지연 뒤부터 움직인다"고 보므로 대기는 노골도 같다
-        var sim = new MatchSimulation(new RollQueue(new[] { 0.99f, 0.3f, 0.5f, 0.5f, 0.5f }).Next, PlayerTreeBuilder.Build(), TestThreat.Real) { ResetAfterEveryShot = true };
+        // 조준 roll 0.3(골문 안), 골 roll 0.99(노골). 닿음 판정(KeeperCanReach)도 "지연 뒤부터 움직인다"고 보므로 대기는 노골도 같다
+        var sim = new MatchSimulation(new RollQueue(new[] { 0.3f, 0.99f, 0.5f, 0.5f, 0.5f }).Next, PlayerTreeBuilder.Build(), TestThreat.Real) { ResetAfterEveryShot = true };
         sim.AddPlayer(new PlayerState(0, 0, Striker(), 30f, 0f));
         PlayerState keeper = sim.AddPlayer(new PlayerState(1, 1, Keeper(), 50f, 1.5f));
         sim.Kickoff();
@@ -425,8 +425,8 @@ public class MatchSimulationTests
     [Test]
     public void GK가_없는_시뮬에서_골문_안_노골_슛은_빗나감으로_끝난다()
     {
-        // 10-24 리뷰 🟡 ④: ResolveSaveAtLine은 GK가 없으면 false → 골라인에서 Missed. 골 roll 0.99(노골), 조준 roll 0.5(중앙, 유효)
-        var sim = new MatchSimulation(new RollQueue(new[] { 0.99f, 0.5f }).Next, PlayerTreeBuilder.BuildLitmus(), TestThreat.Real) { ResetAfterEveryShot = true };
+        // 10-24 리뷰 🟡 ④: ResolveSaveAtLine은 GK가 없으면 false → 골라인에서 Missed. 조준 roll 0.5(중앙, 유효), 골 roll 0.99(노골)
+        var sim = new MatchSimulation(new RollQueue(new[] { 0.5f, 0.99f }).Next, PlayerTreeBuilder.BuildLitmus(), TestThreat.Real) { ResetAfterEveryShot = true };
         sim.AddPlayer(new PlayerState(0, 0, Striker(), -10f, 0f));
         sim.Kickoff();
 
