@@ -111,12 +111,15 @@ namespace Game.Core.Match
         public const float FatigueRecoveryHalfLifeTicks = 95f;   // 회복 반감기. 전력 뒤 에너지(PCr) 재합성 반감기 약 57초(Bogdanis 1995)를 경기 시간으로 본다. 3분 = 90분이라 1틱(0.02초) = 경기 0.6초, 57 ÷ 0.6 ≈ 95틱
         public const float FatigueEffortThreshold = 0.3f;        // 단기 체력이 이 아래면 속도가 준다(RoboCup effort_dec_thr와 같은 비율)
         public const float FatigueEffortMin = 0.9f;              // 속도 배율 바닥(최대 10% 감소). 최고 속도는 거의 안 떨어진다는 레퍼런스라 감소 폭을 RoboCup(바닥 0.6, 40% 감소)보다 훨씬 작게
-        // 박스 앞 뒷줄 전진(09-29 수비 D1, 11-06 D1 뒷줄로 일반화): 공이 우리 골라인에서 이 거리 안(중앙 BoxStepOutHalfWidth 안)에 오면 공에 가장 가까운 뒷줄 선수(LineRules.IsBackLine)는 개인 압박 거리와 상관없이 압박 후보가 된다.
-        // 코칭 원칙: 박스 근처에선 가장 가까운 CB가 나가고 나머지가 메운다(Coaches' Voice "The modern centre-back"). 박스 깊이 + 5m는 출처 없는 출발값
-        public const float BoxStepOutDepth = Placement.FieldBounds.PenaltyBoxDepth + 5f;
-        // 전진 구역의 폭(중앙 구역, 11-07 리뷰 🟡): 박스 폭 안쪽 절반(±10.08m). 박스 폭 전체(±20.16)면 4-4-2 FB(슬롯 z ±22)도 뒷줄이라 z 15~20 공에 FB가 안쪽으로 끌려 들어왔다.
-        // CB 슬롯 z(±7~±10)와 FB 슬롯 z(±22~±25)의 중간(약 ±14.5)보다 안쪽이라 가장자리 공은 지역 자리·압박 거리 규칙에 맡긴다 [가정]
-        public const float BoxStepOutHalfWidth = Placement.FieldBounds.PenaltyBoxHalfWidth * 0.5f;
+        // 라인 앞 뒷줄 전진(09-29 수비 D1 박스 앞 전진 → 11-06 D1 뒷줄로 일반화 → 11-09 D2-b 라인 상대 구역): 공이 우리 골라인에서 라인 깊이 L + 이 거리 안이고 |z|가 박스 반폭 안이면
+        // 공에 가장 가까운 뒷줄 선수(LineRules.IsBackLine)는 개인 압박 거리와 상관없이 압박 0순위가 된다(MatchSimulation.PressRankOf, MaxPressers 1의 예외 한 곳). 뒤에서 쫓는 1명 + 앞에서 막는 1명.
+        // 11-09 probe: 옛 구역(절대 깊이 21.5m × 폭 ±10.08)은 라인이 오른 D2에서 거의 안 걸렸고, 걸려도 후보일 뿐이라 5m 뒤 CM에게 순위가 밀려 운반자를 앞에서 막는 사람이 없었다(운반 중 라인 통과 슛 77%).
+        // 10m = CB 압박 거리 6 × 1.5와 같은 자릿수 [가정]. 폭을 박스 반폭으로 넓힌 것은 측면 운반자를 FB가 막게 하려고(설계-D2-재설계 결정 4)
+        public const float EngageAhead = 10f;
+        public const float EngageHalfWidth = Placement.FieldBounds.PenaltyBoxHalfWidth;
+        // 공과 라인의 최소 간격(11-09 D2-a): 라인 깊이 L은 공 깊이 − 이 값을 넘지 않는다. Metrica 앵커(공 17.5 → 15)는 "공이 그 서드에 있을 때 평균"이라 공과의 거리를 보장하지 않아
+        // 수비 서드에서 공-라인 간격이 1.4m였다(develop 13.4m). 민감도 8/10/12m = 슛 115/152/161/판, 8m는 라인 뒤 슛 66%라 모양이 나쁘다 [가정]
+        public const float MinLineGap = 10f;
         // 슈터 압박·슛 블록(09-29 수비 D3, MatchRules.PressuredShotProbability·ShotBlocker 주석). 블록 확률·튕기는 속도는 출처 없는 출발값
         public const float ShotPressureLogit = 0.4f;     // 압박받는 슛의 로짓 감소
         // GK 슛 대응(10-23 유저 Play 3·4차). 규칙은 MatchSimulation.Shoot·IncomingShotFor·ResolveSaveAtLine, 판정은 MatchRules.KeeperCanReach·GoalAimGap·PushWide·AimAwayFromKeeper

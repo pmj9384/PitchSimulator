@@ -59,7 +59,7 @@ public class TacticsPreviewTests
         Assert.AreEqual(lineup.Count, attack.Length);
         Assert.AreEqual(lineup.Count, defend.Length);
         float shift = ExpectedLineShift(lineup, balanced, ball.x);
-        float cap = LineRules.StandDepthCap(LineRules.HomeDepth(ball.x, +1), LineRules.LineFloor(KeeperDepth(lineup)));
+        float cap = LineRules.TeamStandDepthCap(LineRules.HomeDepth(ball.x, +1), KeeperDepth(lineup));
         for (int i = 0; i < lineup.Count; i++)
         {
             LineupSlot slot = lineup[i];
@@ -119,25 +119,25 @@ public class TacticsPreviewTests
     [TestCase(0, 15f)]
     [TestCase(1, 32f)]
     [TestCase(2, 47f)]
-    public void 수비_때_뒷줄은_공_칸의_서드별_라인_깊이에_선다(int column, float anchor)
+    public void 수비_때_뒷줄은_공_칸_라인_깊이에_서되_최소_간격과_하한을_지킨다(int column, float anchor)
     {
-        // 11-08 D2: 경기와 같은 LineRules 식. 편성에서 가장 깊은 필드 선수가 L(Metrica 앵커)에 서고 개인 라인 높이 다이얼(× 0.3)만큼 더 앞이다.
-        // 단 공보다 골 쪽(공 깊이 − GoalSideMargin)을 넘지 않는다(11-09): 우리 진영 칸(공 깊이 17.5)에서는 이 상한이 다이얼을 자른다
+        // 11-09 D2-a: 경기와 같은 LineRules 식. 다이얼 얹은 자리가 가장 깊은 필드 선수가 정확히 L에 선다.
+        // 중원(32)·상대 서드(47)는 Metrica 앵커 그대로, 우리 서드(공 17.5)는 최소 간격(7.5)이 하한(GK 라인 + 4)에 걸려 하한
         IReadOnlyList<LineupSlot> lineup = Lineup();
         (float x, float z) ball = TacticsPreview.BallCell(column, 1);
         (float x, float z)[] defend = TacticsPreview.Positions(lineup, balanced, ball.x, ball.z, defending: true);
         int deepest = DeepestFieldSlot(lineup);
-        float dial = lineup[deepest].Stats.LineHeight * MatchTuning.PositionDialScale;
-        float cap = LineRules.HomeDepth(ball.x, +1) - MatchTuning.GoalSideMargin;
-        Assert.AreEqual(System.Math.Min(anchor + dial, cap), LineRules.HomeDepth(defend[deepest].x, +1), 1e-3f, $"열 {column}");
+        float expected = column == 0 ? LineRules.LineFloor(KeeperDepth(lineup)) : anchor;
+        Assert.AreEqual(expected, LineRules.HomeDepth(defend[deepest].x, +1), 1e-3f, $"열 {column}");
     }
 
     // 시뮬(MatchSimulation.FillLineDepth)과 같은 입력을 테스트에서 따로 센다: 필드 선수 수비 시 자리 깊이 최솟값, GK 라인 깊이, 공 깊이
     private static float ExpectedLineShift(IReadOnlyList<LineupSlot> lineup, TeamTactics tactics, float ballX)
     {
         float keeperDepth = KeeperDepth(lineup);
-        float restDepth = LineRules.HomeDepth(lineup[DeepestFieldSlot(lineup)].DefendX, +1);
-        return LineRules.LineShift(LineRules.LineDepth(LineRules.HomeDepth(ballX, +1), tactics.DefenseLine, keeperDepth), restDepth);
+        LineupSlot deepest = lineup[DeepestFieldSlot(lineup)];
+        float restDepth = LineRules.DialedHomeDepth(deepest.DefendX, +1, deepest.Stats.LineHeight);
+        return LineRules.TeamLineShift(LineRules.HomeDepth(ballX, +1), tactics.DefenseLine, keeperDepth, restDepth);
     }
 
     private static float KeeperDepth(IReadOnlyList<LineupSlot> lineup)
@@ -147,14 +147,20 @@ public class TacticsPreviewTests
         return LineRules.HomeDepth(PositionRules.KeeperLineX(keeper.DefendX, keeper.DefendZ, +1, keeper.Stats.LineHeight), +1);
     }
 
+    // 다이얼 얹은 수비 시 자리 깊이가 가장 깊은 필드 선수(시뮬의 restDepth 기준, 11-09 D2-a)
     private static int DeepestFieldSlot(IReadOnlyList<LineupSlot> lineup)
     {
         int deepest = 1;
         for (int i = 2; i < lineup.Count; i++)
         {
-            if (lineup[i].DefendX < lineup[deepest].DefendX) { deepest = i; }
+            if (DialedDepth(lineup[i]) < DialedDepth(lineup[deepest])) { deepest = i; }
         }
         return deepest;
+    }
+
+    private static float DialedDepth(LineupSlot slot)
+    {
+        return LineRules.DialedHomeDepth(slot.DefendX, +1, slot.Stats.LineHeight);
     }
 
     [Test]

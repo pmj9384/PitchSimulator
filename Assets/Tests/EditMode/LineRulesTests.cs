@@ -125,6 +125,36 @@ public class LineRulesTests
     }
 
     [Test]
+    public void 라인_깊이는_공과_최소_간격을_지킨다()
+    {
+        // 11-09 D2-a: L = min(L₀ + 오프셋, 공 깊이 − MinLineGap) → 하한·상한. 수비 서드에서 공-라인 간격이 1.4m라 운반자가 그냥 지나갔다
+        float keeper = 4.5f;
+        Assert.AreEqual(30f - MatchTuning.MinLineGap, LineRules.LineDepth(30f, 1, keeper), 1e-4f, "공 30 → L₀ 21.1을 간격이 20으로");
+        Assert.AreEqual(LineRules.RestLineDepth(40f), LineRules.LineDepth(40f, 1, keeper), 1e-4f, "공 40 → L₀ 25.9(간격 30은 안 걸림)");
+        Assert.AreEqual(LineRules.LineFloor(keeper), LineRules.LineDepth(17.5f, 1, keeper), 1e-4f, "공 17.5 → 간격 7.5가 하한 8.5에 걸림");
+    }
+
+    [Test]
+    public void 높게_오프셋은_최소_간격_안에서만_더해진다()
+    {
+        // 결정 3: 수비 서드에선 높게·깊게 차이가 사라지고(간격이 이긴다), 중원·상대 서드에서만 보인다
+        float keeper = 4.5f;
+        Assert.AreEqual(LineRules.LineDepth(30f, 1, keeper), LineRules.LineDepth(30f, 2, keeper), 1e-4f, "공 30: 높게도 간격 20");
+        Assert.AreEqual(10f, LineRules.LineDepth(52.5f, 2, keeper) - LineRules.LineDepth(52.5f, 0, keeper), 1e-4f, "하프라인: 깊게/높게 차이 10m 그대로");
+    }
+
+    [Test]
+    public void 편성_뒷줄_깊이는_다이얼을_포함한_최솟값이다()
+    {
+        // 11-09 D2-a: 다이얼을 빼고 재면 가장 깊은 선수가 L보다 다이얼만큼 앞에 섰다. CB(−41, lineHeight 20)·FB(−40, 15) → min(11.5 + 6, 12.5 + 4.5) = 17
+        float cb = LineRules.DialedHomeDepth(-41f, +1, 20f);
+        float fb = LineRules.DialedHomeDepth(-40f, +1, 15f);
+        Assert.AreEqual(17.5f, cb, 1e-4f);
+        Assert.AreEqual(17f, fb, 1e-4f);
+        Assert.AreEqual(17.5f, LineRules.DialedHomeDepth(41f, -1, 20f), 1e-4f, "팀 1도 같은 깊이");
+    }
+
+    [Test]
     public void 이동량은_라인_깊이에서_편성_뒷줄_깊이를_뺀_것이고_전원이_같은_양을_옮긴다()
     {
         float rest = LineRules.HomeDepth(-41f, +1);   // CB −41 = 11.5m
@@ -138,11 +168,12 @@ public class LineRulesTests
     }
 
     [Test]
-    public void 마크_하한은_라인과_공_깊이_중_깊은_쪽이고_GK_하한_아래로는_안_간다()
+    public void 마크_하한은_라인과_공보다_골_쪽_선_중_깊은_쪽이고_GK_하한_아래로는_안_간다()
     {
         float floor = 8.5f;
         Assert.AreEqual(20f, LineRules.MarkFloorDepth(lineDepth: 20f, ballDepth: 40f, floorDepth: floor), 1e-4f, "공이 라인 앞이면 라인까지만");
-        Assert.AreEqual(12f, LineRules.MarkFloorDepth(lineDepth: 20f, ballDepth: 12f, floorDepth: floor), 1e-4f, "공이 라인보다 깊으면 공 깊이까지");
+        Assert.AreEqual(12f - MatchTuning.GoalSideMargin, LineRules.MarkFloorDepth(lineDepth: 20f, ballDepth: 12f, floorDepth: floor), 1e-4f, "공이 라인보다 깊으면 공보다 골 쪽 선(공 − 1.5)까지");
+        Assert.LessOrEqual(LineRules.MarkFloorDepth(20f, 12f, floor), LineRules.StandDepthCap(12f, floor), "마크 하한은 마크 상한(StandDepthCap)을 넘지 않는다");
         Assert.AreEqual(floor, LineRules.MarkFloorDepth(lineDepth: 20f, ballDepth: 3f, floorDepth: floor), 1e-4f, "공이 하한보다 깊어도 하한");
     }
 

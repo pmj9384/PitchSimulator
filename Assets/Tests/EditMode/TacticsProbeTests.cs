@@ -12,6 +12,7 @@ public class TacticsProbeTests
 {
     private const float Dt = 0.02f;
     private const int Seeds = 4;
+    private const int LongBallSeeds = 16;   // 패스 길이 평균은 판마다 흔들려 4판이면 1m 기준을 오간다(11-09)
 
     private static PlayerStats Mid()
     {
@@ -175,12 +176,13 @@ public class TacticsProbeTests
     [Test]
     public void 롱볼_카드의_중앙_패스가_짧게_카드보다_길다()
     {
-        // 중앙 서드 패스 방식: 빌드업 축구 = 짧게(0), 역습 축구 = 롱볼(2). 10-06 계측(24판): 17.7m 대 20.7m
+        // 중앙 서드 패스 방식: 빌드업 축구 = 짧게(0), 역습 축구 = 롱볼(2). 10-06 계측(24판): 17.7m 대 20.7m.
+        // 11-09 D2 뒤 4판은 차이 0.75m로 흔들렸고 16판은 18.9m 대 17.2m(1.7m)라 이 테스트만 판 수를 늘렸다
         float buildupSum = 0f;
         int buildupCount = 0;
         float counterSum = 0f;
         int counterCount = 0;
-        for (int seed = 101; seed < 101 + Seeds; seed++)
+        for (int seed = 101; seed < 101 + LongBallSeeds; seed++)
         {
             TacticsReadout buildup = Play("buildup", seed).mine;
             buildupSum += buildup.MeanPassLength(Third.Middle) * buildup.PassCount(Third.Middle);

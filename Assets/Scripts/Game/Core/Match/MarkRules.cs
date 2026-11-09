@@ -75,7 +75,7 @@ namespace Game.Core.Match
         }
 
         // 2단 배정(11-06 D1): 1차 후보(뒷줄)로 먼저 채우고, 남은 대상이 있으면 2차 후보(둘째 줄 + tracking)로 채운다.
-        // 2차는 1차가 바닥났을 때만 들어온다: 뒷줄 CB가 박스 앞 전진으로 압박자가 되거나 얼어 있어 대상보다 적을 때. 뒷줄이 충분하면 미드필더는 자기 줄에 남는다(FIFA D1 지역 수비)
+        // 2차는 1차가 바닥났을 때만 들어온다: 뒷줄 CB가 라인 앞 전진으로 압박자가 되거나 얼어 있어 대상보다 적을 때. 뒷줄이 충분하면 미드필더는 자기 줄에 남는다(FIFA D1 지역 수비)
         public static void AssignTiered(IReadOnlyList<TargetInfo> targets, IReadOnlyList<TargetInfo> primary, IReadOnlyList<TargetInfo> secondary, IReadOnlyList<MarkAssignment> previous, float margin, List<MarkAssignment> result)
         {
             result.Clear();

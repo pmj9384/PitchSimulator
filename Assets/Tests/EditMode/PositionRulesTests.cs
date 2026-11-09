@@ -225,6 +225,28 @@ public class PositionRulesTests
     }
 
     [Test]
+    public void 다이얼이_가장_큰_뒷줄_선수가_아니라_다이얼_얹은_가장_깊은_선수가_정확히_L에_선다()
+    {
+        // 11-09 D2-a: restDepth = 다이얼 얹은 수비 시 자리 깊이의 최솟값. 4-4-2 뒷줄 4명(FB −40·CB −41·CB −41·FB −40), lineHeight 15·20·10·15
+        float[] homes = { -40f, -41f, -41f, -40f };
+        float[] heights = { 15f, 20f, 10f, 15f };
+        float rest = float.MaxValue;
+        for (int i = 0; i < homes.Length; i++) { rest = System.Math.Min(rest, LineRules.DialedHomeDepth(homes[i], +1, heights[i])); }
+        float lineDepth = 25f;
+        float shift = LineRules.LineShift(lineDepth, rest);
+        float deepest = float.MaxValue;
+        for (int i = 0; i < homes.Length; i++)
+        {
+            var stats = new PlayerStats { RoleId = "CB", LineHeight = heights[i] };
+            (float x, float z) stand = PositionRules.DefendStand(homes[i], 0f, +1, stats, 0f, shift, float.MaxValue, goalkeeper: false);
+            float depth = LineRules.HomeDepth(stand.x, +1);
+            deepest = System.Math.Min(deepest, depth);
+            Assert.LessOrEqual(depth, lineDepth + 4f, $"{i}: 다이얼 차는 줄 안 개인 차(이 예에선 4m 이내)");
+        }
+        Assert.AreEqual(lineDepth, deepest, 1e-4f, "가장 깊은 선수가 L");
+    }
+
+    [Test]
     public void GK_라인_x는_수비_시_자리의_x와_같다()
     {
         // 시뮬의 닿음 판정과 트리의 이동이 같은 함수를 쓴다(10-25). 라인 높이 6 × 0.3 = 1.8 앞

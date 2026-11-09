@@ -340,7 +340,8 @@ public class PassFlightTests
     public void 압박_거리_안_여럿이어도_팀에서_공에_가장_가까운_1명만_달려들고_나머지는_자리를_지킨다()
     {
         var sim = new MatchSimulation(() => 0.5f, PlayerTreeBuilder.Build(), TestThreat.Real);
-        PlayerStats presser = Mid(); presser.PressRange = 20f;
+        PlayerStats presser = Mid();
+        presser.PressRange = 20f;
         sim.AddPlayer(new PlayerState(0, 1, Mid(), 0f, 0f));                            // 상대 소유자
         // 수비 자리 = 스폰 자리가 되게 팀 이동량 Δ(11-08 D2)를 0으로 만든다: 가장 깊은 수비 홈(첫 압박자)을 공이 하프라인일 때의 라인 깊이 L에 둔다.
         // 이 테스트는 "압박 순위 밖은 자리를 지킨다"만 본다
@@ -365,7 +366,8 @@ public class PassFlightTests
     {
         // 09-26 리뷰: 얼어 있는 선수가 순위 0을 차지한 채 못 움직이면 상한 1에 걸린 2순위도 안 가 그 팀 압박이 0.5초 빈다
         var sim = new MatchSimulation(() => 0.5f, PlayerTreeBuilder.Build(), TestThreat.Real);
-        PlayerStats presser = Mid(); presser.PressRange = 20f;
+        PlayerStats presser = Mid();
+        presser.PressRange = 20f;
         sim.AddPlayer(new PlayerState(0, 1, Mid(), 0f, 0f));
         PlayerState first = sim.AddPlayer(new PlayerState(1, 0, presser, -5f, 0f));
         PlayerState second = sim.AddPlayer(new PlayerState(2, 0, presser, -10f, 0f));

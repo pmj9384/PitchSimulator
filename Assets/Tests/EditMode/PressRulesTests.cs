@@ -147,19 +147,19 @@ public class ShotDirectionTests
     }
 
     [Test]
-    public void 뒷줄_전진_구역은_우리_골라인에서_박스_깊이_더하기_5m_안이고_중앙_박스_폭_안쪽_절반_안이다()
+    public void 뒷줄_전진_구역은_주어진_깊이_안이고_박스_반폭_안이며_경계는_포함이다()
     {
-        // 09-29 수비 D1. 팀 0(+X 공격)의 골라인은 x = -52.5. 11-07 리뷰: 폭을 박스 폭 전체(±20.16)에서 안쪽 절반(±10.08)으로 좁혔다(4-4-2 FB가 안쪽으로 끌려 들어오던 것)
-        float depth = MatchTuning.BoxStepOutDepth;   // 21.5
-        float half = MatchTuning.BoxStepOutHalfWidth;   // 10.08
+        // 09-29 수비 D1. 팀 0(+X 공격)의 골라인은 x = -52.5. 11-09 D2-b: 깊이는 시뮬이 라인 깊이 L + EngageAhead로 넘기고(여기선 21.5를 그대로 준다), 폭은 박스 반폭(±20.16)
+        float depth = 21.5f;
+        float half = MatchTuning.EngageHalfWidth;   // 20.16
         Assert.IsTrue(PressRules.IsInStepOutZone(-52.5f + 20f, 0f, +1, depth, half), "골라인에서 20m, 중앙");
         Assert.IsFalse(PressRules.IsInStepOutZone(-52.5f + 23f, 0f, +1, depth, half), "23m는 밖");
         Assert.IsFalse(PressRules.IsInStepOutZone(-52.5f + 10f, 25f, +1, depth, half), "박스 폭(±20.16) 밖 측면");
-        Assert.IsFalse(PressRules.IsInStepOutZone(-52.5f + 10f, 15f, +1, depth, half), "박스 폭 안이라도 가장자리(z 15)는 밖");
+        Assert.IsTrue(PressRules.IsInStepOutZone(-52.5f + 10f, 15f, +1, depth, half), "박스 폭 안 측면(z 15)은 안(11-07 중앙 ±10.08을 11-09에 되돌림)");
         Assert.IsTrue(PressRules.IsInStepOutZone(52.5f - 10f, 0f, -1, depth, half), "팀 1은 +X 골라인");
         Assert.IsTrue(PressRules.IsInStepOutZone(-52.5f + 21.5f, 0f, +1, depth, half), "정확히 21.5m는 안(경계 포함, 09-30 리뷰)");
         Assert.IsFalse(PressRules.IsInStepOutZone(-52.5f + 21.6f, 0f, +1, depth, half), "21.6m는 밖");
-        Assert.IsTrue(PressRules.IsInStepOutZone(-52.5f + 10f, half, +1, depth, half), "정확히 중앙 구역 끝(10.08)은 안");
-        Assert.IsFalse(PressRules.IsInStepOutZone(-52.5f + 10f, half + 0.01f, +1, depth, half), "10.09는 밖");
+        Assert.IsTrue(PressRules.IsInStepOutZone(-52.5f + 10f, half, +1, depth, half), "정확히 박스 반폭(20.16)은 안");
+        Assert.IsFalse(PressRules.IsInStepOutZone(-52.5f + 10f, half + 0.01f, +1, depth, half), "20.17은 밖");
     }
 }
