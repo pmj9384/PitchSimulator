@@ -54,6 +54,8 @@ public class CompositeNodeTests
         public float AttackHomeZ => 0f;
         public float DefendHomeX => 0f;
         public float DefendHomeZ => 0f;
+        public float DefendLineShift { get; set; }
+        public float DefendDepthCap { get; set; } = float.MaxValue;
         public IReadOnlyList<RunOffer> RunOffers => new List<RunOffer>();
         public ThreatGrid Threat => TestThreat.Flat();
         public bool IsPassTarget => false;

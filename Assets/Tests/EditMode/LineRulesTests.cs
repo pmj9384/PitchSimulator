@@ -87,4 +87,81 @@ public class LineRulesTests
         Assert.IsFalse(LineRules.IsBackLine(LineRules.HomeDepth(-29f, +1), deepest), "3-4-3 윙백");
         Assert.IsTrue(LineRules.IsBackLine(LineRules.HomeDepth(-38f, +1), LineRules.HomeDepth(-42f, +1)), "5-3-2 FB는 4m 차라 뒷줄");
     }
+
+    // ── 라인 깊이(11-08 D2, 설계-수비-구조.md 8절)
+
+    [Test]
+    public void 기본_라인_깊이는_Metrica_앵커_3점을_지나고_사이는_직선이다()
+    {
+        Assert.AreEqual(15f, LineRules.RestLineDepth(17.5f), 1e-4f, "공이 우리 서드 중심");
+        Assert.AreEqual(32f, LineRules.RestLineDepth(52.5f), 1e-4f, "하프라인");
+        Assert.AreEqual(47f, LineRules.RestLineDepth(87.5f), 1e-4f, "상대 서드 중심");
+        Assert.AreEqual(23.5f, LineRules.RestLineDepth(35f), 1e-4f, "첫 구간 가운데 = (15 + 32) / 2");
+        Assert.AreEqual(39.5f, LineRules.RestLineDepth(70f), 1e-4f, "둘째 구간 가운데 = (32 + 47) / 2");
+    }
+
+    [Test]
+    public void 앵커_밖은_끝_구간_기울기로_늘린다()
+    {
+        float lowSlope = (32f - 15f) / 35f;
+        float highSlope = (47f - 32f) / 35f;
+        Assert.AreEqual(15f - 17.5f * lowSlope, LineRules.RestLineDepth(0f), 1e-4f, "공이 우리 골라인");
+        Assert.AreEqual(47f + 17.5f * highSlope, LineRules.RestLineDepth(105f), 1e-4f, "공이 상대 골라인");
+    }
+
+    [Test]
+    public void 라인_깊이는_팀_수비_라인_오프셋을_더하고_하한과_상한으로_자른다()
+    {
+        float keeper = 4.5f;   // 편성 GK −48
+        Assert.AreEqual(32f, LineRules.LineDepth(52.5f, 1, keeper), 1e-4f, "표준");
+        Assert.AreEqual(27f, LineRules.LineDepth(52.5f, 0, keeper), 1e-4f, "깊게 −5");
+        Assert.AreEqual(37f, LineRules.LineDepth(52.5f, 2, keeper), 1e-4f, "높게 +5");
+
+        Assert.AreEqual(LineRules.LineFloor(keeper), LineRules.LineDepth(0f, 0, keeper), 1e-4f, "공이 골라인 + 깊게면 L₀ − 5 = 2.6이 하한 8.5로");
+        Assert.AreEqual(keeper + MatchTuning.FloorMargin, LineRules.LineFloor(keeper), 1e-4f, "하한 = GK 라인 + 4");
+        Assert.AreEqual(LineRules.LineFloor(6.9f), LineRules.LineDepth(0f, 1, 6.9f), 1e-4f, "스위퍼 GK(6.9m)면 하한 10.9가 L₀ 6.5를 자른다");
+
+        Assert.AreEqual(MatchTuning.LineCap, LineRules.LineDepth(105f, 2, keeper), 1e-4f, "공이 상대 골라인 + 높게면 상한 55");
+    }
+
+    [Test]
+    public void 이동량은_라인_깊이에서_편성_뒷줄_깊이를_뺀_것이고_전원이_같은_양을_옮긴다()
+    {
+        float rest = LineRules.HomeDepth(-41f, +1);   // CB −41 = 11.5m
+        float shift = LineRules.LineShift(32f, rest);
+        Assert.AreEqual(20.5f, shift, 1e-4f);
+        // 같은 Δ를 CB(−41)와 CM(−25)에 더하면 둘 사이 간격(16m)이 그대로다: 라인 간격은 편성 posX2가 정한다
+        float cb = PositionRules.DefendHome(-41f, 0f, +1, 0f, shift).x;
+        float cm = PositionRules.DefendHome(-25f, 0f, +1, 0f, shift).x;
+        Assert.AreEqual(16f, cm - cb, 1e-4f);
+        Assert.AreEqual(32f, LineRules.HomeDepth(cb, +1), 1e-4f, "가장 깊은 선수가 L에 선다(개인 다이얼 0)");
+    }
+
+    [Test]
+    public void 마크_하한은_라인과_공_깊이_중_깊은_쪽이고_GK_하한_아래로는_안_간다()
+    {
+        float floor = 8.5f;
+        Assert.AreEqual(20f, LineRules.MarkFloorDepth(lineDepth: 20f, ballDepth: 40f, floorDepth: floor), 1e-4f, "공이 라인 앞이면 라인까지만");
+        Assert.AreEqual(12f, LineRules.MarkFloorDepth(lineDepth: 20f, ballDepth: 12f, floorDepth: floor), 1e-4f, "공이 라인보다 깊으면 공 깊이까지");
+        Assert.AreEqual(floor, LineRules.MarkFloorDepth(lineDepth: 20f, ballDepth: 3f, floorDepth: floor), 1e-4f, "공이 하한보다 깊어도 하한");
+    }
+
+    [Test]
+    public void 수비_자리_깊이_상한은_공보다_골_쪽이고_하한이_우선한다()
+    {
+        float floor = 8.5f;
+        Assert.AreEqual(30f - MatchTuning.GoalSideMargin, LineRules.StandDepthCap(30f, floor), 1e-4f, "공 깊이 − 여유");
+        Assert.AreEqual(floor, LineRules.StandDepthCap(5f, floor), 1e-4f, "공이 하한보다 깊으면 하한");
+    }
+
+    [TestCase(+1)]
+    [TestCase(-1)]
+    public void 깊이_아래면_그_깊이로_올리고_앞이면_그대로다(int sign)
+    {
+        float ownGoalX = -sign * FieldBounds.HalfLength;
+        Assert.AreEqual(ownGoalX + sign * 10f, LineRules.AboveDepth(ownGoalX + sign * 3f, 10f, sign), 1e-4f, "골 쪽이면 올림");
+        Assert.AreEqual(ownGoalX + sign * 20f, LineRules.AboveDepth(ownGoalX + sign * 20f, 10f, sign), 1e-4f, "앞이면 그대로");
+        Assert.AreEqual(ownGoalX + sign * 7f, LineRules.XAtDepth(7f, sign), 1e-4f, "XAtDepth는 HomeDepth의 역");
+        Assert.AreEqual(7f, LineRules.HomeDepth(LineRules.XAtDepth(7f, sign), sign), 1e-4f);
+    }
 }

@@ -73,55 +73,44 @@ public class PositionRulesTests
     }
 
     [Test]
-    public void 수비_시_자리는_배치에서_개인_라인_높이와_팀_수비_라인만큼_앞으로_서고_GK는_팀_수비_라인을_안_따른다()
+    public void 수비_시_자리는_배치에서_개인_라인_높이와_팀_이동량만큼_앞으로_선다()
     {
-        (float x, float z) home = PositionRules.DefendHome(baseX: -36f, baseZ: 7f, attackSign: +1, lineHeight: 6f, teamLineOffset: 0f);
+        (float x, float z) home = PositionRules.DefendHome(baseX: -36f, baseZ: 7f, attackSign: +1, lineHeight: 6f, lineShift: 0f);
         Assert.AreEqual(-36f + 6f * MatchTuning.PositionDialScale, home.x, 1e-4f, "라인 높이 6 × 0.3 = 1.8");
         Assert.AreEqual(7f, home.z, 1e-4f);
 
-        home = PositionRules.DefendHome(36f, 7f, -1, lineHeight: 6f, teamLineOffset: 0f);
+        home = PositionRules.DefendHome(36f, 7f, -1, lineHeight: 6f, lineShift: 0f);
         Assert.AreEqual(36f - 6f * MatchTuning.PositionDialScale, home.x, 1e-4f, "팀 1은 -X가 앞");
 
-        // 10-27 팀 수비 라인 높이(FM Defensive Line): 깊게 −5 · 표준 0 · 높게 +5 [가정]. 필드 선수만, GK는 0(GK 라인은 슛 대응 기준)
-        // 11-06 F3 1단계: 3단 공통으로 블록 전체 기본 상향(DefenseBaseLift)이 더해진다. 깊게/높게 차이는 계속 10m
-        float lift = MatchTuning.DefenseBaseLift;
-        Assert.AreEqual(lift - 5f, PositionRules.TeamLineOffset(0, goalkeeper: false), 1e-4f);
-        Assert.AreEqual(lift, PositionRules.TeamLineOffset(1, goalkeeper: false), 1e-4f, "표준 = 기본 상향만");
-        Assert.AreEqual(lift + 5f, PositionRules.TeamLineOffset(2, goalkeeper: false), 1e-4f);
-        Assert.AreEqual(10f, PositionRules.TeamLineOffset(2, goalkeeper: false) - PositionRules.TeamLineOffset(0, goalkeeper: false), 1e-4f, "깊게/높게 차이는 상향과 무관");
-        Assert.AreEqual(0f, PositionRules.TeamLineOffset(1, goalkeeper: true), 1e-4f, "GK는 기본 상향도 안 따른다");
-        Assert.AreEqual(0f, PositionRules.TeamLineOffset(2, goalkeeper: true), 1e-4f, "GK는 팀 수비 라인을 안 따른다");
-        home = PositionRules.DefendHome(-36f, 7f, +1, 6f, PositionRules.TeamLineOffset(2, goalkeeper: false));
-        Assert.AreEqual(-36f + 1.8f + lift + 5f, home.x, 1e-4f, "높게면 기본 상향 + 5m 더 앞");
-        home = PositionRules.DefendHome(36f, 7f, -1, 6f, PositionRules.TeamLineOffset(0, goalkeeper: false));
-        Assert.AreEqual(36f - 1.8f - lift + 5f, home.x, 1e-4f, "팀 1 깊게면 기본 상향만큼 −X로, 5m만큼 +X로");
+        // 11-08 D2: 팀 이동량 Δ(LineRules.LineShift)는 공격 방향으로 더해진다. 팀 수비 라인 높이는 Δ 안에 들어 있다(LineRulesTests)
+        home = PositionRules.DefendHome(-36f, 7f, +1, 6f, lineShift: 12f);
+        Assert.AreEqual(-36f + 1.8f + 12f, home.x, 1e-4f, "팀 0은 +X로 Δ");
+        home = PositionRules.DefendHome(36f, 7f, -1, 6f, lineShift: 12f);
+        Assert.AreEqual(36f - 1.8f - 12f, home.x, 1e-4f, "팀 1은 −X로 Δ");
+        home = PositionRules.DefendHome(-36f, 7f, +1, 6f, lineShift: -3f);
+        Assert.AreEqual(-36f + 1.8f - 3f, home.x, 1e-4f, "Δ가 음수면 골 쪽으로");
     }
 
-    // 공 지향 슬라이드(10-25 격자): 공격 가로만 (공 z − 자리 z) × 계수 수축, 수비 가로·세로는 공 좌표 × 계수 평행이동.
-    // 식마다의 이유는 PositionRules 주석, 수치는 실험/2026-10-25-슬라이드-수축-격자.md
+    // 공 지향 슬라이드(10-25 격자): 공격 가로만 (공 z − 자리 z) × 계수 수축, 수비 가로는 공 z × 계수 평행이동.
+    // 수비 세로는 11-08 D2부터 슬라이드가 아니라 라인 깊이 Δ(LineRules)가 맡는다. 식마다의 이유는 PositionRules 주석, 수치는 실험/2026-10-25-슬라이드-수축-격자.md
     [Test]
-    public void 수비_슬라이드는_공_좌표에_비례해_전원이_같은_양을_옮긴다()
+    public void 수비_슬라이드는_가로만_공_z에_비례해_전원이_같은_양을_옮기고_세로는_안_움직인다()
     {
         float defendLateral = MatchTuning.SlideLateralDefend;
-        float defendVertical = MatchTuning.SlideVerticalDefend;
 
-        // 자리 (-20, 5), 공 (30, -20): 세로 30×계수, 가로 -20×계수
-        (float x, float z) d = PositionRules.SlideDefend(-20f, 5f, ballX: 30f, ballZ: -20f, goalkeeper: false);
-        Assert.AreEqual(-20f + System.Math.Min(30f * defendVertical, MatchTuning.SlideVerticalMaxDefend), d.x, 1e-4f, "공이 멀면 라인이 올라간다(상한 안에서)");
+        (float x, float z) d = PositionRules.SlideDefend(-20f, 5f, ballZ: -20f, goalkeeper: false);
+        Assert.AreEqual(-20f, d.x, 1e-4f, "세로 슬라이드 없음(11-08 D2에서 삭제. 세로는 Δ)");
         Assert.AreEqual(5f - 20f * defendLateral, d.z, 1e-4f, "가로는 공 z × 계수. 자리와 무관하게 같은 양");
 
-        (float x, float z) center = PositionRules.SlideDefend(-41f, 7f, 0f, 0f, goalkeeper: false);
+        (float x, float z) center = PositionRules.SlideDefend(-41f, 7f, 0f, goalkeeper: false);
         Assert.AreEqual(-41f, center.x, 1e-4f, "공이 중앙이면 자리 그대로");
         Assert.AreEqual(7f, center.z, 1e-4f);
     }
 
     [Test]
-    public void 세로_슬라이드는_상한으로_잘린다()
+    public void 공격_세로_슬라이드는_상한으로_잘린다()
     {
-        // 수비: 공 45 × 0.3 = 13.5 > 10. 공격: 공 50 × 0.4 = 20 > 15
-        (float x, float z) d = PositionRules.SlideDefend(-20f, 0f, 45f, 0f, goalkeeper: false);
-        Assert.AreEqual(-20f + MatchTuning.SlideVerticalMaxDefend, d.x, 1e-4f);
-
+        // 공격: 공 50 × 0.4 = 20 > 15
         (float x, float z) a = PositionRules.SlideAttack(22f, 0f, 50f, 0f, goalkeeper: false);
         Assert.AreEqual(22f + MatchTuning.SlideVerticalMaxAttack, a.x, 1e-4f);
     }
@@ -143,7 +132,7 @@ public class PositionRulesTests
     [Test]
     public void GK_슬라이드는_가로만_조금이고_공격_수비_같다()
     {
-        (float x, float z) d = PositionRules.SlideDefend(-48f, 0f, 30f, 20f, goalkeeper: true);
+        (float x, float z) d = PositionRules.SlideDefend(-48f, 0f, 20f, goalkeeper: true);
         Assert.AreEqual(-48f, d.x, 1e-4f, "세로 0");
         Assert.AreEqual(20f * MatchTuning.SlideLateralKeeper, d.z, 1e-4f);
 
@@ -160,8 +149,8 @@ public class PositionRulesTests
         (float x, float z) far = PositionRules.SlideAttack(-18f, -24f, ballX: 0f, ballZ: 20f, goalkeeper: false);
         Assert.AreEqual(48f * (1f - k), near.z - far.z, 1e-4f, "두 선수 간격은 (1 − k)배로 줄어든다");
 
-        (float x, float z) dNear = PositionRules.SlideDefend(-23f, 24f, 0f, 20f, goalkeeper: false);
-        (float x, float z) dFar = PositionRules.SlideDefend(-23f, -24f, 0f, 20f, goalkeeper: false);
+        (float x, float z) dNear = PositionRules.SlideDefend(-23f, 24f, 20f, goalkeeper: false);
+        (float x, float z) dFar = PositionRules.SlideDefend(-23f, -24f, 20f, goalkeeper: false);
         Assert.AreEqual(48f, dNear.z - dFar.z, 1e-4f, "수비 블록은 같은 양을 옮겨 폭이 그대로");
     }
 
@@ -187,51 +176,50 @@ public class PositionRulesTests
     }
 
     [Test]
-    public void 수비_Stand는_수비_시_자리에_팀_수비_라인과_공_지향_슬라이드를_얹은_것과_같다()
+    public void 수비_Stand는_수비_시_자리에_팀_이동량과_공_지향_슬라이드를_얹은_것과_같다()
     {
-        var tactics = new TeamTactics { DefenseLine = 2 };
         var stats = new PlayerStats { RoleId = "CB", LineHeight = 6f };
-        (float x, float z) home = PositionRules.DefendHome(-41f, 7f, +1, lineHeight: 6f, teamLineOffset: PositionRules.TeamLineOffset(2, goalkeeper: false));
-        (float x, float z) expected = PositionRules.SlideDefend(home.x, home.z, 10f, -20f, goalkeeper: false);
-        Assert.AreEqual(expected, PositionRules.DefendStand(-41f, 7f, +1, tactics, stats, ballX: 10f, ballZ: -20f, goalkeeper: false));
+        (float x, float z) home = PositionRules.DefendHome(-41f, 7f, +1, lineHeight: 6f, lineShift: 9f);
+        (float x, float z) expected = PositionRules.SlideDefend(home.x, home.z, -20f, goalkeeper: false);
+        Assert.AreEqual(expected, PositionRules.DefendStand(-41f, 7f, +1, stats, ballZ: -20f, lineShift: 9f, depthCap: float.MaxValue, goalkeeper: false));
 
         var keeper = new PlayerStats { RoleId = "GK", LineHeight = 0f };
-        home = PositionRules.DefendHome(-48f, 0f, +1, lineHeight: 0f, teamLineOffset: 0f);
-        Assert.AreEqual(PositionRules.SlideDefend(home.x, home.z, 10f, -20f, goalkeeper: true), PositionRules.DefendStand(-48f, 0f, +1, tactics, keeper, 10f, -20f, goalkeeper: true), "GK는 팀 수비 라인 0 + GK 슬라이드");
+        home = PositionRules.DefendHome(-48f, 0f, +1, lineHeight: 0f, lineShift: 0f);
+        Assert.AreEqual(PositionRules.SlideDefend(home.x, home.z, -20f, goalkeeper: true), PositionRules.DefendStand(-48f, 0f, +1, keeper, -20f, lineShift: 9f, depthCap: 0f, goalkeeper: true), "GK는 Δ도 깊이 상한도 안 따르고 GK 슬라이드");
     }
 
     [TestCase(+1)]
     [TestCase(-1)]
-    public void 수비_하한은_공이_박스_깊이_밖이면_박스_안보다_높고_안이면_골_에어리어_선_근처다(int sign)
+    public void 필드_선수의_수비_자리는_깊이_상한보다_앞에_서지_않는다(int sign)
     {
-        // 우리 골은 x = −sign × 52.5. 공 깊이(골라인에서 잰 x 거리)가 박스 깊이 16.5m 이상이면 밖, z는 안 본다
-        float ownGoalX = -sign * FieldBounds.HalfLength;
-        Assert.AreEqual(MatchTuning.DefendFloorBallOutsideBox, PositionRules.DefendFloorDepth(ownGoalX + sign * 30f, sign));
-        Assert.AreEqual(MatchTuning.DefendFloorBallOutsideBox, PositionRules.DefendFloorDepth(ownGoalX + sign * FieldBounds.PenaltyBoxDepth, sign), "박스 선 위는 밖");
-        Assert.AreEqual(MatchTuning.DefendFloorBallInBox, PositionRules.DefendFloorDepth(ownGoalX + sign * 10f, sign));
-        Assert.That(MatchTuning.DefendFloorBallOutsideBox, Is.InRange(MatchTuning.DefendFloorBallInBox, FieldBounds.PenaltyBoxDepth), "박스 밖 하한은 박스 안 하한 이상, 박스 선 이하");
-        Assert.That(MatchTuning.DefendFloorBallInBox, Is.InRange(FieldBounds.GoalAreaDepth, FieldBounds.GoalAreaDepth + 3f), "골 에어리어 선 근처");
-
-        float floorX = ownGoalX + sign * MatchTuning.DefendFloorBallOutsideBox;
-        Assert.AreEqual(floorX, PositionRules.AboveDefendFloor(ownGoalX + sign * 3f, ownGoalX + sign * 25f, sign), 1e-4f, "하한보다 골 쪽이면 하한 선으로");
-        Assert.AreEqual(ownGoalX + sign * 20f, PositionRules.AboveDefendFloor(ownGoalX + sign * 20f, ownGoalX + sign * 25f, sign), 1e-4f, "하한보다 앞이면 그대로");
+        // 11-09 probe: 개인 라인 높이 다이얼이 Δ 위에 얹혀 뒷줄이 공보다 앞(공 쪽)에 섰고, 공을 몬 공격수가 라인 뒤에서 혼자 찼다(슛의 95%)
+        var stats = new PlayerStats { RoleId = "CB", LineHeight = 20f };   // 다이얼 6m
+        float baseX = LineRules.XAtDepth(12f, sign);
+        (float x, float z) free = PositionRules.DefendStand(baseX, 7f, sign, stats, 0f, lineShift: 3f, depthCap: float.MaxValue, goalkeeper: false);
+        Assert.AreEqual(21f, LineRules.HomeDepth(free.x, sign), 1e-4f, "상한이 없으면 12 + 6 + 3");
+        (float x, float z) capped = PositionRules.DefendStand(baseX, 7f, sign, stats, 0f, lineShift: 3f, depthCap: 16f, goalkeeper: false);
+        Assert.AreEqual(16f, LineRules.HomeDepth(capped.x, sign), 1e-4f, "상한 16에서 자른다");
+        Assert.AreEqual(free.z, capped.z, 1e-4f, "가로는 그대로");
     }
 
     [Test]
     public void 필드_선수의_수비_자리는_공이_어디에_있어도_GK_라인보다_앞이다()
     {
-        // 11-06 유저 Play "센터백 라인이 골키퍼랑 동일선상". 하한 전엔 공이 우리 서드면 슬라이드 상한 10m가 CB(−41, 개인 6m)를 골에서 3.3m(GK 4.5m 뒤)로 끌어내렸다.
-        // 깊게 라인(가장 낮은 팀 다이얼)·개인 라인 높이 0으로 가장 깊은 CB를 만들고, 공을 우리 진영 격자 전역에 둔다.
-        // GK 라인은 편성 −48 + 스위퍼 lineHeight 8(표 최댓값) × 0.3 = 골에서 6.9m. 그보다 앞(여유 0.5m)이어야 한 줄로 안 보인다
-        var tactics = new TeamTactics { DefenseLine = 0 };
+        // 11-06 유저 Play "센터백 라인이 골키퍼랑 동일선상". D2(11-08)는 라인 깊이 하한 = GK 라인 + FloorMargin(4m)으로 막는다.
+        // 깊게 라인(가장 낮은 팀 다이얼)·개인 라인 높이 0으로 가장 깊은 CB(편성 −41이 팀 최심)를 만들고, 공을 필드 격자 전역에 둔다.
+        // GK 라인은 편성 −48 + 스위퍼 lineHeight 8(표 최댓값) × 0.3 = 골에서 6.9m. CB는 그보다 4m 앞이어야 한다
         var cb = new PlayerStats { RoleId = "CB", LineHeight = 0f };
-        float keeperDepth = FieldBounds.HalfLength + PositionRules.KeeperLineX(-48f, 0f, +1, 8f);
-        for (float bx = -52f; bx <= 0f; bx += 2f)
+        float keeperDepth = LineRules.HomeDepth(PositionRules.KeeperLineX(-48f, 0f, +1, 8f), +1);
+        float restDepth = LineRules.HomeDepth(-41f, +1);
+        for (float bx = -52f; bx <= 52f; bx += 2f)
         {
             for (float bz = -33f; bz <= 33f; bz += 6f)
             {
-                (float x, float z) stand = PositionRules.DefendStand(-41f, 7f, +1, tactics, cb, bx, bz, goalkeeper: false);
-                Assert.GreaterOrEqual(FieldBounds.HalfLength + stand.x, keeperDepth + 0.5f, $"공 ({bx}, {bz})");
+                float ballDepth = LineRules.HomeDepth(bx, +1);
+                float shift = LineRules.LineShift(LineRules.LineDepth(ballDepth, 0, keeperDepth), restDepth);
+                float cap = LineRules.StandDepthCap(ballDepth, LineRules.LineFloor(keeperDepth));
+                (float x, float z) stand = PositionRules.DefendStand(-41f, 7f, +1, cb, bz, shift, cap, goalkeeper: false);
+                Assert.GreaterOrEqual(LineRules.HomeDepth(stand.x, +1), keeperDepth + MatchTuning.FloorMargin - 1e-4f, $"공 ({bx}, {bz})");
             }
         }
     }

@@ -47,6 +47,8 @@ public class PlayerTreeTests
         public float AttackHomeZ { get; set; }
         public float DefendHomeX { get; set; }
         public float DefendHomeZ { get; set; }
+        public float DefendLineShift { get; set; }
+        public float DefendDepthCap { get; set; } = float.MaxValue;
         public IReadOnlyList<RunOffer> RunOffers { get; set; } = new List<RunOffer>();
         public ThreatGrid Threat { get; set; } = TestThreat.Plateau();   // 높은 평지: 슛은 지고 운반은 위험이 있으면 음수, 안전한 패스는 적합도 가산만큼 양수라 후보가 있으면 패스가 이긴다(11-03 P1+). xT 차이가 필요한 테스트는 격자를 직접 준다
         public bool IsPassTarget { get; set; }
@@ -387,9 +389,9 @@ public class PlayerTreeTests
         Tree.Tick(st);
         Assert.AreEqual(10f, st.MoveX, "압박: 공으로");
 
-        var cb = new Fake { PlayerId = 2, BallPhase = BallPhase.Flight, BallOwnerTeam = 1, X = -36f, BallX = 10f, BallZ = 0f, DefendHomeX = -36f, PressRank = int.MaxValue };   // 압박 거리 밖 = 시뮬이 순위를 안 준다
+        var cb = new Fake { PlayerId = 2, BallPhase = BallPhase.Flight, BallOwnerTeam = 1, X = -36f, BallX = 10f, BallZ = 0f, DefendHomeX = -36f, DefendLineShift = 7f, PressRank = int.MaxValue };   // 압박 거리 밖 = 시뮬이 순위를 안 준다
         Tree.Tick(cb);
-        Assert.AreEqual(-36f + MatchTuning.DefenseBaseLift + 10f * MatchTuning.SlideVerticalDefend, cb.MoveX, 1e-4f, "수비 자리 + 기본 상향 + 슬라이드. 비행 중이라고 공격 자리(⑪)로 안 간다");
+        Assert.AreEqual(-36f + 7f, cb.MoveX, 1e-4f, "수비 자리 + 팀 이동량 Δ. 비행 중이라고 공격 자리(⑪)로 안 간다");
     }
 
     [Test]
@@ -437,49 +439,47 @@ public class PlayerTreeTests
         Assert.AreEqual("move", st.Did);
         Assert.AreEqual(10f, st.MoveX, "압박: 공으로");
 
-        var cb = new Fake { PlayerId = 2, BallPhase = BallPhase.Owned, BallOwnerTeam = 1, X = -36f, BallX = 10f, BallZ = 0f, DefendHomeX = -36f, DefendHomeZ = 7f, PressRank = int.MaxValue };   // 압박 거리 밖 = 시뮬이 순위를 안 준다
+        var cb = new Fake { PlayerId = 2, BallPhase = BallPhase.Owned, BallOwnerTeam = 1, X = -36f, BallX = 10f, BallZ = 0f, DefendHomeX = -36f, DefendHomeZ = 7f, DefendLineShift = 7f, PressRank = int.MaxValue };   // 압박 거리 밖 = 시뮬이 순위를 안 준다
         cb.Stats.LineHeight = 6f;
         Tree.Tick(cb);
-        Assert.AreEqual(-36f + 6f * MatchTuning.PositionDialScale + MatchTuning.DefenseBaseLift + 10f * MatchTuning.SlideVerticalDefend, cb.MoveX, 1e-4f, "수비 자리 + 라인 높이 × 0.3 + 기본 상향 + 공 지향 슬라이드(공 X 10 × 0.3)");
+        Assert.AreEqual(-36f + 6f * MatchTuning.PositionDialScale + 7f, cb.MoveX, 1e-4f, "수비 자리 + 라인 높이 × 0.3 + 팀 이동량 Δ(세로 슬라이드는 11-08 D2에서 삭제)");
     }
 
     [Test]
-    public void 수비_자리는_팀_수비_라인_높이를_더하고_GK는_안_더한다()
+    public void 수비_자리는_시뮬이_준_팀_이동량을_더하고_GK는_안_더한다()
     {
-        // 10-27 ③c: 트리가 ctx.Tactics.DefenseLine과 IsGoalkeeper를 PositionRules.TeamLineOffset에 넘기는 배선. 순수 함수 테스트만으론 배선을 빼도 통과한다(리뷰 🟡)
-        var standard = new Fake { PlayerId = 2, BallPhase = BallPhase.Owned, BallOwnerTeam = 1, X = -36f, BallX = 10f, BallZ = 0f, DefendHomeX = -36f, DefendHomeZ = 7f, PressRank = int.MaxValue };
-        var high = new Fake { PlayerId = 2, BallPhase = BallPhase.Owned, BallOwnerTeam = 1, X = -36f, BallX = 10f, BallZ = 0f, DefendHomeX = -36f, DefendHomeZ = 7f, PressRank = int.MaxValue };
-        high.Tactics.DefenseLine = 2;
-        Tree.Tick(standard);
-        Tree.Tick(high);
-        Assert.AreEqual("move", high.Did);
-        Assert.AreEqual(standard.MoveX + MatchTuning.DefenseLineOffset[2], high.MoveX, 1e-4f, "높게면 필드 선수는 +5m 앞");
+        // 11-08 D2: 팀 수비 라인 높이는 시뮬이 LineRules로 계산한 Δ(DefendLineShift) 안에 들어 있다. 트리가 ctx.DefendLineShift와 IsGoalkeeper를 넘기는 배선을 잠근다(순수 함수 테스트만으론 배선을 빼도 통과한다, 10-27 리뷰 🟡)
+        var still = new Fake { PlayerId = 2, BallPhase = BallPhase.Owned, BallOwnerTeam = 1, X = -36f, BallX = 10f, BallZ = 0f, DefendHomeX = -36f, DefendHomeZ = 7f, PressRank = int.MaxValue };
+        var shifted = new Fake { PlayerId = 2, BallPhase = BallPhase.Owned, BallOwnerTeam = 1, X = -36f, BallX = 10f, BallZ = 0f, DefendHomeX = -36f, DefendHomeZ = 7f, DefendLineShift = 12f, PressRank = int.MaxValue };
+        Tree.Tick(still);
+        Tree.Tick(shifted);
+        Assert.AreEqual("move", shifted.Did);
+        Assert.AreEqual(still.MoveX + 12f, shifted.MoveX, 1e-4f, "필드 선수는 Δ만큼 앞");
 
-        var gkStandard = new Fake { PlayerId = 0, IsGoalkeeper = true, BallPhase = BallPhase.Owned, BallOwnerTeam = 1, X = -48f, BallX = 10f, BallZ = 0f, DefendHomeX = -48f, DefendHomeZ = 0f, PressRank = int.MaxValue };
-        var gkHigh = new Fake { PlayerId = 0, IsGoalkeeper = true, BallPhase = BallPhase.Owned, BallOwnerTeam = 1, X = -48f, BallX = 10f, BallZ = 0f, DefendHomeX = -48f, DefendHomeZ = 0f, PressRank = int.MaxValue };
-        gkHigh.Tactics.DefenseLine = 2;
-        Tree.Tick(gkStandard);
-        Tree.Tick(gkHigh);
-        Assert.AreEqual(gkStandard.MoveX, gkHigh.MoveX, 1e-4f, "GK는 팀 수비 라인을 안 따른다(GK 라인은 슛 대응 기준)");
+        var gkStill = new Fake { PlayerId = 0, IsGoalkeeper = true, BallPhase = BallPhase.Owned, BallOwnerTeam = 1, X = -48f, BallX = 10f, BallZ = 0f, DefendHomeX = -48f, DefendHomeZ = 0f, PressRank = int.MaxValue };
+        var gkShifted = new Fake { PlayerId = 0, IsGoalkeeper = true, BallPhase = BallPhase.Owned, BallOwnerTeam = 1, X = -48f, BallX = 10f, BallZ = 0f, DefendHomeX = -48f, DefendHomeZ = 0f, DefendLineShift = 12f, PressRank = int.MaxValue };
+        Tree.Tick(gkStill);
+        Tree.Tick(gkShifted);
+        Assert.AreEqual(gkStill.MoveX, gkShifted.MoveX, 1e-4f, "GK는 팀 이동량을 안 따른다(GK 라인은 슛 대응 기준)");
     }
 
     [Test]
     public void 압박_거리_안이어도_팀_안_순위가_상한_밖이면_수비_자리로_간다()
     {
         // 09-23 뭉침: 인원 제한이 없으면 압박 거리 안 4~6명이 동시에 공으로 갔다. 순위 1(두 번째)은 상한 1 밖이라 자리로
-        var cm = new Fake { PlayerId = 6, BallPhase = BallPhase.Owned, BallOwnerTeam = 1, X = 0f, BallX = 10f, BallZ = 0f, DefendHomeX = -20f, PressRank = 1 };
+        var cm = new Fake { PlayerId = 6, BallPhase = BallPhase.Owned, BallOwnerTeam = 1, X = 0f, BallX = 10f, BallZ = 0f, DefendHomeX = -20f, DefendLineShift = 7f, PressRank = 1 };
         cm.Stats.PressRange = 12f;
         Tree.Tick(cm);
-        Assert.AreEqual(-20f + MatchTuning.DefenseBaseLift + 10f * MatchTuning.SlideVerticalDefend, cm.MoveX, 1e-4f, "수비 자리 + 기본 상향 + 슬라이드. 공(10)으로 안 간다");
+        Assert.AreEqual(-20f + 7f, cm.MoveX, 1e-4f, "수비 자리 + 팀 이동량 Δ. 공(10)으로 안 간다");
     }
 
     [Test]
     public void 시뮬이_압박_후보에서_뺐으면_공_1m_앞이어도_자리로_간다()
     {
         // 09-29: 압박 후보(팀 압박 시작 "안 감" 포함)는 시뮬이 정하고 트리는 순위만 본다. "안 감"이면 거리와 무관하게 후보가 아니다(PressRulesTests)
-        var st = new Fake { PlayerId = 9, BallPhase = BallPhase.Owned, BallOwnerTeam = 1, X = 9f, BallX = 10f, DefendHomeX = -10f, PressRank = int.MaxValue };
+        var st = new Fake { PlayerId = 9, BallPhase = BallPhase.Owned, BallOwnerTeam = 1, X = 9f, BallX = 10f, DefendHomeX = -10f, DefendLineShift = 7f, PressRank = int.MaxValue };
         Tree.Tick(st);
-        Assert.AreEqual(-10f + MatchTuning.DefenseBaseLift + 3f, st.MoveX, 1e-4f, "1m 앞인데도 자리로(+ 기본 상향 + 슬라이드 공 X 10 × 0.3)");
+        Assert.AreEqual(-10f + 7f, st.MoveX, 1e-4f, "1m 앞인데도 자리로(+ 팀 이동량 Δ)");
     }
 
     [Test]

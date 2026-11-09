@@ -82,12 +82,14 @@ public class RunOfferSimulationTests
         var sim = new MatchSimulation(() => 0.5f, PlayerTreeBuilder.Build(), TestThreat.Step());
         var tactics = new TeamTactics { PassRisk = new[] { 1, 1, 1 }, PressStart = new[] { 0, 0, 0 }, Width = new[] { 1, 1, 1 }, Tempo = new[] { 1, 1, 1 }, Mentality = 1, PassStyle = new[] { 1, 1, 1 } };
         sim.SetTactics(0, tactics);
-        sim.SetTactics(1, tactics);
+        // 팀 1은 수비 라인 "깊게": 장면을 만든 11-03엔 세로 슬라이드(공 x × 0.3)가 수비를 x 35.5(골에서 17m)로 내렸다. D2(11-08) 라인 깊이에서 깊게(−5)면 약 34.4로 그 장면과 거의 같다
+        TeamTactics deepLine = TacticsEditing.Copy(tactics);
+        deepLine.DefenseLine = 0;
+        sim.SetTactics(1, deepLine);
         scene.Carrier = sim.AddPlayer(new PlayerState(0, 0, Carrier(holdUp), carrierX, 4f, carrierX, 4f));
         scene.Runner = sim.AddPlayer(new PlayerState(1, 0, Winger(runStyle), 18.6f, 8.7f, 18.6f, 8.7f));
         sim.AddPlayer(new PlayerState(10, 1, Defender(keeper: true), 50f, 0f, 50f, 0f));
-        // 수비 홈은 기본 상향(DefenseBaseLift, 11-06 F3)만큼 팀 1 골 쪽(+X)에 둔다. 상향이 더해져 실제로 서는 자리가 손으로 맞춘 x 30이 되게
-        float home = 30f + MatchTuning.DefenseBaseLift;
+        float home = 30f;   // 수비 시 자리. 실제로 서는 깊이는 팀 이동량 Δ가 라인 깊이 L로 옮긴다(11-08 D2)
         sim.AddPlayer(new PlayerState(11, 1, Defender(keeper: false), 30f, -28f, home, -28f));
         sim.AddPlayer(new PlayerState(12, 1, Defender(keeper: false), 30f, 28f, home, 28f));
         sim.Kickoff();

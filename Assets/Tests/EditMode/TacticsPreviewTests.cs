@@ -58,11 +58,13 @@ public class TacticsPreviewTests
 
         Assert.AreEqual(lineup.Count, attack.Length);
         Assert.AreEqual(lineup.Count, defend.Length);
+        float shift = ExpectedLineShift(lineup, balanced, ball.x);
+        float cap = LineRules.StandDepthCap(LineRules.HomeDepth(ball.x, +1), LineRules.LineFloor(KeeperDepth(lineup)));
         for (int i = 0; i < lineup.Count; i++)
         {
             LineupSlot slot = lineup[i];
             Assert.AreEqual(PositionRules.AttackStand(slot.AttackX, slot.AttackZ, +1, balanced, slot.Stats, ball.x, ball.z, slot.Stats.IsKeeper), attack[i], $"공격 자리 {i}");
-            Assert.AreEqual(PositionRules.DefendStand(slot.DefendX, slot.DefendZ, +1, balanced, slot.Stats, ball.x, ball.z, slot.Stats.IsKeeper), defend[i], $"수비 자리 {i}");
+            Assert.AreEqual(PositionRules.DefendStand(slot.DefendX, slot.DefendZ, +1, slot.Stats, ball.z, shift, cap, slot.Stats.IsKeeper), defend[i], $"수비 자리 {i}");
         }
         Assert.Less(attack[0].x, -40f, "GK는 우리 골 앞(팀 0 = −X가 우리 골)");
     }
@@ -99,7 +101,7 @@ public class TacticsPreviewTests
         TeamTactics high = TacticsEditing.Copy(balanced);
         high.DefenseLine = 2;
 
-        // 공은 상대 진영 왼쪽 칸: 수비 슬라이드(세로 상한 10·가로 0.3)가 들어가도 라인 높이 차이는 그대로여야 한다. 공이 중앙이면 슬라이드가 0이라 좌표 전달 오류를 못 잡는다(리뷰)
+        // 공은 상대 진영 왼쪽 칸(라인 L₀ 47m, 깊게 42·높게 52로 상한 55 안): 가로 슬라이드 0.3이 들어가도 라인 높이 차이는 그대로여야 한다. 공이 중앙이면 슬라이드가 0이라 좌표 전달 오류를 못 잡는다(리뷰)
         (float x, float z) ball = TacticsPreview.BallCell(2, 0);
         (float x, float z)[] deepPositions = TacticsPreview.Positions(lineup, deep, ball.x, ball.z, defending: true);
         (float x, float z)[] highPositions = TacticsPreview.Positions(lineup, high, ball.x, ball.z, defending: true);
@@ -112,6 +114,47 @@ public class TacticsPreviewTests
             Assert.AreEqual(expected, highPositions[i].x - deepPositions[i].x, 1e-4f, $"필드 선수 {i}: 깊게 → 높게 = +{expected}m");
             Assert.AreEqual(lineup[i].DefendZ + ball.z * MatchTuning.SlideLateralDefend, highPositions[i].z, 1e-4f, $"필드 선수 {i}: 가로는 공 z × 계수 평행이동");
         }
+    }
+
+    [TestCase(0, 15f)]
+    [TestCase(1, 32f)]
+    [TestCase(2, 47f)]
+    public void 수비_때_뒷줄은_공_칸의_서드별_라인_깊이에_선다(int column, float anchor)
+    {
+        // 11-08 D2: 경기와 같은 LineRules 식. 편성에서 가장 깊은 필드 선수가 L(Metrica 앵커)에 서고 개인 라인 높이 다이얼(× 0.3)만큼 더 앞이다.
+        // 단 공보다 골 쪽(공 깊이 − GoalSideMargin)을 넘지 않는다(11-09): 우리 진영 칸(공 깊이 17.5)에서는 이 상한이 다이얼을 자른다
+        IReadOnlyList<LineupSlot> lineup = Lineup();
+        (float x, float z) ball = TacticsPreview.BallCell(column, 1);
+        (float x, float z)[] defend = TacticsPreview.Positions(lineup, balanced, ball.x, ball.z, defending: true);
+        int deepest = DeepestFieldSlot(lineup);
+        float dial = lineup[deepest].Stats.LineHeight * MatchTuning.PositionDialScale;
+        float cap = LineRules.HomeDepth(ball.x, +1) - MatchTuning.GoalSideMargin;
+        Assert.AreEqual(System.Math.Min(anchor + dial, cap), LineRules.HomeDepth(defend[deepest].x, +1), 1e-3f, $"열 {column}");
+    }
+
+    // 시뮬(MatchSimulation.FillLineDepth)과 같은 입력을 테스트에서 따로 센다: 필드 선수 수비 시 자리 깊이 최솟값, GK 라인 깊이, 공 깊이
+    private static float ExpectedLineShift(IReadOnlyList<LineupSlot> lineup, TeamTactics tactics, float ballX)
+    {
+        float keeperDepth = KeeperDepth(lineup);
+        float restDepth = LineRules.HomeDepth(lineup[DeepestFieldSlot(lineup)].DefendX, +1);
+        return LineRules.LineShift(LineRules.LineDepth(LineRules.HomeDepth(ballX, +1), tactics.DefenseLine, keeperDepth), restDepth);
+    }
+
+    private static float KeeperDepth(IReadOnlyList<LineupSlot> lineup)
+    {
+        LineupSlot keeper = lineup[0];
+        Assert.IsTrue(keeper.Stats.IsKeeper, "0번은 GK");
+        return LineRules.HomeDepth(PositionRules.KeeperLineX(keeper.DefendX, keeper.DefendZ, +1, keeper.Stats.LineHeight), +1);
+    }
+
+    private static int DeepestFieldSlot(IReadOnlyList<LineupSlot> lineup)
+    {
+        int deepest = 1;
+        for (int i = 2; i < lineup.Count; i++)
+        {
+            if (lineup[i].DefendX < lineup[deepest].DefendX) { deepest = i; }
+        }
+        return deepest;
     }
 
     [Test]
