@@ -340,13 +340,15 @@ public class PassFlightTests
     public void 압박_거리_안_여럿이어도_팀에서_공에_가장_가까운_1명만_달려들고_나머지는_자리를_지킨다()
     {
         var sim = new MatchSimulation(() => 0.5f, PlayerTreeBuilder.Build(), TestThreat.Real);
-        PlayerStats presser = Mid(); presser.PressRange = 20f;
+        PlayerStats presser = Mid();
+        presser.PressRange = 20f;
         sim.AddPlayer(new PlayerState(0, 1, Mid(), 0f, 0f));                            // 상대 소유자
-        PlayerState first = sim.AddPlayer(new PlayerState(1, 0, presser, -5f, 0f));     // 5m: 첫 압박자
-        // 수비 자리 = 스폰 자리가 되게 기본 상향(DefenseBaseLift, 11-06 F3)만큼 뒤를 홈으로 준다. 이 테스트는 "압박 순위 밖은 자리를 지킨다"만 본다
-        float lift = MatchTuning.DefenseBaseLift;
-        PlayerState second = sim.AddPlayer(new PlayerState(2, 0, presser, -10f, 0f, -10f - lift, 0f));   // 10m: 압박 거리 안이지만 순위 2
-        PlayerState third = sim.AddPlayer(new PlayerState(3, 0, presser, -15f, 0f, -15f - lift, 0f));    // 15m: 순위 3
+        // 수비 자리 = 스폰 자리가 되게 팀 이동량 Δ(11-08 D2)를 0으로 만든다: 가장 깊은 수비 홈(첫 압박자)을 공이 하프라인일 때의 라인 깊이 L에 둔다.
+        // 이 테스트는 "압박 순위 밖은 자리를 지킨다"만 본다
+        float restX = LineRules.XAtDepth(LineRules.LineDepth(LineRules.HomeDepth(0f, +1), 1, MatchTuning.DefaultKeeperLineDepth), +1);
+        PlayerState first = sim.AddPlayer(new PlayerState(1, 0, presser, -5f, 0f, restX, 0f));     // 5m: 첫 압박자
+        PlayerState second = sim.AddPlayer(new PlayerState(2, 0, presser, -10f, 0f, -10f, 0f));   // 10m: 압박 거리 안이지만 순위 2
+        PlayerState third = sim.AddPlayer(new PlayerState(3, 0, presser, -15f, 0f, -15f, 0f));    // 15m: 순위 3
         sim.SetTactics(0, new TeamTactics { PassRisk = new[] { 1, 1, 1 }, PressStart = new[] { 1, 1, 1 }, Width = new[] { 1, 1, 1 }, Tempo = new[] { 1, 1, 1 }, PassStyle = new[] { 1, 1, 1 }, Mentality = 1 });
         sim.SetTactics(1, new TeamTactics { PassRisk = new[] { 1, 1, 1 }, PressStart = new[] { 1, 1, 1 }, Width = new[] { 1, 1, 1 }, Tempo = new[] { 1, 1, 1 }, PassStyle = new[] { 1, 1, 1 }, Mentality = 1 });
         sim.Kickoff();
@@ -355,7 +357,7 @@ public class PassFlightTests
         for (int i = 0; i < 30; i++) { sim.Tick(Dt); }   // 0.6초. 정지 출발이라 가속부터(09-29 F2b: 0.2초면 0.14m)
 
         Assert.Greater(first.X, -4.5f, "첫 압박자는 공으로 달린다");
-        Assert.AreEqual(-10f, second.X, 0.5f, "두 번째는 수비 자리(스폰 자리 + 슬라이드)에 남는다");
+        Assert.AreEqual(-10f, second.X, 0.5f, "두 번째는 수비 자리(스폰 자리 + Δ 0)에 남는다");
         Assert.AreEqual(-15f, third.X, 0.5f, "세 번째도");
     }
 
@@ -364,7 +366,8 @@ public class PassFlightTests
     {
         // 09-26 리뷰: 얼어 있는 선수가 순위 0을 차지한 채 못 움직이면 상한 1에 걸린 2순위도 안 가 그 팀 압박이 0.5초 빈다
         var sim = new MatchSimulation(() => 0.5f, PlayerTreeBuilder.Build(), TestThreat.Real);
-        PlayerStats presser = Mid(); presser.PressRange = 20f;
+        PlayerStats presser = Mid();
+        presser.PressRange = 20f;
         sim.AddPlayer(new PlayerState(0, 1, Mid(), 0f, 0f));
         PlayerState first = sim.AddPlayer(new PlayerState(1, 0, presser, -5f, 0f));
         PlayerState second = sim.AddPlayer(new PlayerState(2, 0, presser, -10f, 0f));

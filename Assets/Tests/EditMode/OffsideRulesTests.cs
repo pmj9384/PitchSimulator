@@ -51,4 +51,15 @@ public class OffsideRulesTests
         var opp1 = new List<TargetInfo> { new TargetInfo(0, -48f, 0f), new TargetInfo(1, -31f, 0f) };
         Assert.AreEqual(31f, OffsideRules.LastDefenderLine(opp1, -1), 1e-4f, "팀1은 공격 방향 좌표");
     }
+
+    [Test]
+    public void 온사이드_선은_GK_다음_가장_깊은_뒷줄이다()
+    {
+        // 성질 재확인(D2 규칙 자체는 잠그지 않는다): 11-09 D2 뒤 뒷줄은 라인 깊이 L(가장 깊은 선수)에서 다이얼 차만큼 흩어져 선다. 온사이드 선 식은 그대로라 L이 오르면 선도 같이 오른다(RunRules·트리 온사이드 클램프가 읽음).
+        // 팀 1이 지키는 +X 골: GK 48(골에서 4.5m), 뒷줄 4명 깊이 L·L+1·L+2·L+3(L = 20 → x 32.5·31.5·30.5·29.5). 팀 0 공격 기준 2번째 선수 = L
+        float lineDepth = 20f;
+        var defenders = new List<TargetInfo> { new TargetInfo(20, 48f, 0f) };
+        for (int i = 0; i < 4; i++) { defenders.Add(new TargetInfo(21 + i, LineRules.XAtDepth(lineDepth + i, -1), i * 5f)); }
+        Assert.AreEqual(LineRules.XAtDepth(lineDepth, -1), OffsideRules.LastDefenderLine(defenders, +1), 1e-4f);
+    }
 }

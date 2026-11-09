@@ -6,7 +6,7 @@ using Game.Core.Tactics;
 namespace Game.Core.Match
 {
     // 팀 전술 모달의 미니 피치(10-29 ③d, FM26 Visualiser: 공 위치 9칸을 눌러 모양 변화 확인, 공격/수비 전환).
-    // 공이 어느 칸에 있을 때 11명이 어디에 서는지를 경기와 같은 함수(PositionRules.AttackStand·DefendStand)로 계산한다. 그래서 보이는 것 = 실제.
+    // 공이 어느 칸에 있을 때 11명이 어디에 서는지를 경기와 같은 함수(PositionRules.AttackStand·DefendStand, 수비 이동량은 LineRules)로 계산한다. 그래서 보이는 것 = 실제.
     // 보이지 않는 것: 압박·패스·온사이드 클램프 같은 행동(상대 위치가 필요). 화면은 "자리만 보인다"고 한 줄로 적는다.
     // 좌표는 팀 0(+X 공격) 기준 미터. 화면이 앵커로 바꾼다. 상태 없음, 엔진 없음
     public static class TacticsPreview
@@ -25,16 +25,26 @@ namespace Game.Core.Match
             return ((column - 1) * ThirdCenterX, (row - 1) * LateralCenterZ);
         }
 
-        // 라인업 순서대로 자리(선발 11명을 넘기면 11개). defending = 상대 소유(수비 시 자리 기준), 아니면 아군 소유(공격 시 자리 기준)
+        // 라인업 순서대로 자리(선발 11명을 넘기면 11개). defending = 상대 소유(수비 시 자리 기준), 아니면 아군 소유(공격 시 자리 기준).
+        // 수비 이동량 Δ는 경기와 같은 LineRules 식으로 라인업에서 직접 계산한다(11-08 D2): 편성 뒷줄 깊이·GK 라인은 라인업이 정하고, 공 깊이는 칸이 정한다
         public static (float x, float z)[] Positions(IReadOnlyList<LineupSlot> lineup, TeamTactics tactics, float ballX, float ballZ, bool defending)
         {
             var result = new (float x, float z)[lineup.Count];
+            float lineShift = 0f;
+            float depthCap = float.MaxValue;
+            if (defending)
+            {
+                float keeperLineDepth = KeeperLineDepthOf(lineup);
+                float ballDepth = LineRules.HomeDepth(ballX, MyTeamSign);
+                lineShift = LineRules.TeamLineShift(ballDepth, tactics.DefenseLine, keeperLineDepth, RestDepthOf(lineup));
+                depthCap = LineRules.TeamStandDepthCap(ballDepth, keeperLineDepth);
+            }
             for (int i = 0; i < lineup.Count; i++)
             {
                 LineupSlot slot = lineup[i];
                 if (defending)
                 {
-                    result[i] = PositionRules.DefendStand(slot.DefendX, slot.DefendZ, MyTeamSign, tactics, slot.Stats, ballX, ballZ, slot.Stats.IsKeeper);
+                    result[i] = PositionRules.DefendStand(slot.DefendX, slot.DefendZ, MyTeamSign, slot.Stats, ballZ, lineShift, depthCap, slot.Stats.IsKeeper);
                 }
                 else
                 {
@@ -42,6 +52,32 @@ namespace Game.Core.Match
                 }
             }
             return result;
+        }
+
+        // 시뮬(MatchSimulation.FillLineDepth)과 같은 입력: GK 라인 깊이(GK가 없으면 기본값)
+        private static float KeeperLineDepthOf(IReadOnlyList<LineupSlot> lineup)
+        {
+            for (int i = 0; i < lineup.Count; i++)
+            {
+                LineupSlot slot = lineup[i];
+                if (!slot.Stats.IsKeeper) { continue; }
+                float keeperX = PositionRules.KeeperLineX(slot.DefendX, slot.DefendZ, MyTeamSign, slot.Stats.LineHeight);
+                return LineRules.HomeDepth(keeperX, MyTeamSign);
+            }
+            return MatchTuning.DefaultKeeperLineDepth;
+        }
+
+        // 시뮬(MatchSimulation.DialedRestDepth)과 같은 입력: 필드 선수 다이얼 얹은 수비 시 자리 깊이 최솟값. 필드 선수가 없으면 float.MaxValue
+        private static float RestDepthOf(IReadOnlyList<LineupSlot> lineup)
+        {
+            float restDepth = float.MaxValue;
+            for (int i = 0; i < lineup.Count; i++)
+            {
+                LineupSlot slot = lineup[i];
+                if (slot.Stats.IsKeeper) { continue; }
+                restDepth = Math.Min(restDepth, LineRules.DialedHomeDepth(slot.DefendX, MyTeamSign, slot.Stats.LineHeight));
+            }
+            return restDepth;
         }
     }
 }

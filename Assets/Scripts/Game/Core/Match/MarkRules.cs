@@ -75,7 +75,7 @@ namespace Game.Core.Match
         }
 
         // 2단 배정(11-06 D1): 1차 후보(뒷줄)로 먼저 채우고, 남은 대상이 있으면 2차 후보(둘째 줄 + tracking)로 채운다.
-        // 2차는 1차가 바닥났을 때만 들어온다: 뒷줄 CB가 박스 앞 전진으로 압박자가 되거나 얼어 있어 대상보다 적을 때. 뒷줄이 충분하면 미드필더는 자기 줄에 남는다(FIFA D1 지역 수비)
+        // 2차는 1차가 바닥났을 때만 들어온다: 뒷줄 CB가 라인 앞 전진으로 압박자가 되거나 얼어 있어 대상보다 적을 때. 뒷줄이 충분하면 미드필더는 자기 줄에 남는다(FIFA D1 지역 수비)
         public static void AssignTiered(IReadOnlyList<TargetInfo> targets, IReadOnlyList<TargetInfo> primary, IReadOnlyList<TargetInfo> secondary, IReadOnlyList<MarkAssignment> previous, float margin, List<MarkAssignment> result)
         {
             result.Clear();
@@ -119,7 +119,7 @@ namespace Game.Core.Match
         // 마크 지점: 상대가 delay초 전에 있던 자리(지금 위치 − 속도 × delay)에서 우리 골 중심 쪽으로 distance.
         // 반응이 늦은 마커일수록 달리는 상대의 뒤를 본다(지연된 지각). 다만 본 자리가 실제 상대보다 골에서 멀면(골 쪽으로 달리는 상대) 그 차이만큼 더 골 쪽으로 가서,
         // 마크 지점이 실제 상대보다 공 쪽으로 넘어가지 않게 한다(골 쪽 선 전제. 늦은 마커는 상대 옆까지만 따라붙는다, 11-06 리뷰).
-        // 골까지가 그보다 가까우면 골 중심에 선다. 필드 안으로 자른다. 이 점은 하한 전이다: 시뮬(MatchSimulation.MarkPointFor)이 수비 하한(PositionRules.AboveDefendFloor) 위로 올려
+        // 골까지가 그보다 가까우면 골 중심에 선다. 필드 안으로 자른다. 이 점은 하한 전이다: 시뮬(MatchSimulation.MarkPointFor)이 마크 하한(LineRules.MarkFloorDepth, 11-08 D2) 위로 올려
         // GK 옆 상대를 따라 GK 선까지 내려가지 않게 한다(11-06)
         public static (float x, float z) MarkPoint(float targetX, float targetZ, float targetVelX, float targetVelZ, float delay, int attackSign, float distance)
         {

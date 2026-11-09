@@ -45,30 +45,25 @@ namespace Game.Core.Match
             return Offset(baseX, baseZ, dx, dz);
         }
 
-        // 상대 소유 때 서는 자리. 배치(수비 시 자리)에서 개인 라인 높이 × 다이얼 배율 + 팀 수비 라인 오프셋(TeamLineOffset)만큼 앞으로. 라인 간격 자체는 편성 posX2가 정한다(스펙 §6)
-        public static (float x, float z) DefendHome(float baseX, float baseZ, int attackSign, float lineHeight, float teamLineOffset)
+        // 상대 소유 때 서는 자리. 배치(수비 시 자리)에서 개인 라인 높이 × 다이얼 배율 + 팀 이동량(lineShift)만큼 앞으로. 라인 간격 자체는 편성 posX2가 정한다(스펙 §6).
+        // lineShift = 팀 라인 깊이 Δ(LineRules.LineShift, 11-08 D2). GK는 0을 넘긴다: GK 라인(KeeperLineX)은 슛 대응의 기준이라 팀 라인을 따라 움직이지 않는다(10-27)
+        public static (float x, float z) DefendHome(float baseX, float baseZ, int attackSign, float lineHeight, float lineShift)
         {
-            return Offset(baseX, baseZ, (lineHeight * MatchTuning.PositionDialScale + teamLineOffset) * attackSign, 0f);
-        }
-
-        // 팀 수비 라인 높이(TeamTactics.DefenseLine)가 수비 자리에 더하는 m. GK는 0: GK 라인(KeeperLineX)은 슛 대응의 기준이라 팀 항목으로 움직이지 않는다(10-27)
-        public static float TeamLineOffset(int defenseLine, bool goalkeeper)
-        {
-            if (goalkeeper) { return 0f; }
-            return MatchTuning.DefenseBaseLift + MatchTuning.DefenseLineOffset[defenseLine];
+            return Offset(baseX, baseZ, (lineHeight * MatchTuning.PositionDialScale + lineShift) * attackSign, 0f);
         }
 
         // GK가 지키는 라인 x = 수비 시 자리의 x. 시뮬의 닿음 판정(KeeperCanReachShot)과 트리의 이동(MoveToShotLine)이 이 한 함수를 써서 같은 점을 본다(10-25)
         public static float KeeperLineX(float defendHomeX, float defendHomeZ, int attackSign, float lineHeight)
         {
-            return DefendHome(defendHomeX, defendHomeZ, attackSign, lineHeight, 0f).x;   // GK엔 팀 수비 라인 오프셋이 없다(TeamLineOffset이 GK면 0을 주는 것과 같은 점)
+            return DefendHome(defendHomeX, defendHomeZ, attackSign, lineHeight, 0f).x;   // GK엔 팀 이동량이 없다(DefendStand가 GK면 0을 넘기는 것과 같은 점)
         }
 
         // 실제로 서는 자리 = 홈 + 공 지향 슬라이드. 트리(MoveToAttackHome·MoveToDefendHome)와 전술판 미니 피치(TacticsPreview)가 이 두 함수를 같이 부른다(10-29 ③d).
         // 합성을 한 곳에 둔 이유: 미니 피치가 "보이는 것 = 실제"를 약속하는데, 합성이 트리 안에만 있으면 둘이 따로 바뀔 수 있다.
         // 서드는 공 x로 여기서 센다(시뮬이 컨텍스트에 넣는 BallThird와 같은 식 ThirdOf). 온사이드 클램프는 상대 위치가 필요해 트리에 남는다.
-        // 읽는 값: 팀 전술 Mentality·Width[서드]·DefenseLine, 선수 PushUp·Width·LineHeight. GK 슛 대응 라인(KeeperLineX)은 이동 목표가 아니라 닿음 판정의 기준점이라 여기 안 넣는다.
-        // goalkeeper는 Slide·TeamLineOffset처럼 따로 받는다: 시뮬의 GK 여부(PlayerState.IsGoalkeeper, 명부 keeperIds와 짝)가 기준이고 stats.IsKeeper는 그 출처일 뿐이다
+        // 읽는 값: 공격은 팀 전술 Mentality·Width[서드]와 선수 PushUp·Width, 수비는 팀 이동량 lineShift(팀 수비 라인 높이는 그 안에 들어 있다)·깊이 상한 depthCap과 선수 LineHeight.
+        // GK 슛 대응 라인(KeeperLineX)은 이동 목표가 아니라 닿음 판정의 기준점이라 여기 안 넣는다.
+        // goalkeeper는 Slide처럼 따로 받는다: 시뮬의 GK 여부(PlayerState.IsGoalkeeper, 명부 keeperIds와 짝)가 기준이고 stats.IsKeeper는 그 출처일 뿐이다
         public static (float x, float z) AttackStand(float baseX, float baseZ, int attackSign, TeamTactics tactics, PlayerStats stats, float ballX, float ballZ, bool goalkeeper)
         {
             int third = (int)ThirdOf(ballX, attackSign);
@@ -76,32 +71,18 @@ namespace Game.Core.Match
             return SlideAttack(home.x, home.z, ballX, ballZ, goalkeeper);
         }
 
-        public static (float x, float z) DefendStand(float baseX, float baseZ, int attackSign, TeamTactics tactics, PlayerStats stats, float ballX, float ballZ, bool goalkeeper)
+        // depthCap = 필드 선수가 설 수 있는 가장 앞 깊이(LineRules.StandDepthCap: 공보다 골 쪽, 11-09). 개인 라인 높이 다이얼이 Δ 위에 얹혀 뒷줄이 공보다 앞에 서지 않게 자른다. GK는 안 자른다
+        public static (float x, float z) DefendStand(float baseX, float baseZ, int attackSign, PlayerStats stats, float ballZ, float lineShift, float depthCap, bool goalkeeper)
         {
-            float teamLine = TeamLineOffset(tactics.DefenseLine, goalkeeper);
-            (float x, float z) home = DefendHome(baseX, baseZ, attackSign, stats.LineHeight, teamLine);
-            (float x, float z) slid = SlideDefend(home.x, home.z, ballX, ballZ, goalkeeper);
-            if (goalkeeper) { return slid; }
-            return (AboveDefendFloor(slid.x, ballX, attackSign), slid.z);
-        }
-
-        // 수비 하한(11-06 유저 Play "센터백 라인이 골키퍼랑 동일선상"): 필드 선수의 수비 자리·마크 지점이 우리 골라인에서 이 깊이보다 뒤로 내려가지 않는다.
-        // 공이 박스 깊이(PenaltyBoxDepth) 밖이면 10m, 안이면 골 에어리어 선 근처(7.5m)까지 허용한다(값과 격자는 MatchTuning). 공 z는 안 본다: 코너 쪽 깊은 공은 컷백이 골 에어리어 앞으로 오기 때문이다.
-        // 하한이 없을 때는 ①슬라이드 상한 10m가 CB 자리(골에서 13.3m)를 공이 우리 서드에 있는 동안 골에서 3.3m(GK 4.5m 뒤)로 끌어내렸고
-        // ②마크 지점이 GK 옆 상대의 골 쪽 1.5m라 CB가 GK 선까지 내려갔다. 수비가 내려가면 오프사이드 기준선(골 쪽 2번째 상대)도 같이 내려가 GK 옆 공격수가 온사이드였다
-        public static float DefendFloorDepth(float ballX, int attackSign)
-        {
-            float ballDepth = FieldBounds.HalfLength + ballX * attackSign;
-            if (ballDepth < FieldBounds.PenaltyBoxDepth) { return MatchTuning.DefendFloorBallInBox; }
-            return MatchTuning.DefendFloorBallOutsideBox;
-        }
-
-        // x가 하한보다 우리 골 쪽이면 하한 선으로 올린다. attackSign은 이 선수 팀의 공격 방향이라 우리 골은 x = −attackSign × HalfLength
-        public static float AboveDefendFloor(float x, float ballX, int attackSign)
-        {
-            float floorX = (DefendFloorDepth(ballX, attackSign) - FieldBounds.HalfLength) * attackSign;
-            if ((x - floorX) * attackSign >= 0f) { return x; }
-            return floorX;
+            if (goalkeeper)
+            {
+                (float x, float z) keeperHome = DefendHome(baseX, baseZ, attackSign, stats.LineHeight, 0f);
+                return SlideDefend(keeperHome.x, keeperHome.z, ballZ, goalkeeper: true);
+            }
+            (float x, float z) home = DefendHome(baseX, baseZ, attackSign, stats.LineHeight, lineShift);
+            float x = home.x;
+            if (LineRules.HomeDepth(x, attackSign) > depthCap) { x = LineRules.XAtDepth(depthCap, attackSign); }
+            return SlideDefend(x, home.z, ballZ, goalkeeper: false);
         }
 
         // 공 지향 슬라이드 두 가지(09-21 유저 "자리가 완전 고정은 아닌 것 같다"). 공 좌표 기준이라 팀 부호가 필요 없다. 결과는 필드 안으로 클램프.
@@ -117,15 +98,12 @@ namespace Game.Core.Match
             return Offset(homeX, homeZ, dx, dz);
         }
 
-        // 상대 소유 때: 세로·가로 모두 공 좌표 × 계수 평행이동(세로는 상한). 블록이 공을 따라 옮기되 폭은 그대로다.
-        // 수비까지 수축하면 공격 수축과 겹쳐 내 빌드업 패스가 상대 ST 앞에서 끊겨 4부 승률이 무너졌고(10-25 격자),
-        // 세로를 수축하면 라인이 올라가 골이 반으로 줄었다(공 높이가 없어 올라간 라인 뒤를 못 찌름. 09-30 F3와 같은 원인)
-        public static (float x, float z) SlideDefend(float homeX, float homeZ, float ballX, float ballZ, bool goalkeeper)
+        // 상대 소유 때: 가로만 공 z × 계수 평행이동. 블록이 공 쪽으로 옮기되 폭은 그대로다. 세로는 라인 깊이(LineRules, 11-08 D2)가 Δ로 맡는다.
+        // 수비까지 수축하면 공격 수축과 겹쳐 내 빌드업 패스가 상대 ST 앞에서 끊겨 4부 승률이 무너졌다(10-25 격자)
+        public static (float x, float z) SlideDefend(float homeX, float homeZ, float ballZ, bool goalkeeper)
         {
             if (goalkeeper) { return SlideKeeper(homeX, homeZ, ballZ); }
-            float dx = VerticalShift(ballX, MatchTuning.SlideVerticalDefend, MatchTuning.SlideVerticalMaxDefend);
-            float dz = ballZ * MatchTuning.SlideLateralDefend;
-            return Offset(homeX, homeZ, dx, dz);
+            return Offset(homeX, homeZ, 0f, ballZ * MatchTuning.SlideLateralDefend);
         }
 
         // GK는 가로만 조금(SlideLateralKeeper), 세로 0. 라인을 따라 나오면 안 된다

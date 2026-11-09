@@ -3,6 +3,7 @@ using Game.Core.AI;
 using Game.Core.Data;
 using Game.Core.Match;
 using Game.Core.Placement;
+using Game.Core.Tactics;
 using NUnit.Framework;
 
 // 경기 루프 검증(엔진 없음). 리트머스: ST 1 vs GK 1, 슛 10회의 결과가 각각 MatchRules.Resolve(p_i, roll_i)와 같고
@@ -113,7 +114,7 @@ public class MatchSimulationTests
         return new PlayerStats { RoleId = "GK", VariantId = "gk_standard", Speed = 30, Stamina = 30, Pass = 30, Shot = 5, Tackle = 10, Positioning = 15, Reflexes = 80, Handling = 60, Diving = 40, PressRange = 3f, ShotBias = 0.9f, PassLength = 25f };
     }
 
-    // 박스 앞 전진(09-29 D1)·슛 블록(D3) 테스트용 CB. 스탯은 GK 값을 빌리고 역할만 CB, 압박 거리 6m
+    // 라인 앞 전진(09-29 D1 박스 앞 → 11-09 D2-b)·슛 블록(D3) 테스트용 CB. 스탯은 GK 값을 빌리고 역할만 CB, 압박 거리 6m
     private static PlayerStats CenterBack()
     {
         PlayerStats cb = Keeper();
@@ -806,9 +807,10 @@ public class MatchSimulationTests
     }
 
     [Test]
-    public void 공이_박스_앞에_오면_압박_거리_밖이어도_가장_가까운_센터백이_압박_1순위가_된다()
+    public void 공이_라인_앞_10m_안에_오면_압박_거리_밖이어도_가장_가까운_뒷줄이_압박_0순위가_된다()
     {
-        // 09-29 수비 D1. 팀 0 CB(압박 거리 6m)가 공에서 9m. 공은 팀 0 골라인에서 18m(전진 구역 안), 팀 1이 소유
+        // 09-29 수비 D1 → 11-09 D2-b 라인 상대 구역. 팀 0 CB(압박 거리 6m)가 공에서 9m. 공은 팀 0 골라인에서 18m, 팀 1이 소유.
+        // GK 없는 명부라 라인 L = 하한 8.5m(공과 최소 간격 10m가 L₀ 15.2를 8로 자르고 하한이 8.5로 올림) → 구역 = 18.5m 안
         var sim = new MatchSimulation(() => 0.99f, new PassFlightTestsHelper.NoOp(), TestThreat.Real);
         PlayerState near = sim.AddPlayer(new PlayerState(0, 0, CenterBack(), -43.5f, 0f));
         PlayerState far = sim.AddPlayer(new PlayerState(1, 0, CenterBack(), -45f, 15f));
@@ -819,13 +821,73 @@ public class MatchSimulationTests
         Assert.AreEqual(0, near.PressRank, "가장 가까운 CB가 전진");
         Assert.AreEqual(int.MaxValue, far.PressRank, "다른 CB는 후보가 아니다(압박 거리 밖)");
 
+        // 공이 골라인에서 40m면 L ≈ 25.9m(간격 30m는 안 걸림) → 구역 35.9m 밖. 압박 거리(6m) 밖 CB는 후보가 아니다
         var outside = new MatchSimulation(() => 0.99f, new PassFlightTestsHelper.NoOp(), TestThreat.Real);
         PlayerState cbOut = outside.AddPlayer(new PlayerState(0, 0, CenterBack(), -30f, 0f));
-        outside.AddPlayer(new PlayerState(2, 1, Striker(), -21f, 0f));
+        outside.AddPlayer(new PlayerState(2, 1, Striker(), -12.5f, 0f));
         outside.Kickoff();
-        outside.Ball = BallRules.Own(outside.Ball, 2, -21f, 0f);
+        outside.Ball = BallRules.Own(outside.Ball, 2, -12.5f, 0f);
         outside.Tick(Dt);
-        Assert.AreEqual(int.MaxValue, cbOut.PressRank, "골라인에서 31.5m면 전진 구역 밖이라 9m 떨어진 CB는 후보가 아니다");
+        Assert.AreEqual(int.MaxValue, cbOut.PressRank, "라인 앞 10m 밖이라 17.5m 떨어진 CB는 후보가 아니다");
+    }
+
+    [Test]
+    public void 전진_뒷줄은_더_가까운_압박자가_있어도_0순위라_뒤에서_쫓는_1명과_집게가_된다()
+    {
+        // 11-09 D2-b 결정 5: 라인 앞 운반자를 앞에서 막는 사람이 없어(5m 뒤에서 쫓는 CM에게 순위가 밀림) 슛 77%가 운반 중 라인 통과였다.
+        // 팀 0 CB(깊이 9)와 CM(깊이 15.5, 공에서 2.5m, 압박 거리 안). 공은 골라인에서 18m 중앙. CM은 거리순 0순위, CB는 전진 뒷줄이라 역시 0순위
+        var sim = new MatchSimulation(() => 0.99f, new PassFlightTestsHelper.NoOp(), TestThreat.Real);
+        PlayerState back = sim.AddPlayer(new PlayerState(0, 0, CenterBack(), -43.5f, 0f));
+        PlayerStats chaserStats = Midfielder();
+        chaserStats.PressRange = 8f;
+        PlayerState chaser = sim.AddPlayer(new PlayerState(1, 0, chaserStats, -37f, 0f));
+        sim.AddPlayer(new PlayerState(2, 1, Striker(), -34.5f, 0f));
+        sim.SetTactics(0, new TeamTactics { PressStart = new[] { 1, 1, 1 } });
+        sim.Kickoff();
+        sim.Ball = BallRules.Own(sim.Ball, 2, -34.5f, 0f);
+        sim.Tick(Dt);
+        Assert.IsTrue(back.IsBackLine);
+        Assert.IsFalse(chaser.IsBackLine, "깊이 15.5는 9 + 6 밖");
+        Assert.AreEqual(0, chaser.PressRank, "가까운 CM이 거리순 0순위");
+        Assert.AreEqual(0, back.PressRank, "전진 뒷줄도 0순위(MaxPressers 1의 예외)");
+    }
+
+    [Test]
+    public void 전진_구역_밖이면_뒷줄도_거리순이라_더_가까운_압박자가_있으면_0순위가_아니다()
+    {
+        // 11-09 D2-b 예외가 꺼지는지 잠금: 공이 골라인에서 40m(L ≈ 25.9, 구역 35.9 밖). CB와 CM 둘 다 압박 거리 안이고 CM이 더 가깝다 → CB는 거리순 1순위(MaxPressers 1 밖)
+        var sim = new MatchSimulation(() => 0.99f, new PassFlightTestsHelper.NoOp(), TestThreat.Real);
+        PlayerStats backStats = CenterBack();
+        backStats.PressRange = 8f;
+        PlayerState back = sim.AddPlayer(new PlayerState(0, 0, backStats, -18.5f, 0f, -43.5f, 0f));
+        PlayerStats chaserStats = Midfielder();
+        chaserStats.PressRange = 8f;
+        PlayerState chaser = sim.AddPlayer(new PlayerState(1, 0, chaserStats, -14.5f, 0f, -30f, 0f));
+        sim.AddPlayer(new PlayerState(2, 1, Striker(), -12.5f, 0f));
+        sim.SetTactics(0, new TeamTactics { PressStart = new[] { 1, 1, 1 } });
+        sim.Kickoff();
+        sim.Ball = BallRules.Own(sim.Ball, 2, -12.5f, 0f);
+        sim.Tick(Dt);
+        Assert.IsTrue(back.IsBackLine, "전제: 수비 시 자리 깊이 9로 뒷줄");
+        Assert.AreEqual(0, chaser.PressRank, "가까운 CM이 0순위");
+        Assert.AreEqual(1, back.PressRank, "구역 밖이라 예외 없이 거리순 1순위");
+    }
+
+    [Test]
+    public void 전진_구역은_이번_틱_라인_깊이로_판정한다()
+    {
+        // FillLineDepth가 FillPressEligible보다 먼저 돈다(순서 잠금). 첫 틱 공 깊이 18 → L 8.5·구역 18.5.
+        // 공을 깊이 29.5로 옮기면 이번 틱 L = min(20.8, 19.5) = 19.5·구역 29.5라 안이다. 직전 틱 L로 판정하면 구역 18.5 밖이라 후보가 아니다
+        var sim = new MatchSimulation(() => 0.99f, new PassFlightTestsHelper.NoOp(), TestThreat.Real);
+        PlayerState back = sim.AddPlayer(new PlayerState(0, 0, CenterBack(), -43.5f, 0f));
+        sim.AddPlayer(new PlayerState(2, 1, Striker(), -34.5f, 0f));
+        sim.Kickoff();
+        sim.Ball = BallRules.Own(sim.Ball, 2, -34.5f, 0f);
+        sim.Tick(Dt);
+        Assert.AreEqual(0, back.PressRank, "전제: 첫 틱 전진");
+        sim.Ball = BallRules.Own(sim.Ball, 2, -23f, 0f);
+        sim.Tick(Dt);
+        Assert.AreEqual(0, back.PressRank, "이번 틱 L로 구역을 다시 잰다");
     }
 
     [Test]
@@ -850,7 +912,7 @@ public class MatchSimulationTests
     }
 
     [Test]
-    public void 박스_앞_전진은_역할_이름이_아니라_뒷줄이_기준이라_더_가까운_수미는_안_나가고_가장자리_공엔_FB도_안_나간다()
+    public void 라인_앞_전진은_역할_이름이_아니라_뒷줄이_기준이고_측면_공엔_가까운_FB가_나간다()
     {
         // 11-06 D1: StepOutCenterBack(RoleId == "CB")을 LineRules 뒷줄로 일반화. 팀 0 CB(깊이 9)와 DM(깊이 16.5, 밴드 6m 밖)이 있고 공은 골라인에서 18m 중앙(전진 구역 안).
         // DM이 공에서 1.5m로 더 가깝지만 뒷줄이 아니라 전진 후보가 아니고(압박 시작 0이라 거리 후보도 아님), 13.5m 떨어진 CB가 1순위
@@ -866,8 +928,8 @@ public class MatchSimulationTests
         Assert.AreEqual(0, back.PressRank, "뒷줄이 전진");
         Assert.AreEqual(int.MaxValue, dm.PressRank, "수미는 더 가까워도 후보가 아니다");
 
-        // 4-4-2 FB(−40, z 22)도 뒷줄이다. 구역이 박스 폭 전체면 z 15~20 공에 FB가 안쪽으로 끌려 들어왔다(11-07 리뷰 🟡) → 구역 폭은 중앙 ±10.08m.
-        // 가장자리 공(z 19)엔 아무도 전진하지 않고(압박 시작 0), 중앙 공(z 5)엔 CB가 나간다
+        // 4-4-2 FB(−40, z 22)도 뒷줄이다. 11-07엔 구역 폭을 중앙 ±10.08로 좁혔지만, 11-09 D2-b(결정 4)에서 박스 반폭(±20.16)으로 되돌렸다:
+        // 라인이 오른 D2에선 측면 운반자를 아무도 앞에서 안 막았다. 측면 공(z 19)엔 가까운 FB가, 중앙 공(z 5)엔 CB가, 박스 폭 밖(z 25)엔 아무도 안 나간다
         var wide = new MatchSimulation(() => 0.99f, new PassFlightTestsHelper.NoOp(), TestThreat.Real);
         PlayerState cb = wide.AddPlayer(new PlayerState(0, 0, CenterBack(), -41f, 7f));
         PlayerState fb = wide.AddPlayer(new PlayerState(1, 0, FullBack(), -40f, 22f));
@@ -876,17 +938,22 @@ public class MatchSimulationTests
         wide.Ball = BallRules.Own(wide.Ball, 2, -36f, 19f);
         wide.Tick(Dt);
         Assert.IsTrue(fb.IsBackLine, "깊이 12.5는 11.5 + 6 안");
-        Assert.AreEqual(int.MaxValue, fb.PressRank, "가장자리(z 19) 공은 전진 구역 밖: FB가 안쪽으로 안 들어온다");
+        Assert.AreEqual(0, fb.PressRank, "측면(z 19) 공엔 가까운 FB가 전진");
         Assert.AreEqual(int.MaxValue, cb.PressRank);
 
         wide.Ball = BallRules.Own(wide.Ball, 2, -36f, 5f);
         wide.Tick(Dt);
         Assert.AreEqual(0, cb.PressRank, "중앙(z 5) 공엔 가까운 CB가 전진");
         Assert.AreEqual(int.MaxValue, fb.PressRank);
+
+        wide.Ball = BallRules.Own(wide.Ball, 2, -36f, 25f);
+        wide.Tick(Dt);
+        Assert.AreEqual(int.MaxValue, fb.PressRank, "박스 폭(±20.16) 밖은 구역 밖");
+        Assert.AreEqual(int.MaxValue, cb.PressRank);
     }
 
     [Test]
-    public void 팀_1도_박스_앞에서_가장_가까운_센터백이_압박_1순위가_된다()
+    public void 팀_1도_라인_앞에서_가장_가까운_뒷줄이_압박_0순위가_된다()
     {
         // 09-30 리뷰: D1 대칭. 팀 1 골라인은 x = +52.5. 공은 거기서 18m, 팀 0이 소유
         var sim = new MatchSimulation(() => 0.99f, new PassFlightTestsHelper.NoOp(), TestThreat.Real);

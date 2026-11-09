@@ -31,7 +31,7 @@ namespace Game.Core.Tactics
         public int CounterPress { get; set; }   // 역압박 성향: 안 함·상황 봐서·적극 → 뺏긴 순간 우리 뒤 수비 수 문턱
         public int GkDistribution { get; set; } // GK 배급: 짧게·섞어·길게
         public int Mentality { get; set; }      // 전진 정도: 수비적·균형·공격적 → 공격 시 자리 X 오프셋 배율(슬라이더 ①)
-        public int DefenseLine { get; set; } = 1;   // 수비 라인 높이: 깊게·표준·높게 → 수비 시 자리 X 오프셋(필드 선수만, GK 제외). 10-27, FM Defensive Line. 옛 세이브엔 없어 표준
+        public int DefenseLine { get; set; } = 1;   // 수비 라인 높이: 깊게·표준·높게 → 라인 깊이 L 오프셋(LineRules.LineDepth, 11-08 D2. 필드 선수만, GK 제외). 10-27, FM Defensive Line. 옛 세이브엔 없어 표준
 
         // 역습 판정 문턱: 공보다 상대 골 쪽에 있는 상대 필드 플레이어가 이 수 이하면 역습. -1 = 안 함
         public int CounterThreshold

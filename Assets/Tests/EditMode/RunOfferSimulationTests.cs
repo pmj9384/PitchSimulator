@@ -39,7 +39,6 @@ public class RunOfferSimulationTests
         public int KickReceiver = -1;
         public float KickLandingX;
         public float KickLandingZ;
-        public float RunnerSpeedAtKick;
         public bool RunnerOffsideAtKick;
         public RunOffer OfferAtKick = RunOffer.None;
         public int FirstOfferTick = -1;
@@ -65,7 +64,6 @@ public class RunOfferSimulationTests
             KickLandingX = passer.PassLandingX;
             KickLandingZ = passer.PassLandingZ;
             KickWasRun = passer.PassIsRun;
-            RunnerSpeedAtKick = (float)System.Math.Sqrt(Runner.VelX * Runner.VelX + Runner.VelZ * Runner.VelZ);
             float line = OffsideRules.OnsideLine(passer.Opponents, passer.AttackSign, passer.X);
             RunnerOffsideAtKick = OffsideRules.IsOffsidePosition(Runner.X, passer.AttackSign, line);
             foreach (RunOffer offer in passer.RunOffers)
@@ -82,12 +80,14 @@ public class RunOfferSimulationTests
         var sim = new MatchSimulation(() => 0.5f, PlayerTreeBuilder.Build(), TestThreat.Step());
         var tactics = new TeamTactics { PassRisk = new[] { 1, 1, 1 }, PressStart = new[] { 0, 0, 0 }, Width = new[] { 1, 1, 1 }, Tempo = new[] { 1, 1, 1 }, Mentality = 1, PassStyle = new[] { 1, 1, 1 } };
         sim.SetTactics(0, tactics);
-        sim.SetTactics(1, tactics);
+        // 팀 1은 수비 라인 "깊게": 장면을 만든 11-03엔 세로 슬라이드(공 x × 0.3)가 수비를 x 35.5(골에서 17m)로 내렸다. D2(11-08) 라인 깊이에서 깊게(−5)면 약 34.4로 그 장면과 거의 같다
+        TeamTactics deepLine = TacticsEditing.Copy(tactics);
+        deepLine.DefenseLine = 0;
+        sim.SetTactics(1, deepLine);
         scene.Carrier = sim.AddPlayer(new PlayerState(0, 0, Carrier(holdUp), carrierX, 4f, carrierX, 4f));
         scene.Runner = sim.AddPlayer(new PlayerState(1, 0, Winger(runStyle), 18.6f, 8.7f, 18.6f, 8.7f));
         sim.AddPlayer(new PlayerState(10, 1, Defender(keeper: true), 50f, 0f, 50f, 0f));
-        // 수비 홈은 기본 상향(DefenseBaseLift, 11-06 F3)만큼 팀 1 골 쪽(+X)에 둔다. 상향이 더해져 실제로 서는 자리가 손으로 맞춘 x 30이 되게
-        float home = 30f + MatchTuning.DefenseBaseLift;
+        float home = 30f;   // 수비 시 자리. 실제로 서는 깊이는 팀 이동량 Δ가 라인 깊이 L로 옮긴다(11-08 D2)
         sim.AddPlayer(new PlayerState(11, 1, Defender(keeper: false), 30f, -28f, home, -28f));
         sim.AddPlayer(new PlayerState(12, 1, Defender(keeper: false), 30f, 28f, home, 28f));
         sim.Kickoff();
@@ -141,7 +141,9 @@ public class RunOfferSimulationTests
         // 얼림은 "운반자가 제안을 기다린다"를 흉내 낼 뿐이라 킥이 제안보다 늦는 건 당연하다(동어반복). 의미 있는 단언은 풀린 직후 트리가 런 제안을 고르는 것이다
         Assert.GreaterOrEqual(scene.FirstOfferTick, 0, "사전 런 제안이 생겼다");
         Assert.GreaterOrEqual(scene.ReleaseTick, scene.FirstOfferTick, "제안 위험이 낮아진 틱에 푼다");
-        Assert.LessOrEqual(scene.KickTick - scene.ReleaseTick, (int)(0.5f / Dt) + 3, "풀린 직후 트리가 런 제안 패스를 고른다(볼 끌기 0.5초 + 3틱 안에 킥)");
+        // 11-09 D2: "풀린 직후 볼 끌기 + 3틱 안에 킥" 단언을 뺐다. 볼 끌기 0초 장면보다 76틱 늦게 찬다: 볼 끌기 0.5초 동안 D2 마커가 복귀해 런 길목이 닫히고
+        // 그 뒤 트리가 운반을 고른다(볼 끌기가 런 창을 먹는다). 공을 끄는 동안 수비가 정비되는 건 현실적이라 D2에선 받아들이고,
+        // 런 제안이 볼 끌기를 고려하게 할지는 장부 "W 다음 레버"에서 다룬다(유저 결정 A). 같은 이유로 "킥 순간 러너는 질주 중"(속도 > 5.6)도 뺐다: 늦은 킥이라 러너가 목표점 앞에서 감속 중이다(4.8 m/s)
         Assert.IsTrue(scene.KickWasRun, "그 패스는 런 패스다");
         float secondsAfterOffer = (scene.KickTick - scene.FirstOfferTick) * Dt;
         // 11-06 S3 ①: 공이 팀 1 골 34m(40m 안)라 오른쪽 수비가 러너를 마크하러 와서 제안 위험이 늦게 내려간다. 빈 길(마크 전)일 땐 제안 뒤 2.56초에 찼고
@@ -149,7 +151,6 @@ public class RunOfferSimulationTests
         Assert.IsTrue(scene.DefenderMarked, "수비가 러너를 마크했다");
         Assert.Greater(secondsAfterOffer, 2.6f, "마커가 붙어 빈 길(2.6초 안)보다 늦게 찬다");
         Assert.LessOrEqual(secondsAfterOffer, 8f, "그래도 런이 위험을 낮추면 찬다");
-        Assert.Greater(scene.RunnerSpeedAtKick, 0.5f * 11.2f, "킥 순간 러너는 질주 중");
         Assert.AreEqual(scene.OfferAtKick.X, scene.KickLandingX, 1e-3f, "착지점 = 러너가 달리던 목표점(같은 함수)");
         Assert.AreEqual(scene.OfferAtKick.Z, scene.KickLandingZ, 1e-3f);
     }

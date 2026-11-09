@@ -24,10 +24,14 @@ namespace Game.Core.Match
         // ── 전술 판정. 전부 밸런스 값: 자동 대전 러너로 조정한다
         public const float ThirdBoundary = 17.5f;                              // 필드 105m를 3등분한 경계. 우리 진영 ≤ −17.5 < 중원 < 17.5 ≤ 상대 진영
         public static readonly float[] MentalityOffset = { -5f, 0f, 5f };      // 전진 정도(수비적·균형·공격적) → 공격 시 자리 X 오프셋(m)
-        public static readonly float[] DefenseLineOffset = { -5f, 0f, 5f };    // 수비 라인 높이(깊게·표준·높게) → 수비 시 자리 X 오프셋(m), 필드 선수만. [가정] 전진 정도와 대칭. 10-27 FM Defensive Line. 기본 라인 자체가 현실보다 낮은 문제(장부 F3)는 이 레버와 별개로 DefenseBaseLift가 맡는다
-        public const float DefenseBaseLift = 0f;   // F3 1단계(11-06): 블록 전체(GK 제외) 수비 자리를 앞으로 올리는 m. 3단 다이얼 공통이라 깊게/높게 차이는 그대로. 수비만 올리면 비소유 깊이가 줄어 블록 전체(설계초안-수비라인 5절 A안).
-                                                    // 러너 quick 격자(하한·마크 위) {0, 5, 8, 11, 14}: 수비 라인 20.3/22.3/25.6/27.6/29.9m로 오르지만 박스 안 슛 40/33/34/27/23%, 압박 슛 44/32/25/32/35%로 떨어졌다.
-                                                    // 라인이 오르면 공격수가 온사이드 선 앞(박스 밖)에서 받아 찬다. 지금은 0으로 두고 코드 경로만 남긴다. 슛 결정 시간(1단계) 뒤 재격자(실험/2026-11-06-엔진-레퍼런스-종합.md 3절)
+        public static readonly float[] DefenseLineOffset = { -5f, 0f, 5f };    // 수비 라인 높이(깊게·표준·높게) → 라인 깊이 L에 더하는 m(LineRules.LineDepth). [가정] 전진 정도와 대칭. 10-27 FM Defensive Line
+        // 라인 깊이(11-08 D2, LineRules). Metrica 트래킹 3경기에서 잰 공 서드별 수비 라인 깊이(우리 골라인에서 m). 두 구간 기울기 0.49·0.43(옛 세로 슬라이드 0.3·상한 10m보다 가파르다)
+        public static readonly float[] LineAnchorBallDepth = { 17.5f, 52.5f, 87.5f };   // 공 깊이(서드 중심)
+        public static readonly float[] LineAnchorDepth = { 15f, 32f, 47f };             // 그때 라인 깊이
+        public const float FloorMargin = 4f;            // 라인 하한 = GK 라인 깊이 + 이 값 [가정]. 옛 계단 하한(10/7.5m)을 대신한다
+        public const float GoalSideMargin = 1.5f;      // 수비 자리 깊이 상한 = 공 깊이 − 이 값(LineRules.StandDepthCap) [가정]. 수비는 공보다 골 쪽에 선다. 11-09 probe: 상한 없이 개인 라인 높이 다이얼(+3~8m)이 뒷줄을 공보다 앞에 세워 슛의 95%가 라인 뒤에서 나왔다
+        public const float LineCap = 55f;               // 라인 상한(우리 골라인에서 m) [가정]. 하프라인 2.5m 앞
+        public const float DefaultKeeperLineDepth = Placement.FieldBounds.HalfLength - 48f;   // GK가 없는 팀(테스트 명부)의 GK 라인 깊이 = 편성 GK −48 → 4.5m
         public const float LateralScoreScale = 0.005f;                          // 리시버 적합도의 측면 가중: |z| 1m당(× 폭 배율). 적합도는 ReceiverFitWeight(0.02)를 곱해 xT 단위로 패스 값에 더한다(11-03 P1, 전진 가중은 xT가 대신 센다). 09-18 0.02는 라인 위 윙어가 어디서든 최고점이라 소유 시간의 31%가 터치라인 9m 안이었다(86% W)
         public const float TouchlineMargin = 3f;                                // 자리 계산의 Z 클램프 여유(m). 필드 가장자리 0.5m로 두면 공 쪽 윙어가 슬라이드로 라인 밖까지 밀려 라인 위(z 33.5)에 붙어 빌드업했다
         public const float WideZoneZ = 25f;                                     // 형태 지표: |z|가 이 이상이면 "측면 구역"(터치라인 9m 안). 러너 CSV·감시 테스트가 소유 시간의 측면 비율을 잰다. 09-26 터치라인 빌드업(31%)을 정지 탐지·리뷰가 못 잡아 넣음
@@ -58,10 +62,9 @@ namespace Game.Core.Match
         public static readonly float[] PassLeadOptions = { PassLeadMax, 3.5f, 0f };
         public const float DribbleReluctance = 0.3f;                            // 개인 드리블 성향이 이 미만이면 골 대신 가까운 아군 쪽으로 몰아 패스를 노린다
         // 공 지향 슬라이드(PositionRules.SlideAttack·SlideDefend). 지역 방어는 공 기준(Spielverlagerung ball-oriented zonal marking).
-        // 수비는 컴팩트(가로 큼), 공격은 침투(세로 큼). 공격 가로만 수축식이고 나머지는 평행이동(10-25, 실험/2026-10-25-슬라이드-수축-격자.md)
+        // 수비는 컴팩트(가로 큼), 공격은 침투(세로 큼). 공격 가로만 수축식이고 나머지는 평행이동(10-25, 실험/2026-10-25-슬라이드-수축-격자.md).
+        // 수비 세로는 11-08 D2부터 슬라이드가 아니라 라인 깊이(LineRules.LineDepth → Δ)가 맡는다
         public const float SlideLateralDefend = 0.3f;   // 09-26 0.4 → 0.3: 압박 1명 제한·킥 속도 역산 뒤 블록이 너무 촘촘해 100판 골 0.6. 0.3이면 1.06·슛 10
-        public const float SlideVerticalDefend = 0.3f;
-        public const float SlideVerticalMaxDefend = 10f;
         public const float SlideLateralAttack = 0.2f;   // 수축 계수. 10-25 격자: 0.18/0.20/0.25에서 4부 승률 46/74/48%로 튐(ST 가로채기 문턱). 0.2는 시드 3블록 73~76%로 재현
         public const float SlideVerticalAttack = 0.4f;
         public const float SlideVerticalMaxAttack = 15f;
@@ -108,12 +111,15 @@ namespace Game.Core.Match
         public const float FatigueRecoveryHalfLifeTicks = 95f;   // 회복 반감기. 전력 뒤 에너지(PCr) 재합성 반감기 약 57초(Bogdanis 1995)를 경기 시간으로 본다. 3분 = 90분이라 1틱(0.02초) = 경기 0.6초, 57 ÷ 0.6 ≈ 95틱
         public const float FatigueEffortThreshold = 0.3f;        // 단기 체력이 이 아래면 속도가 준다(RoboCup effort_dec_thr와 같은 비율)
         public const float FatigueEffortMin = 0.9f;              // 속도 배율 바닥(최대 10% 감소). 최고 속도는 거의 안 떨어진다는 레퍼런스라 감소 폭을 RoboCup(바닥 0.6, 40% 감소)보다 훨씬 작게
-        // 박스 앞 뒷줄 전진(09-29 수비 D1, 11-06 D1 뒷줄로 일반화): 공이 우리 골라인에서 이 거리 안(중앙 BoxStepOutHalfWidth 안)에 오면 공에 가장 가까운 뒷줄 선수(LineRules.IsBackLine)는 개인 압박 거리와 상관없이 압박 후보가 된다.
-        // 코칭 원칙: 박스 근처에선 가장 가까운 CB가 나가고 나머지가 메운다(Coaches' Voice "The modern centre-back"). 박스 깊이 + 5m는 출처 없는 출발값
-        public const float BoxStepOutDepth = Placement.FieldBounds.PenaltyBoxDepth + 5f;
-        // 전진 구역의 폭(중앙 구역, 11-07 리뷰 🟡): 박스 폭 안쪽 절반(±10.08m). 박스 폭 전체(±20.16)면 4-4-2 FB(슬롯 z ±22)도 뒷줄이라 z 15~20 공에 FB가 안쪽으로 끌려 들어왔다.
-        // CB 슬롯 z(±7~±10)와 FB 슬롯 z(±22~±25)의 중간(약 ±14.5)보다 안쪽이라 가장자리 공은 지역 자리·압박 거리 규칙에 맡긴다 [가정]
-        public const float BoxStepOutHalfWidth = Placement.FieldBounds.PenaltyBoxHalfWidth * 0.5f;
+        // 라인 앞 뒷줄 전진(09-29 수비 D1 박스 앞 전진 → 11-06 D1 뒷줄로 일반화 → 11-09 D2-b 라인 상대 구역): 공이 우리 골라인에서 라인 깊이 L + 이 거리 안이고 |z|가 박스 반폭 안이면
+        // 공에 가장 가까운 뒷줄 선수(LineRules.IsBackLine)는 개인 압박 거리와 상관없이 압박 0순위가 된다(MatchSimulation.PressRankOf, MaxPressers 1의 예외 한 곳). 뒤에서 쫓는 1명 + 앞에서 막는 1명.
+        // 11-09 probe: 옛 구역(절대 깊이 21.5m × 폭 ±10.08)은 라인이 오른 D2에서 거의 안 걸렸고, 걸려도 후보일 뿐이라 5m 뒤 CM에게 순위가 밀려 운반자를 앞에서 막는 사람이 없었다(운반 중 라인 통과 슛 77%).
+        // 10m = CB 압박 거리 6 × 1.5와 같은 자릿수 [가정]. 폭을 박스 반폭으로 넓힌 것은 측면 운반자를 FB가 막게 하려고(설계-D2-재설계 결정 4)
+        public const float EngageAhead = 10f;
+        public const float EngageHalfWidth = Placement.FieldBounds.PenaltyBoxHalfWidth;
+        // 공과 라인의 최소 간격(11-09 D2-a): 라인 깊이 L은 공 깊이 − 이 값을 넘지 않는다. Metrica 앵커(공 17.5 → 15)는 "공이 그 서드에 있을 때 평균"이라 공과의 거리를 보장하지 않아
+        // 수비 서드에서 공-라인 간격이 1.4m였다(develop 13.4m). 민감도 8/10/12m = 슛 115/152/161/판, 8m는 라인 뒤 슛 66%라 모양이 나쁘다 [가정]
+        public const float MinLineGap = 10f;
         // 슈터 압박·슛 블록(09-29 수비 D3, MatchRules.PressuredShotProbability·ShotBlocker 주석). 블록 확률·튕기는 속도는 출처 없는 출발값
         public const float ShotPressureLogit = 0.4f;     // 압박받는 슛의 로짓 감소
         // GK 슛 대응(10-23 유저 Play 3·4차). 규칙은 MatchSimulation.Shoot·IncomingShotFor·ResolveSaveAtLine, 판정은 MatchRules.KeeperCanReach·GoalAimGap·PushWide·AimAwayFromKeeper
@@ -186,10 +192,6 @@ namespace Game.Core.Match
         public const float BackLineBand = 6f;          // 뒷줄 판정(LineRules.IsBackLine): 수비 시 자리 깊이가 팀 최솟값 + 이 값 안이면 뒷줄. [가정] 편성 6종을 가르는 값: DM(−29, 12m 차)·3-5-2 윙백(−31, 10m)은 밖, 5-3-2 FB(−38, 4m)는 안
         public const float MarkReactionSpread = 0.5f;  // 마커 반응 지연의 positioning 폭: 50 = ReactionTime, 0·100 = ReactionTime × (1 ± 이 값) [가정 G1]
         public const float MarkTargetMargin = 2f;      // 마크 대상 히스테리시스: 직전 틱 대상은 골 거리를 이만큼 짧게 쳐서 상한 경계에서 틱마다 교대하지 않게. 추격자 여유(ChaserSwitchMargin)와 같은 값 [가정]
-
-        // 수비 하한(11-06, PositionRules.DefendFloorDepth). 수비 자리·마크 지점이 우리 골라인에서 이 깊이보다 뒤로 안 간다. GK는 따르지 않는다(KeeperLineX)
-        public const float DefendFloorBallOutsideBox = Placement.FieldBounds.PenaltyBoxDepth - 6.5f;   // 공이 박스 깊이 밖일 때 10m. 11-06 quick 격자(상향 0/5 × 하한 10/14.5): 상향 0에서 14.5m는 박스 안 슛 40%·압박 슛 44%·슛 선 수비 28%, 10m는 76%·60%·50%(마크만일 때 80·59·54와 비슷). 14.5m는 공격수를 박스 밖으로 밀었다. 10m도 GK 라인(최대 6.9m)보다 3m 앞이라 CB가 GK와 한 줄에 안 선다 [격자값]
-        public const float DefendFloorBallInBox = Placement.FieldBounds.GoalAreaDepth + 2f;         // 공이 박스 깊이 안일 때 7.5m. 골 에어리어 선에서 2m 밖 [가정]: GK 라인(편성 −48 = 골에서 4.5m, 스위퍼 lineHeight 8이면 6.9m)보다 앞이라 CB가 GK와 한 줄에 안 선다
 
         public const int MaxPressers = 1;                                       // 팀에서 동시에 압박(⑧)하는 인원 상한. 압박 거리 안인 선수를 공 거리순으로 세어 이 안만 간다(09-23 Play: 인원 제한이 없어 우리 진영 "적극"이면 CM 19.5m·FB/W/ST 12m 안 4~6명이 한꺼번에 달려들어 초등학교 경기처럼 뭉쳤다). Simple Soccer는 최근접 1명만 쫓고 FM도 1명 압박 + 커버. 러너에서 태클이 죽으면 2
     }

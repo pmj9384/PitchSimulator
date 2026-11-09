@@ -80,7 +80,7 @@ namespace Game.Core.AI
                     new ActionNode(ctx => MoveToAttackHome(ctx))),
 
                 // ── 상대 소유 ────────────────────────────────────────────
-                // ⑧ 압박: 팀 안 압박 순위가 상한 안이면 공으로. 누가 후보인지(팀 압박 시작[상대 공 서드] × 개인 압박 거리, 역압박 배율, 박스 앞 뒷줄 전진)는
+                // ⑧ 압박: 팀 안 압박 순위가 상한 안이면 공으로. 누가 후보인지(팀 압박 시작[상대 공 서드] × 개인 압박 거리, 역압박 배율, 라인 앞 뒷줄 전진)는
                 // 시뮬이 한 곳에서 정해 순위(PressRank)로 준다(트리가 거리를 다시 재면 시뮬이 넣은 CB를 도로 걸러 판정과 실행이 갈렸다).
                 // 나머지는 ⑨ 수비 자리(슬라이드가 블록을 좁힌다)(09-23 뭉침)
                 new SequenceNode(
@@ -552,7 +552,7 @@ namespace Game.Core.AI
 
         private static void MoveToDefendHome(IPlayerContext ctx)
         {
-            (float x, float z) slid = PositionRules.DefendStand(ctx.DefendHomeX, ctx.DefendHomeZ, ctx.AttackSign, ctx.Tactics, ctx.Stats, ctx.BallX, ctx.BallZ, ctx.IsGoalkeeper);
+            (float x, float z) slid = PositionRules.DefendStand(ctx.DefendHomeX, ctx.DefendHomeZ, ctx.AttackSign, ctx.Stats, ctx.BallZ, ctx.DefendLineShift, ctx.DefendDepthCap, ctx.IsGoalkeeper);
             ctx.JogToward(slid.x, slid.z);
         }
 

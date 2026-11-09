@@ -127,6 +127,10 @@ namespace Game.Core.Match
         private readonly int[] backLineCount = { 0, 0 };   // 팀별 뒷줄 수 = 마커 상한. FillBackLine이 틱마다 채운다
         private readonly float[] lineDeepest = { 0f, 0f };         // 팀별 가장 깊은 수비 시 자리 깊이(뒷줄 기준). 틱마다 다시 재는 버퍼(할당 없음)
         private readonly float[] secondLineDeepest = { 0f, 0f };   // 팀별 뒷줄 아닌 선수 중 가장 깊은 자리(둘째 줄 기준)
+        private readonly float[] lineDepthByTeam = { 0f, 0f };     // 팀별 라인 깊이 L(우리 골라인에서 m, 11-08 D2 LineRules.LineDepth). 틱마다 FillLineDepth가 채운다
+        private readonly float[] lineFloorByTeam = { 0f, 0f };     // 팀별 하한 깊이(GK 라인 + FloorMargin). 마크 지점도 이 아래로 안 간다
+        private readonly float[] lineShiftByTeam = { 0f, 0f };     // 팀별 이동량 Δ = L − 뒷줄 깊이. 스냅샷 DefendLineShift
+        private readonly float[] standCapByTeam = { 0f, 0f };      // 팀별 수비 자리 깊이 상한(공보다 골 쪽, 11-09). 스냅샷 DefendDepthCap
         private readonly List<TargetInfo> markOpponents = new List<TargetInfo>();   // 패스 비행 중 리시버를 도착점에 둔 상대 명부(대상 선정용)
         // 팀 국면 스냅샷 버퍼. 틱마다 새 배열을 만들면 3분에 9,000 × 3번 할당(09-21 전수조사 S5)
         private readonly bool[] counteringByTeam = new bool[2];
@@ -171,8 +175,8 @@ namespace Game.Core.Match
         // 찬 선수 가드(09-18, 09-21 재확인): 비행 중엔 소유 팀이 없어 자유 공 분기로 패서가 자기 공을 쫓는다.
         // 릴리스만 있으면 3틱째(공 0.9m, 패서 0.42m 따라옴)에 도로 잡아 0.15초마다 반복됐다. 공이 패서 반경을 벗어날 때까지 패서는 후보에서 뺀다
         private int lastKickerId = BallState.NoOwner;
-        // 박스 앞 뒷줄 전진(09-29 수비 D1, 11-06 D1에 CB 이름 → 뒷줄(LineRules)로 일반화: 역할 이름을 시뮬이 보는 예외가 없어졌다). 개인 압박 거리 다이얼로 끌 수 없다(09-30 리뷰)
-        private readonly int[] stepOutBackLine = { -1, -1 };   // 이번 틱 박스 앞에서 나설 팀별 뒷줄 선수. 압박 후보 계산 때 채운다
+        // 라인 앞 뒷줄 전진(09-29 수비 D1 박스 앞 → 11-06 D1에 CB 이름 → 뒷줄(LineRules)로 일반화 → 11-09 D2-b 라인 상대 구역). 개인 압박 거리 다이얼로 끌 수 없다(09-30 리뷰)
+        private readonly int[] stepOutBackLine = { -1, -1 };   // 이번 틱 라인 앞에서 나설 팀별 뒷줄 선수. 압박 후보 계산 때 채운다
         private int kickoffTakerId = BallState.NoOwner;   // 킥오프 공을 쥔 키커. 첫 킥이나 소유 변경 때 푼다. 스냅샷 IsKickoffTaker로 트리에 준다
         // 드리블 돌파 의도: 공을 잡을 때 드리블 성향으로 한 번 굴린다. 트리가 틱마다 굴리면 같은 소유 안에서 돌파·패스가 번갈아 흔들린다
         private int takeOnOwnerId = BallState.NoOwner;
@@ -245,7 +249,7 @@ namespace Game.Core.Match
             return PressRules.IsCounterPressing(behind, tactics[team].CounterPress, ticksSinceTurnover);
         }
 
-        // 팀별 압박 후보 목록. 누가 후보인지(개인 압박 거리 × 팀 배율, 역압박이면 그 배율 ×2, 박스 앞 뒷줄 전진)는 시뮬이 여기서만 정하고
+        // 팀별 압박 후보 목록. 누가 후보인지(개인 압박 거리 × 팀 배율, 역압박이면 그 배율 ×2, 라인 앞 뒷줄 전진)는 시뮬이 여기서만 정하고
         // 팀 안에서 공 거리순 순위를 매긴다. 트리는 자기 순위만 보고 상한(MaxPressers) 안일 때만 간다(09-23 뭉침, 09-29 판정 한 곳으로)
         private void FillPressEligible()
         {
@@ -264,6 +268,16 @@ namespace Game.Core.Match
             }
         }
 
+        // 팀 안 압박 순위. 라인 앞 전진 뒷줄(StepOutBackLine)은 거리와 상관없이 0순위다(11-09 D2-b): MaxPressers 1의 유일한 예외다.
+        // 전진 뒷줄도 압박 후보(pressEligible)에 들어 있어 거리순 순위에서 자리를 차지한다. 그래서 "뒤에서 쫓는 1순위 + 앞에서 막는 뒷줄" 집게는 전진 뒷줄이 공에 가장 가깝지 않을 때만 생기고,
+        // 가장 가까우면 그 선수 1명만 나간다. 거리순에서 빼서 늘 2명이 가게 할지는 압박 왕복 probe에서 잰 뒤 정한다(11-09 리뷰 🟡, 장부)
+        // 스냅샷(트리가 읽음)과 마크 후보(압박자는 마커가 아님)가 이 한 함수를 쓴다
+        private int PressRankOf(PlayerState p)
+        {
+            if (stepOutBackLine[p.Team] == p.PlayerId) { return 0; }
+            return PressRules.PressRank(p.PlayerId, pressEligible[p.Team], Ball.X, Ball.Z, pressLeader[p.Team], PressMargin(p.Team));
+        }
+
         private bool InPressDistance(PlayerState p)
         {
             float dx = Ball.X - p.X;
@@ -274,12 +288,16 @@ namespace Game.Core.Match
             return PressRules.ShouldPress(dist, p.Stats.PressRange, level, counterPressingByTeam[p.Team]);
         }
 
-        // 박스 앞에서 나설 뒷줄 선수(09-29 수비 D1). 구역은 골 앞 중앙(깊이 21.5m × 폭 ±10.08m)이라 나가는 선수는 사실상 그 레인의 CB다.
-        // 4-4-2 FB(슬롯 z ±22)도 뒷줄이어서 박스 폭 전체를 구역으로 두면 z 15~20 공에 FB가 안쪽으로 끌려 들어왔다(11-07 리뷰). 가장자리 공은 압박 거리·지역 자리 규칙에 맡긴다.
+        // 공과 최소 간격(MinLineGap)과 전진 거리(EngageAhead)가 같은 10m라, 간격이 L을 자르는 동안 구역 경계 = 공 깊이다. 부동소수 반올림으로 경계에서 깜빡이지 않게 여유를 둔다
+        private const float EngageTolerance = 0.01f;
+
+        // 라인 앞에서 나설 뒷줄 선수(09-29 수비 D1 → 11-09 D2-b). 구역 = 라인 깊이 L + EngageAhead 안, |z| ≤ 박스 반폭. 뽑힌 선수는 압박 0순위(PressRankOf)다.
+        // 11-07엔 FB가 안쪽으로 끌려온다고 폭을 ±10.08로 좁혔지만, 라인이 오른 D2에선 측면 운반자를 아무도 앞에서 안 막아 박스 반폭으로 되돌렸다(설계-D2-재설계 결정 4).
         // 공이 전진 구역 밖이거나 얼지 않은 뒷줄이 없으면 -1. 동률은 PlayerId 작은 쪽
         private int StepOutBackLine(int team)
         {
-            if (!PressRules.IsInStepOutZone(Ball.X, Ball.Z, AttackSignOf(team), MatchTuning.BoxStepOutDepth, MatchTuning.BoxStepOutHalfWidth)) { return -1; }
+            float zoneDepth = lineDepthByTeam[team] + MatchTuning.EngageAhead + EngageTolerance;
+            if (!PressRules.IsInStepOutZone(Ball.X, Ball.Z, AttackSignOf(team), zoneDepth, MatchTuning.EngageHalfWidth)) { return -1; }
 
             int best = -1;
             float bestD2 = float.MaxValue;
@@ -379,8 +397,7 @@ namespace Game.Core.Match
             {
                 PlayerState p = players[i];
                 if (p.Team != team || p.IsGoalkeeper || p.FrozenTicks > 0) { continue; }
-                int rank = PressRules.PressRank(p.PlayerId, pressEligible[team], Ball.X, Ball.Z, pressLeader[team], PressMargin(team));
-                if (rank < MatchTuning.MaxPressers) { continue; }
+                if (PressRankOf(p) < MatchTuning.MaxPressers) { continue; }
                 if (p.IsBackLine)
                 {
                     candidates.Add(new TargetInfo(p.PlayerId, p.X, p.Z));
@@ -422,6 +439,43 @@ namespace Game.Core.Match
             }
         }
 
+        // 팀 라인 깊이 L·하한·이동량 Δ·수비 자리 깊이 상한(11-08 D2, 상한·다이얼·최소 간격은 11-09 설계-D2-재설계.md). 압박 후보(FillPressEligible)보다 먼저 돈다: 전진 구역이 이번 틱 L을 읽는다.
+        // 뒷줄 깊이는 다이얼을 얹은 최솟값(DialedRestDepth)이다. 편성이 정해지면 안 바뀌는 값이지만 FillBackLine과 같은 이유(틱 사이에 명부를 바꾸는 테스트)로 틱마다 다시 계산한다. 전술판 미니 피치(TacticsPreview)도 같은 LineRules 식을 쓴다
+        private void FillLineDepth()
+        {
+            for (int team = 0; team < 2; team++)
+            {
+                int sign = AttackSignOf(team);
+                float keeperLineDepth = KeeperLineDepthOf(team, sign);
+                float ballDepth = LineRules.HomeDepth(Ball.X, sign);
+                float lineDepth = LineRules.LineDepth(ballDepth, tactics[team].DefenseLine, keeperLineDepth);
+                lineDepthByTeam[team] = lineDepth;
+                lineFloorByTeam[team] = LineRules.LineFloor(keeperLineDepth);
+                standCapByTeam[team] = LineRules.TeamStandDepthCap(ballDepth, keeperLineDepth);
+                lineShiftByTeam[team] = LineRules.TeamLineShift(ballDepth, tactics[team].DefenseLine, keeperLineDepth, DialedRestDepth(team));
+            }
+        }
+
+        // 다이얼을 얹은 수비 시 자리 깊이의 팀 최솟값(11-09 D2-a). 가장 깊은 선수가 정확히 L에 선다. 필드 선수가 없으면 float.MaxValue(TeamLineShift가 Δ 0으로 받는다)
+        private float DialedRestDepth(int team)
+        {
+            float deepest = float.MaxValue;
+            for (int i = 0; i < players.Count; i++)
+            {
+                PlayerState p = players[i];
+                if (p.Team != team || p.IsGoalkeeper) { continue; }
+                deepest = Math.Min(deepest, LineRules.DialedHomeDepth(p.DefendHomeX, p.AttackSign, p.Stats.LineHeight));
+            }
+            return deepest;
+        }
+
+        // GK가 없는 명부(테스트)는 편성 GK 자리 기준 기본값
+        private float KeeperLineDepthOf(int team, int sign)
+        {
+            if (keeperIds[team] == -1) { return MatchTuning.DefaultKeeperLineDepth; }
+            return LineRules.HomeDepth(KeeperLineX(FindPlayer(keeperIds[team])), sign);
+        }
+
         // 마커면 대상의 지금 위치·속도와 내 반응 지연(positioning)으로 마크 지점을 넣는다. 아니면 끈다
         private void FillMarkSnapshot(PlayerState p)
         {
@@ -438,11 +492,31 @@ namespace Game.Core.Match
             }
         }
 
-        // 지점은 수비 하한(PositionRules.AboveDefendFloor) 위로 자른다: 상대가 GK 옆까지 내려와도 마커는 하한에 서고, 그 상대는 오프사이드 위치가 된다(11-06 유저 Play)
+        // 지점은 마크 하한(LineRules.MarkFloorDepth = max(하한, min(L, 공 깊이 − 1.5))) 위, 마크 상한(공보다 골 쪽, StandDepthCap) 아래로 자른다(11-08 D2, 상한은 11-09 D2-a).
+        // 상한이 없으면 마커가 맡은 상대 앞에 남아, 공을 몬 선수가 라인을 지나도 아무도 골 쪽에 없었다(11-09 probe: 슛 순간 뒷줄 마커 85%가 슈터보다 공 쪽, develop 70%).
+        // 상대가 GK 옆까지 내려와도 마커는 하한에 서고, 그 상대는 오프사이드 위치가 된다(11-06 유저 Play).
+        // 예외: 날아오는 패스의 리시버를 맡았으면 하한(GK 라인 + 4m)만 지키고 상한도 안 건다. 라인 L로 막으면 라인 뒤로 떨어지는 스루 패스를 마커가 못 따라가 리시버가 혼자 받는다(설계-수비-구조.md 8절 5번)
         private (float x, float z) MarkPointFor(PlayerState marker, PlayerState target)
         {
             (float x, float z) spot = UnflooredMarkPoint(marker, target);
-            return (PositionRules.AboveDefendFloor(spot.x, Ball.X, marker.AttackSign), spot.z);
+            float x = LineRules.AboveDepth(spot.x, MarkFloorDepthFor(marker, target), marker.AttackSign);
+            if (IsFlightReceiver(target)) { return (x, spot.z); }
+            float cap = standCapByTeam[marker.Team];
+            if (LineRules.HomeDepth(x, marker.AttackSign) > cap) { x = LineRules.XAtDepth(cap, marker.AttackSign); }
+            return (x, spot.z);
+        }
+
+        private bool IsFlightReceiver(PlayerState target)
+        {
+            return passInFlight && passReceiverId == target.PlayerId;
+        }
+
+        private float MarkFloorDepthFor(PlayerState marker, PlayerState target)
+        {
+            int team = marker.Team;
+            if (IsFlightReceiver(target)) { return lineFloorByTeam[team]; }
+            float ballDepth = LineRules.HomeDepth(Ball.X, marker.AttackSign);
+            return LineRules.MarkFloorDepth(lineDepthByTeam[team], ballDepth, lineFloorByTeam[team]);
         }
 
         // 대상이 날아오는 패스의 리시버면 그 패스의 도착점을 기준으로 선다(공의 비행은 모두가 본다). 리드 패스는 리시버 앞 최대 8m라
@@ -750,6 +824,7 @@ namespace Game.Core.Match
                 thirdByTeam[team] = BallThirdOf(team);
             }
             FillBackLine();
+            FillLineDepth();
             FillPressEligible();
             UpdateChasers(ownerTeam);
             UpdateMarks(ownerTeam);
@@ -763,9 +838,11 @@ namespace Game.Core.Match
                 p.BallOwnerTeam = ownerTeam;
                 p.Tactics = tactics[p.Team];
                 p.BallThird = thirdByTeam[p.Team];
+                p.DefendLineShift = lineShiftByTeam[p.Team];
+                p.DefendDepthCap = standCapByTeam[p.Team];
                 p.IsCountering = counteringByTeam[p.Team];
                 p.IsCounterPressing = counterPressingByTeam[p.Team];
-                p.PressRank = PressRules.PressRank(p.PlayerId, pressEligible[p.Team], Ball.X, Ball.Z, pressLeader[p.Team], PressMargin(p.Team));
+                p.PressRank = PressRankOf(p);
                 p.IsLooseBallChaser = looseChaser[p.Team] == p.PlayerId;
                 FillMarkSnapshot(p);
                 p.RunOffers = runOffers[p.Team];

@@ -6,7 +6,7 @@ using NUnit.Framework;
 
 // MarkRules 검증(11-06 S3 ①). ①발동 = 공이 우리 골 중심 40m 안 ②대상 = 골에 가까운 상대 필드 선수(소유자·GK 제외) 상한까지
 // ③배정 = 대상마다 가장 가까운 마커, 동률 id, 히스테리시스(대상·마커 둘 다) ④마크 지점 = 상대의 골 쪽 MarkDistance(1.5m, 반응 지연만큼 지난 자리 기준, 실제 상대보다 공 쪽으로는 안 감)
-// ⑤반응 지연 = positioning ⑥패스 비행 중 리시버는 도착점 기준(선정·배정·지점 모두) ⑦교대 계측 ⑧시뮬의 지점은 수비 하한 위(GK 선으로 안 내려감, 11-06)
+// ⑤반응 지연 = positioning ⑥패스 비행 중 리시버는 도착점 기준(선정·배정·지점 모두) ⑦교대 계측 ⑧시뮬의 지점은 마크 하한 위(라인 L·공 깊이·GK 라인 + 4m, 11-08 D2. 날아오는 패스의 리시버는 GK 하한만)
 // ⑨마커 후보 = 뒷줄 1차·tracking 미드필더 2차, 상한 = 뒷줄 수(11-06 D1). 순수 함수 테스트의 거리 인자는 읽기 쉽게 2m를 직접 준다
 // 팀 0 기준(attackSign +1): 우리 골은 x = −52.5
 public class MarkRulesTests
@@ -245,16 +245,16 @@ public class MarkRulesTests
     public void 박스_앞_중앙_상대는_더_가까운_수미가_아니라_뒷줄_CB가_맡는다()
     {
         // 11-06 유저 Play "상대 공격수가 박스 근처 오면 센터백도 붙어야 하는데 수미가 붙어서 센터백이 안 붙음". 설계 1-2: 중앙 대상 마커 DM 49%·CB 27%.
-        // 팀 0: CB 2명(깊이 10.5, z ±7) + DM(깊이 22, 뒷줄 밴드 밖). 팀 1: 소유자는 골에서 30m(박스 앞 전진 구역 밖, 압박 시작 0이라 압박자 없음), 대상 ST는 골에서 19m 중앙
+        // 팀 0: CB 2명(깊이 10.5, z ±7) + DM(깊이 22, 뒷줄 밴드 밖). 팀 1: 소유자는 골에서 36m(라인 L 24 + 10 = 34 밖, 압박 시작 0이라 압박자 없음), 대상 ST는 골에서 19m 중앙
         // DM이 대상에서 3m, CB는 11m: 최근접이면 DM이 맡았다. 뒷줄만 1차 후보라 CB가 맡고 DM은 지역 자리로
         var sim = new MatchSimulation(() => 0.99f, new PassFlightTestsHelper.NoOp(), TestThreat.Real);
         PlayerState cbLeft = sim.AddPlayer(new PlayerState(0, 0, Defender(50), OwnGoalX + 10.5f, -7f));
         PlayerState cbRight = sim.AddPlayer(new PlayerState(1, 0, Defender(50), OwnGoalX + 10.5f, 7f));
         PlayerState dm = sim.AddPlayer(new PlayerState(2, 0, Midfielder(false), OwnGoalX + 22f, 0f));
-        sim.AddPlayer(new PlayerState(3, 1, Attacker(), OwnGoalX + 30f, 0f));
+        sim.AddPlayer(new PlayerState(3, 1, Attacker(), OwnGoalX + 36f, 0f));
         sim.AddPlayer(new PlayerState(4, 1, Attacker(), OwnGoalX + 19f, 0f));
         sim.Kickoff();
-        sim.Ball = BallRules.Own(sim.Ball, 3, OwnGoalX + 30f, 0f);
+        sim.Ball = BallRules.Own(sim.Ball, 3, OwnGoalX + 36f, 0f);
         sim.Tick(Dt);
 
         Assert.IsTrue(cbLeft.IsBackLine && cbRight.IsBackLine, "전제: CB 둘은 뒷줄");
@@ -268,9 +268,9 @@ public class MarkRulesTests
     [Test]
     public void 뒷줄이_모자라면_복귀_역할_수미만_이차로_맡고_아니면_남은_상대는_비운다()
     {
-        // CB 한 명이 박스 앞 전진(압박 1순위)으로 빠져 자유 뒷줄 1명, 대상 2명. 수비 역할 tracking(marksAsSecond) 수미가 둘째 대상을 맡는다
+        // CB 한 명이 라인 앞 전진(압박 0순위)으로 빠져 자유 뒷줄 1명, 대상 2명. 수비 역할 tracking(marksAsSecond) 수미가 둘째 대상을 맡는다
         MatchSimulation sim = TwoTargetsOneFreeBack(Midfielder(true), out PlayerState stepOut, out PlayerState cover, out PlayerState dm);
-        Assert.AreEqual(0, stepOut.PressRank, "전제: 공에 더 가까운 CB가 박스 앞 전진");
+        Assert.AreEqual(0, stepOut.PressRank, "전제: 공에 더 가까운 CB가 라인 앞 전진");
         Assert.IsTrue(cover.IsMarker, "남은 CB가 첫 대상");
         Assert.IsTrue(dm.IsMarker, "복귀 역할 수미가 둘째 대상");
         Assert.Less(dm.MarkZ, 0f, "둘째 대상(z −5)의 골 쪽");
@@ -289,12 +289,12 @@ public class MarkRulesTests
         PlayerState cbLeft = sim.AddPlayer(new PlayerState(0, 0, Defender(50), OwnGoalX + 10.5f, -7f));
         PlayerState cbRight = sim.AddPlayer(new PlayerState(1, 0, Defender(50), OwnGoalX + 10.5f, 7f));
         PlayerState dm = sim.AddPlayer(new PlayerState(2, 0, Midfielder(true), OwnGoalX + 22f, 0f));
-        sim.AddPlayer(new PlayerState(3, 1, Attacker(), OwnGoalX + 30f, 0f));
+        sim.AddPlayer(new PlayerState(3, 1, Attacker(), OwnGoalX + 36f, 0f));
         sim.AddPlayer(new PlayerState(4, 1, Attacker(), OwnGoalX + 19f, 0f));
         sim.AddPlayer(new PlayerState(5, 1, Attacker(), OwnGoalX + 20f, 6f));
         sim.AddPlayer(new PlayerState(6, 1, Attacker(), OwnGoalX + 20f, -6f));
         sim.Kickoff();
-        sim.Ball = BallRules.Own(sim.Ball, 3, OwnGoalX + 30f, 0f);
+        sim.Ball = BallRules.Own(sim.Ball, 3, OwnGoalX + 36f, 0f);
         sim.Tick(Dt);
 
         Assert.IsTrue(cbLeft.IsMarker);
@@ -306,7 +306,7 @@ public class MarkRulesTests
     public void 이차_후보는_뒷줄_바로_앞_한_줄만이라_복귀_역할_공격수는_내려와_맡지_않는다()
     {
         // 11-07 리뷰 🟡: ST 슬롯에 tracking을 주면 공격수가 2차 마커가 됐다. 둘째 줄(뒷줄 아닌 선수 중 가장 깊은 자리 + 6m)만 2차.
-        // 팀 0: CB 2명(10.5) + DM(22, 둘째 줄) + tracking ST(수비 자리 35, 둘째 줄 밖). CB 한 명이 전진으로 빠져 자유 뒷줄 1, 대상 2. ST가 둘째 대상 옆에 있어도 안 맡는다
+        // 팀 0: CB 2명(10.5) + DM(22, 둘째 줄) + tracking ST(수비 자리 35, 둘째 줄 밖). CB 한 명이 라인 앞 전진으로 빠져 자유 뒷줄 1, 대상 2. ST가 둘째 대상 옆에 있어도 안 맡는다
         var sim = new MatchSimulation(() => 0.99f, new PassFlightTestsHelper.NoOp(), TestThreat.Real);
         PlayerState stepOut = sim.AddPlayer(new PlayerState(0, 0, Defender(50), OwnGoalX + 10.5f, -7f));
         PlayerState cover = sim.AddPlayer(new PlayerState(1, 0, Defender(50), OwnGoalX + 10.5f, 7f));
@@ -336,7 +336,7 @@ public class MarkRulesTests
         MatchSimulation sim = TwoTargetsOneFreeBack(Midfielder(true), out PlayerState stepOut, out PlayerState cover, out PlayerState dm);
         Assert.IsTrue(dm.IsMarker, "전제: 수미가 둘째 대상을 맡고 있다");
 
-        sim.Ball = BallRules.Own(sim.Ball, 3, OwnGoalX + 30f, 0f);   // 전진 구역(21.5m) 밖으로
+        sim.Ball = BallRules.Own(sim.Ball, 3, OwnGoalX + 36f, 0f);   // 전진 구역 밖으로(공 36m → L 24, 구역 34)
         sim.Tick(Dt);
         Assert.AreEqual(int.MaxValue, stepOut.PressRank, "전진이 풀렸다");
         Assert.IsTrue(stepOut.IsMarker, "풀린 CB가 둘째 대상을 되찾는다(1차 배정이 먼저)");
@@ -353,10 +353,10 @@ public class MarkRulesTests
         PlayerState cbLeft = sim.AddPlayer(new PlayerState(0, 0, Defender(50), OwnGoalX + 10.5f, -7f));
         PlayerState cbRight = sim.AddPlayer(new PlayerState(1, 0, Defender(50), OwnGoalX + 10.5f, 7f));
         PlayerState dm = sim.AddPlayer(new PlayerState(2, 0, Midfielder(true), OwnGoalX + 22f, 0f));
-        PlayerState owner = sim.AddPlayer(new PlayerState(3, 1, Attacker(), OwnGoalX + 30f, 0f));
+        PlayerState owner = sim.AddPlayer(new PlayerState(3, 1, Attacker(), OwnGoalX + 36f, 0f));
         PlayerState target = sim.AddPlayer(new PlayerState(4, 1, Attacker(), OwnGoalX + 19f, 0f));
         sim.KickoffBy(0);
-        sim.Ball = BallRules.Own(sim.Ball, 3, OwnGoalX + 30f, 0f);
+        sim.Ball = BallRules.Own(sim.Ball, 3, OwnGoalX + 36f, 0f);
         sim.Tick(Dt);
         Assert.IsTrue(cbLeft.IsMarker && !dm.IsMarker, "전제: 전반");
 
@@ -366,7 +366,7 @@ public class MarkRulesTests
         Assert.AreEqual(-OwnGoalX - 10.5f, cbLeft.DefendHomeX, 1e-4f, "수비 시 자리 x가 미러");
 
         PlayerState[] all = { cbLeft, cbRight, dm, owner, target };
-        float[] mirroredX = { -(OwnGoalX + 10.5f), -(OwnGoalX + 10.5f), -(OwnGoalX + 22f), -(OwnGoalX + 30f), -(OwnGoalX + 19f) };
+        float[] mirroredX = { -(OwnGoalX + 10.5f), -(OwnGoalX + 10.5f), -(OwnGoalX + 22f), -(OwnGoalX + 36f), -(OwnGoalX + 19f) };
         for (int i = 0; i < all.Length; i++) { all[i].X = mirroredX[i]; }
         sim.Ball = BallRules.Own(sim.Ball, 3, owner.X, owner.Z);
         sim.Tick(Dt);
@@ -383,7 +383,7 @@ public class MarkRulesTests
         return new PlayerStats { RoleId = "ST", VariantId = "st_test", Speed = 50, PressRange = 12f, ShotBias = 1f, PassLength = 15f, Positioning = 50, MarksAsSecond = true };
     }
 
-    // 팀 0: CB 2명(깊이 10.5, z ±7) + 미드필더(깊이 22). 팀 1: 소유자 골에서 18m 중앙(박스 앞 전진 구역 안), 대상 2명 (골 + 14, ±5)
+    // 팀 0: CB 2명(깊이 10.5, z ±7) + 미드필더(깊이 22). 팀 1: 소유자 골에서 18m 중앙(라인 앞 전진 구역 안), 대상 2명 (골 + 14, ±5)
     private static MatchSimulation TwoTargetsOneFreeBack(PlayerStats midfielder, out PlayerState stepOut, out PlayerState cover, out PlayerState dm)
     {
         var sim = new MatchSimulation(() => 0.99f, new PassFlightTestsHelper.NoOp(), TestThreat.Real);
@@ -417,7 +417,7 @@ public class MarkRulesTests
     [Test]
     public void 시뮬은_압박자를_빼고_리시버에_가장_가까운_수비를_마커로_넣고_사거리_밖이면_끈다()
     {
-        // 팀 1이 우리(팀 0) 골에서 20m 공을 쥐었다. 0번은 공 옆 CB(박스 앞 전진 = 압박 1순위), 1번은 리시버(골 + 12, z 6) 옆
+        // 팀 1이 우리(팀 0) 골에서 20m 공을 쥐었다. 0번은 공 옆 CB(라인 앞 전진 = 압박 0순위), 1번은 리시버(골 + 12, z 6) 옆
         // 두 CB의 수비 자리 깊이 차는 5.5m(뒷줄 밴드 6m 안, 11-06 D1): 둘 다 뒷줄이라 0번이 전진 후보, 1번이 마커 후보다
         var sim = new MatchSimulation(() => 0.99f, new PassFlightTestsHelper.NoOp(), TestThreat.Real);
         PlayerState presser = sim.AddPlayer(new PlayerState(0, 0, Defender(50), OwnGoalX + 19f, 0f));
@@ -432,8 +432,11 @@ public class MarkRulesTests
         Assert.IsFalse(presser.IsMarker, "압박자는 마커가 아니다");
         Assert.IsTrue(marker.IsMarker);
         (float x, float z) expected = MarkRules.MarkPoint(OwnGoalX + 12f, 6f, 0f, 0f, MarkRules.ReactionDelay(50), Sign, MatchTuning.MarkDistance);
-        float expectedX = PositionRules.AboveDefendFloor(expected.x, OwnGoalX + 20f, Sign);
-        Assert.AreEqual(expectedX, marker.MarkX, 1e-3f, "리시버의 골 쪽 MarkDistance(1.5m), 공이 박스 밖이라 하한(10m) 위로");
+        // 11-08 D2 마크 하한 = max(GK 하한, min(L, 공 깊이 − 1.5)). GK 없는 명부라 GK 라인은 기본값(4.5m), 공 깊이 20m → L = 10(공과 최소 간격, 11-09)
+        float floor = LineRules.LineFloor(MatchTuning.DefaultKeeperLineDepth);
+        float markFloor = LineRules.MarkFloorDepth(LineRules.LineDepth(20f, 1, MatchTuning.DefaultKeeperLineDepth), 20f, floor);
+        float expectedX = LineRules.AboveDepth(expected.x, markFloor, Sign);
+        Assert.AreEqual(expectedX, marker.MarkX, 1e-3f, "리시버의 골 쪽 MarkDistance(1.5m)를 라인 L 위로");
         Assert.AreEqual(expected.z, marker.MarkZ, 1e-3f);
 
         var far = new MatchSimulation(() => 0.99f, new PassFlightTestsHelper.NoOp(), TestThreat.Real);
@@ -472,11 +475,54 @@ public class MarkRulesTests
     }
 
     [Test]
-    public void GK_옆_상대를_맡아도_마커는_수비_하한에_서고_그_상대는_오프사이드_위치다()
+    public void 마크_지점은_공보다_골_쪽에_서서_라인을_지난_운반자를_커버한다()
+    {
+        // 11-09 D2-a(E1): 마크 지점에도 깊이 상한(공 깊이 − 1.5). 상한이 없으면 마커가 맡은 상대(공보다 뒤에 남은 공격수) 앞에 남아
+        // 공을 몬 선수가 라인을 지나도 아무도 골 쪽에 없었다(probe: 슛 순간 뒷줄 마커 85%가 슈터보다 공 쪽).
+        // 팀 1 운반자가 우리 골에서 15m 중앙, 그 뒤 공격수가 30m. 0번 뒷줄은 공 옆(전진 = 압박), 1번 뒷줄 마커가 뒤의 공격수를 맡는다
+        var sim = new MatchSimulation(() => 0.99f, new PassFlightTestsHelper.NoOp(), TestThreat.Real);
+        sim.AddPlayer(new PlayerState(0, 0, Defender(50), OwnGoalX + 14f, 1f));
+        PlayerState marker = sim.AddPlayer(new PlayerState(1, 0, Defender(50), OwnGoalX + 18f, 10f));
+        sim.AddPlayer(new PlayerState(2, 1, Attacker(), OwnGoalX + 15f, 0f));
+        sim.AddPlayer(new PlayerState(3, 1, Attacker(), OwnGoalX + 30f, 10f));
+        sim.Kickoff();
+        sim.Ball = BallRules.Own(sim.Ball, 2, OwnGoalX + 15f, 0f);
+        sim.Tick(Dt);
+
+        Assert.IsTrue(marker.IsMarker, "전제: 뒤의 공격수를 맡았다");
+        Assert.AreEqual(OwnGoalX + 15f - MatchTuning.GoalSideMargin, marker.MarkX, 1e-3f, "대상의 골 쪽(28.5m)이 아니라 공보다 골 쪽 선(13.5m)");
+    }
+
+    [Test]
+    public void 날아오는_패스의_리시버를_맡으면_라인_뒤_도착점까지_따라가고_GK_하한만_지킨다()
+    {
+        // 11-08 D2 결정 5: 마크 하한 max(GK 하한, min(L, 공 깊이))의 예외. 라인 뒤로 떨어지는 패스를 L로 막으면 리시버가 혼자 받는다.
+        // 팀 1 패서가 우리 골에서 35m(L ≈ 23.5m), 리시버는 골 + 26(마커 24보다 앞이라 온사이드). 리드 패스 도착점은 리시버 앞(골 쪽)이라 라인 뒤다
+        var sim = new MatchSimulation(() => 0.99f, new PassFlightTestsHelper.PassOnce(2, 3), TestThreat.Real);
+        PlayerState marker = sim.AddPlayer(new PlayerState(1, 0, Defender(50), OwnGoalX + 24f, 6f));
+        sim.AddPlayer(new PlayerState(2, 1, Attacker(), OwnGoalX + 35f, 0f));
+        PlayerState receiver = sim.AddPlayer(new PlayerState(3, 1, Attacker(), OwnGoalX + 26f, 4f));
+        sim.Kickoff();
+        sim.Ball = BallRules.Own(sim.Ball, 2, OwnGoalX + 35f, 0f);
+        sim.Tick(Dt);   // 패서가 찬다
+        Assert.AreEqual(1, sim.PassCount, "패스가 나갔다");
+        sim.Tick(Dt);   // 비행 중 스냅샷
+
+        Assert.IsTrue(receiver.IsPassTarget);
+        Assert.IsTrue(marker.IsMarker);
+        float lineDepth = LineRules.LineDepth(LineRules.HomeDepth(sim.Ball.X, Sign), 1, MatchTuning.DefaultKeeperLineDepth);
+        (float x, float z) expected = MarkRules.MarkPoint(receiver.PassTargetX, receiver.PassTargetZ, 0f, 0f, 0f, Sign, MatchTuning.MarkDistance);
+        Assert.Less(LineRules.HomeDepth(expected.x, Sign), lineDepth, "전제: 도착점 쪽 마크 지점이 라인 L 뒤");
+        float keeperFloorX = LineRules.AboveDepth(expected.x, LineRules.LineFloor(MatchTuning.DefaultKeeperLineDepth), Sign);
+        Assert.AreEqual(keeperFloorX, marker.MarkX, 1e-3f, "라인에 안 묶이고 도착점 쪽으로 간다(GK 하한만)");
+    }
+
+    [Test]
+    public void GK_옆_상대를_맡아도_마커는_라인에_서고_그_상대는_오프사이드_위치다()
     {
         // 11-06 유저 Play "공격수가 GK 옆에 있으니까 붙지도 않고 슛 찰 각이 생김". 하한 전엔 마크 지점이 상대의 골 쪽 1.5m라 CB가 GK 선(골에서 4.5m)까지 내려갔고
         // 오프사이드 기준선(골 쪽 2번째 상대)도 같이 내려가 GK 옆 공격수가 온사이드였다.
-        // 팀 1이 우리 골에서 20m(박스 밖) 공을 쥐었다. 0번은 공 쪽(박스 앞 전진 = 압박 1순위, 깊이 13.5로 1번과 같은 뒷줄), 1번 마커는 GK 옆 상대(골 + 4.5, z 2) 근처
+        // 팀 1이 우리 골에서 20m(박스 밖) 공을 쥐었다. 0번은 공 쪽(라인 앞 전진 = 압박 0순위, 깊이 13.5로 1번과 같은 뒷줄), 1번 마커는 GK 옆 상대(골 + 4.5, z 2) 근처
         var sim = new MatchSimulation(() => 0.99f, new PassFlightTestsHelper.NoOp(), TestThreat.Real);
         sim.AddPlayer(new PlayerState(0, 0, Defender(50), OwnGoalX + 13.5f, 0f));
         PlayerState marker = sim.AddPlayer(new PlayerState(1, 0, Defender(50), OwnGoalX + 9f, 4f));
@@ -487,7 +533,8 @@ public class MarkRulesTests
         sim.Tick(Dt);
 
         Assert.IsTrue(marker.IsMarker, "전제: GK 옆 상대가 마크 대상");
-        Assert.AreEqual(OwnGoalX + MatchTuning.DefendFloorBallOutsideBox, marker.MarkX, 1e-3f, "공이 박스 밖이면 박스 밖 하한(10m)에 선다");
+        float lineDepth = LineRules.LineDepth(20f, 1, MatchTuning.DefaultKeeperLineDepth);
+        Assert.AreEqual(OwnGoalX + lineDepth, marker.MarkX, 1e-3f, "공(20m)이 라인보다 앞이면 마커는 라인 L(11-08 D2)에 선다");
 
         // 마커가 그 자리에 섰을 때 팀 1 기준 온사이드 선. 우리 GK는 편성 −48(골에서 4.5m)
         var defenders = new List<TargetInfo>
@@ -499,18 +546,19 @@ public class MarkRulesTests
         float line = OffsideRules.OnsideLine(defenders, -1, sim.Ball.X);
         Assert.IsTrue(OffsideRules.IsOffsidePosition(lurker.X, -1, line), "GK 옆 상대는 마커(골 쪽 2번째)보다 골 쪽이라 오프사이드 위치");
 
-        // 순수 함수 성질: 상대가 우리 진영 어디에 있든, 공이 박스 안이든 밖이든, 하한을 거친 마크 지점은 GK 라인(스위퍼 최댓값 6.9m)보다 앞이다
-        float keeperDepth = FieldBounds.HalfLength + PositionRules.KeeperLineX(-48f, 0f, Sign, 8f);
+        // 순수 함수 성질: 상대가 우리 진영 어디에 있든, 공이 어디든, 마크 하한을 거친 지점은 GK 라인(스위퍼 최댓값 6.9m) + FloorMargin보다 앞이다(11-08 D2)
+        float keeperDepth = LineRules.HomeDepth(PositionRules.KeeperLineX(-48f, 0f, Sign, 8f), Sign);
         float[] ballDepths = { 5f, 12f, 16.5f, 25f, 39f };
         for (int b = 0; b < ballDepths.Length; b++)
         {
+            float markFloor = LineRules.MarkFloorDepth(LineRules.LineDepth(ballDepths[b], 0, keeperDepth), ballDepths[b], LineRules.LineFloor(keeperDepth));
             for (float tx = 0.5f; tx <= 40f; tx += 1.5f)
             {
                 for (float tz = -20f; tz <= 20f; tz += 4f)
                 {
                     (float x, float z) raw = MarkRules.MarkPoint(OwnGoalX + tx, tz, 0f, 0f, 0f, Sign, MatchTuning.MarkDistance);
-                    float floored = PositionRules.AboveDefendFloor(raw.x, OwnGoalX + ballDepths[b], Sign);
-                    Assert.GreaterOrEqual(floored - OwnGoalX, keeperDepth + 0.5f, $"공 깊이 {ballDepths[b]}, 상대 ({tx}, {tz})");
+                    float floored = LineRules.AboveDepth(raw.x, markFloor, Sign);
+                    Assert.GreaterOrEqual(floored - OwnGoalX, keeperDepth + MatchTuning.FloorMargin - 1e-4f, $"공 깊이 {ballDepths[b]}, 상대 ({tx}, {tz})");
                 }
             }
         }
