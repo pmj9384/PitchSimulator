@@ -332,12 +332,16 @@ public class MarkRulesTests
     [Test]
     public void 이차_마커가_맡던_상대는_뒷줄이_풀리면_뒷줄이_되찾는다()
     {
-        // 전진으로 빠진 CB가 공이 구역 밖으로 가 풀리면, 1차(뒷줄) 배정이 먼저라 tracking 수미가 맡던 둘째 대상을 CB가 되찾고 수미는 지역 자리로
+        // 전진으로 빠진 CB가 공이 구역 밖으로 가 풀리면, 1차(뒷줄) 배정이 먼저라 tracking 수미가 맡던 둘째 대상을 CB가 되찾고 수미는 지역 자리로.
+        // 11-10 C-2: 전진 뒷줄은 맡으면 1초(PressMinTenureTicks) 재임해 구역을 벗어나도 그동안 남는다. 그래서 공을 옮긴 뒤 50틱을 돌리고 본다(재임 중 유지는 MatchSimulationTests가 잠근다)
         MatchSimulation sim = TwoTargetsOneFreeBack(Midfielder(true), out PlayerState stepOut, out PlayerState cover, out PlayerState dm);
         Assert.IsTrue(dm.IsMarker, "전제: 수미가 둘째 대상을 맡고 있다");
 
-        sim.Ball = BallRules.Own(sim.Ball, 3, OwnGoalX + 36f, 0f);   // 전진 구역 밖으로(공 36m → L 24, 구역 34)
-        sim.Tick(Dt);
+        PassFlightTestsHelper.MoveCarrier(sim, sim.Players[3], OwnGoalX + 36f, 0f);   // 전진 구역 밖으로(공 36m → L 24, 구역 34). 소유자도 같이 옮긴다
+        for (int i = 0; i < MatchTuning.PressMinTenureTicks; i++)
+        {
+            sim.Tick(Dt);
+        }
         Assert.AreEqual(int.MaxValue, stepOut.PressRank, "전진이 풀렸다");
         Assert.IsTrue(stepOut.IsMarker, "풀린 CB가 둘째 대상을 되찾는다(1차 배정이 먼저)");
         Assert.IsTrue(cover.IsMarker);

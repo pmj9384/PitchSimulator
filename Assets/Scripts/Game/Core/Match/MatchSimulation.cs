@@ -177,6 +177,9 @@ namespace Game.Core.Match
         private int lastKickerId = BallState.NoOwner;
         // 라인 앞 뒷줄 전진(09-29 수비 D1 박스 앞 → 11-06 D1에 CB 이름 → 뒷줄(LineRules)로 일반화 → 11-09 D2-b 라인 상대 구역). 개인 압박 거리 다이얼로 끌 수 없다(09-30 리뷰)
         private readonly int[] stepOutBackLine = { -1, -1 };   // 이번 틱 라인 앞에서 나설 팀별 뒷줄 선수. 압박 후보 계산 때 채운다
+        // 지금 전진 뒷줄을 맡기 시작한 틱(11-10 C-2). 최소 재임(PressMinTenureTicks) 판정. 초깃값은 int.MinValue가 아니라 -100000(tickCount − 값이 넘치지 않게)
+        private const int NoEngagerSince = -100000;
+        private readonly int[] engagerSince = { NoEngagerSince, NoEngagerSince };
         private int kickoffTakerId = BallState.NoOwner;   // 킥오프 공을 쥔 키커. 첫 킥이나 소유 변경 때 푼다. 스냅샷 IsKickoffTaker로 트리에 준다
         // 드리블 돌파 의도: 공을 잡을 때 드리블 성향으로 한 번 굴린다. 트리가 틱마다 굴리면 같은 소유 안에서 돌파·패스가 번갈아 흔들린다
         private int takeOnOwnerId = BallState.NoOwner;
@@ -270,7 +273,8 @@ namespace Game.Core.Match
 
         // 팀 안 압박 순위. 라인 앞 전진 뒷줄(StepOutBackLine)은 거리와 상관없이 0순위다(11-09 D2-b): MaxPressers 1의 유일한 예외다.
         // 전진 뒷줄도 압박 후보(pressEligible)에 들어 있어 거리순 순위에서 자리를 차지한다. 그래서 "뒤에서 쫓는 1순위 + 앞에서 막는 뒷줄" 집게는 전진 뒷줄이 공에 가장 가깝지 않을 때만 생기고,
-        // 가장 가까우면 그 선수 1명만 나간다. 거리순에서 빼서 늘 2명이 가게 할지는 압박 왕복 probe에서 잰 뒤 정한다(11-09 리뷰 🟡, 장부)
+        // 가장 가까우면 그 선수 1명만 나간다. 거리순에서 빼서 늘 2명이 가게 하지는 않는다(11-10 C-2 결정): 11-09 압박 왕복 probe에서 늘 2명(p1)은
+        // 왕복 513 → 537/판(+24)·슛 −8%·태클 시도 +15%로 압박 비용만 늘고 왕복은 안 줄었다. 압박 1명 원칙(09-23)의 예외는 "조건부 2명"으로 둔다(설계-C-형태와-압박 1-4·3-2)
         // 스냅샷(트리가 읽음)과 마크 후보(압박자는 마커가 아님)가 이 한 함수를 쓴다
         private int PressRankOf(PlayerState p)
         {
@@ -293,8 +297,29 @@ namespace Game.Core.Match
 
         // 라인 앞에서 나설 뒷줄 선수(09-29 수비 D1 → 11-09 D2-b). 구역 = 라인 깊이 L + EngageAhead 안, |z| ≤ 박스 반폭. 뽑힌 선수는 압박 0순위(PressRankOf)다.
         // 11-07엔 FB가 안쪽으로 끌려온다고 폭을 ±10.08로 좁혔지만, 라인이 오른 D2에선 측면 운반자를 아무도 앞에서 안 막아 박스 반폭으로 되돌렸다(설계-D2-재설계 결정 4).
-        // 공이 전진 구역 밖이거나 얼지 않은 뒷줄이 없으면 -1. 동률은 PlayerId 작은 쪽
+        // 공이 전진 구역 밖이거나 얼지 않은 뒷줄이 없으면 -1. 동률은 PlayerId 작은 쪽.
+        // 최소 재임(11-10 C-2): 맡은 지 PressMinTenureTicks(1초) 안이면 구역·거리와 상관없이 그대로 둔다. 압박 1순위의 재임과 같은 뜻("맡았으면 1초는 맡는다")이고, 얼면 즉시 푼다.
+        // 11-09 probe: 압박 왕복 393 → 513/판의 +117이 전진 구역 안에서 났고, 재임을 넣으면 구역 안 왕복 133 → 76(설계-C-형태와-압박 1-4)
         private int StepOutBackLine(int team)
+        {
+            int previous = stepOutBackLine[team];
+            if (IsStepOutTenured(team, previous)) { return previous; }
+
+            int best = NearestBackLineInZone(team);
+            if (best != previous) { engagerSince[team] = tickCount; }
+            return best;
+        }
+
+        // 직전 전진 뒷줄이 아직 재임 중이고 얼지 않았나
+        private bool IsStepOutTenured(int team, int previous)
+        {
+            if (previous == -1) { return false; }
+            if (tickCount - engagerSince[team] >= MatchTuning.PressMinTenureTicks) { return false; }
+            return FindPlayer(previous).FrozenTicks == 0;
+        }
+
+        // 전진 구역 안이면 공에 가장 가까운 얼지 않은 뒷줄, 아니면 -1
+        private int NearestBackLineInZone(int team)
         {
             float zoneDepth = lineDepthByTeam[team] + MatchTuning.EngageAhead + EngageTolerance;
             if (!PressRules.IsInStepOutZone(Ball.X, Ball.Z, AttackSignOf(team), zoneDepth, MatchTuning.EngageHalfWidth)) { return -1; }
@@ -645,6 +670,8 @@ namespace Game.Core.Match
             firstTouchOwnerId = BallState.NoOwner;
             pressLeader[0] = pressLeader[1] = -1;
             pressLeaderSince[0] = pressLeaderSince[1] = tickCount;
+            stepOutBackLine[0] = stepOutBackLine[1] = -1;   // 전진 뒷줄 재임도 재개 때 지운다(11-10 C-2): 안 지우면 킥오프 직후 1초 동안 직전 전진 선수가 0순위로 남는다
+            engagerSince[0] = engagerSince[1] = NoEngagerSince;
             looseChaser[0] = looseChaser[1] = -1;
             for (int team = 0; team < 2; team++)
             {

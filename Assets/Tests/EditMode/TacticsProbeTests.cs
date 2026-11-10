@@ -12,7 +12,7 @@ public class TacticsProbeTests
 {
     private const float Dt = 0.02f;
     private const int Seeds = 4;
-    private const int LongBallSeeds = 16;   // 패스 길이 평균은 판마다 흔들려 4판이면 1m 기준을 오간다(11-09)
+    private const int LongBallSeeds = 64;   // 패스 길이 평균은 판마다 흔들려 4판이면 1m 기준을 오갔고(11-09), 16판도 0.9~1.9m를 오가 64판으로 늘렸다(11-10)
 
     private static PlayerStats Mid()
     {
@@ -177,7 +177,9 @@ public class TacticsProbeTests
     public void 롱볼_카드의_중앙_패스가_짧게_카드보다_길다()
     {
         // 중앙 서드 패스 방식: 빌드업 축구 = 짧게(0), 역습 축구 = 롱볼(2). 10-06 계측(24판): 17.7m 대 20.7m.
-        // 11-09 D2 뒤 4판은 차이 0.75m로 흔들렸고 16판은 18.9m 대 17.2m(1.7m)라 이 테스트만 판 수를 늘렸다
+        // 11-09 D2 뒤 4판은 차이 0.75m로 흔들렸고 16판은 18.9m 대 17.2m(1.7m)라 이 테스트만 판 수를 늘렸다.
+        // 11-10: develop도 64판에서 차이가 0.997m라 1m 기준이 잡음 경계였다(C-2 재임 16판 0.87m, 64판 1.12m). 64판·0.5m로 바꾼다.
+        // 지키려는 것은 "패스 방식 레버의 차이가 결과에 보인다"이고, 0.5m로도 그 뜻은 지킨다(11-10 유저 승인)
         float buildupSum = 0f;
         int buildupCount = 0;
         float counterSum = 0f;
@@ -192,6 +194,6 @@ public class TacticsProbeTests
             counterSum += counter.MeanPassLength(Third.Middle) * counter.PassCount(Third.Middle);
             counterCount += counter.PassCount(Third.Middle);
         }
-        Assert.Greater(counterSum / counterCount, buildupSum / buildupCount + 1f, "롱볼이 1m 넘게 길다");
+        Assert.Greater(counterSum / counterCount, buildupSum / buildupCount + 0.5f, "롱볼이 0.5m 넘게 길다");
     }
 }
