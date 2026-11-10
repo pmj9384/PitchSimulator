@@ -149,49 +149,97 @@ public class ShotProbabilityTests
     }
 
     [Test]
-    public void 슛_블록_후보는_2m_안_슛_방향_20도_안의_가장_가까운_필드_선수다()
+    public void 슛_블록_후보는_슛_선_수직_거리_1_3m_안_앞_15m_안_최근접_필드_선수다()
     {
-        // 슈터 (40,0) → 골 (52.5,0). GK(id 9)는 제외
+        // 11-09 B1(옛 2m·±20° 원뿔 대체). 슈터 (40,0) → 조준 (52.5,0). GK(id 9)는 제외. 거리순이지 선 위 순서가 아니다
         var opp = new List<TargetInfo>
         {
             new TargetInfo(9, 41f, 0f),      // GK: 제외
-            new TargetInfo(5, 41.5f, 0.2f),  // 1.5m, 거의 정면 → 후보
-            new TargetInfo(6, 40.5f, 1.5f),  // 1.6m지만 71° 옆 → 제외
-            new TargetInfo(7, 43f, 0f),      // 3m → 거리 밖
+            new TargetInfo(5, 43f, 1.2f),    // 앞 3m, 선에서 1.2m → 후보(옛 원뿔 20°·2m에선 밖이었다)
+            new TargetInfo(6, 41.5f, 1.4f),  // 앞 1.5m지만 선에서 1.4m → 밖
+            new TargetInfo(7, 47f, 0f),      // 앞 7m 정면 → 후보지만 5번이 더 가깝다
+            new TargetInfo(8, 39f, 0f),      // 뒤 → 제외
         };
-        Assert.AreEqual(5, MatchRules.ShotBlocker(40f, 0f, 52.5f, 0f, opp, 9, 2f, 20f));
-        Assert.AreEqual(-1, MatchRules.ShotBlocker(40f, 0f, 52.5f, 0f, new List<TargetInfo> { opp[2], opp[3] }, 9, 2f, 20f));
+        (int playerId, float distance) pick = MatchRules.ShotBlocker(40f, 0f, 52.5f, 0f, opp, 9, 1.3f, 15f);
+        Assert.AreEqual(5, pick.playerId);
+        Assert.AreEqual((float)Math.Sqrt(9f + 1.44f), pick.distance, 1e-4f, "거리는 슈터까지 직선");
+        Assert.AreEqual((-1, 0f), MatchRules.ShotBlocker(40f, 0f, 52.5f, 0f, new List<TargetInfo> { opp[0], opp[2], opp[4] }, 9, 1.3f, 15f), "GK·선 밖·뒤만 있으면 없음");
+        Assert.AreEqual(7, MatchRules.ShotBlocker(40f, 0f, 52.5f, 0f, new List<TargetInfo> { opp[3] }, 9, 1.3f, 15f).playerId, "앞 7m 정면은 15m 안");
+        Assert.AreEqual(-1, MatchRules.ShotBlocker(40f, 0f, 52.5f, 0f, new List<TargetInfo> { new TargetInfo(7, 55.1f, 0f) }, 9, 1.3f, 15f).playerId, "15.1m 앞은 밖");
+    }
+
+    [TestCase(30f, 0f, 4.0f)]
+    [TestCase(40f, 20f, 4.5f)]
+    [TestCase(40f, -20f, -4.5f)]
+    public void 근소_빗나감_GK_자리는_비스듬한_슛에서도_공_선과_수직_간격을_지킨다(float shotX, float shotZ, float aimZ)
+    {
+        // 11-10 재리뷰 🟡: 가로로만 1.1m 비키면 측면 슛(40,20 → 4.5)은 수직 간격이 1.1 × cosθ = 0.69m로 발 반경 0.8 안이었다
+        float goalX = 52.5f;
+        float lineX = 48f;
+        float clearance = 1.1f;
+        float zAtLine = MatchRules.BallZAtLine(shotX, shotZ, goalX, aimZ, lineX);
+        float keeperZ = MatchRules.NearMissKeeperZ(zAtLine, shotX, shotZ, goalX, aimZ, clearance);
+        float dx = goalX - shotX;
+        float dz = aimZ - shotZ;
+        float perpendicular = Math.Abs((lineX - shotX) * dz - (keeperZ - shotZ) * dx) / (float)Math.Sqrt(dx * dx + dz * dz);
+        Assert.AreEqual(clearance, perpendicular, 1e-3f, "공 선과 GK의 수직 간격");
+        Assert.Less(Math.Abs(keeperZ), Math.Abs(zAtLine), "골 안쪽으로 비킨다");
     }
 
     [Test]
-    public void 슛_블록은_정확히_2m와_20도_안쪽까지_포함한다()
+    public void 슛_블록_선은_경계_안을_포함하고_비스듬한_조준_선을_따른다()
     {
-        // 09-30 리뷰: 코드는 <=(경계 포함). 슈터 (40,0) → 골 (52.5,0)
-        var exactRange = new List<TargetInfo> { new TargetInfo(5, 42f, 0f) };
-        Assert.AreEqual(5, MatchRules.ShotBlocker(40f, 0f, 52.5f, 0f, exactRange, 9, 2f, 20f), "정확히 2m 정면은 후보");
-        var beyondRange = new List<TargetInfo> { new TargetInfo(5, 42.01f, 0f) };
-        Assert.AreEqual(-1, MatchRules.ShotBlocker(40f, 0f, 52.5f, 0f, beyondRange, 9, 2f, 20f), "2.01m는 밖");
+        // 선 폭·앞 거리 둘 다 ≤(경계 포함). 조준이 비스듬하면 선도 같이 기운다: 슈터 (40,0) → 조준 (52.5, 3)
+        // 경계값을 정확히(1.3) 넣으면 수직 거리 계산의 반올림이 런타임마다 달라 Unity(Mono)에선 밖, dotnet에선 안으로 갈렸다(11-10). 경계 바로 안·밖으로 잰다
+        var onEdge = new List<TargetInfo> { new TargetInfo(5, 43f, 1.299f) };
+        Assert.AreEqual(5, MatchRules.ShotBlocker(40f, 0f, 52.5f, 0f, onEdge, 9, 1.3f, 15f).playerId, "1.299m는 안");
+        var pastEdge = new List<TargetInfo> { new TargetInfo(5, 43f, 1.31f) };
+        Assert.AreEqual(-1, MatchRules.ShotBlocker(40f, 0f, 52.5f, 0f, pastEdge, 9, 1.3f, 15f).playerId, "1.31m는 밖");
+        var atMaxAhead = new List<TargetInfo> { new TargetInfo(5, 54.99f, 0f) };
+        Assert.AreEqual(5, MatchRules.ShotBlocker(40f, 0f, 52.5f, 0f, atMaxAhead, 9, 1.3f, 15f).playerId, "14.99m 앞은 안");
 
-        var insideCone = new List<TargetInfo> { AtAngle(5, 1.5f, 19.9f) };
-        Assert.AreEqual(5, MatchRules.ShotBlocker(40f, 0f, 52.5f, 0f, insideCone, 9, 2f, 20f), "19.9°는 안");
-        var outsideCone = new List<TargetInfo> { AtAngle(5, 1.5f, 20.1f) };
-        Assert.AreEqual(-1, MatchRules.ShotBlocker(40f, 0f, 52.5f, 0f, outsideCone, 9, 2f, 20f), "20.1°는 밖");
-    }
-
-    // 슈터 (40,0)에서 슛 방향(+X) 기준 deg만큼 돌린 dist 거리의 상대
-    private static TargetInfo AtAngle(int playerId, float dist, float deg)
-    {
-        double rad = deg * Math.PI / 180.0;
-        return new TargetInfo(playerId, 40f + dist * (float)Math.Cos(rad), dist * (float)Math.Sin(rad));
+        var slanted = new List<TargetInfo> { new TargetInfo(5, 44f, 0.96f) };   // 조준 선 위(z = 3 × 4/12.5 = 0.96)
+        Assert.AreEqual(5, MatchRules.ShotBlocker(40f, 0f, 52.5f, 3f, slanted, 9, 1.3f, 15f).playerId, "기운 선 위는 후보");
+        var offSlant = new List<TargetInfo> { new TargetInfo(5, 44f, -1.5f) };   // 기운 선에서 약 2.4m
+        Assert.AreEqual(-1, MatchRules.ShotBlocker(40f, 0f, 52.5f, 3f, offSlant, 9, 1.3f, 15f).playerId, "골 중심 선엔 가깝지만 조준 선에선 멀다");
     }
 
     [Test]
-    public void 슛_확정_보정은_로짓을_더해_확률을_올리고_0이면_그대로다()
+    public void 블록_확률은_거리_곡선이고_후보_없으면_0이다()
     {
-        Assert.AreEqual(0.4f, MatchRules.ResolveShotProbability(0.4f, 0f), 1e-6f);
-        Assert.Greater(MatchRules.ResolveShotProbability(0.4f, 0.8f), 0.4f);
-        Assert.Greater(MatchRules.ResolveShotProbability(0.4f, 0.8f), MatchRules.PressuredShotProbability(0.4f, 0.8f), "압박은 내리고 확정 보정은 올린다");
-        Assert.AreEqual(0.4f, MatchRules.ResolveShotProbability(MatchRules.PressuredShotProbability(0.4f, 0.8f), 0.8f), 1e-5f, "같은 로짓을 빼고 더하면 제자리");
+        // StatsBomb PL 15/16 최근접 수비 거리별 블록률(직접 계산). 경계 포함
+        Assert.AreEqual(0.65f, MatchRules.BlockChance(1f), 1e-6f);
+        Assert.AreEqual(0.65f, MatchRules.BlockChance(2f), 1e-6f, "2m 경계는 첫 구간");
+        Assert.AreEqual(0.58f, MatchRules.BlockChance(2.01f), 1e-6f);
+        Assert.AreEqual(0.42f, MatchRules.BlockChance(6f), 1e-6f);
+        Assert.AreEqual(0.32f, MatchRules.BlockChance(15f), 1e-6f);
+        Assert.AreEqual(0f, MatchRules.BlockChance(15.01f), "15m 밖은 후보가 아니라 0(설계-B 결정 5: 블로커 없는 블록은 없다)");
+        for (int i = 1; i < MatchTuning.ShotBlockCurveRates.Length; i++) { Assert.Less(MatchTuning.ShotBlockCurveRates[i], MatchTuning.ShotBlockCurveRates[i - 1], "멀수록 낮다"); }
+    }
+
+    [Test]
+    public void 유효_슛_골_확률은_거리_로지스틱이고_13_5m에서_0_31_근처다()
+    {
+        // 11-09 B3(옛 슛 확정 보정 대체). StatsBomb PL 15/16 유효 슛 중 골 11~16m 30.4%, 22~30m 8.8%(직접 계산). 스탯 50 대 50
+        Assert.AreEqual(0.31f, MatchRules.GoalOnTargetProbability(13.5f, 50, 50, 50), 0.01f);
+        Assert.AreEqual(0.10f, MatchRules.GoalOnTargetProbability(26f, 50, 50, 50), 0.01f);
+        Assert.Greater(MatchRules.GoalOnTargetProbability(6f, 50, 50, 50), MatchRules.GoalOnTargetProbability(20f, 50, 50, 50), "가까울수록 높다");
+    }
+
+    [Test]
+    public void 유효_슛_골_확률도_shot이_올리고_GK_reflexes_diving이_내린다()
+    {
+        float baseP = MatchRules.GoalOnTargetProbability(13.5f, 50, 50, 50);
+        Assert.Greater(MatchRules.GoalOnTargetProbability(13.5f, 90, 50, 50), baseP);
+        Assert.Less(MatchRules.GoalOnTargetProbability(13.5f, 50, 80, 40), baseP);
+        Assert.AreEqual(baseP, MatchRules.GoalOnTargetProbability(13.5f, 90, 90, 90), 1e-5f, "슈터 +40과 GK 평균 +40은 상쇄");
+        float logitGain = Logit(MatchRules.GoalOnTargetProbability(13.5f, 100, 50, 50)) - Logit(baseP);
+        Assert.AreEqual(MatchTuning.ResolveStatScale, logitGain, 1e-3f, "shot 50 → 100이 로짓을 ResolveStatScale만큼");
+    }
+
+    private static float Logit(float p)
+    {
+        return (float)Math.Log(p / (1f - p));
     }
 
     [Test]
@@ -204,13 +252,27 @@ public class ShotProbabilityTests
     }
 
     [Test]
-    public void 포스트_밖으로_밀기는_조준_쪽_포스트_바깥_여유만큼이다()
+    public void 세이브_조준은_GK_닿는_범위_밖이면_경계로_당겨지고_안이면_그대로다()
     {
-        float outside = FieldBounds.GoalHalfWidth + MatchTuning.ShotWideMargin;
-        Assert.AreEqual(outside, MatchRules.PushWide(0.5f), 1e-6f);
-        Assert.AreEqual(-outside, MatchRules.PushWide(-1f), 1e-6f);
-        Assert.AreEqual(outside, MatchRules.PushWide(0f), 1e-6f, "정중앙은 오른쪽");
-        Assert.IsFalse(MatchRules.IsOnTarget(MatchRules.PushWide(0.5f)));
+        // 11-09 B3(옛 포스트 밖 밀기 대체). AimAwayFromKeeper의 거울
+        Assert.AreEqual(1f, MatchRules.PullAimIntoReach(1f, 0f, 2f), 1e-6f, "범위 안은 그대로");
+        Assert.AreEqual(2f, MatchRules.PullAimIntoReach(2f, 0f, 2f), 1e-6f, "경계 포함");
+        Assert.AreEqual(2f, MatchRules.PullAimIntoReach(3f, 0f, 2f), 1e-6f, "밖이면 GK 쪽 경계로");
+        Assert.AreEqual(-1f, MatchRules.PullAimIntoReach(-3.16f, 1f, 2f), 1e-6f, "반대쪽도 같다");
+        Assert.AreEqual(FieldBounds.GoalHalfWidth, MatchRules.PullAimIntoReach(0f, 4.5f, 0.5f), 1e-6f, "GK가 골문 밖이면 포스트에서 멈춘다(세이브로 정해진 슛은 골문 안)");
+    }
+
+    [Test]
+    public void GK_옆으로_닿는_폭은_다이빙_원에서_라인까지_앞뒤_간격을_뺀_성분이다()
+    {
+        // 반지름 = 8m/s × (0.7 − 0.2) + 0.8 = 4.8
+        Assert.AreEqual(4.8f, MatchRules.KeeperLateralReach(0f, 0.7f, 0.2f), 1e-4f);
+        Assert.AreEqual((float)Math.Sqrt(4.8 * 4.8 - 9.0), MatchRules.KeeperLateralReach(3f, 0.7f, 0.2f), 1e-4f, "앞뒤 3m를 가야 하면 옆은 √(4.8² − 3²)");
+        Assert.AreEqual((float)Math.Sqrt(4.8 * 4.8 - 9.0), MatchRules.KeeperLateralReach(-3f, 0.7f, 0.2f), 1e-4f, "앞뒤 방향은 무관");
+        Assert.AreEqual(0f, MatchRules.KeeperLateralReach(5f, 0.7f, 0.2f), "라인에도 못 가면 0");
+        Assert.AreEqual(MatchTuning.CaptureRadius, MatchRules.KeeperLateralReach(0f, 0.1f, 0.2f), 1e-6f, "지연 안에 지나가면 발 반경만");
+        float reach = MatchRules.KeeperLateralReach(2f, 0.6f, 0.2f);
+        Assert.IsTrue(MatchRules.KeeperCanReach((float)Math.Sqrt(4.0 + reach * reach) - 1e-4f, 0.6f, 0.2f), "그 폭의 교차점은 닿음 판정이 참(같은 원)");
     }
 
     [Test]
@@ -220,7 +282,7 @@ public class ShotProbabilityTests
         Assert.AreEqual(2.5f, MatchRules.AimAwayFromKeeper(1f, 0f, 2.5f), 1e-3f, "조준 쪽으로 간격만큼");
         Assert.AreEqual(-2.5f, MatchRules.AimAwayFromKeeper(-0.2f, 0f, 2.5f), 1e-3f, "조준이 왼쪽이면 왼쪽으로");
         Assert.AreEqual(0.5f, MatchRules.AimAwayFromKeeper(3.3f, 3f, 2.5f), 1e-3f, "조준 쪽(5.5)은 골문 밖이라 반대쪽");
-        Assert.AreEqual(3.36f, MatchRules.AimAwayFromKeeper(0.1f, 0f, 4f), 1e-3f, "양쪽 다 안 되면 조준 쪽 포스트 안쪽 0.3");
+        Assert.AreEqual(FieldBounds.GoalHalfWidth - MatchTuning.AimInset, MatchRules.AimAwayFromKeeper(0.1f, 0f, 4f), 1e-3f, "양쪽 다 안 되면 조준 쪽 포스트 안쪽 AimInset(11-09 B2에 옛 0.3을 통일)");
     }
 
     [Test]

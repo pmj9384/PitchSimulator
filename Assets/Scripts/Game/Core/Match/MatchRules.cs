@@ -64,10 +64,14 @@ namespace Game.Core.Match
             return MatchTuning.TackleBaseChance * Logistic(logit);
         }
 
-        // 슛 확정 보정(10-23): 판정에 쓴 확률에 로짓 bonus를 더한 값으로 들어갈지를 굴린다. 판정과 확정을 가르는 유일한 자리
-        public static float ResolveShotProbability(float probability, float logitBonus)
+        // 유효 슛의 골 확률(11-09 묶음 B3): 골문 안으로 간 슛이 들어갈 확률. 슛 결과는 블록 → 조준(빗나감) → 이 확률 순서로 정해지고, xG(ShotProbability)는 트리 판정에만 남는다.
+        // 로짓 = 절편 + 기울기 × 거리 + (슈터 shot − GK reflexes·diving 평균)/50 × ResolveStatScale. StatsBomb PL 15/16 유효 슛 중 골 거리 구간 63/41/30/18/9%를 로짓 선형 회귀 [직접 계산]
+        public static float GoalOnTargetProbability(float distance, int shooterShot, int keeperReflexes, int keeperDiving)
         {
-            return PressuredShotProbability(probability, -logitBonus);
+            float keeperSaveStat = (keeperReflexes + keeperDiving) * 0.5f;
+            float logit = MatchTuning.GoalOnTargetIntercept + MatchTuning.GoalOnTargetSlope * distance;
+            logit += ((shooterShot - 50) / 50f - (keeperSaveStat - 50) / 50f) * MatchTuning.ResolveStatScale;
+            return Logistic(logit);
         }
 
         // 압박받는 슛(09-29 수비 D3): 슈터 발 뻗는 범위(PressedRadius) 안에 상대가 있으면 로짓에서 penalty를 뺀다.
@@ -80,32 +84,58 @@ namespace Game.Core.Match
             return Logistic(logit - logitPenalty);
         }
 
-        // 슛 블록 후보(09-29 수비 D3): 슈터에서 range 안이고 슛 방향 ±coneDeg 안인 상대 필드 선수 중 가장 가까운 선수. 없으면 -1.
-        // Opta는 슛을 막은 최종 수비수를 블록으로 센다. 각도 ±20°는 Wharton xG 논문의 각도 압박 기준
-        public static int ShotBlocker(float shooterX, float shooterZ, float aimX, float aimZ, IReadOnlyList<TargetInfo> opponents, int keeperId, float range, float coneDeg)
+        // 슛 블록 후보(09-29 수비 D3 → 11-09 B1 슛 선): 슈터 → 조준점 직선에서 수직 거리가 laneHalfWidth 안이고 슈터 앞(선 위 투영 0 < t ≤ maxAhead)인
+        // 상대 필드 선수 중 슈터에 가장 가까운 선수와 그 거리. 없으면 (-1, 0). 거리는 블록 확률 곡선(BlockChance)의 입력이다.
+        // StatsBomb은 "골 중심 ±10° 원뿔 최근접"으로 쟀고 우리는 실제 조준 선으로 판정한다(같은 거리 구간 확률을 쓰는 것은 근사, 설계-B G-B1)
+        public static (int playerId, float distance) ShotBlocker(float shooterX, float shooterZ, float aimX, float aimZ, IReadOnlyList<TargetInfo> opponents, int keeperId, float laneHalfWidth, float maxAhead)
         {
             float ax = aimX - shooterX;
             float az = aimZ - shooterZ;
             float aimLen = (float)Math.Sqrt(ax * ax + az * az);
-            if (aimLen <= 0f) { return -1; }
+            if (aimLen <= 0f) { return (-1, 0f); }
 
-            float cosLimit = (float)Math.Cos(coneDeg * Math.PI / 180.0);
             int best = -1;
-            float bestD2 = range * range;
+            float bestDistance = float.MaxValue;
             for (int i = 0; i < opponents.Count; i++)
             {
                 TargetInfo o = opponents[i];
                 if (o.PlayerId == keeperId) { continue; }
                 float ox = o.X - shooterX;
                 float oz = o.Z - shooterZ;
-                float d2 = ox * ox + oz * oz;
-                if (d2 > bestD2 || d2 <= 0f) { continue; }
-                float cos = (ox * ax + oz * az) / ((float)Math.Sqrt(d2) * aimLen);
-                if (cos < cosLimit) { continue; }
-                bestD2 = d2;
+                float along = (ox * ax + oz * az) / aimLen;
+                if (along <= 0f || along > maxAhead) { continue; }
+                float across = Math.Abs(ox * az - oz * ax) / aimLen;
+                if (across > laneHalfWidth) { continue; }
+                float distance = (float)Math.Sqrt(ox * ox + oz * oz);
+                if (distance >= bestDistance) { continue; }
+                bestDistance = distance;
                 best = o.PlayerId;
             }
-            return best;
+            if (best == -1) { return (-1, 0f); }
+            return (best, bestDistance);
+        }
+
+        // 근소 빗나감 때 GK가 설 z(11-10 재리뷰 🟡): 공 선과의 수직 간격이 clearance가 되도록 GK 라인 위에서 골 안쪽으로 비킨다.
+        // 라인 위 가로 거리 = 수직 간격 ÷ cosθ(θ = 슛 선과 x축 사이 각). 가로로만 비키면 측면에서 찬 슛(θ 43° 넘음)은 공이 발 반경 안을 지났다
+        public static float NearMissKeeperZ(float zAtLine, float shotStartX, float shotStartZ, float goalX, float aimZ, float clearance)
+        {
+            float dx = Math.Abs(goalX - shotStartX);
+            float dz = aimZ - shotStartZ;
+            float length = (float)Math.Sqrt(dx * dx + dz * dz);
+            float side = aimZ > 0f ? 1f : -1f;
+            if (length <= 0f || dx <= 0f) { return zAtLine - side * clearance; }
+            float cos = dx / length;
+            return zAtLine - side * clearance / cos;
+        }
+
+        // 블록 확률(11-09 B1): 최근접 수비 거리의 구간 곡선(MatchTuning.ShotBlockCurveEdges/Rates, 경계 포함). 마지막 구간 밖은 0(후보가 없는 슛과 같다)
+        public static float BlockChance(float blockerDistance)
+        {
+            for (int i = 0; i < MatchTuning.ShotBlockCurveEdges.Length; i++)
+            {
+                if (blockerDistance <= MatchTuning.ShotBlockCurveEdges[i]) { return MatchTuning.ShotBlockCurveRates[i]; }
+            }
+            return 0f;
         }
 
         // 막힌 공이 튕기는 방향(단위 벡터): 슛 반대 방향을 turnDeg만큼 비튼다. 블로커가 슛 라인의 왼쪽이면 왼쪽으로, 오른쪽이면 오른쪽으로(결정적)
@@ -128,18 +158,40 @@ namespace Game.Core.Match
             return 1f / (1f + (float)Math.Exp(-logit));
         }
 
-        // ── 슛 방향 오차(09-18 확정: 빗나감). 골 확률(xG)과 별개로 "어디로 날아가나"를 정한다.
-        // shot이 낮을수록 조준 반폭이 넓어 골문 밖(포스트 3.66m 밖)으로도 간다. Simple Soccer PlayerKickingAccuracy의 역할
-        public static float ShotSpread(int shot)
+        // ── 슛 조준(09-18 균등 반폭 → 11-09 B2 구석 목표 + 정규 각 오차). 골 확률과 별개로 "어디로 날아가나"를 정한다.
+        // 목표: GK가 슈터→골 중심 선에서 벗어난 반대쪽 포스트 안쪽(AimInset). 둘 다 비슷하면 슈터 자리의 먼 포스트. HELIOS shoot_generator의 "GK가 못 닿는 코스" 선택 [원문]
+        public static float AimSide(float keeperZAtLine, float centerZAtLine, float shooterZ)
         {
-            float t = Clamp01(shot / 100f);
-            return MatchTuning.ShotSpreadMax + (MatchTuning.ShotSpreadMin - MatchTuning.ShotSpreadMax) * t;
+            float off = keeperZAtLine - centerZAtLine;
+            if (Math.Abs(off) >= MatchTuning.AimSideDeadband) { return off > 0f ? -1f : 1f; }
+            return shooterZ > 0f ? -1f : 1f;
         }
 
-        // roll [0,1] → 조준 Z(골라인 위 지점, 골 중심 기준). 0.5가 정중앙, 양 끝이 ±반폭
-        public static float ShotAimZ(int shot, float roll)
+        // 조준 각 오차 σ(°): shot이 낮을수록 넓다. Simple Soccer AddNoiseToKick(각 노이즈)·gfootball(스탯이 폭을 정함)과 같은 모양
+        public static float AimSigmaDeg(int shot)
         {
-            return (roll * 2f - 1f) * ShotSpread(shot);
+            float t = Clamp01(shot / 100f);
+            return MatchTuning.AimSigmaDegMax + (MatchTuning.AimSigmaDegMin - MatchTuning.AimSigmaDegMax) * t;
+        }
+
+        // 골라인에서의 오차 폭(m) = 목표점까지 거리 × tan(σθ). 압박받는 슛은 PressedAimScale배
+        public static float AimSigmaMeters(float distance, float sigmaDeg, bool pressed)
+        {
+            float sigma = distance * (float)Math.Tan(sigmaDeg * Math.PI / 180.0);
+            return pressed ? sigma * MatchTuning.PressedAimScale : sigma;
+        }
+
+        // 조준 Z(골라인, 골 중심 기준) = side × (포스트 − AimInset) + σ × 표준정규(주사위 2개). |z| > GoalHalfWidth면 빗나감
+        public static float ShotAimZ(float side, float sigmaMeters, float roll1, float roll2)
+        {
+            return side * (FieldBounds.GoalHalfWidth - MatchTuning.AimInset) + sigmaMeters * StandardNormal(roll1, roll2);
+        }
+
+        // 표준정규 표본(Box-Muller 한 쪽). roll1·roll2 ∈ [0,1). roll1 = 0이면 정확히 0(테스트가 목표점을 그대로 본다)
+        public static float StandardNormal(float roll1, float roll2)
+        {
+            double radius = Math.Sqrt(-2.0 * Math.Log(1.0 - roll1));
+            return (float)(radius * Math.Cos(2.0 * Math.PI * roll2));
         }
 
         // 슛 비행 시간(초): 초속 speed·등감속 deceleration으로 distance를 가는 시간. 그 전에 멈추면 -1
@@ -150,7 +202,7 @@ namespace Game.Core.Match
             return (speed - (float)Math.Sqrt(disc)) / deceleration;
         }
 
-        // GK가 지연(반응, 얼어 있으면 그 남은 시간) 뒤 공이 GK 라인을 지나기 전에 교차점까지 닿나. 거리·시간은 호출자가 실행(트리 MoveToShotLine:
+        // 테스트 대조용(운영 경로는 KeeperLateralReach). GK가 지연(반응, 얼어 있으면 그 남은 시간) 뒤 공이 GK 라인을 지나기 전에 교차점까지 닿나. 거리·시간은 호출자가 실행(트리 MoveToShotLine:
         // 수비 자리 x, 라인 교차 z)과 같은 점으로 재서 준다(10-25). 속도는 다이빙 버스트(스탯 무관), 발 반경은 공짜
         public static bool KeeperCanReach(float distance, float flightTime, float delaySeconds)
         {
@@ -189,11 +241,11 @@ namespace Game.Core.Match
             return fraction;
         }
 
-        // 골로 정해진 슛의 조준점을 GK 자리에서 minGap 넘게 먼 쪽으로(골문 안, 포스트 안쪽 0.3m 여유). 조준 쪽에 자리가 없으면 반대쪽, 양쪽 다 없으면(GK가 골문을 다 덮음) 조준 쪽 포스트 안쪽
+        // 골로 정해진 슛의 조준점을 GK 자리에서 minGap 넘게 먼 쪽으로(골문 안, 포스트 안쪽 AimInset 여유). 조준 쪽에 자리가 없으면 반대쪽, 양쪽 다 없으면(GK가 골문을 다 덮음) 조준 쪽 포스트 안쪽
         public static float AimAwayFromKeeper(float aimZ, float keeperZ, float minGap)
         {
             if (Math.Abs(aimZ - keeperZ) >= minGap) { return aimZ; }
-            float limit = FieldBounds.GoalHalfWidth - MatchTuning.GoalAimPostInset;
+            float limit = FieldBounds.GoalHalfWidth - MatchTuning.AimInset;
             float side = aimZ >= keeperZ ? 1f : -1f;
             float pushed = keeperZ + side * minGap;
             if (Math.Abs(pushed) <= limit) { return pushed; }
@@ -202,11 +254,30 @@ namespace Game.Core.Match
             return side * limit;
         }
 
-        // 조준을 가까운 포스트 바깥으로. 노골로 정해졌는데 GK가 못 닿으면 "GK는 서 있고 공은 골대 안"이 되므로 빗나감으로 보이게 한다(10-23)
-        public static float PushWide(float aimZ)
+        // GK가 라인 교차점 쪽으로 옆으로 닿는 폭(m): 지연 뒤 다이빙 속도로 가는 거리 + 발 반경을 반지름으로, 라인까지 앞뒤 간격 forwardGap을 뺀 옆 성분.
+        // KeeperCanReach(거리 ≤ 반지름)와 같은 원이라 이 폭 안의 교차점은 닿음 판정이 참이다. 라인에도 못 가면 0
+        public static float KeeperLateralReach(float forwardGap, float flightTime, float delaySeconds)
         {
-            float side = aimZ < 0f ? -1f : 1f;
-            return side * (FieldBounds.GoalHalfWidth + MatchTuning.ShotWideMargin);
+            float time = flightTime - delaySeconds;
+            if (time < 0f) { time = 0f; }
+            float radius = MatchTuning.KeeperDiveSpeed * time + MatchTuning.CaptureRadius;
+            float gap = Math.Abs(forwardGap);
+            if (radius <= gap) { return 0f; }
+            return (float)Math.Sqrt(radius * radius - gap * gap);
+        }
+
+        // 세이브로 정해진 슛의 조준점을 GK가 닿는 범위로(11-09 B3, AimAwayFromKeeper의 거울). 범위 안이면 그대로, 밖이면 GK 쪽 경계로 당긴다.
+        // 세이브 확률이 실측 조건부 값이라 기하가 따라간다(옛 PushWide는 못 닿는 노골을 포스트 밖으로 밀어 빗나감 비율이 GK 자리에 오염됐다).
+        // 당긴 점도 골문 안(포스트 경계 포함)에 둔다: 세이브로 정해진 슛이 빗나감이 되면 안 된다. GK가 골문 밖에 있어 경계가 밖이면 포스트에서 멈추고 골라인 세이브가 받는다
+        public static float PullAimIntoReach(float aimZ, float keeperZ, float reach)
+        {
+            float offset = aimZ - keeperZ;
+            if (Math.Abs(offset) <= reach) { return aimZ; }
+            float side = offset > 0f ? 1f : -1f;
+            float pulled = keeperZ + side * reach;
+            if (pulled > FieldBounds.GoalHalfWidth) { return FieldBounds.GoalHalfWidth; }
+            if (pulled < -FieldBounds.GoalHalfWidth) { return -FieldBounds.GoalHalfWidth; }
+            return pulled;
         }
 
         // 조준 Z가 두 포스트 사이면 골문 안(경계 포함). 밖이면 빗나감

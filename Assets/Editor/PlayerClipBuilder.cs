@@ -6,7 +6,7 @@ using UnityEngine;
 // 선수 연출 클립 빌더(10-23). 모캡·외부 클립 없이, Idle 첫 프레임 위에 "이름 붙은 포즈"(관절별 회전 오프셋)를 얹고
 // 그 자세를 샘플링해 커브로 굽는다. 유저 Play "차는 동작이 현실적이지 않다"(범용 팩 격투 킥)에 대한 1차 답.
 // 리그가 IK형(Foot.R이 다리의 자식이 아니라 Root 직속)이라 발은 정강이 끝을 따라가게 따로 놓는다.
-// 메뉴 한 번이면 클립 7개(Kick·Shoot·Catch·Parry·DiveLeft·DiveRight·Celebrate)와 컨트롤러 상태·트리거를 다시 만든다. 카메라가 멀어 실루엣이면 충분.
+// 메뉴 한 번이면 클립 9개(Kick·Shoot·Catch·Parry·DiveLeft·DiveRight·LowSaveLeft·LowSaveRight·Celebrate)와 컨트롤러 상태·트리거를 다시 만든다. 카메라가 멀어 실루엣이면 충분.
 // 각도는 전부 출처 없는 눈대중 [가정]. Play로 조정한다
 public static class PlayerClipBuilder
 {
@@ -128,10 +128,12 @@ public static class PlayerClipBuilder
             AnimationClip parry = Bake(model, idle, "Parry", ParryPoses(), false);
             AnimationClip diveLeft = Bake(model, idle, "DiveLeft", DivePoses(-1f), false);
             AnimationClip diveRight = Bake(model, idle, "DiveRight", DivePoses(1f), false);
+            AnimationClip lowSaveLeft = Bake(model, idle, "LowSaveLeft", LowSavePoses(-1f), false);
+            AnimationClip lowSaveRight = Bake(model, idle, "LowSaveRight", LowSavePoses(1f), false);
             AnimationClip celebrate = Bake(model, idle, "Celebrate", CelebratePoses(), true);
-            Wire(controller, kick, shoot, catchClip, parry, diveLeft, diveRight, celebrate);
+            Wire(controller, kick, shoot, catchClip, parry, diveLeft, diveRight, lowSaveLeft, lowSaveRight, celebrate);
             AssetDatabase.SaveAssets();
-            Debug.Log("[PlayerClipBuilder] 클립 7개를 굽고 컨트롤러를 갱신했다");
+            Debug.Log("[PlayerClipBuilder] 클립 9개를 굽고 컨트롤러를 갱신했다");
         }
         finally
         {
@@ -224,6 +226,31 @@ public static class PlayerClipBuilder
                 .Add(nearArm, Axis.Forward, 120f * side).Add(farArm, Axis.Forward, 90f * side).Add(nearLowerArm, Axis.Right, -70f).Add(farLowerArm, Axis.Right, -70f)
                 .Add(UpperLegL, Axis.Right, -25f).Add(UpperLegR, Axis.Right, -25f).Add(LowerLegL, Axis.Right, 45f).Add(LowerLegR, Axis.Right, 45f).Drop(0.50f),   // 0.60이면 접은 손이 땅 아래(y −0.04, 에디터 샘플)
             new Pose(PlayerController.DiveSeconds),
+        };
+    }
+
+    // GK 낮은 세이브(11-09 B4-a, side +1 = 오른쪽): 교차점이 0.4~1.2m인 공. 다이빙처럼 눕지 않고 무릎을 굽혀 몸을 45° 기울이고 공 쪽 다리를 디디며 두 팔을 낮게 뻗는다.
+    // 10-25 조사(실험/2026-10-25-GK-다이빙-애니-조사.md)의 "가까운 공 = 스텝" 권고. 길이는 PlayerController.LowSaveSeconds. 각도·높이는 눈대중 [가정]
+    private static List<Pose> LowSavePoses(float side)
+    {
+        string nearArm = side > 0f ? UpperArmR : UpperArmL;
+        string farArm = side > 0f ? UpperArmL : UpperArmR;
+        string nearUpperLeg = side > 0f ? UpperLegR : UpperLegL;
+        string nearLowerLeg = side > 0f ? LowerLegR : LowerLegL;
+        return new List<Pose>
+        {
+            new Pose(0f),
+            // 준비: 무릎을 굽혀 낮춘다
+            new Pose(0.06f).Add(UpperLegL, Axis.Right, -25f).Add(UpperLegR, Axis.Right, -25f).Add(LowerLegL, Axis.Right, 45f).Add(LowerLegR, Axis.Right, 45f)
+                .Add(Abdomen, Axis.Right, -15f).Drop(0.12f),
+            // 막기: 몸통 45° 기울임, 공 쪽 다리를 굽혀 디디고 두 팔을 공 쪽 아래로
+            new Pose(0.20f).Add(Body, Axis.Forward, -45f * side).Add(Abdomen, Axis.Forward, -10f * side)
+                .Add(nearUpperLeg, Axis.Right, -30f).Add(nearLowerLeg, Axis.Right, 50f)
+                .Add(nearArm, Axis.Forward, 70f * side).Add(farArm, Axis.Forward, 45f * side).Drop(0.25f),
+            new Pose(0.32f).Add(Body, Axis.Forward, -40f * side).Add(Abdomen, Axis.Forward, -8f * side)
+                .Add(nearUpperLeg, Axis.Right, -25f).Add(nearLowerLeg, Axis.Right, 45f)
+                .Add(nearArm, Axis.Forward, 60f * side).Add(farArm, Axis.Forward, 40f * side).Drop(0.20f),
+            new Pose(PlayerController.LowSaveSeconds),
         };
     }
 
@@ -346,7 +373,7 @@ public static class PlayerClipBuilder
 
     // ── 컨트롤러
 
-    private static void Wire(AnimatorController controller, AnimationClip kick, AnimationClip shoot, AnimationClip catchClip, AnimationClip parry, AnimationClip diveLeft, AnimationClip diveRight, AnimationClip celebrate)
+    private static void Wire(AnimatorController controller, AnimationClip kick, AnimationClip shoot, AnimationClip catchClip, AnimationClip parry, AnimationClip diveLeft, AnimationClip diveRight, AnimationClip lowSaveLeft, AnimationClip lowSaveRight, AnimationClip celebrate)
     {
         EnsureParameter(controller, "Kick", AnimatorControllerParameterType.Trigger);
         EnsureParameter(controller, "Shoot", AnimatorControllerParameterType.Trigger);
@@ -354,6 +381,8 @@ public static class PlayerClipBuilder
         EnsureParameter(controller, "Parry", AnimatorControllerParameterType.Trigger);
         EnsureParameter(controller, "DiveLeft", AnimatorControllerParameterType.Trigger);
         EnsureParameter(controller, "DiveRight", AnimatorControllerParameterType.Trigger);
+        EnsureParameter(controller, "LowSaveLeft", AnimatorControllerParameterType.Trigger);
+        EnsureParameter(controller, "LowSaveRight", AnimatorControllerParameterType.Trigger);
         EnsureParameter(controller, "DiveSpeed", AnimatorControllerParameterType.Float);   // 다이빙 재생 배율. 공이 GK 라인에 닿는 시각에 수평 자세(0.32초)가 오도록 뷰가 넣는다(10-25)
         SetFloatDefault(controller, "DiveSpeed", 1f);   // 기본 0이면 SetFloat 전에 다이빙 상태에 들어갈 때 재생이 멈춘다
         EnsureParameter(controller, "Celebrate", AnimatorControllerParameterType.Bool);
@@ -371,6 +400,8 @@ public static class PlayerClipBuilder
         OneShot(machine, idle, "Parry", parry);
         OneShot(machine, idle, "DiveLeft", diveLeft, "DiveSpeed");
         OneShot(machine, idle, "DiveRight", diveRight, "DiveSpeed");
+        OneShot(machine, idle, "LowSaveLeft", lowSaveLeft);
+        OneShot(machine, idle, "LowSaveRight", lowSaveRight);
         Held(machine, idle, "Celebrate", celebrate);
         EditorUtility.SetDirty(controller);
     }

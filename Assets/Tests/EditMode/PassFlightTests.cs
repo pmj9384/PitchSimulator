@@ -410,8 +410,10 @@ public class PassFlightTests
     [Test]
     public void 조준이_골문_밖이면_GK가_있어도_빗나감이다()
     {
-        // roll 0.0 → 조준 Z = -반폭. shot 30이면 반폭 4.95 > 3.66이라 골문 밖
-        var sim = new MatchSimulation(() => 0f, new PassFlightTestsHelper.ShootOnce(), TestThreat.Real);
+        // 주사위 순서(11-09 B2): 소유 때 퍼스트 터치 0(성공) → 조준 (0.99, 0.99) = 표준정규 +3.02 → 구석 목표 3.16 + 3σ(10m·shot 30 σ 약 1.4m)라 골문 밖
+        // → 골 0(골문 안이었다면 골). 골 주사위가 골이어도 골문 밖이면 빗나감인지를 본다
+        var rolls = new RollQueue(new[] { 0f, 0.99f, 0.99f, 0f }, 0.5f);
+        var sim = new MatchSimulation(rolls.Next, new PassFlightTestsHelper.ShootOnce(), TestThreat.Real);
         PlayerStats weak = Mid(); weak.Shot = 30;
         sim.AddPlayer(new PlayerState(0, 0, weak, 40f, 0f));
         PlayerStats gk = Mid(); gk.RoleId = "GK"; gk.Reflexes = 50; gk.Diving = 50; gk.Handling = 50;

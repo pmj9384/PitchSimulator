@@ -13,8 +13,10 @@ public class PlayerController : MonoBehaviour
     private static readonly int ShootParam = Animator.StringToHash("Shoot");   // 트리거. 슛 순간. 패스보다 백스윙·팔로스루가 크다(10-23 유저 "슛도 똑같아서 모르겠다")
     private static readonly int CatchParam = Animator.StringToHash("Catch");         // 트리거. GK가 슛을 잡음(ShotResolved Caught)
     private static readonly int ParryParam = Animator.StringToHash("Parry");         // 트리거. GK가 슛을 쳐냄(ShotResolved Parried)
-    private static readonly int DiveLeftParam = Animator.StringToHash("DiveLeft");   // 트리거. 라인 교차점이 1m 넘게 먼 슛에 반응을 시작하는 순간 그쪽으로 몸을 날린다(StartDive)
+    private static readonly int DiveLeftParam = Animator.StringToHash("DiveLeft");   // 트리거. 라인 교차점이 LowSaveMaxMeters 넘게 먼 슛에 반응을 시작하는 순간 그쪽으로 몸을 날린다(StartDive)
     private static readonly int DiveRightParam = Animator.StringToHash("DiveRight");
+    private static readonly int LowSaveLeftParam = Animator.StringToHash("LowSaveLeft");     // 트리거. 교차점이 DiveMinMeters~LowSaveMaxMeters면 몸을 기울이고 한 발 디뎌 막는다(11-09 B4-a)
+    private static readonly int LowSaveRightParam = Animator.StringToHash("LowSaveRight");
     private static readonly int DiveSpeedParam = Animator.StringToHash("DiveSpeed");   // float. 다이빙 클립 재생 배율(StartDive가 공 도착 시각으로 정한다)
     private static readonly int CelebrateParam = Animator.StringToHash("Celebrate"); // bool. 골 세리머니 동안 참
 
@@ -26,7 +28,11 @@ public class PlayerController : MonoBehaviour
     private const float TurnDegreesPerSecond = 720f;   // [가정] 출처 없음. 한 스텝(0.02초) 사이 반대 방향 전환을 0.25초 안에 끝내는 값
     private const float MinMoveSqr = 0.0001f;            // 이보다 덜 움직이면 서 있는 것(향한 방향 유지)
     private const float KickFaceSeconds = 0.5f;          // 킥 뒤 이 동안은 이동 방향이 아니라 찬 방향을 본다. 찬 순간 즉시 돌린다: 720°/s로 돌리면 옆·뒤 패스는 접촉(0.18초) 전에 못 돈다(10-23 유저) [가정]
-    private const float DiveMinMeters = 1f;              // 공이 내 라인을 지나는 z가 GK 자리에서 가로로 이만큼 넘게 멀면 다이빙, 안이면 서서 캐치·펀칭 [가정]
+    // 공이 내 라인을 지나는 z가 GK 자리에서 가로로 DiveMinMeters 안이면 서서 캐치·펀칭, LowSaveMaxMeters까지 낮은 세이브(몸 기울임 + 한 발 스텝), 그 너머는 다이빙.
+    // 11-09 B4-a: 1m 하나였을 땐 세이브의 48%가 그 안이라 서서 받았다(설계-B 1-5). 10-25 조사 권고(가까운 공은 스텝, 먼 공은 다이빙) [가정 G-B4]
+    private const float DiveMinMeters = 0.4f;
+    private const float LowSaveMaxMeters = 1.2f;
+    public const float LowSaveSeconds = 0.5f;            // 낮은 세이브 클립 길이. PlayerClipBuilder.LowSavePoses가 이 값으로 굽는다 [가정]
     public const float DiveSeconds = 0.85f;              // 다이빙 클립 길이(1배 재생). PlayerClipBuilder.DivePoses가 이 값으로 굽는다. 그 안의 캐치·펀칭·킥 트리거는 버린다 [가정]
     public const float DiveHorizontalSeconds = 0.32f;    // 클립에서 몸이 수평이 되는 시각. PlayerClipBuilder.DivePoses가 이 값으로 굽고, 공 도착 시각을 여기에 맞춘다 [가정]
     private const float DiveSpeedMax = 3f;               // 재생 배율 상한. 10-25 유저 Play "다이빙하는 동안 공이 이미 도착": 반응 뒤 남은 시간이 0.1~0.3초라 1배로는 눕기 전에 공이 온다 [가정]
@@ -70,13 +76,28 @@ public class PlayerController : MonoBehaviour
     private void StartDive()
     {
         float dz = State.IncomingShotTargetZ - State.Z;
-        if (Mathf.Abs(dz) <= DiveMinMeters) { return; }
+        float lateral = Mathf.Abs(dz);
+        if (lateral <= DiveMinMeters) { return; }
+        if (lateral <= LowSaveMaxMeters)
+        {
+            StartLowSave(dz);
+            return;
+        }
         float speed = DiveSpeedFor(State.IncomingShotSecondsToLine);   // 시뮬이 감속까지 넣어 계산한 값(SSOT). 뷰가 따로 재지 않는다
         saveUntil = Time.time + DiveSeconds;   // 억제 창은 1배 길이 그대로: 빨리 튼 다이빙 뒤에 오는 캐치·펀칭 트리거가 겹쳐 타지 않게(10-25 리뷰 🟡)
         if (animator == null) { return; }
         bool right = dz * State.AttackSign < 0f;
         animator.SetFloat(DiveSpeedParam, speed);
         animator.SetTrigger(right ? DiveRightParam : DiveLeftParam);
+    }
+
+    // 가까운 공: 그쪽으로 몸을 기울이고 한 발 디딘다(1배 재생). 억제 창은 클립 길이(뒤에 오는 캐치·펀칭 트리거가 겹쳐 타지 않게, StartDive와 같은 이유)
+    private void StartLowSave(float dz)
+    {
+        saveUntil = Time.time + LowSaveSeconds;
+        if (animator == null) { return; }
+        bool right = dz * State.AttackSign < 0f;
+        animator.SetTrigger(right ? LowSaveRightParam : LowSaveLeftParam);
     }
 
     // 수평 자세 시각(0.32초)이 공 도착과 겹치는 재생 배율. 시간이 넉넉하면 1배, 모자라면 올린다(상한 DiveSpeedMax). 느리게 트는 쪽은 없다

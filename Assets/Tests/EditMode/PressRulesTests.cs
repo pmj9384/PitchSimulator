@@ -102,24 +102,50 @@ public class PressRulesTests
     }
 }
 
-// 슛 방향 오차(09-18 확정: 빗나감). shot 스탯이 낮을수록 조준이 퍼져 골문 밖까지 간다
+// 슛 조준(09-18 균등 반폭 → 11-09 B2 구석 목표 + 정규 각 오차). 표본 비율은 균등 격자 주사위(결정적)로 본다
 public class ShotDirectionTests
 {
     [Test]
-    public void 오차_폭은_shot이_낮을수록_넓다()
+    public void 조준_오차는_shot이_낮을수록_넓고_거리에_비례한다()
     {
-        Assert.Less(MatchRules.ShotSpread(90), MatchRules.ShotSpread(30));
-        Assert.Greater(MatchRules.ShotSpread(30), Game.Core.Placement.FieldBounds.GoalHalfWidth, "shot 30은 골문 밖까지 퍼진다");
-        Assert.LessOrEqual(MatchRules.ShotSpread(100), Game.Core.Placement.FieldBounds.GoalHalfWidth, "shot 100은 골문 안");
+        Assert.Less(MatchRules.AimSigmaDeg(90), MatchRules.AimSigmaDeg(30));
+        Assert.AreEqual(MatchTuning.AimSigmaDegMin, MatchRules.AimSigmaDeg(100), 1e-5f);
+        Assert.AreEqual(MatchTuning.AimSigmaDegMax, MatchRules.AimSigmaDeg(0), 1e-5f);
+        float near = MatchRules.AimSigmaMeters(10f, 6f, pressed: false);
+        float far = MatchRules.AimSigmaMeters(20f, 6f, pressed: false);
+        Assert.AreEqual(2f, far / near, 1e-4f, "σ(m) = 거리 × tan(σθ)");
+        Assert.AreEqual(10f * (float)System.Math.Tan(6.0 * System.Math.PI / 180.0), near, 1e-5f);
     }
 
     [Test]
-    public void 조준_Z는_roll로_대칭_구간에서_정해지고_중앙은_roll_0_5다()
+    public void 압박_슛은_조준_오차가_1_25배다()
     {
-        float spread = MatchRules.ShotSpread(60);
-        Assert.AreEqual(0f, MatchRules.ShotAimZ(60, 0.5f), 1e-4f);
-        Assert.AreEqual(-spread, MatchRules.ShotAimZ(60, 0f), 1e-4f);
-        Assert.AreEqual(spread, MatchRules.ShotAimZ(60, 1f), 1e-4f);
+        float calm = MatchRules.AimSigmaMeters(15f, 6f, pressed: false);
+        Assert.AreEqual(calm * MatchTuning.PressedAimScale, MatchRules.AimSigmaMeters(15f, 6f, pressed: true), 1e-5f);
+        Assert.AreEqual(1.25f, MatchTuning.PressedAimScale, "StatsBomb 압박 빗나감 43.4 vs 무압박 34.9 → 1.24");
+    }
+
+    [Test]
+    public void 조준_Z는_구석_목표에_정규_오차를_더하고_roll1이_0이면_목표_그대로다()
+    {
+        float corner = Game.Core.Placement.FieldBounds.GoalHalfWidth - MatchTuning.AimInset;   // 3.16
+        Assert.AreEqual(corner, MatchRules.ShotAimZ(+1f, 1.5f, 0f, 0.37f), 1e-5f, "roll1 0 → 표준정규 0");
+        Assert.AreEqual(-corner, MatchRules.ShotAimZ(-1f, 1.5f, 0f, 0.37f), 1e-5f);
+        // Box-Muller: roll (0.5, 0.5) → √(−2 ln 0.5) × cos π = −1.1774. roll (0.5, 0) → +1.1774
+        Assert.AreEqual(-1.1774f, MatchRules.StandardNormal(0.5f, 0.5f), 1e-3f);
+        Assert.AreEqual(1.1774f, MatchRules.StandardNormal(0.5f, 0f), 1e-3f);
+        Assert.AreEqual(corner - 1.1774f * 1.5f, MatchRules.ShotAimZ(+1f, 1.5f, 0.5f, 0.5f), 1e-3f, "σ 1.5m × −1.18");
+    }
+
+    [Test]
+    public void 조준_목표는_GK_반대쪽_구석이고_GK가_중앙이면_먼_포스트다()
+    {
+        Assert.AreEqual(-1f, MatchRules.AimSide(keeperZAtLine: 1f, centerZAtLine: 0f, shooterZ: 0f), "GK가 +쪽이면 −구석");
+        Assert.AreEqual(1f, MatchRules.AimSide(-0.5f, 0f, 0f), "GK가 −쪽이면 +구석");
+        Assert.AreEqual(-1f, MatchRules.AimSide(2.2f, 2f, 8f), "0.2m 차이는 경계 포함이라 벗어남 → GK 반대쪽(−)");
+        Assert.AreEqual(-1f, MatchRules.AimSide(2.1f, 2f, 8f), "0.1m 차이는 중앙 → 슈터 z +8의 먼 포스트는 −");
+        Assert.AreEqual(1f, MatchRules.AimSide(0f, 0f, -3f), "슈터 z −3의 먼 포스트는 +");
+        Assert.AreEqual(1f, MatchRules.AimSide(0f, 0f, 0f), "정면 중앙은 +(결정적 기본값)");
     }
 
     [Test]
@@ -133,17 +159,31 @@ public class ShotDirectionTests
     }
 
     [Test]
-    public void shot_90은_대부분_골문_안_shot_30은_상당수_밖이다()
+    public void 정규_오차_표본의_골문_밖_비율은_멀수록_크고_shot이_낮을수록_크다()
     {
-        int onHigh = 0, onLow = 0, n = 100;
+        // 균등 격자 주사위 32 × 32 = 1,024 표본. 8m·shot 90은 σ 0.76m라 구석 목표(3.16)에서 포스트(3.66)까지 0.5m = 0.66σ → 밖 약 25%(한쪽) + 반대쪽 거의 0
+        float off8 = OffTargetShare(8f, 90);
+        float off20 = OffTargetShare(20f, 90);
+        float off20Low = OffTargetShare(20f, 30);
+        Assert.Less(off8, off20, "멀수록 σ(m)가 커서 더 빗나간다");
+        Assert.Less(off20, off20Low, "shot이 낮을수록 더 빗나간다");
+        Assert.That(off20, Is.InRange(0.25f, 0.5f), "20m·shot 90: 설계-B 1-7 몬테카를로 30~40% 근처");
+    }
+
+    private static float OffTargetShare(float distance, int shot)
+    {
+        const int n = 32;
+        int off = 0;
+        float sigma = MatchRules.AimSigmaMeters(distance, MatchRules.AimSigmaDeg(shot), pressed: false);
         for (int i = 0; i < n; i++)
         {
-            float roll = (i + 0.5f) / n;
-            if (MatchRules.IsOnTarget(MatchRules.ShotAimZ(90, roll))) { onHigh++; }
-            if (MatchRules.IsOnTarget(MatchRules.ShotAimZ(30, roll))) { onLow++; }
+            for (int j = 0; j < n; j++)
+            {
+                float z = MatchRules.ShotAimZ(+1f, sigma, (i + 0.5f) / n, (j + 0.5f) / n);
+                if (!MatchRules.IsOnTarget(z)) { off++; }
+            }
         }
-        Assert.GreaterOrEqual(onHigh, 90, "shot 90: 90% 이상 골문 안");
-        Assert.That(onLow, Is.InRange(40, 80), "shot 30: 절반 안팎만 골문 안");
+        return off / (float)(n * n);
     }
 
     [Test]

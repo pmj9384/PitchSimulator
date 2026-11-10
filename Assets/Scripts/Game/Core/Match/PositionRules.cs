@@ -52,7 +52,7 @@ namespace Game.Core.Match
             return Offset(baseX, baseZ, (lineHeight * MatchTuning.PositionDialScale + lineShift) * attackSign, 0f);
         }
 
-        // GK가 지키는 라인 x = 수비 시 자리의 x. 시뮬의 닿음 판정(KeeperCanReachShot)과 트리의 이동(MoveToShotLine)이 이 한 함수를 써서 같은 점을 본다(10-25)
+        // GK가 지키는 라인 x = 수비 시 자리의 x. 시뮬의 닿는 범위 판정(PullAimIntoReach)과 트리의 이동(MoveToShotLine)이 이 한 함수를 써서 같은 점을 본다(10-25)
         public static float KeeperLineX(float defendHomeX, float defendHomeZ, int attackSign, float lineHeight)
         {
             return DefendHome(defendHomeX, defendHomeZ, attackSign, lineHeight, 0f).x;   // GK엔 팀 이동량이 없다(DefendStand가 GK면 0을 넘기는 것과 같은 점)

@@ -9,7 +9,7 @@ using NUnit.Framework;
 
 // 교착 회귀 감시(09-23). 오늘 실제로 났던 정지 2종(발치 상대 되잡기 잠금·멈춘 패스 교착)과 탐지한 핑퐁을 시드 5개 × 실제 90분에서 잠근다
 // (11-05 S2: 3분 20판 → 90분 5판. 틱 수가 7.5배라 교착을 더 잘 잡고, 경기 길이 기본값과 무관하게 90분으로 돈다).
-// A 전원 정지(5초 이벤트 없음 + 공·선수 안 움직임) / B 자유 공 방치 / C 멈춘 공인데 패스 진행 중 / D 소유자 정지 / E 같은 둘 6회 교대(공 X 3m 안)
+// A 전원 정지(5초 이벤트 없음 + 공·선수 안 움직임) / B 자유 공 방치 / C 멈춘 공인데 패스 진행 중 / D 소유자 정지 / E 같은 둘 6회 교대(교대 구간 소유 시작 X 폭 3m)
 public class StallGuardTests
 {
     private const int Seeds = 5;
@@ -31,17 +31,26 @@ public class StallGuardTests
             MatchSimulation sim = MatchAssembler.Create(table, rows, balanced, balanced, seed, TestThreat.Real, length: MatchLength.RealTime);
             int lastEventTick = 0;
             var owners = new List<int>();
-            float pingPongStartX = 0f;
+            var ownerXs = new List<float>();   // owners와 같은 자리: 그 소유가 시작된 공 X. 핑퐁 "공 X 3m 안"은 교대 구간 전체로 본다(11-09 B4)
             sim.PossessionChanged += r =>
             {
                 lastEventTick = -1;   // 아래 루프가 현재 틱으로 채운다
-                if (owners.Count == 0 || owners[owners.Count - 1] != r.NewOwnerId) { owners.Add(r.NewOwnerId); if (owners.Count > 10) { owners.RemoveAt(0); } }
-                if (owners.Count == 1) { pingPongStartX = r.X; }
+                if (owners.Count == 0 || owners[owners.Count - 1] != r.NewOwnerId)
+                {
+                    owners.Add(r.NewOwnerId);
+                    ownerXs.Add(r.X);
+                    if (owners.Count > 10)
+                    {
+                        owners.RemoveAt(0);
+                        ownerXs.RemoveAt(0);
+                    }
+                }
             };
             sim.ShotResolved += r =>
             {
                 lastEventTick = -1;
                 owners.Clear();
+                ownerXs.Clear();
             };
 
             float[] px = new float[sim.Players.Count]; float[] pz = new float[sim.Players.Count];
@@ -59,7 +68,8 @@ public class StallGuardTests
                 sim.Tick(MatchTuning.FixedStep);
                 if (!wasSecondHalf && sim.IsSecondHalf)
                 {
-                    owners.Clear();   // 후반 킥오프는 새 흐름이다(슛 뒤 비우기와 같은 이유). 10-29: 시드 14가 E로 걸렸는데 러너 trace 14 75 95로 보니 전반 끝 ST#20↔#21 전진 패스(82.8~87.7초)와 후반 킥오프 ST↔ST(89.0초~)를 이어 센 것이었다. 공은 그동안 20m 전진했다
+                    owners.Clear();
+                    ownerXs.Clear();   // 후반 킥오프는 새 흐름이다(슛 뒤 비우기와 같은 이유). 10-29: 시드 14가 E로 걸렸는데 러너 trace 14 75 95로 보니 전반 끝 ST#20↔#21 전진 패스(82.8~87.7초)와 후반 킥오프 ST↔ST(89.0초~)를 이어 센 것이었다. 공은 그동안 20m 전진했다
                 }
                 if (sim.Ball.Phase == BallPhase.Owned)
                 {
@@ -130,7 +140,9 @@ public class StallGuardTests
                 // E
                 int alt = 0;
                 for (int k = 2; k < owners.Count; k++) { if (owners[k] == owners[k - 2] && owners[k] != owners[k - 1]) { alt++; } else { alt = 0; } }
-                bool tight = alt >= 4 && System.Math.Abs(sim.Ball.X - pingPongStartX) < 3f;   // 6회 교대 + 공 X 3m 안(골문 앞 태클전)
+                // 6회 교대 + 교대 구간의 소유 시작 공 X가 전부 3m 안(골문 앞 태클전). 11-09 B4: 전엔 "지금 공 X − 첫 소유 X"라 30m 간격 W↔FB 측면 왕복 3번(시드 1, 소유 X 16 ↔ −14)이
+                // 비행 중 공이 첫 X를 지나는 틱에 걸렸다. 긴 측면 왕복은 아래 10회 교대가 거리와 무관하게 잡는다
+                bool tight = alt >= 4 && OwnerXSpan(ownerXs, alt + 2) < 3f;
                 bool longRun = alt >= 8;                                                          // 10회 교대는 거리 무관(측면 패스 왕복, 09-23 Play 22회)
                 if (tight || longRun)
                 {
@@ -161,5 +173,19 @@ public class StallGuardTests
             }
         }
         Assert.IsEmpty(found, "교착:\n" + string.Join("\n", found));
+    }
+
+    // 마지막 count개 소유 시작 공 X의 폭(최대 − 최소)
+    private static float OwnerXSpan(List<float> xs, int count)
+    {
+        int start = System.Math.Max(0, xs.Count - count);
+        float min = float.MaxValue;
+        float max = float.MinValue;
+        for (int i = start; i < xs.Count; i++)
+        {
+            if (xs[i] < min) { min = xs[i]; }
+            if (xs[i] > max) { max = xs[i]; }
+        }
+        return max - min;
     }
 }
