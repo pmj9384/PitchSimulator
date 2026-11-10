@@ -1021,6 +1021,59 @@ public class MatchSimulationTests
     }
 
     [Test]
+    public void 수비_자리는_시뮬이_다이얼을_얹어_잰_팀_이동량과_공보다_골_쪽_상한을_전체_트리로_받는다()
+    {
+        // 11-10 재검증 R5 P1(D2 시뮬 배선). 순수 함수(LineRules·PositionRules)와 트리 Fake 테스트만으론 배선을 빼도 통과한다:
+        // FillLineDepth(Δ·상한·DialedRestDepth) → FillSnapshots 대입(DefendLineShift·DefendDepthCap) → 트리 MoveToDefendHome이 ctx.DefendDepthCap을 넘김.
+        // 팀 0(+X 공격)이 수비. CB 깊이 12.5 + 다이얼 20 × 0.3 = 18.5(가장 깊음 = restDepth), 앞 선수 깊이 42.5 + 다이얼 10 × 0.3 = 45.5.
+        // 상대가 깊이 42.5(z 10, 골 중심에서 40m 밖이라 마크 없음)에서 소유. 상한 = 42.5 − 1.5 = 41이라 앞 선수는 Δ를 더하면 상한에 걸린다
+        var sim = new MatchSimulation(() => 0.99f, PlayerTreeBuilder.Build(), TestThreat.Real);
+        PlayerStats noPress = CenterBack();
+        noPress.PressRange = 0f;
+        PlayerStats backStats = noPress.Clone();
+        backStats.LineHeight = 20f;
+        PlayerStats frontStats = noPress.Clone();
+        frontStats.RoleId = "CM";
+        frontStats.VariantId = "cm_test";
+        frontStats.LineHeight = 10f;
+        PlayerState keeper = sim.AddPlayer(new PlayerState(0, 0, Keeper(), -48f, 0f));
+        PlayerState back = sim.AddPlayer(new PlayerState(1, 0, backStats, -40f, 0f));
+        PlayerState front = sim.AddPlayer(new PlayerState(2, 0, frontStats, -10f, 0f));
+        sim.AddPlayer(new PlayerState(3, 1, Striker(), -10f, 10f));
+        sim.Kickoff();
+        sim.Ball = BallRules.Own(sim.Ball, 3, -10f, 10f);
+
+        sim.Tick(Dt);
+
+        Assert.AreEqual(+1, back.AttackSign, "전제: 팀 0이 +X 공격");
+        Assert.GreaterOrEqual(back.PressRank, MatchTuning.MaxPressers, "전제: 압박 안 함");
+        Assert.GreaterOrEqual(front.PressRank, MatchTuning.MaxPressers, "전제: 압박 안 함");
+        Assert.IsFalse(back.IsMarker, "전제: 마크 안 함");
+        Assert.IsFalse(front.IsMarker, "전제: 마크 안 함");
+
+        float ballDepth = LineRules.HomeDepth(-10f, +1);
+        float keeperLineDepth = LineRules.HomeDepth(PositionRules.KeeperLineX(keeper.DefendHomeX, keeper.DefendHomeZ, +1, keeper.Stats.LineHeight), +1);
+        float restDepth = System.Math.Min(LineRules.DialedHomeDepth(back.DefendHomeX, +1, backStats.LineHeight), LineRules.DialedHomeDepth(front.DefendHomeX, +1, frontStats.LineHeight));
+        int defenseLine = sim.TacticsOf(0).DefenseLine;
+        float shift = LineRules.TeamLineShift(ballDepth, defenseLine, keeperLineDepth, restDepth);
+        float cap = LineRules.TeamStandDepthCap(ballDepth, keeperLineDepth);
+        float shiftWithoutDial = LineRules.TeamLineShift(ballDepth, defenseLine, keeperLineDepth, LineRules.HomeDepth(back.DefendHomeX, +1));
+        Assert.Greater(System.Math.Abs(shift - shiftWithoutDial), 1f, "전제: 다이얼을 빼면 Δ가 달라진다");
+        Assert.Greater(LineRules.DialedHomeDepth(front.DefendHomeX, +1, frontStats.LineHeight) + shift, cap + 1f, "전제: 앞 선수는 상한에 걸린다");
+
+        Assert.AreEqual(shift, back.DefendLineShift, 1e-4f, "Δ = L − 다이얼 얹은 뒷줄 깊이(FillLineDepth → 대입)");
+        Assert.AreEqual(shift, front.DefendLineShift, 1e-4f, "같은 팀은 같은 Δ");
+        Assert.AreEqual(cap, front.DefendDepthCap, 1e-4f, "상한 = 공 깊이 − GoalSideMargin(FillLineDepth → 대입)");
+
+        (float x, float z) backStand = PositionRules.DefendStand(back.DefendHomeX, back.DefendHomeZ, +1, backStats, 10f, shift, cap, goalkeeper: false);
+        (float x, float z) frontStand = PositionRules.DefendStand(front.DefendHomeX, front.DefendHomeZ, +1, frontStats, 10f, shift, cap, goalkeeper: false);
+        Assert.AreEqual(backStand.x, back.MoveTargetX, 1e-4f, "가장 깊은 선수는 L에 선다");
+        Assert.AreEqual(backStand.z, back.MoveTargetZ, 1e-4f);
+        Assert.AreEqual(frontStand.x, front.MoveTargetX, 1e-4f, "앞 선수는 상한(공보다 골 쪽)에 선다(트리가 ctx.DefendDepthCap을 넘김)");
+        Assert.AreEqual(LineRules.XAtDepth(cap, +1), front.MoveTargetX, 1e-4f, "상한 깊이 그대로");
+    }
+
+    [Test]
     public void 막힌_슛은_자유_공이_되고_슈터가_바로_되잡지_못한다()
     {
         // 09-29 수비 D3 + 리뷰 🔴: 슈터 (40,0), 수비수 1.5m 정면. 주사위 0 = 골 판정 성공이어도 블록(1.5m 곡선 0.65 > 0)이 먼저
