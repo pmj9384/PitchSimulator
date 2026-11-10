@@ -60,6 +60,7 @@ cd "$HOME/Documents/Obsidian Vault/설계문서/신규게임-축구시뮬/실험
 - 실제 90분·결정성·95% 신뢰 구간·실제 축구 기준(StatsBomb) 판정. 지표 목록·probe 방법은 러너 `README.md`
 - **머지 게이트 훅**(`~/.claude/hooks/pitch-merge-gate.py`): develop 머지 때 엔진을 바꾼 브랜치면 full 대시보드가 최신이고 현실감 지표(`현실.*`)가 있어야 통과
 - 무거운 측정은 동시에 돌리지 않는다. 러너 probe는 develop과 작업 트리 둘 다에서 빌드되게 쓴다
+- **엔진 설계·구현 검증은 포메이션 6개 전부로 잰다**(3-4-3·3-5-2·4-2-3-1·4-3-3·4-4-2·5-3-2, 대칭). 판정은 포메이션마다 develop 대비 회귀, 가드 지표 = 슛/판·받을 때 라인 뒤·체력 표·형태(2m 쌍·깊이 폭)·압박 왕복. 설계 원칙은 `~/.claude/rules/design.md`. 대시보드에 포메이션 묶음이 들어가기 전까지는 빌드 복사본 패치(러너 `tools/patch-formation.py`, 워크트리 빌드는 `tools/syncwt.sh`)로 잰다
 
 ## 정적 검사 (경고 0 정책)
 
@@ -77,6 +78,7 @@ cd "$HOME/Documents/Obsidian Vault/설계문서/신규게임-축구시뮬/실험
 - **경기 AI·이동·공은 고정 스텝(`FixedUpdate`)·결정적.** 공은 Rigidbody 없이 순수 계산. 화면 전용 연출만 예외
 - **내 경기 시뮬은 `MyMatchAssembler.Create` 한 곳에서 만든다.** 선수 뷰는 시뮬 `Players`에 몸만 붙인다
 - 선수 세팅은 StageComposition과 같은 데이터 형식으로 저장
+- **결과물(초상·클립·프리팹 배선·베이크 데이터)을 만든 에디터 스크립트는 1회용이어도 `Assets/Editor/`에 커밋한다.** 다시 만들 일이 생기면 그대로 다시 돌릴 수 있어야 한다(11-10: 초상 120장 렌더 스크립트를 10-21에 "1회성"으로 안 남겨 모델 교체 때 새로 짜야 함)
 - **데이터는 CSV + CsvHelper `ClassMap`(자작 파서 금지).** CSV별 열 설명은 상세판. 바꾸면 그 CSV를 잠그는 테스트와 대시보드를 같이 돌린다(`StaminaLoadTable.csv`는 러너 `loadtable`로 재생성, `ThreatTable.csv`는 `xtgen`)
 - **코드 문체 앵커 = AnimalBreakOut**: 이른 반환, 여러 줄 `&&` 지양, 메서드는 중괄호 블록, 람다는 외부 API가 요구할 때만(콜백은 이름 붙은 private 메서드), `out var` 압축 지양, **한 줄 중괄호 블록은 문장 하나까지**. 리뷰 기준 원본은 `~/unity/WarTableSimulator/CLAUDE.md` 75~79행
 - 커밋: 한국어 + why + 논리 단위, pangyo-tone 신호 점검. 순서 = 구현 → 검증 → 리뷰 → 유저 Play → 커밋
