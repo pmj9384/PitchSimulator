@@ -13,6 +13,7 @@ public partial class CheatWindow
         EditorGUILayout.LabelField("경기 길이 (개발·녹화용)", EditorStyles.boldLabel);
         DevMatchLength.RealTime = EditorGUILayout.Toggle("인게임 실제 90분", DevMatchLength.RealTime);
         EditorGUILayout.LabelField("다음 경기부터 적용. 기본은 3분 압축(튜닝·대시보드는 실제 90분)");
+        DrawSpeedButtons();
 
         EditorGUILayout.Space();
         EditorGUILayout.LabelField("시즌", EditorStyles.boldLabel);
@@ -69,6 +70,22 @@ public partial class CheatWindow
         {
             autoPlaying = false;
             Repaint();
+        }
+    }
+
+    // 녹화용 배속(11-10): 실제 90분 경기에서 장면을 기다리는 시간을 줄인다. 화면 속도(Time.timeScale)만 바꾸고 시뮬은 고정 스텝이라 결과는 같다.
+    // 일시정지 복귀(GameManager)가 1배로 되돌리므로 다시 누른다
+    private static readonly float[] Speeds = { 1f, 2f, 4f, 8f };
+
+    private void DrawSpeedButtons()
+    {
+        using (new EditorGUILayout.HorizontalScope())
+        {
+            EditorGUILayout.LabelField($"배속 (지금 {Time.timeScale:0.#}×)", GUILayout.Width(110));
+            for (int i = 0; i < Speeds.Length; i++)
+            {
+                if (GUILayout.Button($"{Speeds[i]:0}×")) { Time.timeScale = Speeds[i]; }
+            }
         }
     }
 }
