@@ -1071,6 +1071,70 @@ public class MatchSimulationTests
     }
 
     [Test]
+    public void 막힌_슛은_블록_주사위_하나만_쓴다()
+    {
+        // 11-09 B 직렬: 블록이 조준보다 먼저라 막힌 슛은 조준 2개·골 1개 주사위를 안 쓴다(주사위 순서가 결과에 안 갈리게).
+        // 슈터 (40,0), GK 중앙이라 구석 목표 +3.16, 수비수가 그 선 1.5m 앞. 주사위 = 소유 때 퍼스트 터치 0.99(실패, 슛 노드는 준비 시간과 무관하게 찬다) → 블록 0 < 곡선 0.65(2m 안).
+        // 막히지 않았다면 조준 2 + 골 1을 더 써서 남는 수가 0이 된다
+        var rolls = new RollQueue(new[] { 0.99f, 0f, 0.5f, 0.5f, 0.5f });
+        var sim = new MatchSimulation(rolls.Next, new PassFlightTestsHelper.ShootOnce(), TestThreat.Real);
+        sim.AddPlayer(new PlayerState(0, 0, Striker(), 40f, 0f));
+        sim.AddPlayer(new PlayerState(1, 1, Keeper(), 50f, 0f));
+        sim.AddPlayer(new PlayerState(2, 1, CenterBack(), 41.5f, 0.4f));
+        sim.Kickoff();
+        sim.Ball = BallRules.Own(sim.Ball, 0, 40f, 0f);
+        var outcomes = new List<ShotOutcome>();
+        sim.ShotResolved += r => outcomes.Add(r.Outcome);
+
+        sim.Tick(Dt);
+
+        Assert.AreEqual(1, outcomes.Count);
+        Assert.AreEqual(ShotOutcome.Blocked, outcomes[0]);
+        Assert.AreEqual(3, rolls.Remaining, "퍼스트 터치 1 + 블록 1. 슛 쪽은 블록 주사위 1개만 썼다");
+    }
+
+    [Test]
+    public void 당긴_세이브_슛은_전체_트리에서_GK_접촉으로_끝나고_골라인_순간이동이_아니다()
+    {
+        // 11-09 B3 당김의 실행 쪽. GK z +3 → 조준 목표 반대쪽 구석 −3.16, 조준 roll (0, ·) → 오차 0, 골 roll 0.99(노골 = 세이브).
+        // 가로 6m는 못 가니 찬 순간 조준이 GK 닿는 경계로 당겨진다. 전체 트리(⑨b)라 GK가 그 점으로 다이빙해 발 반경에 닿아야 한다.
+        // 골라인 세이브(ResolveSaveAtLine)는 GK를 공 자리로 옮기므로 마감 틱의 GK 이동이 크다. 접촉 세이브는 그 틱 이동 전에 판정해 0이다
+        var sim = new MatchSimulation(new RollQueue(new[] { 0f, 0.5f, 0.99f, 0.5f, 0.5f, 0.5f }).Next, PlayerTreeBuilder.Build(), TestThreat.Real) { ResetAfterEveryShot = true };
+        PlayerState striker = sim.AddPlayer(new PlayerState(0, 0, Striker(), 30f, 0f));
+        PlayerState keeper = sim.AddPlayer(new PlayerState(1, 1, Keeper(), 50f, 3f));
+        float aimZ = float.NaN;
+        float prevKeeperX = keeper.X;
+        float prevKeeperZ = keeper.Z;
+        float jumpAtFinish = float.NaN;
+        var reports = new List<ShotReport>();
+        sim.BallKicked += k =>
+        {
+            if (!k.IsShot) { return; }
+            aimZ = striker.Z + k.DirZ;
+        };
+        sim.ShotResolved += r =>
+        {
+            reports.Add(r);
+            float dx = keeper.X - prevKeeperX;
+            float dz = keeper.Z - prevKeeperZ;
+            jumpAtFinish = (float)System.Math.Sqrt(dx * dx + dz * dz);
+        };
+        sim.Kickoff();
+        for (int i = 0; i < 20000 && reports.Count == 0; i++)
+        {
+            prevKeeperX = keeper.X;
+            prevKeeperZ = keeper.Z;
+            sim.Tick(Dt);
+        }
+
+        Assert.AreEqual(1, reports.Count, "슛이 끝나야 한다");
+        Assert.Greater(aimZ, -(FieldBounds.GoalHalfWidth - MatchTuning.AimInset) + 0.5f, "전제: 조준이 GK 쪽으로 당겨졌다");
+        Assert.IsTrue(MatchRules.IsOnTarget(aimZ), "당긴 점도 골문 안");
+        Assert.IsTrue(reports[0].Outcome == ShotOutcome.Caught || reports[0].Outcome == ShotOutcome.Parried, "세이브");
+        Assert.Less(jumpAtFinish, 0.2f, "마감 틱에 GK가 공 자리로 순간이동하지 않았다(접촉 세이브)");
+    }
+
+    [Test]
     public void 라인_앞_전진은_역할_이름이_아니라_뒷줄이_기준이고_측면_공엔_가까운_FB가_나간다()
     {
         // 11-06 D1: StepOutCenterBack(RoleId == "CB")을 LineRules 뒷줄로 일반화. 팀 0 CB(깊이 9)와 DM(깊이 16.5, 밴드 6m 밖)이 있고 공은 골라인에서 18m 중앙(전진 구역 안).
