@@ -130,7 +130,7 @@ namespace Game.Core.Match
         public const float MinLineGap = 10f;
         // 슈터 압박·슛 블록(09-29 수비 D3, MatchRules.PressuredShotProbability·ShotBlocker 주석). 블록 확률·튕기는 속도는 출처 없는 출발값
         public const float ShotPressureLogit = 0.4f;     // 압박받는 슛의 로짓 감소
-        // GK 슛 대응(10-23 유저 Play 3·4차). 규칙은 MatchSimulation.Shoot·IncomingShotFor·ResolveSaveAtLine, 판정은 MatchRules.KeeperCanReach·KeeperLateralReach·GoalAimGap·AimAwayFromKeeper·AimTowardKeeperReach
+        // GK 슛 대응(10-23 유저 Play 3·4차). 규칙은 MatchSimulation.Shoot·IncomingShotFor·ResolveSaveAtLine, 판정은 MatchRules.KeeperLateralReach·GoalAimGap·AimAwayFromKeeper·PullAimIntoReach(KeeperCanReach는 테스트 대조용)
         public const float KeeperDiveSpeed = 8f;         // 슛에 반응하는 동안 GK가 라인 교차점(수비 자리 x·공이 그 라인을 지나는 z)으로 가는 속도 m/s(스탯과 무관한 다이빙 버스트). 스탯 30 = 4.2m/s로는 0.5초에 1.5m라 화면에서 제자리 셔플로 보였다(10-23 유저 Play 4차). [가정] 실제 GK는 포스트 쪽 3m를 0.5~0.6초에 닿는다. 격자(20판): 마감 때 공과 간격 0.56 → 0.11m, 빗나감 5 → 1%, 골 불변
         // 골 조준 간격 자체는 MatchRules.GoalAimGap(GK 스탯 속도 × 남은 비행 시간 + 발 반경)에서 파생한다(10-25. 10-23엔 2.5m 고정)
         public const float GoalAimKeeperMargin = 0.5f;   // 그 간격에 더하는 여유(m). [가정] 화면에서 GK 몸이 공을 안 뚫는 최소

@@ -141,35 +141,6 @@ public class MatchSimulationTests
         return dm;
     }
 
-    // 주사위 수열. 다 쓰면 예외: 슛이 예상보다 많이 굴리면 테스트가 알아챈다
-    private sealed class RollQueue
-    {
-        private readonly Queue<float> rolls;
-        public RollQueue(IEnumerable<float> values) { rolls = new Queue<float>(values); }
-        public float Next() { return rolls.Dequeue(); }
-        public int Remaining => rolls.Count;
-    }
-
-    // 첫 주사위만 따로 주고 나머지는 같은 값. 소유 때 굴리는 퍼스트 터치 주사위만 바꾸고 싶을 때(11-08)
-    private sealed class FirstRollThen
-    {
-        private readonly float rest;
-        private float? first;
-        public FirstRollThen(float firstRoll, float restRoll)
-        {
-            first = firstRoll;
-            rest = restRoll;
-        }
-
-        public float Next()
-        {
-            if (!first.HasValue) { return rest; }
-            float value = first.Value;
-            first = null;
-            return value;
-        }
-    }
-
     private static MatchSimulation LitmusMatch(RollQueue rolls)
     {
         var sim = new MatchSimulation(rolls.Next, PlayerTreeBuilder.BuildLitmus(), TestThreat.Real) { ResetAfterEveryShot = true };
@@ -538,7 +509,7 @@ public class MatchSimulationTests
     [Test]
     public void 노골_유효_슛도_GK는_반응_차례_전엔_제자리고_차례는_반응_1배다()
     {
-        // GK z 1.5 → 목표 −3.16, 조준 roll (0.5, 0) = +1.18σ → 안쪽(골문 안), 골 roll 0.99(노골). 닿음 판정(KeeperCanReach)도 "지연 뒤부터 움직인다"고 보므로 대기는 노골도 같다
+        // GK z 1.5 → 목표 −3.16, 조준 roll (0.5, 0) = +1.18σ → 안쪽(골문 안), 골 roll 0.99(노골). 세이브 당김 폭(KeeperLateralReach)도 "지연 뒤부터 움직인다"고 보므로 대기는 노골도 같다
         var sim = new MatchSimulation(new RollQueue(new[] { 0.5f, 0f, 0.99f, 0.5f, 0.5f, 0.5f }).Next, PlayerTreeBuilder.Build(), TestThreat.Real) { ResetAfterEveryShot = true };
         sim.AddPlayer(new PlayerState(0, 0, Striker(), 30f, 0f));
         PlayerState keeper = sim.AddPlayer(new PlayerState(1, 1, Keeper(), 50f, 1.5f));
@@ -734,7 +705,7 @@ public class MatchSimulationTests
     public void 빗나간_슛_뒤_골킥도_준비_시간_동안_들고_있다가_배급하고_다음_소유자에게는_대기가_이어지지_않는다()
     {
         // 첫 주사위 0 = 퍼스트 터치(11-08 S3 1단계). 준비 시간 동안 GK가 공을 뺏으면 이 테스트가 보려는 골킥 장면이 안 나온다. 그 뒤 0.99 = 골 안 됨·조준은 빗나감
-        var rolls = new FirstRollThen(0f, 0.99f);
+        var rolls = new RollQueue(new[] { 0f }, 0.99f);
         var sim = new MatchSimulation(rolls.Next, PlayerTreeBuilder.Build(), TestThreat.Real);
         sim.AddPlayer(new PlayerState(0, 0, Keeper(), -48f, 0f));
         sim.AddPlayer(new PlayerState(1, 0, Striker(), 44f, 0f));
@@ -1052,11 +1023,11 @@ public class MatchSimulationTests
     [Test]
     public void 막힌_슛은_자유_공이_되고_슈터가_바로_되잡지_못한다()
     {
-        // 09-29 수비 D3 + 리뷰 🔴: 슈터 (40,0), 수비수 1.5m 정면. 주사위 0 = 골 판정 성공이어도 블록(0 < 0.3)이 먼저
+        // 09-29 수비 D3 + 리뷰 🔴: 슈터 (40,0), 수비수 1.5m 정면. 주사위 0 = 골 판정 성공이어도 블록(1.5m 곡선 0.65 > 0)이 먼저
         var sim = new MatchSimulation(() => 0f, new PassFlightTestsHelper.ShootOnce(), TestThreat.Real);
         sim.AddPlayer(new PlayerState(0, 0, Striker(), 40f, 0f));
         sim.AddPlayer(new PlayerState(1, 1, Keeper(), 50f, 0f));
-        sim.AddPlayer(new PlayerState(2, 1, CenterBack(), 41.5f, -0.3f));   // 주사위 0이면 조준이 -Z 쪽(약 -12.6°)이라 그 쪽에 선다
+        sim.AddPlayer(new PlayerState(2, 1, CenterBack(), 41.5f, -0.3f));   // GK 중앙이라 구석 목표 +3.16 선(블록은 오차 전 목표선으로 본다). 그 선에서 0.7m라 블록 폭 1.3m 안
         sim.Kickoff();
         sim.Ball = BallRules.Own(sim.Ball, 0, 40f, 0f);
         var outcomes = new List<ShotOutcome>();

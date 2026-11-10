@@ -17,25 +17,6 @@ public class PassFlightTests
     }
 
     // 찬 뒤 자기 공을 쫓아가는 패서(실제 트리 ⑩ 자유 공 분기와 같은 움직임)
-    // 정한 주사위를 차례로 주고 다 쓰면 같은 값(11-09 B2: 조준이 주사위 2개라 상수 주사위로는 골문 밖을 못 만든다)
-    private sealed class RollSequence
-    {
-        private readonly Queue<float> rolls;
-        private readonly float rest;
-
-        public RollSequence(IEnumerable<float> values, float restRoll)
-        {
-            rolls = new Queue<float>(values);
-            rest = restRoll;
-        }
-
-        public float Next()
-        {
-            if (rolls.Count == 0) { return rest; }
-            return rolls.Dequeue();
-        }
-    }
-
     private sealed class PassThenChase : BehaviorNode
     {
         private readonly int passer; private readonly int receiver; private bool done;
@@ -431,7 +412,7 @@ public class PassFlightTests
     {
         // 주사위 순서(11-09 B2): 소유 때 퍼스트 터치 0(성공) → 조준 (0.99, 0.99) = 표준정규 +3.02 → 구석 목표 3.16 + 3σ(10m·shot 30 σ 약 1.4m)라 골문 밖
         // → 골 0(골문 안이었다면 골). 골 주사위가 골이어도 골문 밖이면 빗나감인지를 본다
-        var rolls = new RollSequence(new[] { 0f, 0.99f, 0.99f, 0f }, 0.5f);
+        var rolls = new RollQueue(new[] { 0f, 0.99f, 0.99f, 0f }, 0.5f);
         var sim = new MatchSimulation(rolls.Next, new PassFlightTestsHelper.ShootOnce(), TestThreat.Real);
         PlayerStats weak = Mid(); weak.Shot = 30;
         sim.AddPlayer(new PlayerState(0, 0, weak, 40f, 0f));

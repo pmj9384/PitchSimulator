@@ -236,11 +236,11 @@ public class ShotProbabilityTests
     public void 세이브_조준은_GK_닿는_범위_밖이면_경계로_당겨지고_안이면_그대로다()
     {
         // 11-09 B3(옛 포스트 밖 밀기 대체). AimAwayFromKeeper의 거울
-        Assert.AreEqual(1f, MatchRules.AimTowardKeeperReach(1f, 0f, 2f), 1e-6f, "범위 안은 그대로");
-        Assert.AreEqual(2f, MatchRules.AimTowardKeeperReach(2f, 0f, 2f), 1e-6f, "경계 포함");
-        Assert.AreEqual(2f, MatchRules.AimTowardKeeperReach(3f, 0f, 2f), 1e-6f, "밖이면 GK 쪽 경계로");
-        Assert.AreEqual(-1f, MatchRules.AimTowardKeeperReach(-3.16f, 1f, 2f), 1e-6f, "반대쪽도 같다");
-        Assert.AreEqual(FieldBounds.GoalHalfWidth, MatchRules.AimTowardKeeperReach(0f, 4.5f, 0.5f), 1e-6f, "GK가 골문 밖이면 포스트에서 멈춘다(세이브로 정해진 슛은 골문 안)");
+        Assert.AreEqual(1f, MatchRules.PullAimIntoReach(1f, 0f, 2f), 1e-6f, "범위 안은 그대로");
+        Assert.AreEqual(2f, MatchRules.PullAimIntoReach(2f, 0f, 2f), 1e-6f, "경계 포함");
+        Assert.AreEqual(2f, MatchRules.PullAimIntoReach(3f, 0f, 2f), 1e-6f, "밖이면 GK 쪽 경계로");
+        Assert.AreEqual(-1f, MatchRules.PullAimIntoReach(-3.16f, 1f, 2f), 1e-6f, "반대쪽도 같다");
+        Assert.AreEqual(FieldBounds.GoalHalfWidth, MatchRules.PullAimIntoReach(0f, 4.5f, 0.5f), 1e-6f, "GK가 골문 밖이면 포스트에서 멈춘다(세이브로 정해진 슛은 골문 안)");
     }
 
     [Test]

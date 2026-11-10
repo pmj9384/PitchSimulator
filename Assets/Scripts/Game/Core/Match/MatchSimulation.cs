@@ -1055,7 +1055,7 @@ namespace Game.Core.Match
             }
             if (diving)
             {
-                // 슛 대응은 다이빙 버스트. 피로·스탯·가속 무관(KeeperCanReach가 즉시 이 속도로 본다. 같은 전제여야 "닿는다"고 본 슛에 실제로 닿는다).
+                // 슛 대응은 다이빙 버스트. 피로·스탯·가속 무관(당김 폭 KeeperLateralReach가 즉시 이 속도로 본다. 같은 전제여야 GK 닿는 범위로 당긴 슛에 실제로 닿는다).
                 // 가속 한도를 한 틱에 다이빙 속도가 붙는 값으로 둔다. 골로 정해진 슛엔 스탯 속도·가속으로 한 발 늦게
                 speed = MatchTuning.KeeperDiveSpeed;
                 accel = MatchTuning.KeeperDiveSpeed / deltaTime;
@@ -1119,7 +1119,7 @@ namespace Game.Core.Match
                 float keeperZAtGoalLine = shooter.Z + (keeper.Z - shooter.Z) / fraction;   // GK z를 골라인 조준 좌표로 환산한 기준점
                 shotAimZ = MatchRules.AimAwayFromKeeper(shotAimZ, keeperZAtGoalLine, gapAtLine / fraction);
             }
-            if (keeper != null && ShouldPullAimIntoReach()) { PullAimIntoKeeperReach(keeper, shooter, goalX); }
+            if (keeper != null && ShouldPullAimIntoReach()) { PullAimIntoReach(keeper, shooter, goalX); }
             BallKicked?.Invoke(new KickReport(shooter.PlayerId, true, goalX - shooter.X, shotAimZ - shooter.Z));
             Ball = BallRules.Kick(Ball, goalX - shooter.X, shotAimZ - shooter.Z, MatchTuning.ShotSpeed);
         }
@@ -1330,7 +1330,7 @@ namespace Game.Core.Match
         // 세이브로 정해진 슛을 GK가 지연 뒤 공이 자기 라인을 지나기 전에 닿는 교차점으로(11-09 B3, 옛 PushWide 대체). 교차점은 트리 ⑨b(MoveToShotLine)가 가는 점과 같고
         // 지연은 반응과 남은 얼음(태클 실패 정지) 중 긴 쪽(10-25 판정과 실행의 전제 일치). 닿는 폭은 라인 교차점에서 재고 골라인 조준 좌표로 환산한다(÷ 라인 비율).
         // 비행 시간이 조준점에 따라 조금 바뀌므로 당긴 점으로 한 번 더 잰다(두 번이면 경계 오차가 cm 아래)
-        private void PullAimIntoKeeperReach(PlayerState keeper, PlayerState shooter, float goalX)
+        private void PullAimIntoReach(PlayerState keeper, PlayerState shooter, float goalX)
         {
             float lineX = KeeperLineX(keeper);
             float fraction = MatchRules.LineFraction(shooter.X, goalX, lineX);
@@ -1340,7 +1340,7 @@ namespace Game.Core.Match
             {
                 float flightToLine = Math.Max(0f, ShotFlightSecondsToLine(keeper, goalX));
                 float reachAtLine = MatchRules.KeeperLateralReach(lineX - keeper.X, flightToLine, delayTicks * MatchTuning.FixedStep);
-                shotAimZ = MatchRules.AimTowardKeeperReach(shotAimZ, keeperZAtGoalLine, reachAtLine / fraction);
+                shotAimZ = MatchRules.PullAimIntoReach(shotAimZ, keeperZAtGoalLine, reachAtLine / fraction);
             }
         }
 
@@ -1404,7 +1404,7 @@ namespace Game.Core.Match
 
         // 아직 반응 차례가 아닌 GK는 트리가 제자리에 둔다(10-25). 전엔 자리 규칙(공 z 추적)으로 미리 움직여 골 조준 간격(GoalAimGap)의 전제
         // "지연 뒤에만 움직임"과 달랐고, 골의 56%에서 GK가 마감 때 공 0.8m 안에 있었다(실험/2026-10-25-GK-골-간격-probe.md).
-        // 노골 슛도 같다: 닿음 판정(KeeperCanReach)도 지연 뒤부터 움직인다고 봤다. 슛이 뜨는 틱엔 Apply 순서상 GK가 한 틱 더 움직일 수 있다(0.02초, 무시)
+        // 노골 슛도 같다: 세이브 당김 폭(KeeperLateralReach)도 지연 뒤부터 움직인다고 본다. 슛이 뜨는 틱엔 Apply 순서상 GK가 한 틱 더 움직일 수 있다(0.02초, 무시)
         private bool IsWaitingForShot(PlayerState p)
         {
             if (!IsShotAimedAtMyGoal(p)) { return false; }

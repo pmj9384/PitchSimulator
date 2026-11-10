@@ -68,9 +68,9 @@ namespace Game.Core.Match
         // 로짓 = 절편 + 기울기 × 거리 + (슈터 shot − GK reflexes·diving 평균)/50 × ResolveStatScale. StatsBomb PL 15/16 유효 슛 중 골 거리 구간 63/41/30/18/9%를 로짓 선형 회귀 [직접 계산]
         public static float GoalOnTargetProbability(float distance, int shooterShot, int keeperReflexes, int keeperDiving)
         {
-            float keeperBlock = (keeperReflexes + keeperDiving) * 0.5f;
+            float keeperSaveStat = (keeperReflexes + keeperDiving) * 0.5f;
             float logit = MatchTuning.GoalOnTargetIntercept + MatchTuning.GoalOnTargetSlope * distance;
-            logit += ((shooterShot - 50) / 50f - (keeperBlock - 50) / 50f) * MatchTuning.ResolveStatScale;
+            logit += ((shooterShot - 50) / 50f - (keeperSaveStat - 50) / 50f) * MatchTuning.ResolveStatScale;
             return Logistic(logit);
         }
 
@@ -189,7 +189,7 @@ namespace Game.Core.Match
             return (speed - (float)Math.Sqrt(disc)) / deceleration;
         }
 
-        // GK가 지연(반응, 얼어 있으면 그 남은 시간) 뒤 공이 GK 라인을 지나기 전에 교차점까지 닿나. 거리·시간은 호출자가 실행(트리 MoveToShotLine:
+        // 테스트 대조용(운영 경로는 KeeperLateralReach). GK가 지연(반응, 얼어 있으면 그 남은 시간) 뒤 공이 GK 라인을 지나기 전에 교차점까지 닿나. 거리·시간은 호출자가 실행(트리 MoveToShotLine:
         // 수비 자리 x, 라인 교차 z)과 같은 점으로 재서 준다(10-25). 속도는 다이빙 버스트(스탯 무관), 발 반경은 공짜
         public static bool KeeperCanReach(float distance, float flightTime, float delaySeconds)
         {
@@ -256,7 +256,7 @@ namespace Game.Core.Match
         // 세이브로 정해진 슛의 조준점을 GK가 닿는 범위로(11-09 B3, AimAwayFromKeeper의 거울). 범위 안이면 그대로, 밖이면 GK 쪽 경계로 당긴다.
         // 세이브 확률이 실측 조건부 값이라 기하가 따라간다(옛 PushWide는 못 닿는 노골을 포스트 밖으로 밀어 빗나감 비율이 GK 자리에 오염됐다).
         // 당긴 점도 골문 안(포스트 경계 포함)에 둔다: 세이브로 정해진 슛이 빗나감이 되면 안 된다. GK가 골문 밖에 있어 경계가 밖이면 포스트에서 멈추고 골라인 세이브가 받는다
-        public static float AimTowardKeeperReach(float aimZ, float keeperZ, float reach)
+        public static float PullAimIntoReach(float aimZ, float keeperZ, float reach)
         {
             float offset = aimZ - keeperZ;
             if (Math.Abs(offset) <= reach) { return aimZ; }
