@@ -127,9 +127,9 @@ public class StadiumPrefabTests
         }
     }
 
-    // 잔디·CommonPitch 밖의 렌더러 재질: 구조물 2개(StadiumLight·Dark) + 광고판 LedBoard 1개 + 테크니컬 에어리어 선(CommonPitch와 같은 FieldLine) 1개. 경기장 재질은 인스턴싱을 끈다(SRP Batcher와 겹치지 않게)
+    // 잔디·CommonPitch 밖의 렌더러 재질: 구조물 4개(StadiumLight·Dark·Ground·Tunnel) + 광고판 LedBoard 1개 + 테크니컬 에어리어 선(CommonPitch와 같은 FieldLine) 1개. 경기장 재질은 인스턴싱을 끈다(SRP Batcher와 겹치지 않게)
     [Test]
-    public void 경기장_구조물은_재질_2개와_LED와_선_재질만_쓰고_인스턴싱을_끈다()
+    public void 경기장_구조물은_재질_4개와_LED와_선_재질만_쓰고_인스턴싱을_끈다()
     {
         foreach (StadiumSpec spec in Specs())
         {
@@ -160,6 +160,40 @@ public class StadiumPrefabTests
                 Assert.IsFalse(m.enableInstancing, $"{spec.Id} {m.name} 인스턴싱");
             }
         }
+    }
+
+    // 11-10: 관중석 없는 면에 테라스를 세우면서 지면 전광판이 테라스 단·지붕을 뚫었다(리뷰 🔴). 전광판은 테라스·구석 블록과 부피가 겹치지 않는다
+    [Test]
+    public void 전광판은_테라스와_구석_블록을_뚫지_않는다()
+    {
+        foreach (StadiumSpec spec in Specs())
+        {
+            GameObject root = Load(spec);
+            Transform boards = root.transform.Find("Scoreboards");
+            Transform outer = root.transform.Find("OuterBounds");
+            if (boards == null) { continue; }
+
+            Assert.IsNotNull(outer, $"{spec.Id} OuterBounds 없음");
+            foreach (MeshRenderer board in boards.GetComponentsInChildren<MeshRenderer>(true))
+            {
+                foreach (MeshRenderer part in outer.GetComponentsInChildren<MeshRenderer>(true))
+                {
+                    if (!part.name.StartsWith("Terrace") && !part.name.StartsWith("Corner")) { continue; }
+
+                    Assert.IsFalse(Overlaps(board.bounds, part.bounds), $"{spec.Id} {board.name}가 {part.name}과 겹친다");
+                }
+            }
+        }
+    }
+
+    // 맞닿은 면은 겹침으로 보지 않는다(부동소수 여유 1cm)
+    private static bool Overlaps(Bounds a, Bounds b)
+    {
+        const float Margin = 0.01f;
+        if (a.max.x - Margin <= b.min.x || b.max.x - Margin <= a.min.x) { return false; }
+        if (a.max.y - Margin <= b.min.y || b.max.y - Margin <= a.min.y) { return false; }
+        if (a.max.z - Margin <= b.min.z || b.max.z - Margin <= a.min.z) { return false; }
+        return true;
     }
 
     private static bool IsLineOrLed(MeshRenderer r)

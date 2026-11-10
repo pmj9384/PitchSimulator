@@ -44,7 +44,6 @@ public static class StadiumPrefabBuilder
     private const float DugoutOverhang = 1f;        // [가정] 지붕이 벤치보다 긴 길이(m)
     private const float DugoutDepthScale = 2.5f;    // [가정] 지붕 깊이 = 벤치 깊이 × 이 값
     private const float RoofLightDepth = 0.3f;      // [가정] 1부 조명 띠 깊이(m)
-    private const float ScoreboardGroundGap = 1f;   // [가정] 골대 뒤 관중석이 없을 때 런오프 끝에서 전광판까지(m)
     private const float BenchRunoffFraction = 0.4f; // [가정] 벤치 자리 = 먼 쪽 터치라인에서 런오프의 이 비율. 광고판(0.75)보다 선 쪽이고 지붕 뒤끝(1.5m 깊이)이 광고판 앞면을 넘지 않는다
     // 테크니컬 에어리어(IFAB Law 1 기술 구역): 좌석 양옆 1m, 터치라인 쪽으로 1m 떨어진 선까지 사각형 테두리. 뒤쪽 여유는 규정 없음 [가정]
     private const float TechAreaSideMargin = 1f;
@@ -194,14 +193,13 @@ public static class StadiumPrefabBuilder
         float back = spec.Runoff + spec.Rows * spec.RowDepth;
         float outerX = FieldBounds.HalfLength + back;
         float outerZ = FieldBounds.HalfWidth + back;
-        float height = OuterFenceHeight;
         float half = OuterWallThickness * 0.5f;
         float spanX = (outerX + OuterWallThickness) * 2f;   // 앞뒤 벽이 양 끝 벽 바깥 면까지 덮어 구석에 틈이 없다
-        Material wall = paints[Paint.Light];
-        Cube(parent, "OuterWall_Far", new Vector3(0f, height * 0.5f, outerZ + half), new Vector3(spanX, height, OuterWallThickness), wall);
-        Cube(parent, "OuterWall_Near", new Vector3(0f, height * 0.5f, -outerZ - half), new Vector3(spanX, height, OuterWallThickness), wall);
-        Cube(parent, "OuterWall_EndLeft", new Vector3(-outerX - half, height * 0.5f, 0f), new Vector3(OuterWallThickness, height, outerZ * 2f), wall);
-        Cube(parent, "OuterWall_EndRight", new Vector3(outerX + half, height * 0.5f, 0f), new Vector3(OuterWallThickness, height, outerZ * 2f), wall);
+        Material fence = paints[Paint.Light];
+        Cube(parent, "OuterFence_Far", new Vector3(0f, OuterFenceHeight * 0.5f, outerZ + half), new Vector3(spanX, OuterFenceHeight, OuterWallThickness), fence);
+        Cube(parent, "OuterFence_Near", new Vector3(0f, OuterFenceHeight * 0.5f, -outerZ - half), new Vector3(spanX, OuterFenceHeight, OuterWallThickness), fence);
+        Cube(parent, "OuterFence_EndLeft", new Vector3(-outerX - half, OuterFenceHeight * 0.5f, 0f), new Vector3(OuterWallThickness, OuterFenceHeight, outerZ * 2f), fence);
+        Cube(parent, "OuterFence_EndRight", new Vector3(outerX + half, OuterFenceHeight * 0.5f, 0f), new Vector3(OuterWallThickness, OuterFenceHeight, outerZ * 2f), fence);
 
         BuildTerraces(parent, spec, paints);
         BuildCorners(parent, spec, paints);
@@ -213,7 +211,7 @@ public static class StadiumPrefabBuilder
     {
         StandSide[] sides = { StandSide.Far, StandSide.Near, StandSide.EndLeft, StandSide.EndRight };
         float front = spec.Runoff;
-        float back = spec.Runoff + TerraceRows * spec.RowDepth;
+        float back = spec.Runoff + TerraceDepth(spec);
         float top = spec.BaseHeight + TerraceRows * spec.RowHeight;
         for (int s = 0; s < sides.Length; s++)
         {
@@ -231,17 +229,30 @@ public static class StadiumPrefabBuilder
         }
     }
 
-    // 구석: 두 면이 만나는 네모 자리를 관중석 높이 블록으로 채운다. 4면 경기장에서 구석 틈으로 바깥이 보이던 자리(11-10 유저 Play 화면)
+    private static float TerraceDepth(StadiumSpec spec)
+    {
+        return TerraceRows * spec.RowDepth;
+    }
+
+    private static float TerraceRoofTop(StadiumSpec spec)
+    {
+        return spec.BaseHeight + TerraceRows * spec.RowHeight + RoofClearance + RoofThickness;
+    }
+
+    // 구석: 두 면이 만나는 네모 자리를 블록으로 채운다. 4면 경기장에서 구석 틈으로 바깥이 보이던 자리(11-10 유저 Play 화면).
+    // 맞닿은 두 면이 모두 관중석이면 관중석 높이·깊이, 하나라도 테라스면 테라스 높이·깊이로 맞춰 옆보다 튀어나오지 않게 한다(11-10 리뷰)
     private static void BuildCorners(Transform parent, StadiumSpec spec, Dictionary<Paint, Material> paints)
     {
         float innerX = FieldBounds.HalfLength + spec.Runoff;
         float innerZ = FieldBounds.HalfWidth + spec.Runoff;
-        float depth = spec.Rows * spec.RowDepth;
-        float height = spec.BaseHeight + spec.Rows * spec.RowHeight;
         for (int i = 0; i < 4; i++)
         {
             float sx = (i & 1) == 0 ? 1f : -1f;
             float sz = (i & 2) == 0 ? 1f : -1f;
+            bool bothStands = HasStand(spec, sx > 0f ? StandSide.EndRight : StandSide.EndLeft) && HasStand(spec, sz > 0f ? StandSide.Far : StandSide.Near);
+            int rows = bothStands ? spec.Rows : TerraceRows;
+            float depth = rows * spec.RowDepth;
+            float height = spec.BaseHeight + rows * spec.RowHeight;
             Vector3 center = new Vector3(sx * (innerX + depth * 0.5f), height * 0.5f, sz * (innerZ + depth * 0.5f));
             Cube(parent, $"Corner{i}", center, new Vector3(depth, height, depth), paints[Paint.Dark]);
         }
@@ -291,9 +302,14 @@ public static class StadiumPrefabBuilder
             float sign = i == 0 ? 1f : -1f;
             StandSide end = i == 0 ? StandSide.EndRight : StandSide.EndLeft;
             bool hasStand = HasStand(spec, end);
-            float distance = FieldBounds.HalfLength + spec.Runoff + (hasStand ? spec.Rows * spec.RowDepth : ScoreboardGroundGap);
-            float floor = hasStand ? spec.BaseHeight + spec.Rows * spec.RowHeight : 0f;
-            float y = floor + ScoreboardLift + ScoreboardHeight * 0.5f;
+            float distance = FieldBounds.HalfLength + spec.Runoff + spec.Rows * spec.RowDepth;
+            float y = spec.BaseHeight + spec.Rows * spec.RowHeight + ScoreboardLift + ScoreboardHeight * 0.5f;
+            if (!hasStand)
+            {
+                // 관중석이 없는 면엔 테라스가 선다(BuildTerraces). 테라스 지붕 뒤끝 위에 올린다(11-10 리뷰: 지면에 두면 테라스 단과 지붕을 뚫었다)
+                distance = FieldBounds.HalfLength + spec.Runoff + TerraceDepth(spec) - ScoreboardThickness * 0.5f;
+                y = TerraceRoofTop(spec) + ScoreboardHeight * 0.5f;
+            }
             Cube(parent, $"Scoreboard{i}", new Vector3(sign * distance, y, 0f), new Vector3(ScoreboardThickness, ScoreboardHeight, ScoreboardWidth), paints[Paint.Dark]);
         }
     }
@@ -477,7 +493,7 @@ public static class StadiumPrefabBuilder
         return go;
     }
 
-    // 구조물 재질: URP Lit 하나에 색만 다른 2개(SRP Batcher 호환) + LED 1개. 셰이더를 못 찾으면 null
+    // 구조물 재질: URP Lit 하나에 색만 다른 4개(밝은색·어두운색·바깥 바닥·통로, SRP Batcher 호환) + LED 1개. 셰이더를 못 찾으면 null
     private static Dictionary<Paint, Material> LoadPaints()
     {
         Directory.CreateDirectory(GrassWearBuilder.MaterialFolder);
