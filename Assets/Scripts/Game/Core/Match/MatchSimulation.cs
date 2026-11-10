@@ -114,7 +114,7 @@ namespace Game.Core.Match
         private readonly List<RunCandidate> runCandidateBuffer = new List<RunCandidate>();
         private readonly List<TargetInfo>[] looseCandidates = { new List<TargetInfo>(), new List<TargetInfo>() }; // 팀별 루즈볼 추격 후보(GK·얼음 제외)
         private readonly List<TargetInfo>[] blockCandidates = { new List<TargetInfo>(), new List<TargetInfo>() }; // 팀별 슛 블록 후보(얼음 제외, 09-30 리뷰). 틱 시작 스냅샷과 같은 시점
-        // 팀별 "지금 맡은 선수"(09-28 F1b 히스테리시스). 압박 1순위는 상대 소유 중에만, 루즈볼 추격자는 소유 팀이 없을 때만 유지하고 아니면 -1
+        // 팀별 "지금 맡은 선수"(09-28 F1b 히스테리시스). 압박 1순위는 상대 소유 중에만, 루즈볼 추격자는 루즈볼(소유 팀 없음·착지점을 지난 패스, 11-10 A1)일 때만 유지하고 아니면 -1
         private readonly int[] pressLeader = { -1, -1 };
         private readonly int[] pressLeaderSince = { 0, 0 };   // 지금 담당이 맡기 시작한 틱. 최소 재임(PressMinTenureTicks) 판정
         private readonly int[] looseChaser = { -1, -1 };
@@ -154,6 +154,7 @@ namespace Game.Core.Match
 
         // 비행 중인 패스. 리시버는 스냅샷으로 "나한테 온다"를 알고 마중 나간다
         private bool passInFlight;
+        private bool passLive;                // 비행 중 패스가 아직 착지점 쪽으로 가는가(IsPassLive). FillSnapshots가 틱당 1회 정하고 추격·리시버 마중·마크 예외가 같은 값을 읽는다(11-10 A1)
         private int passReceiverId = -1;
         private bool passIsRun;               // 비행 중 패스가 런 제안 착지점으로 찬 것인가(트리가 고른 PassChoice.IsRun을 킥 때 받는다). 리시버가 공 추격(감속 없음)으로 받을지 정한다
         private int passPasserId = -1;        // 되돌림 감점용: 받은 선수의 LastPasserId에 기록
@@ -163,6 +164,7 @@ namespace Game.Core.Match
         private int immunityTicksLeft;        // 소유 면역: 소유 뒤 이 틱 동안 태클 불가
         private int holdUpTicksLeft;          // 볼 끌기(개인 holdUp): 소유 뒤 킥까지 대기 틱
         internal int HoldUpTicksLeft => holdUpTicksLeft;   // 테스트: 골킥 대기(4초)가 다음 소유자에게 이어지지 않는지 틱 수로 본다
+        internal int LetThroughTeamForTests => PassThroughTeam();   // 테스트: 잡기(흘려 보내기)와 추격(루즈볼)이 같은 착지점 판정을 보는지 본다
         private bool keeperJustCaught;        // 직전 슛을 GK가 잡았다 → 그 소유의 볼 끌기 대기는 KeeperHoldAfterCatchSeconds(10-25)
         private bool goalKickJustStarted;     // 골킥으로 GK에게 공을 쥐여 줬다 → 그 소유의 볼 끌기 대기는 GoalKickSetupSeconds(11-05)
         private int goalKickKeeperId = BallState.NoOwner;   // 골킥을 들고 있는 GK. 그 GK가 공을 쥐고 있는 동안 상대는 박스 밖에 머문다
@@ -272,8 +274,12 @@ namespace Game.Core.Match
         // 전진 뒷줄도 압박 후보(pressEligible)에 들어 있어 거리순 순위에서 자리를 차지한다. 그래서 "뒤에서 쫓는 1순위 + 앞에서 막는 뒷줄" 집게는 전진 뒷줄이 공에 가장 가깝지 않을 때만 생기고,
         // 가장 가까우면 그 선수 1명만 나간다. 거리순에서 빼서 늘 2명이 가게 할지는 압박 왕복 probe에서 잰 뒤 정한다(11-09 리뷰 🟡, 장부)
         // 스냅샷(트리가 읽음)과 마크 후보(압박자는 마커가 아님)가 이 한 함수를 쓴다
+        // 루즈볼 추격자가 압박 1순위면(11-10 A1 결정 2) 그 선수 1명만 0순위이고 나머지는 순위 밖이다: 착지점을 지난 상대 패스를 압박 거리 밖 추격자와
+        // 압박 거리 안 다른 선수(또는 전진 뒷줄)가 같이 쫓으면 같은 공으로 2명이 간다(설계-A-공과-받기 구멍 9)
         private int PressRankOf(PlayerState p)
         {
+            int chaser = looseChaser[p.Team];
+            if (chaser != -1 && chaser == pressLeader[p.Team]) { return chaser == p.PlayerId ? 0 : int.MaxValue; }
             if (stepOutBackLine[p.Team] == p.PlayerId) { return 0; }
             return PressRules.PressRank(p.PlayerId, pressEligible[p.Team], Ball.X, Ball.Z, pressLeader[p.Team], PressMargin(p.Team));
         }
@@ -323,33 +329,42 @@ namespace Game.Core.Match
         }
 
         // 팀별 "지금 맡은 선수" 갱신(09-28 F1b). 직전 틱 담당을 incumbent로 넘겨 도전자가 ChaserSwitchMargin 넘게 가까울 때만 바꾼다.
-        // 루즈볼 후보는 우리 GK를 뺀 필드 플레이어(09-23 R3: 출격 못 하는 GK가 최근접이면 아무도 안 쫓던 것)와 얼지 않은 선수. GK 출격은 트리가 따로 본다
+        // 루즈볼 후보는 우리 GK를 뺀 필드 플레이어(09-23 R3: 출격 못 하는 GK가 최근접이면 아무도 안 쫓던 것)와 얼지 않은 선수. GK 출격은 트리가 따로 본다.
+        // 루즈볼 = 소유되지 않았고 살아 있는 패스도 아닌 공(11-10 A1): 멈춘 공·튕긴 공에 더해 착지점을 지난 패스. 소유 팀 표시(OwnerTeam)는 찬 팀 그대로 둔다(블록 형태 보존, 09-28).
+        // 전엔 멈춘 공만 루즈볼이라 착지점을 지나 구르는 패스는 압박 거리 안 상대만 쫓았다(11-09 receive probe: 아무도 안 쫓는 구르는 공 판당 142초).
+        // 잡기(TryCapture의 흘려 보내기)도 착지점을 지난 공은 누구든 잡게 두니, 추격도 같은 전제를 쓴다. 압박 거리 다이얼은 "상대 소유 때"의 것이라 루즈볼엔 안 건다
         private void UpdateChasers(int ownerTeam)
         {
-            bool loose = Ball.Phase != BallPhase.Owned && ownerTeam == -1;
+            bool loose = Ball.Phase != BallPhase.Owned && !passLive;   // 살아 있는 패스면 OwnerTeam이 찬 팀이라, 설계식 (OwnerTeam == -1 || !PassLive)와 같다
             for (int team = 0; team < 2; team++)
             {
-                int candidate = ownerTeam == 1 - team
-                    ? PressRules.FirstInRank(pressEligible[team], Ball.X, Ball.Z, pressLeader[team], PressMargin(team))
-                    : -1;
+                looseChaser[team] = loose ? LooseChaserOf(team) : -1;
+
+                int candidate = PressLeaderOf(team, ownerTeam);
                 if (candidate != pressLeader[team]) { pressLeaderSince[team] = tickCount; }
                 pressLeader[team] = candidate;
-
-                if (!loose)
-                {
-                    looseChaser[team] = -1;
-                    continue;
-                }
-                List<TargetInfo> candidates = looseCandidates[team];
-                candidates.Clear();
-                for (int i = 0; i < players.Count; i++)
-                {
-                    PlayerState p = players[i];
-                    if (p.Team != team || p.IsGoalkeeper || p.FrozenTicks > 0) { continue; }
-                    candidates.Add(new TargetInfo(p.PlayerId, p.X, p.Z));
-                }
-                looseChaser[team] = PressRules.FirstInRank(candidates, Ball.X, Ball.Z, looseChaser[team], MatchTuning.ChaserSwitchMargin);
             }
+        }
+
+        private int LooseChaserOf(int team)
+        {
+            List<TargetInfo> candidates = looseCandidates[team];
+            candidates.Clear();
+            for (int i = 0; i < players.Count; i++)
+            {
+                PlayerState p = players[i];
+                if (p.Team != team || p.IsGoalkeeper || p.FrozenTicks > 0) { continue; }
+                candidates.Add(new TargetInfo(p.PlayerId, p.X, p.Z));
+            }
+            return PressRules.FirstInRank(candidates, Ball.X, Ball.Z, looseChaser[team], MatchTuning.ChaserSwitchMargin);
+        }
+
+        // 압박 1순위는 상대 소유 중에만 있다. 착지점을 지난 상대 패스처럼 루즈볼 추격자가 있으면 그 선수가 1순위다(11-10 A1 결정 2, PressRankOf)
+        private int PressLeaderOf(int team, int ownerTeam)
+        {
+            if (ownerTeam != 1 - team) { return -1; }
+            if (looseChaser[team] != -1) { return looseChaser[team]; }
+            return PressRules.FirstInRank(pressEligible[team], Ball.X, Ball.Z, pressLeader[team], PressMargin(team));
         }
 
         // 리시버 마크 배정(11-06 S3 ①). 상대 소유이고 공이 우리 골 MarkZoneRadius 안일 때만. 대상 = 우리 골에 가까운 상대 필드 선수(소유자·GK 제외) 뒷줄 수까지,
@@ -375,10 +390,10 @@ namespace Game.Core.Match
             }
         }
 
-        // 대상 선정에 쓰는 상대 명부. 상대 패스가 날아가는 중이면 리시버를 도착점에 둔다(마크 지점 MarkPointFor와 같은 점)
+        // 대상 선정에 쓰는 상대 명부. 상대 패스가 착지점 쪽으로 날아가는 중이면 리시버를 도착점에 둔다(마크 지점 MarkPointFor와 같은 점). 착지점을 지난 공이면 리시버의 지금 자리(11-10 A1)
         private IReadOnlyList<TargetInfo> MarkOpponentsOf(int team)
         {
-            if (!passInFlight) { return rosterSnapshot[1 - team]; }
+            if (!passLive) { return rosterSnapshot[1 - team]; }
 
             MarkRules.WithReceiverAt(rosterSnapshot[1 - team], passReceiverId, passTargetX, passTargetZ, markOpponents);
             return markOpponents;
@@ -506,9 +521,10 @@ namespace Game.Core.Match
             return (x, spot.z);
         }
 
+        // 착지점을 지난 패스면 아니다(11-10 A1): 리시버가 놓친 공인데 마커가 빈 착지점을 계속 보면 마커 1명이 빈 자리에 선다(설계-A-공과-받기 구멍 13)
         private bool IsFlightReceiver(PlayerState target)
         {
-            return passInFlight && passReceiverId == target.PlayerId;
+            return passLive && passReceiverId == target.PlayerId;
         }
 
         private float MarkFloorDepthFor(PlayerState marker, PlayerState target)
@@ -523,7 +539,7 @@ namespace Game.Core.Match
         // 리시버 지금 자리를 보면 받는 순간 마커가 4m 뒤에 있었다(11-06 진단 받는 순간 최근접 수비 중앙값 4.1m). 아니면 대상의 지금 위치·속도와 내 반응 지연
         private (float x, float z) UnflooredMarkPoint(PlayerState marker, PlayerState target)
         {
-            if (passInFlight && passReceiverId == target.PlayerId)
+            if (IsFlightReceiver(target))
             {
                 return MarkRules.MarkPoint(passTargetX, passTargetZ, 0f, 0f, 0f, marker.AttackSign, MatchTuning.MarkDistance);
             }
@@ -805,6 +821,8 @@ namespace Game.Core.Match
                 if (p.FrozenTicks == 0) { blockCandidates[p.Team].Add(info); }
             }
 
+            // 착지점 판정은 틱당 1회. 이번 틱 TryCapture(흘려 보내기)가 본 공과 같은 공이라 PassThroughTeam과 같은 값이다(그 사이 공을 바꾸는 건 소유 변경뿐이고, 그러면 passInFlight가 꺼진다)
+            passLive = IsPassLive();
             int ownerTeam = OwnerTeam();
             if (ownerTeam != -1 && lastOwnerTeam != -1 && ownerTeam != lastOwnerTeam)
             {
@@ -856,7 +874,7 @@ namespace Game.Core.Match
                 p.IsKeeperAlternate = keeperAlternate[p.Team];
                 p.OpponentKeeper = keeperIds[other] == -1 ? null : FindPlayer(keeperIds[other]).Stats;
                 p.OpponentKeeperId = keeperIds[other];
-                p.IsPassTarget = passInFlight && passReceiverId == p.PlayerId;
+                p.IsPassTarget = passLive && passReceiverId == p.PlayerId;   // 착지점을 지나면 마중(⑥)을 끈다. 리시버가 그 팀 루즈볼 추격자면 공을 쫓는다(11-10 A1)
                 p.IsRunPass = p.IsPassTarget && passIsRun;
                 p.PassTargetX = passTargetX;
                 p.PassTargetZ = passTargetZ;
@@ -1634,12 +1652,19 @@ namespace Game.Core.Match
         // 착지점을 지난 공은 받을 선수가 놓친 자유 공이라 누구든 잡는다. 런 판정(RunRules.RunnerMeetsBall)의 범위도 착지점까지다
         private int PassThroughTeam()
         {
-            if (!passInFlight) { return -1; }
+            if (!IsPassLive()) { return -1; }
+            return OwnerTeam();
+        }
+
+        // 살아 있는 패스: 비행 중이고 공이 아직 착지점 쪽으로 간다. 착지점을 지났거나 공이 서 있으면 거짓.
+        // 잡기(PassThroughTeam)와 추격·리시버 마중·마크 예외(FillSnapshots의 passLive)가 이 한 식을 쓴다(11-10 A1)
+        private bool IsPassLive()
+        {
+            if (!passInFlight) { return false; }
 
             float toLandingX = passTargetX - Ball.X;
             float toLandingZ = passTargetZ - Ball.Z;
-            if (toLandingX * Ball.VelX + toLandingZ * Ball.VelZ <= 0f) { return -1; }   // 착지점을 지났다(또는 공이 서 있다)
-            return OwnerTeam();
+            return toLandingX * Ball.VelX + toLandingZ * Ball.VelZ > 0f;
         }
 
         private static bool IsKeeperInOwnBox(PlayerState p)

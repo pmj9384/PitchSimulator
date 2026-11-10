@@ -58,7 +58,7 @@ namespace Game.Core.Match
         public bool IsMarker { get; set; }            // 이번 틱 상대 리시버를 마크하나(시뮬이 MarkRules로 정함, 11-06 S3 ①)
         public float MarkX { get; set; }              // 마크 지점(그 리시버의 골 쪽). IsMarker일 때만 뜻이 있다
         public float MarkZ { get; set; }
-        public bool IsLooseBallChaser { get; set; }   // 소유 팀 없는 공을 우리 팀에서 내가 맡았나(시뮬이 히스테리시스로 정함, 09-28 F1b)
+        public bool IsLooseBallChaser { get; set; }   // 루즈볼(소유 팀 없는 공·착지점을 지난 패스, 11-10 A1)을 우리 팀에서 내가 맡았나(시뮬이 히스테리시스로 정함, 09-28 F1b)
         public bool IsKickoffTaker { get; set; }      // 킥오프 키커이고 첫 패스 전
         public bool WantsTakeOn { get; set; }         // 돌파 의도
         public bool ShotReady { get; set; } = true;   // 슛을 판정에 넣어도 되나(소유 뒤 준비 시간이 지났거나 퍼스트 터치, 11-08 S3 1단계)

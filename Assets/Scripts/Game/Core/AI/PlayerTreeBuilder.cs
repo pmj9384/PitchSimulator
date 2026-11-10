@@ -68,6 +68,12 @@ namespace Game.Core.AI
                     new ConditionNode(ctx => ctx.OwnsBall),
                     new ActionNode(ctx => DribbleTarget(ctx))),
 
+                // ⑤b 루즈볼 추격자(11-10 A1): 시뮬이 정한 우리 팀 추격자는 소유 팀 분기(⑥~⑨)보다 먼저 공을 쫓는다. 착지점을 지난 패스는 소유 팀 표시가 찬 팀 그대로라
+                // ⑩까지 안 내려온다. 조건은 ⑩의 필드 선수 쪽과 같다(GK 출격은 ⑩에 그대로)
+                new SequenceNode(
+                    new ConditionNode(ctx => ctx.BallPhase != BallPhase.Owned && ctx.IsLooseBallChaser),
+                    new ActionNode(ctx => ChaseBall(ctx))),
+
                 // ── 아군 소유 ────────────────────────────────────────────
                 // ⑥ 나한테 오는 패스면 도착점으로 마중
                 new SequenceNode(

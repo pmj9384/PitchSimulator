@@ -1473,4 +1473,196 @@ public class MatchSimulationTests
         Assert.IsFalse(striker.ShotReady);
         Assert.AreEqual(0, sim.FirstTouchReadyCount);
     }
+
+    // ── 구르는 공 경합(11-10 A1, 설계-A-공과-받기 3-1): 착지점을 지난 패스는 루즈볼이라 양 팀 최근접 1명씩이 쫓는다. 소유 팀 표시는 찬 팀 그대로
+
+    // 지정 선수가 공을 가지면 한 번 지정 착지점으로 패스하고, 나머지 틱·선수는 안쪽 트리(가짜 트리 또는 실제 트리)를 돈다
+    private sealed class PassToPointThen : BehaviorNode
+    {
+        private readonly int passer;
+        private readonly int receiver;
+        private readonly float landingX;
+        private readonly float landingZ;
+        private readonly BehaviorNode inner;
+        private bool done;
+
+        public PassToPointThen(int passer, int receiver, float landingX, float landingZ, BehaviorNode inner)
+        {
+            this.passer = passer;
+            this.receiver = receiver;
+            this.landingX = landingX;
+            this.landingZ = landingZ;
+            this.inner = inner;
+        }
+
+        public override NodeState Tick(IPlayerContext ctx)
+        {
+            if (done || ctx.PlayerId != passer || !ctx.OwnsBall) { return inner.Tick(ctx); }
+            ctx.Pass(receiver, landingX, landingZ);
+            done = true;
+            return NodeState.Success;
+        }
+    }
+
+    private const float LooseLandingX = 12f;
+
+    // 팀 0 패서(0번, 원점)가 (12, 0)으로 찬다. 리시버(1번)는 착지점에서 25m 옆이라 공이 착지점을 지나 구른다.
+    // 팀 1 수비(3번)는 착지점 너머 (30, −6), 압박 거리 6m 밖이고 팀 압박 시작은 기본값(안 감)
+    private static MatchSimulation LooseBallScene(BehaviorNode inner, out PlayerState receiver, out PlayerState defender)
+    {
+        var sim = new MatchSimulation(() => 0.5f, new PassToPointThen(0, 1, LooseLandingX, 0f, inner), TestThreat.Real);
+        sim.AddPlayer(new PlayerState(0, 0, Midfielder(), 0f, 0f));
+        PlayerStats slow = Midfielder();
+        slow.Speed = 30;
+        receiver = sim.AddPlayer(new PlayerState(1, 0, slow, LooseLandingX, 25f));
+        defender = sim.AddPlayer(new PlayerState(3, 1, Midfielder(), 30f, -6f));
+        sim.Kickoff();
+        sim.Ball = BallRules.Own(sim.Ball, 0, 0f, 0f);
+        return sim;
+    }
+
+    // 공이 x에 닿을 때까지(최대 limit틱) 돌린다. 그 전에 누가 잡거나 공이 서면 실패
+    private static void TickUntilBallX(MatchSimulation sim, float x, int limit = 400)
+    {
+        for (int i = 0; i < limit && sim.Ball.X < x; i++)
+        {
+            sim.Tick(Dt);
+        }
+        Assert.AreEqual(BallPhase.Flight, sim.Ball.Phase, $"공이 x {x}까지 굴러가는 패스여야 한다(지금 {sim.Ball.X:0.00})");
+        Assert.GreaterOrEqual(sim.Ball.X, x);
+    }
+
+    private static int LooseChaserOf(MatchSimulation sim, int team)
+    {
+        int found = -1;
+        foreach (PlayerState p in sim.Players)
+        {
+            if (p.Team != team || !p.IsLooseBallChaser) { continue; }
+            Assert.AreEqual(-1, found, $"팀 {team} 루즈볼 추격자는 1명");
+            found = p.PlayerId;
+        }
+        return found;
+    }
+
+    [Test]
+    public void 착지점을_지난_패스는_양_팀_최근접이_루즈볼_추격자가_된다()
+    {
+        // 11-09 receive probe: 착지점을 지난 패스는 멈출 때까지 passInFlight라 상대는 압박 거리 안일 때만 쫓았다(아무도 안 쫓는 구르는 공 판당 142초)
+        MatchSimulation sim = LooseBallScene(PlayerTreeBuilder.Build(), out PlayerState receiver, out PlayerState defender);
+        TickUntilBallX(sim, LooseLandingX + 2f);
+
+        Assert.AreEqual(0, sim.OwnerTeam(), "소유 팀 표시는 찬 팀 그대로(블록 형태 보존, 09-28)");
+        PlayerState passer = sim.Players[0];
+        Assert.AreEqual(passer.PlayerId, LooseChaserOf(sim, 0), "찬 팀은 공에 가장 가까운 필드 선수(패서)");
+        Assert.AreEqual(defender.PlayerId, LooseChaserOf(sim, 1), "상대 팀도 최근접 1명");
+        Assert.AreEqual(MoveMode.Run, passer.MoveMode, "찬 팀 추격자는 공으로 달린다");
+        Assert.AreEqual(MoveMode.Run, defender.MoveMode, "상대 추격자는 압박 거리 밖이어도 공으로 달린다");
+        Assert.IsFalse(receiver.IsLooseBallChaser);
+    }
+
+    [Test]
+    public void 착지점_전에는_루즈볼_추격자가_없고_리시버만_마중한다()
+    {
+        MatchSimulation sim = LooseBallScene(new PassFlightTestsHelper.NoOp(), out PlayerState receiver, out PlayerState defender);
+        TickUntilBallX(sim, LooseLandingX - 6f);
+
+        Assert.AreEqual(-1, LooseChaserOf(sim, 0), "착지점 전엔 찬 팀 추격자 없음");
+        Assert.AreEqual(-1, LooseChaserOf(sim, 1), "착지점 전엔 상대 추격자 없음");
+        Assert.IsTrue(receiver.IsPassTarget, "리시버는 착지점으로 마중");
+        Assert.AreEqual(int.MaxValue, defender.PressRank, "압박 거리 밖 수비는 순위 밖(⑨ 자리)");
+    }
+
+    [Test]
+    public void 착지점을_지나면_리시버_마중과_마크_리시버_예외가_꺼진다()
+    {
+        // 구멍 3·13: 착지점을 지난 뒤에도 마커가 빈 착지점을 보면 2초 안팎 마커 1명이 빈 자리에 선다.
+        // 팀 1 패서(2번)가 (−15, 0)에서 (−30, 0)으로 찬다. 리시버(3번)는 (−32, 12)에 서 있다.
+        // 팀 0 뒷줄 CB 2명: 공 길에 가까운 1번은 라인 앞 전진(압박)이라 마커가 아니고, 0번이 마커
+        var sim = new MatchSimulation(() => 0.5f, new PassToPointThen(2, 3, -30f, 0f, new PassFlightTestsHelper.NoOp()), TestThreat.Real);
+        PlayerState marker = sim.AddPlayer(new PlayerState(0, 0, CenterBack(), -42f, 15f));
+        sim.AddPlayer(new PlayerState(1, 0, CenterBack(), -40f, -5f));
+        sim.AddPlayer(new PlayerState(2, 1, Midfielder(), -15f, 0f));
+        PlayerState receiver = sim.AddPlayer(new PlayerState(3, 1, Midfielder(), -32f, 12f));
+        sim.Kickoff();
+        sim.Ball = BallRules.Own(sim.Ball, 2, -15f, 0f);
+
+        for (int i = 0; i < 400 && sim.Ball.X > -22f; i++) { sim.Tick(Dt); }
+        Assert.AreEqual(BallPhase.Flight, sim.Ball.Phase);
+        Assert.IsTrue(receiver.IsPassTarget, "전제: 착지점 전엔 리시버가 마중");
+        Assert.IsTrue(marker.IsMarker, "전제: 뒷줄 CB가 리시버를 맡는다");
+        (float x, float z) atLanding = MarkRules.MarkPoint(-30f, 0f, 0f, 0f, 0f, marker.AttackSign, MatchTuning.MarkDistance);
+        Assert.AreEqual(atLanding.z, marker.MarkZ, 1e-3f, "착지점 전엔 착지점 기준으로 선다");
+
+        for (int i = 0; i < 400 && sim.Ball.X > -32f; i++) { sim.Tick(Dt); }
+        Assert.AreEqual(BallPhase.Flight, sim.Ball.Phase, "착지점을 2m 지나 구르는 중");
+        Assert.AreEqual(1, sim.OwnerTeam(), "소유 팀 표시는 찬 팀 그대로");
+        Assert.IsFalse(receiver.IsPassTarget, "착지점을 지나면 리시버 마중이 꺼진다");
+        Assert.IsTrue(marker.IsMarker, "마크는 계속(상대 소유 표시)");
+        (float x, float z) atReceiver = MarkRules.MarkPoint(receiver.X, receiver.Z, 0f, 0f, 0f, marker.AttackSign, MatchTuning.MarkDistance);
+        Assert.AreEqual(atReceiver.z, marker.MarkZ, 1e-3f, "리시버의 지금 자리 기준으로 선다");
+        Assert.LessOrEqual(LineRules.HomeDepth(marker.MarkX, marker.AttackSign), marker.DefendDepthCap + 1e-4f, "마크 상한(공보다 골 쪽)을 다시 받는다");
+    }
+
+    [Test]
+    public void 착지점_판정은_잡기와_추격이_같은_틱_값을_본다()
+    {
+        // 구멍 8: 잡기(TryCapture의 흘려 보내기)와 추격(루즈볼)이 같은 내적 판정을 본다. 착지점을 지나는 틱에 둘이 같이 바뀐다
+        MatchSimulation sim = LooseBallScene(new PassFlightTestsHelper.NoOp(), out PlayerState receiver, out _);
+        sim.Tick(Dt);   // 킥
+        int flips = 0;
+        bool wasLive = true;
+        for (int i = 0; i < 400 && sim.Ball.Phase == BallPhase.Flight; i++)
+        {
+            sim.Tick(Dt);
+            bool letThrough = sim.LetThroughTeamForTests != -1;
+            bool chased = LooseChaserOf(sim, 1) != -1;
+            Assert.AreEqual(letThrough, !chased, $"{i}틱: 흘려 보내기와 루즈볼 추격은 같은 판정의 반대");
+            Assert.AreEqual(letThrough, receiver.IsPassTarget, $"{i}틱: 리시버 마중도 같은 판정");
+            if (wasLive && !letThrough) { flips++; }
+            wasLive = letThrough;
+        }
+        Assert.AreEqual(1, flips, "착지점을 한 번 지난다");
+    }
+
+    [Test]
+    public void 루즈볼_추격자는_GK와_얼음_선수를_뺀다()
+    {
+        // 기존 ⑩ 후보 규칙(09-23 R3·태클 실패 얼음)을 착지점을 지난 공에도 그대로 쓴다. 팀 1: GK가 가장 가깝고, 그다음 얼은 선수, 맨 뒤 필드 선수
+        var sim = new MatchSimulation(() => 0.5f, new PassToPointThen(0, 1, LooseLandingX, 0f, new PassFlightTestsHelper.NoOp()), TestThreat.Real);
+        sim.AddPlayer(new PlayerState(0, 0, Midfielder(), 0f, 0f));
+        sim.AddPlayer(new PlayerState(1, 0, Midfielder(), LooseLandingX, 25f));
+        PlayerState keeper = sim.AddPlayer(new PlayerState(3, 1, Keeper(), 16f, 3f));
+        PlayerState frozen = sim.AddPlayer(new PlayerState(4, 1, Midfielder(), 16f, -4f));
+        PlayerState field = sim.AddPlayer(new PlayerState(5, 1, Midfielder(), 26f, 8f));
+        sim.Kickoff();
+        sim.Ball = BallRules.Own(sim.Ball, 0, 0f, 0f);
+        frozen.FrozenTicks = 10000;
+
+        TickUntilBallX(sim, LooseLandingX + 2f);
+        Assert.IsFalse(keeper.IsLooseBallChaser, "GK는 루즈볼 후보가 아니다(출격은 트리가 따로 본다)");
+        Assert.IsFalse(frozen.IsLooseBallChaser, "얼은 선수는 후보가 아니다");
+        Assert.IsTrue(field.IsLooseBallChaser, "남은 필드 선수가 쫓는다");
+    }
+
+    [Test]
+    public void 루즈볼_추격자가_있으면_그_선수가_팀의_압박_1순위이고_다른_압박자는_없다()
+    {
+        // 결정 2(구멍 9): 압박 거리 밖 최근접(추격자)과 압박 거리 안 다른 선수가 같은 공으로 2명 가지 않게 한 사람으로 맞춘다.
+        // 팀 1: 가까운 A(압박 거리 6m, 착지점 2m 뒤 공에서 7m)와 먼 B(압박 거리 13m, 10.2m). 압박 시작 표준
+        var sim = new MatchSimulation(() => 0.5f, new PassToPointThen(0, 1, LooseLandingX, 0f, new PassFlightTestsHelper.NoOp()), TestThreat.Real);
+        sim.AddPlayer(new PlayerState(0, 0, Midfielder(), 0f, 0f));
+        sim.AddPlayer(new PlayerState(1, 0, Midfielder(), LooseLandingX, 25f));
+        PlayerState near = sim.AddPlayer(new PlayerState(3, 1, Midfielder(), 21f, 0.5f));
+        PlayerStats wide = Midfielder();
+        wide.PressRange = 13f;
+        PlayerState far = sim.AddPlayer(new PlayerState(4, 1, wide, LooseLandingX, -10f));
+        sim.SetTactics(1, new TeamTactics { PressStart = new[] { 1, 1, 1 } });
+        sim.Kickoff();
+        sim.Ball = BallRules.Own(sim.Ball, 0, 0f, 0f);
+
+        TickUntilBallX(sim, LooseLandingX + 2f);
+        Assert.IsTrue(near.IsLooseBallChaser, "전제: 공에 가장 가까운 A가 추격자");
+        Assert.AreEqual(0, near.PressRank, "추격자가 압박 1순위");
+        Assert.GreaterOrEqual(far.PressRank, MatchTuning.MaxPressers, "압박 거리 안이어도 B는 압박하러 가지 않는다");
+    }
 }
