@@ -198,7 +198,7 @@ public class MatchSimulationTests
     {
         // 슛마다 조준 주사위 2(11-09 B2 정규 오차) + 골 주사위 1(순서: 블록 → 조준 → 골. 블로커가 없어 블록 주사위는 안 쓴다), 골이 아니고 골문 안이면 캐치 주사위 1. 40개면 넉넉하다.
         // 조준 roll은 (0.5, 0.5) = 표준정규 −1.18로 고정: 구석 목표 3.16에서 σ(12m·shot 90 ≈ 1.1m)만큼 안쪽이라 골문 안이고 GK(z 0)가 닿는다(오차 자체는 ShotDirectionTests가 검증)
-        // 10-23 슛 확정 보정(ShotResolveLogitBonus) 뒤 p가 0.35~0.65라, 골 roll은 그 띠를 피해 0.15 이하(골) 또는 0.8 이상(아님)으로만 둔다. 골 5·세이브 5
+        // p는 유효 슛 조건부 골 확률(11-09 B3, 14m 안팎·shot 90 대 GK 60이면 0.35 근처)이라, 골 roll은 그 띠를 피해 0.15 이하(골) 또는 0.8 이상(아님)으로만 둔다. 골 5·세이브 5
         float[] sequence = { 0.5f,0.5f,0.10f, 0.5f,0.5f,0.95f,0.50f, 0.5f,0.5f,0.90f,0.20f, 0.5f,0.5f,0.05f, 0.5f,0.5f,0.99f,0.70f, 0.5f,0.5f,0.15f, 0.5f,0.5f,0.85f,0.99f, 0.5f,0.5f,0.12f, 0.5f,0.5f,0.80f,0.30f, 0.5f,0.5f,0.08f, 0.5f,0.5f,0.5f,0.5f };
         var rolls = new RollQueue(sequence);
         MatchSimulation sim = LitmusMatch(rolls);
@@ -232,27 +232,64 @@ public class MatchSimulationTests
         Assert.AreEqual(goals, sim.HomeGoals, "득점 합 = Goal 결과 수");
         Assert.AreEqual(0, sim.AwayGoals);
         Assert.AreEqual(sequence.Length - cursor, rolls.Remaining, "주사위는 슛 판정에만 쓴다");
-        Assert.That(expectedGoals, Is.InRange(2.5f, 6.5f), "ST(shot 90) 대 GK(80/40) 10회 기대 골(확정 보정 ShotResolveLogitBonus 포함). 보정 전엔 1.5~4.5");
+        Assert.That(expectedGoals, Is.InRange(2.5f, 6.5f), "ST(shot 90) 대 GK(80/40) 10회 기대 골(유효 슛 조건부 골 확률, 11-09 B3)");
         // 트리는 상대 GK를 모르므로 중립 GK(50)로 "확률 ≥ shotBias 0.3"을 판단하고, 보고된 p는 실제 GK(80·40 → 60)로 낮아진다.
-        // 로짓 -0.2만큼이라 0.3 문턱이 약 0.25로 내려오고, 확정 보정(ShotResolveLogitBonus)이 붙어 보고 값은 0.4 근처. 그보다 훨씬 가까이 가서 쏘지도(0.7 이상) 않는다
-        Assert.That(reports[0].Probability, Is.InRange(0.3f, 0.7f), "shotBias 0.3(중립 GK 기준) 넘자마자 쏜다. 보고된 p는 확정 보정이 붙은 값");
+        // 보고된 p는 xG가 아니라 유효 슛 조건부 골 확률(B3: 거리 로지스틱 + 스탯 차 × 0.5)이라 0.3~0.45 근처. 그보다 훨씬 가까이 가서 쏘지도(0.7 이상) 않는다
+        Assert.That(reports[0].Probability, Is.InRange(0.3f, 0.7f), "shotBias 0.3(중립 GK 기준) 넘자마자 쏜다. 보고된 p는 유효 슛 조건부 골 확률");
     }
 
     // ── GK 슛 대응(10-23 유저 "안 들어가면 골대 안으로 가면 안 된다")
-    // 노골로 정해진 유효 슛은 GK가 닿을 수 있으면 세이브, 못 닿으면 찬 순간 포스트 밖으로 밀린다. "GK는 서 있고 공은 골대 안"은 없다
+    // 노골로 정해진 유효 슛은 세이브로 끝난다. GK가 못 닿을 자리면 찬 순간 조준을 GK 닿는 범위로 당긴다(11-09 B3. 옛 PushWide는 포스트 밖으로 밀어 빗나감으로 만들었다)
     [Test]
-    public void 노골_유효_슛을_GK가_못_닿으면_포스트_밖으로_밀려_빗나간다()
+    public void 세이브로_정해진_슛은_GK가_닿는_범위로_조준이_당겨진다()
     {
-        // GK 자리 z +3 → 조준 목표는 반대쪽 구석 −3.16(B2), 조준 roll (0, ·) → 오차 0이라 정확히 −3.16, 골 roll 0.99(노골). 가로 6m를 다이빙 8m/s로도 비행 0.3초 안에 못 간다
+        // GK 자리 z +3 → 조준 목표는 반대쪽 구석 −3.16(B2), 조준 roll (0, ·) → 오차 0이라 정확히 −3.16, 골 roll 0.99(노골 = 세이브). 가로 6m는 다이빙 8m/s로도 못 간다
+        // 리트머스 트리엔 GK 이동 노드가 없어 접촉 세이브 대신 골라인 세이브로 끝난다(접촉까지 보려면 전체 트리, 이동은 다른 GK 테스트가 본다)
         var sim = new MatchSimulation(new RollQueue(new[] { 0f, 0.5f, 0.99f, 0.5f, 0.5f, 0.5f }).Next, PlayerTreeBuilder.BuildLitmus(), TestThreat.Real) { ResetAfterEveryShot = true };
-        sim.AddPlayer(new PlayerState(0, 0, Striker(), -10f, 0f));
-        PlayerState keeper = sim.AddPlayer(new PlayerState(1, 1, Keeper(), 50f, 3f));
+        PlayerState striker = sim.AddPlayer(new PlayerState(0, 0, Striker(), -10f, 0f));
+        sim.AddPlayer(new PlayerState(1, 1, Keeper(), 50f, 3f));
+        float aimZ = float.NaN;
+        sim.BallKicked += k =>
+        {
+            if (!k.IsShot) { return; }
+            aimZ = striker.Z + k.DirZ;
+        };
         sim.Kickoff();
 
         List<ShotReport> reports = RunShots(sim, 1);
 
-        Assert.AreEqual(ShotOutcome.Missed, reports[0].Outcome, "GK가 못 닿는 노골은 빗나감");
-        Assert.AreEqual(3f, keeper.Z, 1e-3f, "GK는 제자리(라인 세이브로 당겨지지 않음)");
+        Assert.IsTrue(reports[0].Outcome == ShotOutcome.Caught || reports[0].Outcome == ShotOutcome.Parried, "세이브로 정해진 슛은 빗나감이 아니라 세이브");
+        Assert.IsTrue(MatchRules.IsOnTarget(aimZ), "당긴 조준도 골문 안");
+        Assert.Greater(aimZ, -(FieldBounds.GoalHalfWidth - MatchTuning.AimInset) + 0.5f, "구석 −3.16에서 GK(+3) 쪽으로 당겨졌다");
+    }
+
+    [Test]
+    public void 골문_밖_조준은_GK_접촉_없이_빗나감이고_PushWide가_없다()
+    {
+        // GK z 0 → 목표 +3.16, 조준 roll (0.99, 0.99) = 표준정규 +3.02 → 3σ 바깥(골문 밖), 골 roll 0(골문 안이었다면 골). 공은 조준 그대로 날아간다(옛 PushWide의 포스트 밖 0.5m 고정점이 아님)
+        var sim = new MatchSimulation(new RollQueue(new[] { 0.99f, 0.99f, 0f, 0.5f, 0.5f, 0.5f }).Next, PlayerTreeBuilder.BuildLitmus(), TestThreat.Real) { ResetAfterEveryShot = true };
+        PlayerState striker = sim.AddPlayer(new PlayerState(0, 0, Striker(), -10f, 0f));
+        PlayerState keeper = sim.AddPlayer(new PlayerState(1, 1, Keeper(), 50f, 0f));
+        float aimZ = float.NaN;
+        float expectedZ = float.NaN;
+        sim.BallKicked += k =>
+        {
+            if (!k.IsShot) { return; }
+            aimZ = striker.Z + k.DirZ;
+            float corner = FieldBounds.GoalHalfWidth - MatchTuning.AimInset;
+            float dx = FieldBounds.HalfLength - striker.X;
+            float dz = corner - striker.Z;
+            float sigma = MatchRules.AimSigmaMeters((float)System.Math.Sqrt(dx * dx + dz * dz), MatchRules.AimSigmaDeg(striker.Stats.Shot), pressed: false);
+            expectedZ = MatchRules.ShotAimZ(+1f, sigma, 0.99f, 0.99f);
+        };
+        sim.Kickoff();
+
+        List<ShotReport> reports = RunShots(sim, 1);
+
+        Assert.AreEqual(ShotOutcome.Missed, reports[0].Outcome, "골 주사위가 골이어도 골문 밖이면 빗나감");
+        Assert.IsFalse(MatchRules.IsOnTarget(aimZ));
+        Assert.AreEqual(expectedZ, aimZ, 1e-3f, "공은 조준(구석 + 정규 오차) 그대로");
+        Assert.AreEqual(0f, keeper.Z, 1e-3f, "GK는 제자리(골라인 당김 없음)");
     }
 
     [Test]

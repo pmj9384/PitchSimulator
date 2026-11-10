@@ -52,7 +52,7 @@ namespace Game.Core.Match
     public readonly struct ShotReport
     {
         public readonly int ShooterId;
-        public readonly float Probability;   // 골 확률 p(GK 보정 포함)
+        public readonly float Probability;   // 유효 슛의 골 확률 p(11-09 B3, 거리·슈터·GK 스탯). 막히거나 빗나간 슛에도 찬 순간의 값을 싣는다
         public readonly ShotOutcome Outcome;
 
         public ShotReport(int shooterId, float probability, ShotOutcome outcome)
@@ -1070,7 +1070,7 @@ namespace Game.Core.Match
             return p.IsGoalkeeper && p.IncomingShot && !shotWillScore;
         }
 
-        // 슛(11-09 묶음 B 직렬): ① 블록(슛 선 안 수비, 거리 곡선 주사위) → ② 조준 → ③ 골/세이브 주사위 → 비행. 확률은 MatchRules, 주사위는 여기서만.
+        // 슛(11-09 묶음 B 직렬): ① 블록(슛 선 안 수비, 거리 곡선 주사위) → ② 조준 → ③ 유효 슛 골/세이브 주사위 → 비행. 확률은 MatchRules, 주사위는 여기서만.
         // 결과는 찬 순간 정해지고(shotWillScore) 도착할 때 확정 표시된다. 블록은 조준보다 먼저라 막힌 슛은 조준·골 주사위를 안 쓴다
         private void Shoot(PlayerState shooter)
         {
@@ -1085,9 +1085,9 @@ namespace Game.Core.Match
             shotTicks = 0;
             float goalX = FieldBounds.HalfLength * shooter.AttackSign;
 
-            shotProbability = MatchRules.ShotProbability(shooter.X, shooter.Z, shooter.AttackSign, shooter.Stats.Shot, reflexes, diving);
-            if (IsPressed(shooter)) { shotProbability = MatchRules.PressuredShotProbability(shotProbability, MatchTuning.ShotPressureLogit); }   // 트리 ShouldShoot과 같은 식(09-29 D3)
-            shotProbability = MatchRules.ResolveShotProbability(shotProbability, MatchTuning.ShotResolveLogitBonus);   // 확정만 보정. 판정(ShouldShoot)은 보정 전 값
+            // 골 확률은 xG가 아니라 유효 슛 조건부 확률(B3). 압박은 여기가 아니라 조준 오차(σ × 1.25)에 든다. 트리 판정(ShotChance)은 xG + 압박 로짓 그대로
+            float shotDistance = MatchRules.ShotDistance(shooter.X, shooter.Z, shooter.AttackSign);
+            shotProbability = MatchRules.GoalOnTargetProbability(shotDistance, shooter.Stats.Shot, reflexes, diving);
 
             // 조준 목표(주사위 없음): GK 반대쪽 구석. 블록 선도 이 목표로 본다(오차는 그 뒤. 블로커가 서는 2~4m 앞에서 각 오차 5~9°는 수십 cm)
             float side = AimSideFor(keeper, shooter, goalX);
@@ -1103,7 +1103,7 @@ namespace Game.Core.Match
             float sigma = MatchRules.AimSigmaMeters(targetDistance, MatchRules.AimSigmaDeg(shooter.Stats.Shot), IsPressed(shooter));
             shotAimZ = MatchRules.ShotAimZ(side, sigma, nextRoll(), nextRoll());
 
-            // ③ 골/세이브
+            // ③ 골/세이브(골문 밖이어도 주사위는 굴린다: 주사위 순서가 조준 결과에 안 갈리게)
             shotWillScore = MatchRules.Resolve(shotProbability, nextRoll());
             if (!MatchRules.IsOnTarget(shotAimZ)) { shotWillScore = false; }
             shotInFlight = true;
@@ -1119,7 +1119,7 @@ namespace Game.Core.Match
                 float keeperZAtGoalLine = shooter.Z + (keeper.Z - shooter.Z) / fraction;   // GK z를 골라인 조준 좌표로 환산한 기준점
                 shotAimZ = MatchRules.AimAwayFromKeeper(shotAimZ, keeperZAtGoalLine, gapAtLine / fraction);
             }
-            if (ShouldPushWide(keeper, shooter, goalX)) { shotAimZ = MatchRules.PushWide(shotAimZ); }
+            if (keeper != null && ShouldPullAimIntoReach()) { PullAimIntoKeeperReach(keeper, shooter, goalX); }
             BallKicked?.Invoke(new KickReport(shooter.PlayerId, true, goalX - shooter.X, shotAimZ - shooter.Z));
             Ball = BallRules.Kick(Ball, goalX - shooter.X, shotAimZ - shooter.Z, MatchTuning.ShotSpeed);
         }
@@ -1315,31 +1315,33 @@ namespace Game.Core.Match
 
             if (MatchRules.IsOnTarget(shotAimZ) && ResolveSaveAtLine()) { return true; }
 
-            Finish(ShotOutcome.Missed);   // 골문 밖 조준(찬 순간 포스트 밖으로 밀린 것 포함). 골문 안 노골은 위에서 세이브로 끝난다
+            Finish(ShotOutcome.Missed);   // 골문 밖 조준. 골문 안 노골은 위에서 세이브로 끝난다(GK가 없는 시뮬만 여기로)
             RestartAfterMiss();
             return true;
         }
 
-        // 노골인데 골문 안이고 GK가 못 닿는 슛 = 빗나감으로 보이게 포스트 밖으로. 유효 슛의 노골은 GK가 닿아 세이브로 끝난다(골라인 ResolveSaveAtLine)
-        private bool ShouldPushWide(PlayerState? keeper, PlayerState shooter, float goalX)
+        // 세이브로 정해진 유효 슛만 조준을 GK 닿는 범위로 당긴다. 골·빗나감은 그대로
+        private bool ShouldPullAimIntoReach()
         {
-            if (shotWillScore || keeper == null) { return false; }
-            if (!MatchRules.IsOnTarget(shotAimZ)) { return false; }
-            return !KeeperCanReachShot(keeper, shooter, goalX);
+            if (shotWillScore) { return false; }
+            return MatchRules.IsOnTarget(shotAimZ);
         }
 
-        // 찬 순간의 판정: GK가 지연 뒤 공이 자기 라인을 지나기 전에 교차점(수비 자리 x, 공이 그 라인을 지나는 z)까지 닿나 — 트리 ⑨b(MoveToShotLine)가 가는 점과 같다.
-        // 지연은 반응과 남은 얼음(태클 실패 정지) 중 긴 쪽. 판정과 실행의 전제를 같게 둔다(10-24 리뷰 🟡 → 10-25). 노골 슛만 부른다(ShouldPushWide가 골이면 먼저 돌아감)
-        private bool KeeperCanReachShot(PlayerState keeper, PlayerState shooter, float goalX)
+        // 세이브로 정해진 슛을 GK가 지연 뒤 공이 자기 라인을 지나기 전에 닿는 교차점으로(11-09 B3, 옛 PushWide 대체). 교차점은 트리 ⑨b(MoveToShotLine)가 가는 점과 같고
+        // 지연은 반응과 남은 얼음(태클 실패 정지) 중 긴 쪽(10-25 판정과 실행의 전제 일치). 닿는 폭은 라인 교차점에서 재고 골라인 조준 좌표로 환산한다(÷ 라인 비율).
+        // 비행 시간이 조준점에 따라 조금 바뀌므로 당긴 점으로 한 번 더 잰다(두 번이면 경계 오차가 cm 아래)
+        private void PullAimIntoKeeperReach(PlayerState keeper, PlayerState shooter, float goalX)
         {
-            float flightToLine = ShotFlightSecondsToLine(keeper, goalX);
-            if (flightToLine < 0f) { return false; }
             float lineX = KeeperLineX(keeper);
-            float dx = lineX - keeper.X;
-            float dz = KeeperTargetZ(keeper) - keeper.Z;
-            float distance = (float)Math.Sqrt(dx * dx + dz * dz);
+            float fraction = MatchRules.LineFraction(shooter.X, goalX, lineX);
+            float keeperZAtGoalLine = shooter.Z + (keeper.Z - shooter.Z) / fraction;
             int delayTicks = Math.Max(KeeperReactionTicksFor(willScore: false), keeper.FrozenTicks);
-            return MatchRules.KeeperCanReach(distance, flightToLine, delayTicks * MatchTuning.FixedStep);
+            for (int pass = 0; pass < 2; pass++)
+            {
+                float flightToLine = Math.Max(0f, ShotFlightSecondsToLine(keeper, goalX));
+                float reachAtLine = MatchRules.KeeperLateralReach(lineX - keeper.X, flightToLine, delayTicks * MatchTuning.FixedStep);
+                shotAimZ = MatchRules.AimTowardKeeperReach(shotAimZ, keeperZAtGoalLine, reachAtLine / fraction);
+            }
         }
 
         // GK가 지키는 라인 x: 트리 MoveToShotLine과 같은 수비 자리(DefendHome) 식

@@ -561,7 +561,7 @@ namespace Game.Core.AI
         {
         }
 
-        // GK: 수비 자리 x(라인)를 지키며 공이 그 라인을 지나는 z(시뮬이 IncomingShotTargetZ로 준다)로. 시뮬의 닿음 판정(KeeperCanReachShot)도 이 점까지의 거리·시간을 본다
+        // GK: 수비 자리 x(라인)를 지키며 공이 그 라인을 지나는 z(시뮬이 IncomingShotTargetZ로 준다)로. 시뮬의 닿는 범위 판정(PullAimIntoKeeperReach)도 이 점까지의 거리·시간을 본다
         private static void MoveToShotLine(IPlayerContext ctx)
         {
             float lineX = PositionRules.KeeperLineX(ctx.DefendHomeX, ctx.DefendHomeZ, ctx.AttackSign, ctx.Stats.LineHeight);

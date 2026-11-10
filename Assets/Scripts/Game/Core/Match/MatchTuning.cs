@@ -130,7 +130,7 @@ namespace Game.Core.Match
         public const float MinLineGap = 10f;
         // 슈터 압박·슛 블록(09-29 수비 D3, MatchRules.PressuredShotProbability·ShotBlocker 주석). 블록 확률·튕기는 속도는 출처 없는 출발값
         public const float ShotPressureLogit = 0.4f;     // 압박받는 슛의 로짓 감소
-        // GK 슛 대응(10-23 유저 Play 3·4차). 규칙은 MatchSimulation.Shoot·IncomingShotFor·ResolveSaveAtLine, 판정은 MatchRules.KeeperCanReach·GoalAimGap·PushWide·AimAwayFromKeeper
+        // GK 슛 대응(10-23 유저 Play 3·4차). 규칙은 MatchSimulation.Shoot·IncomingShotFor·ResolveSaveAtLine, 판정은 MatchRules.KeeperCanReach·KeeperLateralReach·GoalAimGap·AimAwayFromKeeper·AimTowardKeeperReach
         public const float KeeperDiveSpeed = 8f;         // 슛에 반응하는 동안 GK가 라인 교차점(수비 자리 x·공이 그 라인을 지나는 z)으로 가는 속도 m/s(스탯과 무관한 다이빙 버스트). 스탯 30 = 4.2m/s로는 0.5초에 1.5m라 화면에서 제자리 셔플로 보였다(10-23 유저 Play 4차). [가정] 실제 GK는 포스트 쪽 3m를 0.5~0.6초에 닿는다. 격자(20판): 마감 때 공과 간격 0.56 → 0.11m, 빗나감 5 → 1%, 골 불변
         // 골 조준 간격 자체는 MatchRules.GoalAimGap(GK 스탯 속도 × 남은 비행 시간 + 발 반경)에서 파생한다(10-25. 10-23엔 2.5m 고정)
         public const float GoalAimKeeperMargin = 0.5f;   // 그 간격에 더하는 여유(m). [가정] 화면에서 GK 몸이 공을 안 뚫는 최소
@@ -139,10 +139,11 @@ namespace Game.Core.Match
         public const float GoalKickSetupSeconds = 4f;          // 골킥(11-05 유저 Play "골킥 때 수비랑 공을 주고받는다"): GK가 공을 들고 기다리는 시간. 그동안 양 팀이 트리로 자기 자리로 가고 상대는 박스 밖에 머문다(IFAB 16조). [가정] 출처 없는 출발값. 3분 압축이면 경기 시간 2분이라 Play로 본다
         public const float KeeperHoldAfterCatchSeconds = 2f;   // GK가 슛을 잡은 뒤 배급까지 들고 있는 시간. FIFA 규칙은 6초 안(Law 12). 바로 차면 "잡자마자 패스"가 어색했다(10-25 유저 Play) [가정 2초]
         public const float FormationTransitionWarnMeters = 15f;   // 선수의 공격 자리·수비 자리 거리가 이보다 멀면 전술판이 경고(FM26 "둘 나란히" 경고처럼 막지 않음). 4-4-2 공수 차이 5m, 4-4-2↔4-3-3 대응 최대 15m쯤 [가정]
-        public const float ShotWideMargin = 0.5f;        // 노골로 정해졌는데 GK가 못 닿을 유효 슛을 포스트 밖으로 미는 거리(m). 골대 안으로 들어가는 노골을 없앤다(10-23 유저 "안 들어가면 골대 안으로 가면 안 된다"). [가정] 출처 없음, 화면에서 확실히 밖으로 보이는 값
-        public const float ShotResolveLogitBonus = 0.8f; // 슛 확정 확률에만 더하는 로짓(판정 ShouldShoot은 안 본다). 10-23 인게임 경로 계측: 슛이 현실의 절반(5.9/팀)이라 골 1.44·0:0 22%였다. 0.6 → 0.8은 GK 슛 대응·조준 반폭·압박 재임을 넣은 뒤 격자(최종 4부 20시즌 골 2.13·0:0 9%·무 27%). [가정] 임시 레버
-                                                         // 문턱을 낮추면 나쁜 자리에서 일찍 쏴 골이 줄고(0.88), 확정만 올리면 슛 수 그대로 골 2.17·0:0 6%(+0.3 1.76 / +0.9 2.70). 유저 "중간점".
-                                                         // 임시 레버: ⑦ 공격 장면·④ 침투로 슛이 늘면 0으로 되돌린다. 기록 실험/2026-10-23-골-가뭄-레버-격자.md
+        // 유효 슛 골 확률(11-09 묶음 B3, MatchRules.GoalOnTargetProbability). 옛 "xG + 확정 보정 0.8 로짓"(10-23 임시 레버 ShotResolveLogitBonus)과 노골·못 닿음의 포스트 밖 밀기(ShotWideMargin)를 대체했다.
+        // StatsBomb PL 15/16 유효 슛 중 골 0~6 63.1 / 6~11 40.9 / 11~16 30.4 / 16~22 18.3 / 22~30 8.8% [직접 계산]를 로짓 선형 회귀(13.5m → 0.31, 26m → 0.10)
+        public const float GoalOnTargetIntercept = 0.67f;
+        public const float GoalOnTargetSlope = -0.109f;   // m당 로짓
+        public const float ResolveStatScale = 0.5f;       // 슈터 shot − GK reflexes·diving 평균 차 50당 로짓. 실측 곡선이 "평균 프로 대 평균 프로"라 xG 쪽(StatLogitScale 1)의 반 [가정 G-B3]. B3 격자 {0.5, 1}
         // 슛 블록(11-09 묶음 B1, MatchRules.ShotBlocker·BlockChance). 09-29의 "2m·±20° 안 후보 × 0.3"은 블록 0.8%였다(슛 선 15m 안 수비 5%, 설계-B 1-6).
         // 후보 = 슈터 → 조준점 슛 선에서 수직 거리 LaneHalfWidth 안, 앞 MaxAhead 안의 최근접 필드 수비. 확률은 그 거리의 StatsBomb 곡선. 후보가 없으면 블록 없음(튕김 자리를 못 정한다, 설계-B 결정 5)
         public const float ShotBlockLaneHalfWidth = 1.3f;   // 잡기 반경 0.8 + 0.5 [가정 G-B1]

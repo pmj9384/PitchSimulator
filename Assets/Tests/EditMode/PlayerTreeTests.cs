@@ -502,7 +502,7 @@ public class PlayerTreeTests
     [Test]
     public void GK는_내_골로_오는_슛_차례면_자리_규칙_대신_수비_자리_x와_조준_z로_간다()
     {
-        // ⑨b(10-23). 시뮬이 IncomingShot·조준점을 주면 GK만 그쪽으로. 자기 x(라인)는 지킨다 — 시뮬의 닿음 판정(KeeperCanReachShot)도 같은 점까지의 거리를 본다
+        // ⑨b(10-23). 시뮬이 IncomingShot·조준점을 주면 GK만 그쪽으로. 자기 x(라인)는 지킨다 — 시뮬의 닿는 범위 판정(PullAimIntoKeeperReach)도 같은 점까지의 거리를 본다
         var gk = new Fake { PlayerId = 0, IsGoalkeeper = true, BallPhase = BallPhase.Flight, BallOwnerTeam = -1, X = -48f, Z = 0f, BallX = 20f, BallZ = 1f,
             DefendHomeX = -48f, DefendHomeZ = 0f, IncomingShot = true, IncomingShotTargetZ = 3f };
         Tree.Tick(gk);

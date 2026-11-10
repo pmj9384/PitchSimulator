@@ -199,12 +199,28 @@ public class ShotProbabilityTests
     }
 
     [Test]
-    public void 슛_확정_보정은_로짓을_더해_확률을_올리고_0이면_그대로다()
+    public void 유효_슛_골_확률은_거리_로지스틱이고_13_5m에서_0_31_근처다()
     {
-        Assert.AreEqual(0.4f, MatchRules.ResolveShotProbability(0.4f, 0f), 1e-6f);
-        Assert.Greater(MatchRules.ResolveShotProbability(0.4f, 0.8f), 0.4f);
-        Assert.Greater(MatchRules.ResolveShotProbability(0.4f, 0.8f), MatchRules.PressuredShotProbability(0.4f, 0.8f), "압박은 내리고 확정 보정은 올린다");
-        Assert.AreEqual(0.4f, MatchRules.ResolveShotProbability(MatchRules.PressuredShotProbability(0.4f, 0.8f), 0.8f), 1e-5f, "같은 로짓을 빼고 더하면 제자리");
+        // 11-09 B3(옛 슛 확정 보정 대체). StatsBomb PL 15/16 유효 슛 중 골 11~16m 30.4%, 22~30m 8.8%(직접 계산). 스탯 50 대 50
+        Assert.AreEqual(0.31f, MatchRules.GoalOnTargetProbability(13.5f, 50, 50, 50), 0.01f);
+        Assert.AreEqual(0.10f, MatchRules.GoalOnTargetProbability(26f, 50, 50, 50), 0.01f);
+        Assert.Greater(MatchRules.GoalOnTargetProbability(6f, 50, 50, 50), MatchRules.GoalOnTargetProbability(20f, 50, 50, 50), "가까울수록 높다");
+    }
+
+    [Test]
+    public void 유효_슛_골_확률도_shot이_올리고_GK_reflexes_diving이_내린다()
+    {
+        float baseP = MatchRules.GoalOnTargetProbability(13.5f, 50, 50, 50);
+        Assert.Greater(MatchRules.GoalOnTargetProbability(13.5f, 90, 50, 50), baseP);
+        Assert.Less(MatchRules.GoalOnTargetProbability(13.5f, 50, 80, 40), baseP);
+        Assert.AreEqual(baseP, MatchRules.GoalOnTargetProbability(13.5f, 90, 90, 90), 1e-5f, "슈터 +40과 GK 평균 +40은 상쇄");
+        float logitGain = Logit(MatchRules.GoalOnTargetProbability(13.5f, 100, 50, 50)) - Logit(baseP);
+        Assert.AreEqual(MatchTuning.ResolveStatScale, logitGain, 1e-3f, "shot 50 → 100이 로짓을 ResolveStatScale만큼");
+    }
+
+    private static float Logit(float p)
+    {
+        return (float)Math.Log(p / (1f - p));
     }
 
     [Test]
@@ -217,13 +233,27 @@ public class ShotProbabilityTests
     }
 
     [Test]
-    public void 포스트_밖으로_밀기는_조준_쪽_포스트_바깥_여유만큼이다()
+    public void 세이브_조준은_GK_닿는_범위_밖이면_경계로_당겨지고_안이면_그대로다()
     {
-        float outside = FieldBounds.GoalHalfWidth + MatchTuning.ShotWideMargin;
-        Assert.AreEqual(outside, MatchRules.PushWide(0.5f), 1e-6f);
-        Assert.AreEqual(-outside, MatchRules.PushWide(-1f), 1e-6f);
-        Assert.AreEqual(outside, MatchRules.PushWide(0f), 1e-6f, "정중앙은 오른쪽");
-        Assert.IsFalse(MatchRules.IsOnTarget(MatchRules.PushWide(0.5f)));
+        // 11-09 B3(옛 포스트 밖 밀기 대체). AimAwayFromKeeper의 거울
+        Assert.AreEqual(1f, MatchRules.AimTowardKeeperReach(1f, 0f, 2f), 1e-6f, "범위 안은 그대로");
+        Assert.AreEqual(2f, MatchRules.AimTowardKeeperReach(2f, 0f, 2f), 1e-6f, "경계 포함");
+        Assert.AreEqual(2f, MatchRules.AimTowardKeeperReach(3f, 0f, 2f), 1e-6f, "밖이면 GK 쪽 경계로");
+        Assert.AreEqual(-1f, MatchRules.AimTowardKeeperReach(-3.16f, 1f, 2f), 1e-6f, "반대쪽도 같다");
+        Assert.AreEqual(FieldBounds.GoalHalfWidth, MatchRules.AimTowardKeeperReach(0f, 4.5f, 0.5f), 1e-6f, "GK가 골문 밖이면 포스트에서 멈춘다(세이브로 정해진 슛은 골문 안)");
+    }
+
+    [Test]
+    public void GK_옆으로_닿는_폭은_다이빙_원에서_라인까지_앞뒤_간격을_뺀_성분이다()
+    {
+        // 반지름 = 8m/s × (0.7 − 0.2) + 0.8 = 4.8
+        Assert.AreEqual(4.8f, MatchRules.KeeperLateralReach(0f, 0.7f, 0.2f), 1e-4f);
+        Assert.AreEqual((float)Math.Sqrt(4.8 * 4.8 - 9.0), MatchRules.KeeperLateralReach(3f, 0.7f, 0.2f), 1e-4f, "앞뒤 3m를 가야 하면 옆은 √(4.8² − 3²)");
+        Assert.AreEqual((float)Math.Sqrt(4.8 * 4.8 - 9.0), MatchRules.KeeperLateralReach(-3f, 0.7f, 0.2f), 1e-4f, "앞뒤 방향은 무관");
+        Assert.AreEqual(0f, MatchRules.KeeperLateralReach(5f, 0.7f, 0.2f), "라인에도 못 가면 0");
+        Assert.AreEqual(MatchTuning.CaptureRadius, MatchRules.KeeperLateralReach(0f, 0.1f, 0.2f), 1e-6f, "지연 안에 지나가면 발 반경만");
+        float reach = MatchRules.KeeperLateralReach(2f, 0.6f, 0.2f);
+        Assert.IsTrue(MatchRules.KeeperCanReach((float)Math.Sqrt(4.0 + reach * reach) - 1e-4f, 0.6f, 0.2f), "그 폭의 교차점은 닿음 판정이 참(같은 원)");
     }
 
     [Test]
