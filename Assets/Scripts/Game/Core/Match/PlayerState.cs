@@ -72,6 +72,7 @@ namespace Game.Core.Match
 
         public bool IsPassTarget { get; set; }
         public bool IsRunPass { get; set; }          // 나에게 오는 패스가 런 제안 착지점으로 찬 것인가. 시뮬이 킥 때 기록한 값을 스냅샷에 넣는다
+        public bool IsLeadPass { get; set; }         // 나에게 오는 패스가 리드 롤아웃 착지점으로 찬 것인가(11-10 A2). 위와 같이 시뮬이 넣는다
         public float PassTargetX { get; set; }
         public float PassTargetZ { get; set; }
         public bool WaitingForShot { get; set; }     // 내 골로 유효 슛이 오는데 아직 반응 차례가 아님(GK만). 시뮬이 넣는다(10-25)
@@ -87,6 +88,7 @@ namespace Game.Core.Match
         public bool WantsShoot { get; private set; }
         public bool WantsPass { get; private set; }
         public bool PassIsRun { get; private set; }   // 런 제안 착지점으로 차는 패스(11-03 ⑤). WantsPass일 때만 뜻이 있다
+        public bool PassIsLead { get; private set; }  // 리드 롤아웃 착지점으로 차는 패스(11-10 A2). WantsPass일 때만 뜻이 있다
         public bool PassIsLob { get; private set; }   // 띄워 차는 패스(10-29 ④-1). WantsPass일 때만 뜻이 있다
         public int PassReceiverId { get; private set; } = -1;
         public float PassLandingX { get; private set; }   // 내가 차는 패스의 착지점(트리가 고른 점). WantsPass일 때만 뜻이 있다. 위의 PassTargetX·Z는 나에게 오는 패스의 도착점이라 방향이 반대다
@@ -147,6 +149,7 @@ namespace Game.Core.Match
             WantsPass = true;
             PassIsLob = false;
             PassIsRun = false;
+            PassIsLead = false;
             PassReceiverId = receiverId;
             PassLandingX = landingX;
             PassLandingZ = landingZ;
@@ -162,6 +165,12 @@ namespace Game.Core.Match
         {
             Pass(receiverId, landingX, landingZ);
             PassIsRun = true;
+        }
+
+        public void PassLead(int receiverId, float landingX, float landingZ)
+        {
+            Pass(receiverId, landingX, landingZ);
+            PassIsLead = true;
         }
 
         // 태클. 시뮬이 틱마다 줄인다. 정지 중엔 이동 안 함(제쳐짐), 쿨다운 중엔 재시도 안 함
@@ -190,6 +199,7 @@ namespace Game.Core.Match
             WantsPass = false;
             PassIsLob = false;
             PassIsRun = false;
+            PassIsLead = false;
             PassReceiverId = -1;
         }
 

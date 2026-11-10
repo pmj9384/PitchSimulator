@@ -270,7 +270,7 @@ namespace Game.Core.AI
                 value -= ReceiverRules.ReturnPenaltyFor(ctx.X * ctx.AttackSign, kick.landing.X * ctx.AttackSign, m.PlayerId == ctx.LastPasserId);
                 if (value <= bestValue) { continue; }
 
-                best = new ValuedPass(value, new PassChoice(m.PlayerId, kick.landing.X, kick.landing.Z, kick.lob, offerIndex != NoOffer));
+                best = new ValuedPass(value, new PassChoice(m.PlayerId, kick.landing.X, kick.landing.Z, kick.lob, offerIndex != NoOffer, kick.landing.IsLead));
                 bestValue = value;
             }
             return best;
@@ -370,7 +370,7 @@ namespace Game.Core.AI
         // 로빙(10-29 ④-1)은 경로가 아니라 도달 경쟁으로 잰다(PassRules.LobLanding, InterceptRules). 패스 방식이 짧게인 서드거나 로빙 범위 밖이면 땅볼만
         private static (PassLanding landing, float weight, bool lob) ChooseLanding(IPlayerContext ctx, TargetInfo receiver, float average, float riskAllow, int passStyle)
         {
-            PassLanding ground = PassRules.PickLanding(ctx.X, ctx.Z, receiver.X, receiver.Z, ctx.AttackSign, average, ctx.Opponents, riskAllow);
+            PassLanding ground = GroundLanding(ctx, receiver, average, riskAllow);
             float groundWeight = PassRules.SafetyWeight(ground.Risk, riskAllow, MatchTuning.PassSafetyBand);
             if (passStyle < MatchTuning.LobMinPassStyle) { return (ground, groundWeight, false); }
 
@@ -380,6 +380,14 @@ namespace Game.Core.AI
             float lobWeight = PassRules.SafetyWeight(lob.Risk, riskAllow, MatchTuning.PassSafetyBand);
             if (lobWeight > groundWeight) { return (lob, lobWeight, true); }
             return (ground, groundWeight, false);
+        }
+
+        // 땅볼 착지점: 리드 롤아웃(달리면서 만나는 리드, 11-10 A2)이 있으면 그 점, 없으면 기존 후보 중 안전한 가장 긴 점(PickLanding)
+        private static PassLanding GroundLanding(IPlayerContext ctx, TargetInfo receiver, float average, float riskAllow)
+        {
+            PassLanding lead = PassRules.PickLeadLanding(ctx.X, ctx.Z, receiver, ctx.AttackSign, average, ctx.Opponents, riskAllow);
+            if (lead.Found) { return lead; }
+            return PassRules.PickLanding(ctx.X, ctx.Z, receiver.X, receiver.Z, ctx.AttackSign, average, ctx.Opponents, riskAllow);
         }
 
         // 공을 쫓을 땐 공의 앞을 향해(추격 예측). 압박(⑧)·자유 공(⑩)·런 패스 수신(⑥)이 같이 쓴다.
@@ -442,6 +450,11 @@ namespace Game.Core.AI
             if (choice.IsRun)
             {
                 ctx.PassRun(choice.ReceiverId, choice.X, choice.Z);
+                return;
+            }
+            if (choice.IsLead)
+            {
+                ctx.PassLead(choice.ReceiverId, choice.X, choice.Z);
                 return;
             }
             ctx.Pass(choice.ReceiverId, choice.X, choice.Z);
@@ -522,12 +535,19 @@ namespace Game.Core.AI
 
         // 나에게 오는 패스 받기. 런 패스(스루)면 감속 없이 공을 쫓아 달려 들어가며 받는다: 공간에 서서 기다리지 않는다(FM "runs onto").
         // 목표점이 아니라 공의 앞(추격점)을 향한다. 고정 목표점 Seek는 러너와 공의 선이 겹쳐야만 만나 측면에서 비스듬히 들어오는 W가 못 받았다(11-06).
-        // 런 판정(RunRules.RunnerMeetsBall)도 같은 추격으로 굴려 판정과 실행이 같은 식을 쓴다. 일반 패스는 도착점에서 멈춰 받는다
+        // 런 판정(RunRules.RunnerMeetsBall)도 같은 추격으로 굴려 판정과 실행이 같은 식을 쓴다.
+        // 리드 패스(11-10 A2)는 착지점으로 감속 없이 달린다. 리드 판정(RunRules.RunnerMeetsBallAt)이 같은 이동으로 "달리면서 만남"을 확인한 점이다.
+        // 공을 쫓으면 뒤에서 오는 공에 패서 쪽으로 되돌아가 착지점을 비운다(실험 E). 일반 패스는 도착점에서 멈춰 받는다
         private static void ReceivePass(IPlayerContext ctx)
         {
             if (ctx.IsRunPass)
             {
                 ChaseBall(ctx);
+                return;
+            }
+            if (ctx.IsLeadPass)
+            {
+                ctx.RunToward(ctx.PassTargetX, ctx.PassTargetZ);
                 return;
             }
             ctx.ArriveToward(ctx.PassTargetX, ctx.PassTargetZ);

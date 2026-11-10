@@ -384,4 +384,67 @@ public class PassRulesTests
         Assert.AreEqual(1f, PassRules.ThroughAllow(2, 0.95f), 1e-5f, "1로 자른다");
         Assert.AreEqual(MatchTuning.ThroughRiskAllow + 0.2f, PassRules.ThroughAllow(1, 0.7f), 1e-5f, "개인 허용치가 더 크면 그 편차");
     }
+
+    // ── 리드 롤아웃(11-10 A2, 설계 A 3-2): 리드 착지점을 "수신자가 달리면서 만나는 점"으로 고른다.
+    // 전엔 수신자를 킥 순간부터 7m/s 등속으로 봐서(LeadTarget) 리드 패스 수신자의 93%가 공보다 먼저 도착해 서서 받았다(receive 20판)
+    private const float LeadAverage = 12.2f;   // 패스 속도 "표준"의 평균 속도
+
+    [Test]
+    public void 리드_롤아웃은_달리던_수신자에게_더_긴_리드를_준다()
+    {
+        // 같은 자리(패서 앞 5m·옆 3m)의 수신자. 6m/s로 앞으로 달리던 수신자는 8m 리드를 공과 함께 닿고, 정지한 수신자는 가속이 늦어 못 닿는다
+        var none = new List<TargetInfo>();
+        var running = new TargetInfo(1, 5f, 3f, 6f, 0f);
+        var standing = new TargetInfo(1, 5f, 3f, 0f, 0f);
+
+        PassLanding run = PassRules.PickLeadLanding(0f, 0f, running, +1, LeadAverage, none, Allow);
+        PassLanding stand = PassRules.PickLeadLanding(0f, 0f, standing, +1, LeadAverage, none, Allow);
+
+        Assert.IsTrue(run.Found && run.IsLead, "달리던 수신자는 롤아웃 리드를 받는다");
+        float runLead = run.X - running.X;
+        float standLead = stand.Found ? stand.X - standing.X : 0f;
+        Assert.GreaterOrEqual(runLead, standLead);
+        Assert.Greater(runLead, MatchTuning.LeadMin, "리드 패스로 볼 만큼 앞");
+    }
+
+    [Test]
+    public void 리드_롤아웃의_만남_속도는_최고_속도의_70퍼센트_이상이다()
+    {
+        var none = new List<TargetInfo>();
+        var running = new TargetInfo(1, 5f, 3f, 6f, 0f);
+        PassLanding landing = PassRules.PickLeadLanding(0f, 0f, running, +1, LeadAverage, none, Allow);
+        Assert.IsTrue(landing.Found);
+
+        LeadMeeting meeting = PassRules.LeadMeet(0f, 0f, running, +1, LeadAverage, landing.X - running.X);
+        Assert.IsTrue(meeting.Met);
+        Assert.GreaterOrEqual(meeting.Speed, MatchTuning.SpeedMpsAt50 * MatchTuning.MeetSpeedFraction);
+    }
+
+    [Test]
+    public void 롤아웃_이동_식은_런_판정과_같은_함수다()
+    {
+        // 복제 금지 계약: 리드 롤아웃은 RunRules가 런 판정(RunnerMeetsBall)에 쓰는 같은 롤아웃으로 굴린다. 다른 점은 겨냥점이 추격점이 아니라 착지점 고정이라는 것뿐.
+        // 같은 공·같은 수신자를 RunRules에 직접 넣은 값과 소수점까지 같아야 한다(한쪽 식만 바뀌면 깨진다)
+        var receivers = new[]
+        {
+            new TargetInfo(1, 5f, 3f, 6f, 0f),
+            new TargetInfo(1, 5f, 3f, 0f, 0f),
+            new TargetInfo(1, 12f, -6f, 4f, 2f),
+            new TargetInfo(1, 20f, 0f, 7f, 0f),
+        };
+        foreach (TargetInfo r in receivers)
+        {
+            foreach (float lead in MatchTuning.PassLeadOptions)
+            {
+                LeadMeeting viaPass = PassRules.LeadMeet(0f, 0f, r, +1, LeadAverage, lead);
+                float distance = (float)System.Math.Sqrt(viaPass.X * viaPass.X + viaPass.Z * viaPass.Z);
+                float kick = PassRules.KickSpeed(distance, LeadAverage, MatchTuning.BallDeceleration, MatchTuning.PassSpeedMax);
+                BallState ball = BallRules.Kick(BallState.FreeAt(0f, 0f), viaPass.X, viaPass.Z, kick);
+                var runner = new RunCandidate(r.PlayerId, r.X, r.Z, r.VelX, r.VelZ, MatchTuning.SpeedMpsAt50, RunRules.StyleNone);
+                (bool met, float speed) direct = RunRules.RunnerMeetsBallAt(runner, r.VelX, r.VelZ, ball, BallRules.TimeToDistance(kick, distance), viaPass.X, viaPass.Z);
+                Assert.AreEqual(direct.met, viaPass.Met, $"수신자 ({r.X}, {r.Z}) 리드 {lead}");
+                Assert.AreEqual(direct.speed, viaPass.Speed, 1e-6f, $"수신자 ({r.X}, {r.Z}) 리드 {lead}");
+            }
+        }
+    }
 }

@@ -156,6 +156,7 @@ namespace Game.Core.Match
         private bool passInFlight;
         private int passReceiverId = -1;
         private bool passIsRun;               // 비행 중 패스가 런 제안 착지점으로 찬 것인가(트리가 고른 PassChoice.IsRun을 킥 때 받는다). 리시버가 공 추격(감속 없음)으로 받을지 정한다
+        private bool passIsLead;              // 비행 중 패스가 리드 롤아웃 착지점으로 찬 것인가(PassChoice.IsLead, 11-10 A2). 리시버가 착지점으로 감속 없이 달릴지 정한다. passIsRun과 같이 passInFlight가 꺼지면 안 읽힌다
         private int passPasserId = -1;        // 되돌림 감점용: 받은 선수의 LastPasserId에 기록
         private float passTargetX;
         private float passTargetZ;
@@ -799,7 +800,7 @@ namespace Game.Core.Match
             for (int i = 0; i < players.Count; i++)
             {
                 PlayerState p = players[i];
-                TargetInfo info = new TargetInfo(p.PlayerId, p.X, p.Z);
+                TargetInfo info = new TargetInfo(p.PlayerId, p.X, p.Z, p.VelX, p.VelZ);   // 속도는 리드 롤아웃이 동료가 달리는 속도로 쓴다(11-10 A2)
                 rosterSnapshot[p.Team].Add(info);
                 // 태클에 실패해 얼어 있는 선수는 제쳐진 상태라 슛을 못 막는다. 압박·루즈볼 후보와 같은 규칙
                 if (p.FrozenTicks == 0) { blockCandidates[p.Team].Add(info); }
@@ -858,6 +859,7 @@ namespace Game.Core.Match
                 p.OpponentKeeperId = keeperIds[other];
                 p.IsPassTarget = passInFlight && passReceiverId == p.PlayerId;
                 p.IsRunPass = p.IsPassTarget && passIsRun;
+                p.IsLeadPass = p.IsPassTarget && passIsLead;
                 p.PassTargetX = passTargetX;
                 p.PassTargetZ = passTargetZ;
                 FillKeeperShotSnapshot(p);
@@ -1013,7 +1015,7 @@ namespace Game.Core.Match
 
             if (p.WantsPass && owner && p.PassReceiverId != BallState.NoOwner && p.PassReceiverId != p.PlayerId)
             {
-                Pass(p, p.PassReceiverId, p.PassLandingX, p.PassLandingZ, p.PassIsLob, p.PassIsRun);
+                Pass(p, p.PassReceiverId, p.PassLandingX, p.PassLandingZ, p.PassIsLob, p.PassIsRun, p.PassIsLead);
                 p.Stop();   // 슛과 같다. 차고 나면 다시 가속부터
                 return;
             }
@@ -1171,7 +1173,7 @@ namespace Game.Core.Match
 
         // 패스: 트리가 고른 착지점으로 직선 비행(전엔 여기서 받는 선수 앞 8m를 다시 계산해, 트리가 안전하다고 본 점과 실제로 찬 점이 달랐다).
         // 초속은 착지점까지 거리로 역산(도착 속도 = 공이 있는 서드의 팀 템포). 리시버는 스냅샷으로 알고 마중 나간다
-        private void Pass(PlayerState passer, int receiverId, float landingX, float landingZ, bool lob, bool isRun)
+        private void Pass(PlayerState passer, int receiverId, float landingX, float landingZ, bool lob, bool isRun, bool isLead)
         {
             Third third = PositionRules.ThirdOf(Ball.X, passer.AttackSign);
             float average = MatchTuning.PassAverageSpeed[tactics[passer.Team].Tempo[(int)third]];
@@ -1185,6 +1187,7 @@ namespace Game.Core.Match
             passTargetX = landingX;
             passTargetZ = landingZ;
             passIsRun = isRun;
+            passIsLead = isLead;
             PassCount++;
             if (passer.IsGoalkeeper && tactics[passer.Team].GkDistribution == 1) { keeperAlternate[passer.Team] = !keeperAlternate[passer.Team]; }   // 섞어: 다음 배급은 반대
             kickOriginX = Ball.X;

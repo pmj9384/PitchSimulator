@@ -68,6 +68,8 @@ namespace Game.Core.Match
         // ST 전진 폭 30 → 33이면 득점 1.05 → 0.13, 라인 높이 +2.4m면 실점 1.11 → 0.16이었다(실험/2026-09-30-공격-칼날-진단.md).
         // 3.5 = gfootball 리드(받는 선수 속도 × 최대 0.5초, 7m/s 기준), 0 = Simple Soccer GetBestPassToReceiver 후보 중 "받는 선수 위치"
         public static readonly float[] PassLeadOptions = { PassLeadMax, 3.5f, 0f };
+        public const float LeadMin = 2.5f;              // 리드 패스로 보는 앞 거리(m, 11-10 A2) [가정, receive probe의 리드 분류와 같은 값]. 롤아웃이 이만큼 이상 앞으로 고른 착지점은 수신자가 감속 없이 달려 들어간다
+        public const float MeetSpeedFraction = 0.7f;    // 리드 롤아웃의 만남 속도 하한 = 수신자 최고 속도의 이 비율(11-10 A2) [가정: 질주 문턱 5.6 / 7과 같은 비율]
         public const float DribbleReluctance = 0.3f;                            // 개인 드리블 성향이 이 미만이면 골 대신 가까운 아군 쪽으로 몰아 패스를 노린다
         // 공 지향 슬라이드(PositionRules.SlideAttack·SlideDefend). 지역 방어는 공 기준(Spielverlagerung ball-oriented zonal marking).
         // 수비는 컴팩트(가로 큼), 공격은 침투(세로 큼). 공격 가로만 수축식이고 나머지는 평행이동(10-25, 실험/2026-10-25-슬라이드-수축-격자.md).

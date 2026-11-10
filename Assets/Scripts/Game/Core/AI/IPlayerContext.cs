@@ -66,6 +66,7 @@ namespace Game.Core.AI
         // ── 패스 받기
         bool IsPassTarget { get; }     // 지금 날아오는 패스의 리시버가 나인가
         bool IsRunPass { get; }        // 그 패스가 사전 런 제안(스루)으로 찬 것인가. 맞으면 감속 없이 달려 들어가며 받는다(A1, 11-03)
+        bool IsLeadPass { get; }       // 그 패스가 리드 롤아웃 착지점으로 찬 것인가. 맞으면 착지점으로 감속 없이 달린다(11-10 A2)
         float PassTargetX { get; }     // 그 패스의 도착점
         float PassTargetZ { get; }
 
@@ -83,5 +84,6 @@ namespace Game.Core.AI
         void Pass(int receiverId, float landingX, float landingZ);   // 착지점까지 트리가 정한다. 시뮬은 그 점으로 찬다
         void PassLob(int receiverId, float landingX, float landingZ);   // 띄워서 그 점에 떨어뜨린다(10-29 ④-1). 시뮬이 발사각·초속을 정한다
         void PassRun(int receiverId, float landingX, float landingZ);   // 사전 런 제안의 점으로 찬다(11-03 ⑤). 받는 쪽이 감속 없이 달려 들어가며 받는다
+        void PassLead(int receiverId, float landingX, float landingZ);  // 리드 롤아웃의 점으로 찬다(11-10 A2). 받는 쪽이 착지점으로 감속 없이 달려 만난다
     }
 }

@@ -26,7 +26,22 @@ namespace Game.Core.Match
         // 같은 이유로 "목표점에 먼저 든다" 조건도 뺐다. 목표점은 패서의 착지점으로만 남는다(킥 순간 온사이드는 FindOffer·RunToSpot이 보장)
         public static bool RunnerMeetsBall(RunCandidate runner, float velX, float velZ, in BallState ball, float horizon)
         {
-            if (runner.MaxSpeed <= 0f) { return false; }
+            return Rollout(runner, velX, velZ, ball, horizon, pursuit: true, fixedX: 0f, fixedZ: 0f).met;
+        }
+
+        // 리드 패스 수신 판정(11-10 A2, 설계 A 3-2): RunnerMeetsBall과 같은 롤아웃이고 겨냥점만 착지점(aimX, aimZ) 고정이다.
+        // 실행(리드 패스 수신 = 착지점으로 RunToward)과 같은 이동이다. 추격점으로 두면 뒤에서 오는 공에 수신자가 패서 쪽으로 되돌아가 착지점을 비웠다(실험 E: 놓침 13 → 31%).
+        // 만나면 그 틱의 수신자 속도도 준다: 판정은 "달리면서 만나는가"(MatchTuning.MeetSpeedFraction)까지 본다
+        public static (bool met, float speed) RunnerMeetsBallAt(RunCandidate runner, float velX, float velZ, in BallState ball, float horizon, float aimX, float aimZ)
+        {
+            return Rollout(runner, velX, velZ, ball, horizon, pursuit: false, fixedX: aimX, fixedZ: aimZ);
+        }
+
+        // 두 판정이 함께 쓰는 롤아웃 한 벌. pursuit면 틱마다 추격점, 아니면 고정점(fixedX, fixedZ)을 향해 감속 없이 간다.
+        // 범위·이동·만남 조건은 위 RunnerMeetsBall 주석 그대로다. 만난 틱의 속도 크기를 같이 돌려준다
+        private static (bool met, float speed) Rollout(RunCandidate runner, float velX, float velZ, in BallState ball, float horizon, bool pursuit, float fixedX, float fixedZ)
+        {
+            if (runner.MaxSpeed <= 0f) { return (false, 0f); }
 
             float accel = MovementRules.AccelerationFor(runner.MaxSpeed, MatchTuning.ReactionTime);
             float speed = runner.TopSpeed;
@@ -36,7 +51,8 @@ namespace Game.Core.Match
             int steps = (int)Math.Floor(horizon / MatchTuning.FixedStep);
             for (int i = 1; i <= steps; i++)
             {
-                (float x, float z) aim = PursuitAim(runner.MaxSpeed, x, z, ball, i);
+                (float x, float z) aim = (fixedX, fixedZ);
+                if (pursuit) { aim = PursuitAim(runner.MaxSpeed, x, z, ball, i); }
                 var next = MovementRules.Step(x, z, vx, vz, aim.x, aim.z, speed, accel, MatchTuning.FixedStep, arrive: false);
                 x = next.x;
                 z = next.z;
@@ -44,9 +60,9 @@ namespace Game.Core.Match
                 vz = next.vz;
 
                 var at = BallRules.PositionAt(ball, i * MatchTuning.FixedStep);
-                if (Distance(x, z, at.x, at.z) <= MatchTuning.CaptureRadius) { return true; }
+                if (Distance(x, z, at.x, at.z) <= MatchTuning.CaptureRadius) { return (true, (float)Math.Sqrt(vx * vx + vz * vz)); }
             }
-            return false;
+            return (false, 0f);
         }
 
         // i번째 스텝에서 러너가 향할 추격점. 공은 (i−1)스텝 위치와 그 스텝 동안의 평균 속도로 본다. 실행 러너는 그 틱의 공 Step 뒤 위치를 보므로 한 스텝(≤ 약 0.2m) 차이가 있다.

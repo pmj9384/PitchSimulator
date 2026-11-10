@@ -228,6 +228,55 @@ namespace Game.Core.Match
             return leastRisky;
         }
 
+        // 리드 롤아웃 착지점(11-10 A2, 설계 A 3-2): 리드 후보(PassLeadOptions 중 LeadMin 이상)를 긴 것부터 보다가 안전하고(IsPassSafe)
+        // 수신자가 달리면서 만나는(만남 속도 ≥ 최고 속도 × MeetSpeedFraction) 첫 후보를 리드 패스로 고른다. 없으면 None이고 호출자는 PickLanding으로 내린다.
+        // LeadTarget은 수신자를 킥 순간부터 7m/s 등속으로 봐서 리드가 수신자의 실제 도착보다 짧았다: 리드 패스 수신자의 93%가 공보다 먼저 도착해 서서 받았다(receive 20판, 수신 순간 0m/s 59%).
+        // 롤아웃은 수신자의 지금 속도와 가속을 보고 실행과 같은 이동(RunRules.RunnerMeetsBallAt)으로 굴린다. 수신자 최고 속도는 평균(speed 50)으로 본다(트리는 동료 스탯을 모른다, LandingPoint와 같은 전제).
+        // 옆·뒤 수신자는 LeadTarget과 같이 리드하지 않는다
+        public static PassLanding PickLeadLanding(float passerX, float passerZ, TargetInfo receiver, int attackSign, float averageSpeed, IReadOnlyList<TargetInfo> opponents, float riskAllow)
+        {
+            if ((receiver.X - passerX) * attackSign <= 0f) { return PassLanding.None; }
+
+            float needSpeed = MatchTuning.SpeedMpsAt50 * MatchTuning.MeetSpeedFraction;
+            for (int i = 0; i < MatchTuning.PassLeadOptions.Length; i++)
+            {
+                float lead = MatchTuning.PassLeadOptions[i];
+                if (lead < MatchTuning.LeadMin) { continue; }
+
+                (float x, float z) point = LeadPoint(receiver, attackSign, lead);
+                float risk = LandingRisk(passerX, passerZ, point.x, point.z, averageSpeed, opponents);
+                if (!IsPassSafe(risk, riskAllow)) { continue; }
+
+                LeadMeeting meeting = LeadMeet(passerX, passerZ, receiver, attackSign, averageSpeed, lead);
+                if (!meeting.Met || meeting.Speed < needSpeed) { continue; }
+                return PassLanding.Lead(point.x, point.z, risk);
+            }
+            return PassLanding.None;
+        }
+
+        // 리드 후보 하나를 굴린다: 수신자 앞 lead m 착지점으로 찬 공(시뮬 Pass와 같은 초속)과, 그 점으로 전력으로 달리는 수신자가 공이 착지점에 닿기 전에 만나는가
+        public static LeadMeeting LeadMeet(float passerX, float passerZ, TargetInfo receiver, int attackSign, float averageSpeed, float lead)
+        {
+            (float x, float z) point = LeadPoint(receiver, attackSign, lead);
+            float distance = Distance(passerX, passerZ, point.x, point.z);
+            if (distance <= 0f) { return new LeadMeeting(point.x, point.z, false, 0f); }
+
+            float kickSpeed = KickSpeed(distance, averageSpeed, MatchTuning.BallDeceleration, MatchTuning.PassSpeedMax);
+            BallState ball = BallRules.Kick(BallState.FreeAt(passerX, passerZ), point.x - passerX, point.z - passerZ, kickSpeed);
+            float horizon = BallRules.TimeToDistance(kickSpeed, distance);
+            var runner = new RunCandidate(receiver.PlayerId, receiver.X, receiver.Z, receiver.VelX, receiver.VelZ, MatchTuning.SpeedMpsAt50, RunRules.StyleNone);
+            (bool met, float speed) meeting = RunRules.RunnerMeetsBallAt(runner, receiver.VelX, receiver.VelZ, ball, horizon, point.x, point.z);
+            return new LeadMeeting(point.x, point.z, meeting.met, meeting.speed);
+        }
+
+        // 수신자 앞(공격 방향) lead m. LeadTarget과 같은 방향·필드 클램프
+        private static (float x, float z) LeadPoint(TargetInfo receiver, int attackSign, float lead)
+        {
+            float limit = Placement.FieldBounds.HalfLength - Placement.FieldBounds.EdgeMargin;
+            float x = Math.Clamp(receiver.X + lead * attackSign, -limit, limit);
+            return (x, receiver.Z);
+        }
+
         private static float Distance(float fromX, float fromZ, float toX, float toZ)
         {
             float dx = toX - fromX;
@@ -314,44 +363,70 @@ namespace Game.Core.Match
     // 착지점 하나와 그 점까지의 가로채기 위험(0~1)
     public readonly struct PassLanding
     {
-        public static readonly PassLanding None = new PassLanding(0f, 0f, 1f, false);   // 후보가 없다(로빙 범위 밖 등). 위험 1과 구별한다
+        public static readonly PassLanding None = new PassLanding(0f, 0f, 1f, false, false);   // 후보가 없다(로빙 범위 밖 등). 위험 1과 구별한다
 
         public readonly float X;
         public readonly float Z;
         public readonly float Risk;
         public readonly bool Found;
+        public readonly bool IsLead;   // 리드 롤아웃이 고른 점(11-10 A2). 수신자가 감속 없이 달려 들어가며 받는다
 
-        public PassLanding(float x, float z, float risk) : this(x, z, risk, true)
+        public PassLanding(float x, float z, float risk) : this(x, z, risk, true, false)
         {
         }
 
-        private PassLanding(float x, float z, float risk, bool found)
+        private PassLanding(float x, float z, float risk, bool found, bool isLead)
         {
             X = x;
             Z = z;
             Risk = risk;
             Found = found;
+            IsLead = isLead;
+        }
+
+        public static PassLanding Lead(float x, float z, float risk)
+        {
+            return new PassLanding(x, z, risk, true, true);
+        }
+    }
+
+    // 리드 후보 하나의 롤아웃 결과: 착지점, 만났나, 만난 틱의 수신자 속도(m/s)
+    public readonly struct LeadMeeting
+    {
+        public readonly float X;
+        public readonly float Z;
+        public readonly bool Met;
+        public readonly float Speed;
+
+        public LeadMeeting(float x, float z, bool met, float speed)
+        {
+            X = x;
+            Z = z;
+            Met = met;
+            Speed = speed;
         }
     }
 
     // 패스 한 번의 선택: 누구에게, 어느 점으로. 트리가 고르고 시뮬은 그 점으로 찬다
     public readonly struct PassChoice
     {
-        public static readonly PassChoice None = new PassChoice(-1, 0f, 0f, false, false);
+        public static readonly PassChoice None = new PassChoice(-1, 0f, 0f, false, false, false);
 
         public readonly int ReceiverId;
         public readonly float X;
         public readonly float Z;
         public readonly bool IsLob;   // 띄워 준다(10-29 ④-1)
         public readonly bool IsRun;   // 사전 런 제안의 점으로 준다(11-03 ⑤). 시뮬이 런 패스(수신 = 공 추격)로 기록한다
+        public readonly bool IsLead;  // 리드 롤아웃의 점으로 준다(11-10 A2). 시뮬이 리드 패스(수신 = 착지점으로 감속 없이)로 기록한다
 
-        public PassChoice(int receiverId, float x, float z, bool isLob, bool isRun)
+        public PassChoice(int receiverId, float x, float z, bool isLob, bool isRun, bool isLead)
         {
             ReceiverId = receiverId;
             X = x;
             Z = z;
             IsLob = isLob;
             IsRun = isRun;
+            IsLead = isLead;
         }
 
         public bool Found => ReceiverId != -1;

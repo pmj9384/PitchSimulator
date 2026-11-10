@@ -53,6 +53,7 @@ public class PlayerTreeTests
         public ThreatGrid Threat { get; set; } = TestThreat.Plateau();   // 높은 평지: 슛은 지고 운반은 위험이 있으면 음수, 안전한 패스는 적합도 가산만큼 양수라 후보가 있으면 패스가 이긴다(11-03 P1+). xT 차이가 필요한 테스트는 격자를 직접 준다
         public bool IsPassTarget { get; set; }
         public bool IsRunPass { get; set; }
+        public bool IsLeadPass { get; set; }
         public float PassTargetX { get; set; }
         public float PassTargetZ { get; set; }
         public bool WaitingForShot { get; set; }
@@ -90,6 +91,7 @@ public class PlayerTreeTests
             Did = "pass";
             Lob = false;
             Run = false;
+            Lead = false;
             PassedTo = receiverId;
             PassX = landingX;
             PassZ = landingZ;
@@ -104,6 +106,12 @@ public class PlayerTreeTests
         {
             Pass(receiverId, landingX, landingZ);
             Run = true;
+        }
+        public bool Lead;   // 마지막 패스가 리드 롤아웃 점으로 찬 것이었나(11-10 A2)
+        public void PassLead(int receiverId, float landingX, float landingZ)
+        {
+            Pass(receiverId, landingX, landingZ);
+            Lead = true;
         }
     }
 

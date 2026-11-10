@@ -1473,4 +1473,63 @@ public class MatchSimulationTests
         Assert.IsFalse(striker.ShotReady);
         Assert.AreEqual(0, sim.FirstTouchReadyCount);
     }
+
+    // 리드 패스 수신 모드(11-10 A2): 패서만 지정한 착지점으로 한 번 차고(리드 패스면 PassLead), 나머지는 실제 트리를 돈다
+    private sealed class KickThenRealTree : BehaviorNode
+    {
+        private readonly BehaviorNode tree = PlayerTreeBuilder.Build();
+        private readonly float x;
+        private readonly float z;
+        private readonly bool lead;
+        private bool done;
+
+        public KickThenRealTree(float x, float z, bool lead)
+        {
+            this.x = x;
+            this.z = z;
+            this.lead = lead;
+        }
+
+        public override NodeState Tick(IPlayerContext ctx)
+        {
+            if (ctx.PlayerId != 0) { return tree.Tick(ctx); }
+            if (done || !ctx.OwnsBall) { return NodeState.Success; }
+            done = true;
+            if (lead)
+            {
+                ctx.PassLead(1, x, z);
+                return NodeState.Success;
+            }
+            ctx.Pass(1, x, z);
+            return NodeState.Success;
+        }
+    }
+
+    private static PlayerState ReceiverAfterKick(float landingX, float landingZ, bool lead)
+    {
+        var sim = new MatchSimulation(() => 0.5f, new KickThenRealTree(landingX, landingZ, lead), TestThreat.Real);
+        sim.AddPlayer(new PlayerState(0, 0, Striker(), 0f, 0f));
+        PlayerState receiver = sim.AddPlayer(new PlayerState(1, 0, Striker(), 15f, 3f));
+        sim.Kickoff();
+        sim.Ball = BallRules.Own(sim.Ball, 0, 0f, 0f);
+        sim.Tick(Dt);   // 킥
+        sim.Tick(Dt);   // 리시버 스냅샷 → 트리 ⑥ 수신
+        return receiver;
+    }
+
+    [Test]
+    public void 리드_패스_수신자는_감속_없이_착지점으로_달리고_발밑_패스는_도착해_선다()
+    {
+        // 리드 패스는 롤아웃이 "달리면서 만나는 점"으로 고른 점이라 감속하면 판정과 실행이 어긋난다(설계 A 3-2). 발밑 패스는 그대로 도착점에서 선다
+        PlayerState leadReceiver = ReceiverAfterKick(15f + MatchTuning.PassLeadMax, 3f, lead: true);
+        Assert.IsTrue(leadReceiver.IsPassTarget && leadReceiver.IsLeadPass);
+        Assert.AreEqual(MoveMode.Run, leadReceiver.MoveMode);
+        Assert.AreEqual(15f + MatchTuning.PassLeadMax, leadReceiver.MoveTargetX, 1e-4f, "추격점이 아니라 착지점으로");
+        Assert.AreEqual(3f, leadReceiver.MoveTargetZ, 1e-4f);
+
+        PlayerState footReceiver = ReceiverAfterKick(15f, 3f, lead: false);
+        Assert.IsTrue(footReceiver.IsPassTarget);
+        Assert.IsFalse(footReceiver.IsLeadPass);
+        Assert.AreEqual(MoveMode.Arrive, footReceiver.MoveMode);
+    }
 }
