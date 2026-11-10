@@ -63,7 +63,7 @@ public class MatchManager : InGameManager
         celebrationBeforeHalfTime = false;
         celebration.Stop();
         OpponentName = setup.OpponentName;
-        Simulation = MyMatchAssembler.Create(setup, ThreatTableRepository.Grid);
+        Simulation = MyMatchAssembler.Create(setup, ThreatTableRepository.Grid, DevMatchLength.Current);
         myProbe = new TacticsProbe(Simulation, 0);   // 내 팀 = 시뮬 팀 0
         Simulation.ShotResolved += LogShot;
         Simulation.ShotResolved += OnShotResolved;

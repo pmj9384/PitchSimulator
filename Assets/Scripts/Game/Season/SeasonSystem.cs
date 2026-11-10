@@ -224,7 +224,7 @@ public class SeasonSystem : ISaveLoad
     public async Awaitable AutoPlayCurrentMatchAsync()
     {
         MatchSetup setup = CurrentMatch;
-        MatchSimulation sim = MyMatchAssembler.Create(setup, ThreatTableRepository.Grid);
+        MatchSimulation sim = MyMatchAssembler.Create(setup, ThreatTableRepository.Grid, DevMatchLength.Current);
         var probe = new MatchProbe(sim);
         probe.Run(sim.TotalTicks, MatchTuning.FixedStep);
         await ReportMyResultAsync(setup.ResultFor(sim.HomeGoals, sim.AwayGoals), null);
