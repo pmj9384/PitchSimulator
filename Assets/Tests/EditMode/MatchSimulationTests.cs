@@ -311,6 +311,68 @@ public class MatchSimulationTests
     }
 
     [Test]
+    public void 포스트_근처_빗나감에도_GK는_반응_차례가_오고_세이브는_없다()
+    {
+        // 11-09 B4-b(유저 "GK 멀뚱"). GK z 0 → 목표 +3.16, 조준 roll (0.393, 0) = 표준정규 +1.0 → 3.16 + σ(1.1~1.5m)라 포스트(3.66) 밖 1.5m 안, 골 roll 0(골문 안이었다면 골)
+        var sim = new MatchSimulation(new RollQueue(new[] { 0.393f, 0f, 0f, 0.5f, 0.5f, 0.5f }).Next, PlayerTreeBuilder.BuildLitmus(), TestThreat.Real) { ResetAfterEveryShot = true };
+        PlayerState striker = sim.AddPlayer(new PlayerState(0, 0, Striker(), -10f, 0f));
+        PlayerState keeper = sim.AddPlayer(new PlayerState(1, 1, Keeper(), 50f, 0f));
+        float aimZ = float.NaN;
+        float shotX = 0f;
+        float shotZ = 0f;
+        sim.BallKicked += k =>
+        {
+            if (!k.IsShot) { return; }
+            shotX = striker.X;
+            shotZ = striker.Z;
+            aimZ = striker.Z + k.DirZ;
+        };
+        var reports = new List<ShotReport>();
+        sim.ShotResolved += r => reports.Add(r);
+        sim.Kickoff();
+        for (int i = 0; i < 20000 && sim.Ball.Phase != BallPhase.Flight; i++) { sim.Tick(Dt); }
+        Assert.AreEqual(BallPhase.Flight, sim.Ball.Phase, "슛이 떠야 한다");
+        Assert.Greater(aimZ, FieldBounds.GoalHalfWidth, "골문 밖");
+        Assert.LessOrEqual(aimZ, FieldBounds.GoalHalfWidth + MatchTuning.NearMissReact, "근소 빗나감(포스트 밖 1.5m 안)");
+        sim.Tick(Dt);   // 대기·반응 스냅샷은 슛이 뜬 다음 틱에 채운다
+        Assert.IsTrue(keeper.WaitingForShot, "근소 빗나감도 반응 대기가 있다");
+
+        for (int i = 2; i < MatchTuning.KeeperReactionTicks; i++) { sim.Tick(Dt); }
+        sim.Tick(Dt);
+        Assert.IsTrue(keeper.IncomingShot, "반응 지연(노골 1배) 뒤 차례");
+        float postAtLine = MatchRules.BallZAtLine(shotX, shotZ, FieldBounds.HalfLength, FieldBounds.GoalHalfWidth, PositionRules.KeeperLineX(keeper.DefendHomeX, keeper.DefendHomeZ, keeper.AttackSign, keeper.Stats.LineHeight));
+        Assert.AreEqual(postAtLine, keeper.IncomingShotTargetZ, 1e-3f, "목표는 조준을 포스트로 자른 교차점(골문 밖까지 안 쫓는다)");
+
+        for (int i = 0; i < 400 && reports.Count == 0; i++) { sim.Tick(Dt); }
+        Assert.AreEqual(1, reports.Count);
+        Assert.AreEqual(ShotOutcome.Missed, reports[0].Outcome, "근소 빗나감에 세이브는 없다");
+    }
+
+    [Test]
+    public void 포스트_밖_1_5m를_넘는_빗나감엔_GK가_반응하지_않는다()
+    {
+        // 조준 roll (0.99, 0.99) = +3.02σ → 포스트 밖 1.5m 너머. 대기·반응 모두 없다
+        var sim = new MatchSimulation(new RollQueue(new[] { 0.99f, 0.99f, 0f, 0.5f, 0.5f, 0.5f }).Next, PlayerTreeBuilder.BuildLitmus(), TestThreat.Real) { ResetAfterEveryShot = true };
+        PlayerState striker = sim.AddPlayer(new PlayerState(0, 0, Striker(), -10f, 0f));
+        PlayerState keeper = sim.AddPlayer(new PlayerState(1, 1, Keeper(), 50f, 0f));
+        float aimZ = float.NaN;
+        sim.BallKicked += k =>
+        {
+            if (!k.IsShot) { return; }
+            aimZ = striker.Z + k.DirZ;
+        };
+        sim.Kickoff();
+        for (int i = 0; i < 20000 && sim.Ball.Phase != BallPhase.Flight; i++) { sim.Tick(Dt); }
+        Assert.Greater(aimZ, FieldBounds.GoalHalfWidth + MatchTuning.NearMissReact);
+        for (int i = 0; i <= MatchTuning.KeeperReactionTicks; i++)
+        {
+            Assert.IsFalse(keeper.WaitingForShot, $"{i}틱: 대기 없음");
+            Assert.IsFalse(keeper.IncomingShot, $"{i}틱: 반응 없음");
+            sim.Tick(Dt);
+        }
+    }
+
+    [Test]
     public void GK는_슛이_뜬_뒤_반응_지연이_지나야_조준점으로_움직일_차례가_된다()
     {
         // 조준 roll (0.5, 0.5) → 구석 목표 3.16 − 1.18σ(골문 안), 골 roll 0.99(노골)

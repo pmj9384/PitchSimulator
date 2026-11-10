@@ -1350,11 +1350,12 @@ namespace Game.Core.Match
             return PositionRules.KeeperLineX(keeper.DefendHomeX, keeper.DefendHomeZ, keeper.AttackSign, keeper.Stats.LineHeight);
         }
 
-        // GK가 가야 할 z = 공이 GK 라인을 지나는 z(골라인 조준 z가 아니다)
+        // GK가 가야 할 z = 공이 GK 라인을 지나는 z(골라인 조준 z가 아니다). 근소 빗나감(B4-b)은 조준을 포스트로 잘라서 본다: GK는 포스트 쪽으로 몸을 던지되 골문 밖까지 쫓아가지 않는다
         private float KeeperTargetZ(PlayerState keeper)
         {
             float goalX = FieldBounds.HalfLength * shooterAttackSign;
-            return MatchRules.BallZAtLine(shotStartX, shotStartZ, goalX, shotAimZ, KeeperLineX(keeper));
+            float aimInsidePosts = Math.Clamp(shotAimZ, -FieldBounds.GoalHalfWidth, FieldBounds.GoalHalfWidth);
+            return MatchRules.BallZAtLine(shotStartX, shotStartZ, goalX, aimInsidePosts, KeeperLineX(keeper));
         }
 
         // 찬 자리에서 GK 라인 교차점까지의 비행 시간(초). 공이 감속하므로 "전체 비행 × 비율"보다 짧다(10-25 리뷰 🟡). 멈추면 -1
@@ -1389,11 +1390,12 @@ namespace Game.Core.Match
             p.IncomingShotSecondsToLine = Math.Max(0f, ShotFlightSecondsToLine(p, goalX) - shotTicks * MatchTuning.FixedStep);
         }
 
-        // 내 골로 유효 슛(골문 안 조준)이 날아오는 GK인가. 대기(WaitingForShot)와 반응(IncomingShot)이 같은 조건을 나눠 쓴다: 한쪽만 바뀌면 "대기도 반응도 아닌" 틈이 생긴다
+        // 내 골 쪽으로 슛(골문 안 또는 포스트 밖 NearMissReact 안, 11-09 B4-b)이 날아오는 GK인가. 대기(WaitingForShot)와 반응(IncomingShot)이 같은 조건을 나눠 쓴다: 한쪽만 바뀌면 "대기도 반응도 아닌" 틈이 생긴다.
+        // 근소 빗나감에도 반응만 하고 세이브는 없다(ResolveSaveOnContact·ResolveSaveAtLine은 골문 안만)
         private bool IsShotAimedAtMyGoal(PlayerState p)
         {
             if (!shotInFlight || !p.IsGoalkeeper || p.Team == TeamOfSign(shooterAttackSign)) { return false; }
-            return MatchRules.IsOnTarget(shotAimZ);
+            return Math.Abs(shotAimZ) <= FieldBounds.GoalHalfWidth + MatchTuning.NearMissReact;
         }
 
         // 아직 반응 차례가 아닌 GK는 트리가 제자리에 둔다(10-25). 전엔 자리 규칙(공 z 추적)으로 미리 움직여 골 조준 간격(GoalAimGap)의 전제
@@ -1443,9 +1445,10 @@ namespace Game.Core.Match
             Finish(ShotOutcome.Parried);
         }
 
-        // 골이 아닌 슛이 GK 반경에 닿으면 세이브
+        // 골이 아닌 유효 슛이 GK 반경에 닿으면 세이브. 근소 빗나감은 GK가 몸을 던져도 지나간다(B4-b)
         private bool ResolveSaveOnContact()
         {
+            if (!MatchRules.IsOnTarget(shotAimZ)) { return false; }
             PlayerState? keeper = FindGoalkeeper(1 - TeamOfSign(shooterAttackSign));
             if (keeper == null) { return false; }
 
