@@ -141,18 +141,40 @@ namespace Game.Core.Match
             return 1f / (1f + (float)Math.Exp(-logit));
         }
 
-        // ── 슛 방향 오차(09-18 확정: 빗나감). 골 확률(xG)과 별개로 "어디로 날아가나"를 정한다.
-        // shot이 낮을수록 조준 반폭이 넓어 골문 밖(포스트 3.66m 밖)으로도 간다. Simple Soccer PlayerKickingAccuracy의 역할
-        public static float ShotSpread(int shot)
+        // ── 슛 조준(09-18 균등 반폭 → 11-09 B2 구석 목표 + 정규 각 오차). 골 확률과 별개로 "어디로 날아가나"를 정한다.
+        // 목표: GK가 슈터→골 중심 선에서 벗어난 반대쪽 포스트 안쪽(AimInset). 둘 다 비슷하면 슈터 자리의 먼 포스트. HELIOS shoot_generator의 "GK가 못 닿는 코스" 선택 [원문]
+        public static float AimSide(float keeperZAtLine, float centerZAtLine, float shooterZ)
         {
-            float t = Clamp01(shot / 100f);
-            return MatchTuning.ShotSpreadMax + (MatchTuning.ShotSpreadMin - MatchTuning.ShotSpreadMax) * t;
+            float off = keeperZAtLine - centerZAtLine;
+            if (Math.Abs(off) >= MatchTuning.AimSideDeadband) { return off > 0f ? -1f : 1f; }
+            return shooterZ > 0f ? -1f : 1f;
         }
 
-        // roll [0,1] → 조준 Z(골라인 위 지점, 골 중심 기준). 0.5가 정중앙, 양 끝이 ±반폭
-        public static float ShotAimZ(int shot, float roll)
+        // 조준 각 오차 σ(°): shot이 낮을수록 넓다. Simple Soccer AddNoiseToKick(각 노이즈)·gfootball(스탯이 폭을 정함)과 같은 모양
+        public static float AimSigmaDeg(int shot)
         {
-            return (roll * 2f - 1f) * ShotSpread(shot);
+            float t = Clamp01(shot / 100f);
+            return MatchTuning.AimSigmaDegMax + (MatchTuning.AimSigmaDegMin - MatchTuning.AimSigmaDegMax) * t;
+        }
+
+        // 골라인에서의 오차 폭(m) = 목표점까지 거리 × tan(σθ). 압박받는 슛은 PressedAimScale배
+        public static float AimSigmaMeters(float distance, float sigmaDeg, bool pressed)
+        {
+            float sigma = distance * (float)Math.Tan(sigmaDeg * Math.PI / 180.0);
+            return pressed ? sigma * MatchTuning.PressedAimScale : sigma;
+        }
+
+        // 조준 Z(골라인, 골 중심 기준) = side × (포스트 − AimInset) + σ × 표준정규(주사위 2개). |z| > GoalHalfWidth면 빗나감
+        public static float ShotAimZ(float side, float sigmaMeters, float roll1, float roll2)
+        {
+            return side * (FieldBounds.GoalHalfWidth - MatchTuning.AimInset) + sigmaMeters * StandardNormal(roll1, roll2);
+        }
+
+        // 표준정규 표본(Box-Muller 한 쪽). roll1·roll2 ∈ [0,1). roll1 = 0이면 정확히 0(테스트가 목표점을 그대로 본다)
+        public static float StandardNormal(float roll1, float roll2)
+        {
+            double radius = Math.Sqrt(-2.0 * Math.Log(1.0 - roll1));
+            return (float)(radius * Math.Cos(2.0 * Math.PI * roll2));
         }
 
         // 슛 비행 시간(초): 초속 speed·등감속 deceleration으로 distance를 가는 시간. 그 전에 멈추면 -1
@@ -202,11 +224,11 @@ namespace Game.Core.Match
             return fraction;
         }
 
-        // 골로 정해진 슛의 조준점을 GK 자리에서 minGap 넘게 먼 쪽으로(골문 안, 포스트 안쪽 0.3m 여유). 조준 쪽에 자리가 없으면 반대쪽, 양쪽 다 없으면(GK가 골문을 다 덮음) 조준 쪽 포스트 안쪽
+        // 골로 정해진 슛의 조준점을 GK 자리에서 minGap 넘게 먼 쪽으로(골문 안, 포스트 안쪽 AimInset 여유). 조준 쪽에 자리가 없으면 반대쪽, 양쪽 다 없으면(GK가 골문을 다 덮음) 조준 쪽 포스트 안쪽
         public static float AimAwayFromKeeper(float aimZ, float keeperZ, float minGap)
         {
             if (Math.Abs(aimZ - keeperZ) >= minGap) { return aimZ; }
-            float limit = FieldBounds.GoalHalfWidth - MatchTuning.GoalAimPostInset;
+            float limit = FieldBounds.GoalHalfWidth - MatchTuning.AimInset;
             float side = aimZ >= keeperZ ? 1f : -1f;
             float pushed = keeperZ + side * minGap;
             if (Math.Abs(pushed) <= limit) { return pushed; }

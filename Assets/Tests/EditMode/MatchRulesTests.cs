@@ -233,7 +233,7 @@ public class ShotProbabilityTests
         Assert.AreEqual(2.5f, MatchRules.AimAwayFromKeeper(1f, 0f, 2.5f), 1e-3f, "조준 쪽으로 간격만큼");
         Assert.AreEqual(-2.5f, MatchRules.AimAwayFromKeeper(-0.2f, 0f, 2.5f), 1e-3f, "조준이 왼쪽이면 왼쪽으로");
         Assert.AreEqual(0.5f, MatchRules.AimAwayFromKeeper(3.3f, 3f, 2.5f), 1e-3f, "조준 쪽(5.5)은 골문 밖이라 반대쪽");
-        Assert.AreEqual(3.36f, MatchRules.AimAwayFromKeeper(0.1f, 0f, 4f), 1e-3f, "양쪽 다 안 되면 조준 쪽 포스트 안쪽 0.3");
+        Assert.AreEqual(FieldBounds.GoalHalfWidth - MatchTuning.AimInset, MatchRules.AimAwayFromKeeper(0.1f, 0f, 4f), 1e-3f, "양쪽 다 안 되면 조준 쪽 포스트 안쪽 AimInset(11-09 B2에 옛 0.3을 통일)");
     }
 
     [Test]

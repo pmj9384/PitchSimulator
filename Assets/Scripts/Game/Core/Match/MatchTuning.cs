@@ -48,8 +48,16 @@ namespace Game.Core.Match
         public const float CounterPressScale = 2f;                              // 역압박 중 개인 압박 거리에 추가로 곱하는 배율(단계 배율 × 이 값. 표준 2.0·적극 3.0, 10-08)
         public static readonly int[] CounterPressThreshold = { int.MaxValue, 3, 2 }; // 역압박 성향(안 함·상황 봐서·적극) → 뺏긴 순간 우리 뒤 수비 수 문턱
         public const int CounterPressWindowTicks = 300;                         // 역압박 창 6초(과르디올라 6초 룰, 2차 출처) ÷ 0.02s
-        public const float ShotSpreadMin = 3f;                                  // shot 100의 조준 반폭(m). 2.5 → 3(10-23 격자): 2.5/6이면 유효 슛 97%라 빗나감이 거의 없었다. 격자는 3.5/7(빗나감 13~15%)이 좋았지만 shot 90의 반폭이 3.85로 골문(3.66)을 넘어 "주사위 0 = 골문 안" 전제(테스트 4개)가 깨져 3으로. shot 90 → 3.4
-        public const float ShotSpreadMax = 7f;                                  // shot 0의 조준 반폭(m). 골문 밖까지 퍼진다. 6 → 7(10-23 격자, 위와 같이)
+        // 슛 조준(11-09 묶음 B2, MatchRules.AimSide·AimSigmaDeg·ShotAimZ). 옛 "골 중심 ± 미터 반폭 균등"(09-18 ShotSpreadMin/Max 3/7)은 shot 90 반폭 3.4 < 포스트 3.66이라
+        // 조준으론 안 빗나갔고(1%) 유효 슛 |z| 중앙값 1.76(실제 2.19)으로 세이브가 가운데로 왔다. 새 모델: 목표 = GK 반대쪽 구석(포스트 안쪽 AimInset), 오차 = 거리 × tan(σθ) 정규.
+        // HELIOS shoot_generator는 포스트 안쪽 0.6~1.5m를 들여 GK가 못 닿는 코스를 고른다 [원문]. 값은 설계-B 1-7 몬테카를로 + B2 격자 {5,6,7}° × {0.5,0.8}m(quick 25판):
+        // 여유 0.8은 구석 36~41%·빗나감이 줄어 탈락, B3를 얹은 빌드로 5/0.5·5/0.8·6/0.5·7/0.5를 다시 재 6°/0.5를 골랐다(빗나감|비블록 39.9·구석 41.0·유효 |z| 2.09·실현−xG 3.7%p.
+        // 5/0.5는 실현−xG 4.9, 7/0.5는 구석 38.2). 빗나감|비블록은 격자 안에서 40% 근처에서 더 안 오른다(헤더 없음, 설계-B 1-7)
+        public const float AimInset = 0.5f;           // 구석 목표가 포스트 안쪽으로 두는 여유(m). 골 조준(AimAwayFromKeeper)의 포스트 안쪽 여유도 이 값(옛 GoalAimPostInset 0.3을 통일)
+        public const float AimSigmaDegMin = 6f;       // shot 100의 조준 각 오차 σ(°) [가정 G-B2]. shot 90 → 6.3°
+        public const float AimSigmaDegMax = 9f;       // shot 0의 σ(°) [가정 G-B2]
+        public const float PressedAimScale = 1.25f;   // 압박받는 슛의 σ 배율. StatsBomb 압박 빗나감 43.4 vs 무압박 34.9 [직접 계산] 비 1.24
+        public const float AimSideDeadband = 0.2f;    // GK가 슈터→골 중심 선에서 이보다 덜 벗어나 있으면 "중앙"으로 보고 먼 포스트를 노린다 [가정]
         public const float MatchSeconds = 180f;   // 3분 압축(MatchLength.Compressed): 실시간 3분 = 게임 내 90분(09-27 리뷰 X4). 경기마다 실제 길이는 MatchSimulation.TotalTicks가 정한다
         public const int MatchTicks = 9000;       // = MatchSeconds / FixedStep. float 나눗셈으로 파생하지 않고 정수로 못 박는다(테스트가 둘의 일치를 잠근다)
         public const int RealTimeTicks = 270000;  // 실제 90분(MatchLength.RealTime, 11-05 S1) = 5,400초 / FixedStep. 위와 같이 정수로 못 박는다
@@ -128,7 +136,6 @@ namespace Game.Core.Match
         public const float GoalAimKeeperMargin = 0.5f;   // 그 간격에 더하는 여유(m). [가정] 화면에서 GK 몸이 공을 안 뚫는 최소
         public const float KeeperLineMinFraction = 0.2f; // 슈터 → 골라인 경로에서 GK 라인 비율의 하한. 슈터가 라인에 붙은 슛은 교차점을 경로 20% 지점으로 본다(÷비율 폭주 방지, 10-25) [가정]
         public const int KeeperReactionTicks = 10;       // GK가 슛에 반응해 라인 교차점으로 움직이기 시작하는 지연(0.2초). [가정] 사람 단순 반응 시간 0.2~0.25초. 골로 정해진 슛엔 ×2(못 막을 슛을 "늦게 반응한" 모양으로)
-        public const float GoalAimPostInset = 0.3f;      // 골로 정해진 슛의 조준점이 포스트 안쪽으로 두는 여유(m). 포스트에 맞는 모양을 피한다 [가정]
         public const float GoalKickSetupSeconds = 4f;          // 골킥(11-05 유저 Play "골킥 때 수비랑 공을 주고받는다"): GK가 공을 들고 기다리는 시간. 그동안 양 팀이 트리로 자기 자리로 가고 상대는 박스 밖에 머문다(IFAB 16조). [가정] 출처 없는 출발값. 3분 압축이면 경기 시간 2분이라 Play로 본다
         public const float KeeperHoldAfterCatchSeconds = 2f;   // GK가 슛을 잡은 뒤 배급까지 들고 있는 시간. FIFA 규칙은 6초 안(Law 12). 바로 차면 "잡자마자 패스"가 어색했다(10-25 유저 Play) [가정 2초]
         public const float FormationTransitionWarnMeters = 15f;   // 선수의 공격 자리·수비 자리 거리가 이보다 멀면 전술판이 경고(FM26 "둘 나란히" 경고처럼 막지 않음). 4-4-2 공수 차이 5m, 4-4-2↔4-3-3 대응 최대 15m쯤 [가정]

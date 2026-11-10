@@ -1089,11 +1089,19 @@ namespace Game.Core.Match
             if (IsPressed(shooter)) { shotProbability = MatchRules.PressuredShotProbability(shotProbability, MatchTuning.ShotPressureLogit); }   // 트리 ShouldShoot과 같은 식(09-29 D3)
             shotProbability = MatchRules.ResolveShotProbability(shotProbability, MatchTuning.ShotResolveLogitBonus);   // 확정만 보정. 판정(ShouldShoot)은 보정 전 값
 
-            // ① 블록: 슛 선은 골 중심으로 본다(조준은 그 뒤에 정해진다. 블로커가 서는 2~4m 앞에서 조준 차이는 수십 cm)
-            if (TryBlockShot(shooter, goalX, 0f)) { return; }
+            // 조준 목표(주사위 없음): GK 반대쪽 구석. 블록 선도 이 목표로 본다(오차는 그 뒤. 블로커가 서는 2~4m 앞에서 각 오차 5~9°는 수십 cm)
+            float side = AimSideFor(keeper, shooter, goalX);
+            float targetZ = side * (FieldBounds.GoalHalfWidth - MatchTuning.AimInset);
 
-            // ② 조준: 골 중심이 아니라 shot 스탯에 따라 퍼진 지점. 골문 밖이면 골라인에서 빗나감으로 마감
-            shotAimZ = MatchRules.ShotAimZ(shooter.Stats.Shot, nextRoll());
+            // ① 블록
+            if (TryBlockShot(shooter, goalX, targetZ)) { return; }
+
+            // ② 조준: 목표 ± 거리 × tan(σθ(shot)) 정규 오차(주사위 2개). 압박이면 σ × 1.25. 골문 밖이면 골라인에서 빗나감으로 마감
+            float targetDx = goalX - shooter.X;
+            float targetDz = targetZ - shooter.Z;
+            float targetDistance = (float)Math.Sqrt(targetDx * targetDx + targetDz * targetDz);
+            float sigma = MatchRules.AimSigmaMeters(targetDistance, MatchRules.AimSigmaDeg(shooter.Stats.Shot), IsPressed(shooter));
+            shotAimZ = MatchRules.ShotAimZ(side, sigma, nextRoll(), nextRoll());
 
             // ③ 골/세이브
             shotWillScore = MatchRules.Resolve(shotProbability, nextRoll());
@@ -1114,6 +1122,14 @@ namespace Game.Core.Match
             if (ShouldPushWide(keeper, shooter, goalX)) { shotAimZ = MatchRules.PushWide(shotAimZ); }
             BallKicked?.Invoke(new KickReport(shooter.PlayerId, true, goalX - shooter.X, shotAimZ - shooter.Z));
             Ball = BallRules.Kick(Ball, goalX - shooter.X, shotAimZ - shooter.Z, MatchTuning.ShotSpeed);
+        }
+
+        // 조준 구석의 좌우: GK가 슈터→골 중심 선에서 벗어난 반대쪽(자기 라인에서 잰다). GK가 없으면 슈터 자리의 먼 포스트
+        private float AimSideFor(PlayerState? keeper, PlayerState shooter, float goalX)
+        {
+            if (keeper == null) { return MatchRules.AimSide(0f, 0f, shooter.Z); }
+            float centerZAtLine = MatchRules.BallZAtLine(shooter.X, shooter.Z, goalX, 0f, KeeperLineX(keeper));
+            return MatchRules.AimSide(keeper.Z, centerZAtLine, shooter.Z);
         }
 
         // 슈터 발 뻗는 범위 안 상대가 있나(슛 압박). 트리 IsPressed와 같은 반경·같은 틱 시작 스냅샷(라이브 위치를 쓰면 이번 틱에 먼저 움직인 선수만 반영돼 트리 판단과 갈린다)
