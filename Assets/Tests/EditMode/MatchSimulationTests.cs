@@ -313,7 +313,9 @@ public class MatchSimulationTests
         Assert.IsTrue(keeper.IncomingShot, "반응 지연(노골 1배) 뒤 차례");
         float ballAtLine = MatchRules.BallZAtLine(shotX, shotZ, FieldBounds.HalfLength, aimZ, PositionRules.KeeperLineX(keeper.DefendHomeX, keeper.DefendHomeZ, keeper.AttackSign, keeper.Stats.LineHeight));
         float clearance = MatchTuning.CaptureRadius + MatchTuning.NearMissKeeperClearance;
-        Assert.AreEqual(ballAtLine - clearance, keeper.IncomingShotTargetZ, 1e-3f, "목표는 공 교차점에서 발 반경 + 여유만큼 골 안쪽(11-10)");
+        float expected = MatchRules.NearMissKeeperZ(ballAtLine, shotX, shotZ, FieldBounds.HalfLength, aimZ, clearance);
+        Assert.AreEqual(expected, keeper.IncomingShotTargetZ, 1e-3f, "목표는 공 선에서 수직으로 발 반경 + 여유만큼 골 안쪽(11-10, 비스듬한 슛은 각도로 나눔)");
+        Assert.Less(keeper.IncomingShotTargetZ, ballAtLine - clearance + 1e-4f, "가로로는 최소 그만큼 비킨다");
 
         for (int i = 0; i < 400 && reports.Count == 0; i++) { sim.Tick(Dt); }
         Assert.AreEqual(1, reports.Count);

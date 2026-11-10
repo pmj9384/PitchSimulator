@@ -115,6 +115,19 @@ namespace Game.Core.Match
             return (best, bestDistance);
         }
 
+        // 근소 빗나감 때 GK가 설 z(11-10 재리뷰 🟡): 공 선과의 수직 간격이 clearance가 되도록 GK 라인 위에서 골 안쪽으로 비킨다.
+        // 라인 위 가로 거리 = 수직 간격 ÷ cosθ(θ = 슛 선과 x축 사이 각). 가로로만 비키면 측면에서 찬 슛(θ 43° 넘음)은 공이 발 반경 안을 지났다
+        public static float NearMissKeeperZ(float zAtLine, float shotStartX, float shotStartZ, float goalX, float aimZ, float clearance)
+        {
+            float dx = Math.Abs(goalX - shotStartX);
+            float dz = aimZ - shotStartZ;
+            float length = (float)Math.Sqrt(dx * dx + dz * dz);
+            float side = aimZ > 0f ? 1f : -1f;
+            if (length <= 0f || dx <= 0f) { return zAtLine - side * clearance; }
+            float cos = dx / length;
+            return zAtLine - side * clearance / cos;
+        }
+
         // 블록 확률(11-09 B1): 최근접 수비 거리의 구간 곡선(MatchTuning.ShotBlockCurveEdges/Rates, 경계 포함). 마지막 구간 밖은 0(후보가 없는 슛과 같다)
         public static float BlockChance(float blockerDistance)
         {

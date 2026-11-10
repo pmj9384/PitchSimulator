@@ -1351,15 +1351,14 @@ namespace Game.Core.Match
         }
 
         // GK가 가야 할 z = 공이 GK 라인을 지나는 z(골라인 조준 z가 아니다).
-        // 근소 빗나감(B4-b)은 그 z에서 발 반경 + 여유만큼 골 안쪽에 멈춘다: 몸은 공 쪽으로 던지되 공이 몸을 통과하지 않게(판정은 빗나감 그대로, 11-10).
+        // 근소 빗나감(B4-b)은 공 선에서 수직으로 발 반경 + 여유만큼 골 안쪽에 멈춘다: 몸은 공 쪽으로 던지되 공이 몸을 통과하지 않게(판정은 빗나감 그대로, 11-10. 비스듬한 슛은 MatchRules.NearMissKeeperZ가 각도로 나눈다).
         // 전엔 조준을 포스트로 잘라 그 교차점으로 갔는데, 포스트 밖 1m 안 빗나감은 공 선이 GK 발 반경 안을 지나갔다
         private float KeeperTargetZ(PlayerState keeper)
         {
             float goalX = FieldBounds.HalfLength * shooterAttackSign;
             float zAtLine = MatchRules.BallZAtLine(shotStartX, shotStartZ, goalX, shotAimZ, KeeperLineX(keeper));
             if (MatchRules.IsOnTarget(shotAimZ)) { return zAtLine; }
-            float side = shotAimZ > 0f ? 1f : -1f;
-            return zAtLine - side * (MatchTuning.CaptureRadius + MatchTuning.NearMissKeeperClearance);
+            return MatchRules.NearMissKeeperZ(zAtLine, shotStartX, shotStartZ, goalX, shotAimZ, MatchTuning.CaptureRadius + MatchTuning.NearMissKeeperClearance);
         }
 
         // 찬 자리에서 GK 라인 교차점까지의 비행 시간(초). 공이 감속하므로 "전체 비행 × 비율"보다 짧다(10-25 리뷰 🟡). 멈추면 -1

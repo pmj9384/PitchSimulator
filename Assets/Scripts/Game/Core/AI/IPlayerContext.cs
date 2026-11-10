@@ -72,7 +72,7 @@ namespace Game.Core.AI
         // ── GK 슛 대응(10-23)
         bool WaitingForShot { get; }    // 내 골로 유효 슛이 날아오는데 아직 반응 차례가 아닌가(GK만). 이 동안은 제자리(10-25)
         bool IncomingShot { get; }      // 내 골로 날아오는 유효 슛에 반응할 차례인가(GK만, 반응 지연 뒤)
-        float IncomingShotTargetZ { get; } // GK가 가야 할 z = 그 슛이 내 라인을 지나는 z(GK만)
+        float IncomingShotTargetZ { get; } // GK가 가야 할 z = 그 슛이 내 라인을 지나는 z, 근소 빗나감이면 거기서 공 선 수직 1.1m 골 안쪽(GK만, 11-10)
 
         // ── 시키기. 실행(속도·판정)은 시뮬 몫, 트리는 의도만 남긴다
         // 이동 의도 3가지(PlayerState.MoveMode). 09-29 F2b: Simple Soccer(Reynolds)의 Arrive와 Seek·Pursuit, 10-29 가속 C: 자리 잡기 조깅

@@ -14,9 +14,8 @@ public sealed class RollQueue
         rolls = new Queue<float>(values);
     }
 
-    public RollQueue(IEnumerable<float> values, float restRoll)
+    public RollQueue(IEnumerable<float> values, float restRoll) : this(values)
     {
-        rolls = new Queue<float>(values);
         rest = restRoll;
     }
 

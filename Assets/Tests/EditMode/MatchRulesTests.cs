@@ -168,16 +168,35 @@ public class ShotProbabilityTests
         Assert.AreEqual(-1, MatchRules.ShotBlocker(40f, 0f, 52.5f, 0f, new List<TargetInfo> { new TargetInfo(7, 55.1f, 0f) }, 9, 1.3f, 15f).playerId, "15.1m 앞은 밖");
     }
 
+    [TestCase(30f, 0f, 4.0f)]
+    [TestCase(40f, 20f, 4.5f)]
+    [TestCase(40f, -20f, -4.5f)]
+    public void 근소_빗나감_GK_자리는_비스듬한_슛에서도_공_선과_수직_간격을_지킨다(float shotX, float shotZ, float aimZ)
+    {
+        // 11-10 재리뷰 🟡: 가로로만 1.1m 비키면 측면 슛(40,20 → 4.5)은 수직 간격이 1.1 × cosθ = 0.69m로 발 반경 0.8 안이었다
+        float goalX = 52.5f;
+        float lineX = 48f;
+        float clearance = 1.1f;
+        float zAtLine = MatchRules.BallZAtLine(shotX, shotZ, goalX, aimZ, lineX);
+        float keeperZ = MatchRules.NearMissKeeperZ(zAtLine, shotX, shotZ, goalX, aimZ, clearance);
+        float dx = goalX - shotX;
+        float dz = aimZ - shotZ;
+        float perpendicular = Math.Abs((lineX - shotX) * dz - (keeperZ - shotZ) * dx) / (float)Math.Sqrt(dx * dx + dz * dz);
+        Assert.AreEqual(clearance, perpendicular, 1e-3f, "공 선과 GK의 수직 간격");
+        Assert.Less(Math.Abs(keeperZ), Math.Abs(zAtLine), "골 안쪽으로 비킨다");
+    }
+
     [Test]
-    public void 슛_블록_선은_경계를_포함하고_비스듬한_조준_선을_따른다()
+    public void 슛_블록_선은_경계_안을_포함하고_비스듬한_조준_선을_따른다()
     {
         // 선 폭·앞 거리 둘 다 ≤(경계 포함). 조준이 비스듬하면 선도 같이 기운다: 슈터 (40,0) → 조준 (52.5, 3)
-        var onEdge = new List<TargetInfo> { new TargetInfo(5, 43f, 1.3f) };
-        Assert.AreEqual(5, MatchRules.ShotBlocker(40f, 0f, 52.5f, 0f, onEdge, 9, 1.3f, 15f).playerId, "정확히 1.3m는 안");
+        // 경계값을 정확히(1.3) 넣으면 수직 거리 계산의 반올림이 런타임마다 달라 Unity(Mono)에선 밖, dotnet에선 안으로 갈렸다(11-10). 경계 바로 안·밖으로 잰다
+        var onEdge = new List<TargetInfo> { new TargetInfo(5, 43f, 1.299f) };
+        Assert.AreEqual(5, MatchRules.ShotBlocker(40f, 0f, 52.5f, 0f, onEdge, 9, 1.3f, 15f).playerId, "1.299m는 안");
         var pastEdge = new List<TargetInfo> { new TargetInfo(5, 43f, 1.31f) };
         Assert.AreEqual(-1, MatchRules.ShotBlocker(40f, 0f, 52.5f, 0f, pastEdge, 9, 1.3f, 15f).playerId, "1.31m는 밖");
-        var atMaxAhead = new List<TargetInfo> { new TargetInfo(5, 55f, 0f) };
-        Assert.AreEqual(5, MatchRules.ShotBlocker(40f, 0f, 52.5f, 0f, atMaxAhead, 9, 1.3f, 15f).playerId, "정확히 15m 앞은 안");
+        var atMaxAhead = new List<TargetInfo> { new TargetInfo(5, 54.99f, 0f) };
+        Assert.AreEqual(5, MatchRules.ShotBlocker(40f, 0f, 52.5f, 0f, atMaxAhead, 9, 1.3f, 15f).playerId, "14.99m 앞은 안");
 
         var slanted = new List<TargetInfo> { new TargetInfo(5, 44f, 0.96f) };   // 조준 선 위(z = 3 × 4/12.5 = 0.96)
         Assert.AreEqual(5, MatchRules.ShotBlocker(40f, 0f, 52.5f, 3f, slanted, 9, 1.3f, 15f).playerId, "기운 선 위는 후보");
