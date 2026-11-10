@@ -19,9 +19,11 @@ public partial class CheatWindow : EditorWindow
             EditorGUILayout.HelpBox("Play 중에만 동작합니다.", MessageType.Info);
             return;
         }
-        if (GameDataManager.Instance == null)
+        // 10-19: 도메인 리로드 뒤 창이 NRE로 멈췄다. 11-10: 가드가 Instance == null이라 늘 거짓이었다(getter가 씬 객체를 찾아 준다).
+        // 리로드 뒤엔 정적 instance만 비고 직렬화 안 되는 데이터는 null이라 HasInstance와 데이터 둘 다 본다. 템플릿에도 역이식
+        if (!GameDataManager.HasInstance || GameDataManager.Instance.PlayerAccountData == null)
         {
-            EditorGUILayout.HelpBox("매니저가 없습니다. Play 중 스크립트가 다시 컴파일됐으면 Play를 끄고 다시 켭니다.", MessageType.Warning);   // 10-19: 도메인 리로드 뒤 창이 NRE로 멈췄다. 템플릿에도 역이식
+            EditorGUILayout.HelpBox("매니저가 없습니다. Play 중 스크립트가 다시 컴파일됐으면 Play를 끄고 다시 켭니다.", MessageType.Warning);
             return;
         }
 
@@ -33,10 +35,7 @@ public partial class CheatWindow : EditorWindow
     private void DrawCoinCheats()
     {
         EditorGUILayout.LabelField("코인", EditorStyles.boldLabel);
-        if (GameDataManager.Instance != null)
-        {
-            EditorGUILayout.LabelField($"현재: {GameDataManager.Instance.PlayerAccountData.Coins}");
-        }
+        EditorGUILayout.LabelField($"현재: {GameDataManager.Instance.PlayerAccountData.Coins}");   // OnGUI 가드를 통과해야 여기 온다
         coinAmount = EditorGUILayout.IntField("조절량", coinAmount);
         using (new EditorGUILayout.HorizontalScope())
         {

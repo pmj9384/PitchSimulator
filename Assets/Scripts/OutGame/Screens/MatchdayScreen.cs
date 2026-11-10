@@ -39,11 +39,12 @@ public class MatchdayScreen : UIScreen
         Refresh();
     }
 
-    // UIManager가 시작 때 Close를 먼저 부른다. 그때는 시즌이 아직 없을 수 있다
-    public override void Close()
+    // 해제는 Close가 아니라 OnDisable에서 한다. [경기 시작]은 LoadScene으로 바로 나가 Close를 거치지 않아
+    // 파괴된 화면의 Refresh가 경기마다 쌓였다(10-27 C1, 11-10 재검증 🔴). OnDisable은 닫을 때와 씬을 떠날 때 둘 다 불린다
+    private void OnDisable()
     {
-        if (GameDataManager.Instance != null) { Season.Reported -= Refresh; }
-        base.Close();
+        if (!GameDataManager.HasInstance) { return; }   // 씬 teardown: Instance 접근은 죽은 싱글톤을 되살린다
+        Season.Reported -= Refresh;
     }
 
     // 보고 중(IsReporting)엔 CurrentMatch가 던진다. 홈이 보고 중엔 [일정 진행]을 잠가 여기 올 길이 없지만, 새 진입 경로가 생겨도 조용히 틀리지 않게 잠근다
