@@ -149,8 +149,9 @@ public class StadiumPrefabTests
                     structure.Add(r.sharedMaterial);
                 }
             }
-            Assert.AreEqual(2, structure.Count, $"{spec.Id} 구조물 재질 수");
-            Assert.AreEqual(4, all.Count, $"{spec.Id} 전체 재질 수(구조물 2 + LED 1 + 선 1)");
+            // 구조물 = 밝은색·어두운색 + 바깥 바닥·통로 입구(11-10 유저 승인). 넷 다 URP Lit 하나에 색만 달라 SRP Batcher 호환은 그대로
+            Assert.AreEqual(4, structure.Count, $"{spec.Id} 구조물 재질 수");
+            Assert.AreEqual(6, all.Count, $"{spec.Id} 전체 재질 수(구조물 4 + LED 1 + 선 1)");
             foreach (Material m in all)
             {
                 if (m.name == "FieldLine") { continue; }
