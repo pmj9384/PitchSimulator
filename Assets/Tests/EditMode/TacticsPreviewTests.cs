@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.IO;
+using Game.Core.AutoMatch;
 using Game.Core.Data;
 using Game.Core.League;
 using Game.Core.Match;
@@ -67,6 +68,39 @@ public class TacticsPreviewTests
             Assert.AreEqual(PositionRules.DefendStand(slot.DefendX, slot.DefendZ, +1, slot.Stats, ball.z, shift, cap, slot.Stats.IsKeeper), defend[i], $"수비 자리 {i}");
         }
         Assert.Less(attack[0].x, -40f, "GK는 우리 골 앞(팀 0 = −X가 우리 골)");
+    }
+
+    [Test]
+    public void 미니_피치_깊이_상한도_줄_단위라_시뮬_스냅샷과_같다()
+    {
+        // 11-10 묶음 C-1: 상한은 뒷줄·둘째 줄에만 걸린다(LineRules.StandDepthCapFor). 미니 피치가 팀 상한을 11명에게 다 넘기면 전술판에선 ST가 공 뒤, 경기에선 앞이 된다.
+        // 같은 라인업으로 시뮬을 조립해 상대가 우리 서드 중앙(공 칸 0,1)에서 소유한 한 틱의 스냅샷(Δ·상한)으로 DefendStand를 부른 값과 미니 피치 자리를 11명 전부 비교한다
+        IReadOnlyList<LineupSlot> lineup = Lineup();
+        List<StageEntry> allRows = StageCompositionParser.Parse(File.ReadAllText("Assets/Resources/Tables/StageComposition.csv")).FindAll(r => r.Stage == 1);
+        List<LineupSlot> away = MatchAssembler.ToLineup(table, allRows, 1);
+        MatchSimulation sim = MatchAssembler.Create(lineup, away, balanced, balanced, seed: 2, kickoffTeam: 0, TestThreat.Real);
+        (float x, float z) cell = TacticsPreview.BallCell(0, 1);
+        PlayerState owner = sim.Players[lineup.Count];
+        owner.X = cell.x;
+        owner.Z = cell.z;
+        sim.Ball = BallRules.Own(sim.Ball, owner.PlayerId, cell.x, cell.z);
+        sim.Tick(0.02f);
+
+        PlayerState keeper = sim.Players[0];
+        Assert.AreEqual(+1, keeper.AttackSign, "전제: 팀 0이 +X 공격");
+        BallState ball = keeper.Ball;
+        (float x, float z)[] defend = TacticsPreview.Positions(lineup, balanced, ball.X, ball.Z, defending: true);
+        for (int i = 0; i < lineup.Count; i++)
+        {
+            LineupSlot slot = lineup[i];
+            PlayerState p = sim.Players[i];
+            (float x, float z) expected = PositionRules.DefendStand(slot.DefendX, slot.DefendZ, +1, slot.Stats, ball.Z, p.DefendLineShift, p.DefendDepthCap, slot.Stats.IsKeeper);
+            Assert.AreEqual(expected.x, defend[i].x, 1e-4f, $"수비 자리 x {i}");
+            Assert.AreEqual(expected.z, defend[i].z, 1e-4f, $"수비 자리 z {i}");
+        }
+        float teamCap = sim.Players[2].DefendDepthCap;
+        Assert.AreEqual(float.MaxValue, sim.Players[9].DefendDepthCap, "전제: ST는 앞줄이라 상한 없음");
+        Assert.Greater(LineRules.HomeDepth(defend[9].x, +1), teamCap, "전제: 팀 상한을 넘겼다면 ST는 잘렸다(줄 단위가 보인다)");
     }
 
     [Test]

@@ -52,7 +52,7 @@ namespace Game.Core.Match
         public IReadOnlyList<TargetInfo> Teammates { get; set; } = System.Array.Empty<TargetInfo>();
         public IReadOnlyList<TargetInfo> Opponents { get; set; } = System.Array.Empty<TargetInfo>();
         public float DefendLineShift { get; set; }    // 팀 라인 이동량 Δ(시뮬이 LineRules로 팀마다 틱 1회, 11-08 D2)
-        public float DefendDepthCap { get; set; } = float.MaxValue;   // 수비 자리 깊이 상한(공보다 골 쪽, 11-09). 시뮬 밖에서 만든 상태는 상한 없음
+        public float DefendDepthCap { get; set; } = float.MaxValue;   // 수비 자리 깊이 상한(공보다 골 쪽, 11-09). 뒷줄·둘째 줄만 팀 상한이고 앞줄은 상한 없음(LineRules.StandDepthCapFor, 11-10 C-1). 시뮬 밖에서 만든 상태는 상한 없음
         public bool IsBackLine { get; set; }          // 수비 시 자리가 팀의 뒷줄인가(시뮬이 LineRules로 정함, 11-06 D1). 리시버 마크 1차 후보·라인 앞 전진 후보의 기준
         public bool IsSecondLine { get; set; }        // 뒷줄 바로 앞 한 줄인가(11-07). 수비 역할 marksAsSecond와 함께 리시버 마크 2차 후보의 기준
         public bool IsMarker { get; set; }            // 이번 틱 상대 리시버를 마크하나(시뮬이 MarkRules로 정함, 11-06 S3 ①)

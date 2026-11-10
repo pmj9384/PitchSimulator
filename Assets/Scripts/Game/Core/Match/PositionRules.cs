@@ -71,7 +71,8 @@ namespace Game.Core.Match
             return SlideAttack(home.x, home.z, ballX, ballZ, goalkeeper);
         }
 
-        // depthCap = 필드 선수가 설 수 있는 가장 앞 깊이(LineRules.StandDepthCap: 공보다 골 쪽, 11-09). 개인 라인 높이 다이얼이 Δ 위에 얹혀 뒷줄이 공보다 앞에 서지 않게 자른다. GK는 안 자른다
+        // depthCap = 필드 선수가 설 수 있는 가장 앞 깊이(LineRules.StandDepthCap: 공보다 골 쪽, 11-09). 개인 라인 높이 다이얼이 Δ 위에 얹혀 뒷줄이 공보다 앞에 서지 않게 자른다. GK는 안 자른다.
+        // 값은 부르는 쪽이 줄마다 고른다(LineRules.StandDepthCapFor, 11-10 C-1): 뒷줄·둘째 줄은 팀 상한, 앞줄은 float.MaxValue라 여기서 안 잘린다
         public static (float x, float z) DefendStand(float baseX, float baseZ, int attackSign, PlayerStats stats, float ballZ, float lineShift, float depthCap, bool goalkeeper)
         {
             if (goalkeeper)

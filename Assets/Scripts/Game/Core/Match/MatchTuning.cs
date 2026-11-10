@@ -29,7 +29,7 @@ namespace Game.Core.Match
         public static readonly float[] LineAnchorBallDepth = { 17.5f, 52.5f, 87.5f };   // 공 깊이(서드 중심)
         public static readonly float[] LineAnchorDepth = { 15f, 32f, 47f };             // 그때 라인 깊이
         public const float FloorMargin = 4f;            // 라인 하한 = GK 라인 깊이 + 이 값 [가정]. 옛 계단 하한(10/7.5m)을 대신한다
-        public const float GoalSideMargin = 1.5f;      // 수비 자리 깊이 상한 = 공 깊이 − 이 값(LineRules.StandDepthCap) [가정]. 수비는 공보다 골 쪽에 선다. 11-09 probe: 상한 없이 개인 라인 높이 다이얼(+3~8m)이 뒷줄을 공보다 앞에 세워 슛의 95%가 라인 뒤에서 나왔다
+        public const float GoalSideMargin = 1.5f;      // 수비 자리 깊이 상한 = 공 깊이 − 이 값(LineRules.StandDepthCap) [가정]. 수비는 공보다 골 쪽에 선다. 거는 대상은 뒷줄·둘째 줄만, 앞줄은 출구로 남는다(LineRules.StandDepthCapFor, 11-10 C-1). 11-09 probe: 상한 없이 개인 라인 높이 다이얼(+3~8m)이 뒷줄을 공보다 앞에 세워 슛의 95%가 라인 뒤에서 나왔다
         public const float LineCap = 55f;               // 라인 상한(우리 골라인에서 m) [가정]. 하프라인 2.5m 앞
         public const float DefaultKeeperLineDepth = Placement.FieldBounds.HalfLength - 48f;   // GK가 없는 팀(테스트 명부)의 GK 라인 깊이 = 편성 GK −48 → 4.5m
         public const float LateralScoreScale = 0.005f;                          // 리시버 적합도의 측면 가중: |z| 1m당(× 폭 배율). 적합도는 ReceiverFitWeight(0.02)를 곱해 xT 단위로 패스 값에 더한다(11-03 P1, 전진 가중은 xT가 대신 센다). 09-18 0.02는 라인 위 윙어가 어디서든 최고점이라 소유 시간의 31%가 터치라인 9m 안이었다(86% W)

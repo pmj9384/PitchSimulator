@@ -26,24 +26,30 @@ namespace Game.Core.Match
         }
 
         // 라인업 순서대로 자리(선발 11명을 넘기면 11개). defending = 상대 소유(수비 시 자리 기준), 아니면 아군 소유(공격 시 자리 기준).
-        // 수비 이동량 Δ는 경기와 같은 LineRules 식으로 라인업에서 직접 계산한다(11-08 D2): 편성 뒷줄 깊이·GK 라인은 라인업이 정하고, 공 깊이는 칸이 정한다
+        // 수비 이동량 Δ는 경기와 같은 LineRules 식으로 라인업에서 직접 계산한다(11-08 D2): 편성 뒷줄 깊이·GK 라인은 라인업이 정하고, 공 깊이는 칸이 정한다.
+        // 깊이 상한은 경기처럼 뒷줄·둘째 줄에만 건다(11-10 C-1, LineRules.StandDepthCapFor). 줄은 시뮬 FillBackLine과 같은 입력(수비 시 자리 깊이 최솟값 2개)으로 슬롯마다 가른다
         public static (float x, float z)[] Positions(IReadOnlyList<LineupSlot> lineup, TeamTactics tactics, float ballX, float ballZ, bool defending)
         {
             var result = new (float x, float z)[lineup.Count];
             float lineShift = 0f;
-            float depthCap = float.MaxValue;
+            float teamCap = float.MaxValue;
+            float deepest = float.MaxValue;
+            float secondDeepest = float.MaxValue;
             if (defending)
             {
                 float keeperLineDepth = KeeperLineDepthOf(lineup);
                 float ballDepth = LineRules.HomeDepth(ballX, MyTeamSign);
                 lineShift = LineRules.TeamLineShift(ballDepth, tactics.DefenseLine, keeperLineDepth, RestDepthOf(lineup));
-                depthCap = LineRules.TeamStandDepthCap(ballDepth, keeperLineDepth);
+                teamCap = LineRules.TeamStandDepthCap(ballDepth, keeperLineDepth);
+                deepest = DeepestHomeDepthOf(lineup);
+                secondDeepest = SecondLineDeepestOf(lineup, deepest);
             }
             for (int i = 0; i < lineup.Count; i++)
             {
                 LineupSlot slot = lineup[i];
                 if (defending)
                 {
+                    float depthCap = SlotDepthCap(slot, teamCap, deepest, secondDeepest);
                     result[i] = PositionRules.DefendStand(slot.DefendX, slot.DefendZ, MyTeamSign, slot.Stats, ballZ, lineShift, depthCap, slot.Stats.IsKeeper);
                 }
                 else
@@ -78,6 +84,44 @@ namespace Game.Core.Match
                 restDepth = Math.Min(restDepth, LineRules.DialedHomeDepth(slot.DefendX, MyTeamSign, slot.Stats.LineHeight));
             }
             return restDepth;
+        }
+
+        // 시뮬(MatchSimulation.FillBackLine)과 같은 입력: 필드 선수 수비 시 자리 깊이(다이얼 없이 posX2) 최솟값 = 뒷줄 기준
+        private static float DeepestHomeDepthOf(IReadOnlyList<LineupSlot> lineup)
+        {
+            float deepest = float.MaxValue;
+            for (int i = 0; i < lineup.Count; i++)
+            {
+                LineupSlot slot = lineup[i];
+                if (slot.Stats.IsKeeper) { continue; }
+                deepest = Math.Min(deepest, LineRules.HomeDepth(slot.DefendX, MyTeamSign));
+            }
+            return deepest;
+        }
+
+        // 시뮬(MatchSimulation.FillBackLine)과 같은 입력: 뒷줄이 아닌 필드 선수 중 가장 깊은 수비 시 자리 = 둘째 줄 기준
+        private static float SecondLineDeepestOf(IReadOnlyList<LineupSlot> lineup, float deepest)
+        {
+            float secondDeepest = float.MaxValue;
+            for (int i = 0; i < lineup.Count; i++)
+            {
+                LineupSlot slot = lineup[i];
+                if (slot.Stats.IsKeeper) { continue; }
+                float depth = LineRules.HomeDepth(slot.DefendX, MyTeamSign);
+                if (LineRules.IsBackLine(depth, deepest)) { continue; }
+                secondDeepest = Math.Min(secondDeepest, depth);
+            }
+            return secondDeepest;
+        }
+
+        // 슬롯 하나의 깊이 상한. GK는 줄이 없다(시뮬도 GK를 뒷줄·둘째 줄에서 뺀다. DefendStand는 GK를 어차피 안 자른다)
+        private static float SlotDepthCap(LineupSlot slot, float teamCap, float deepest, float secondDeepest)
+        {
+            if (slot.Stats.IsKeeper) { return float.MaxValue; }
+            float depth = LineRules.HomeDepth(slot.DefendX, MyTeamSign);
+            bool backLine = LineRules.IsBackLine(depth, deepest);
+            bool secondLine = LineRules.IsSecondLine(depth, deepest, secondDeepest);
+            return LineRules.StandDepthCapFor(backLine, secondLine, teamCap);
         }
     }
 }

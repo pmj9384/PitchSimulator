@@ -57,7 +57,7 @@ namespace Game.Core.AI
         float DefendHomeX { get; }
         float DefendHomeZ { get; }
         float DefendLineShift { get; } // 팀 라인 이동량 Δ(m, 공격 방향이 +). 시뮬이 팀마다 틱 1회 LineRules로 계산해 넣는다(11-08 D2). 수비 자리 = 수비 시 자리 + Δ
-        float DefendDepthCap { get; }  // 수비 자리 깊이 상한(우리 골라인에서 m) = 공보다 골 쪽(LineRules.StandDepthCap, 11-09). 시뮬이 팀마다 틱 1회
+        float DefendDepthCap { get; }  // 수비 자리 깊이 상한(우리 골라인에서 m) = 공보다 골 쪽(LineRules.StandDepthCap, 11-09). 시뮬이 틱마다 뒷줄·둘째 줄에만 팀 값을 넣고 앞줄은 float.MaxValue(LineRules.StandDepthCapFor, 11-10 C-1)
 
         // ── 사전 런(11-03 ⑤): 패스가 오기 전에 러너가 달려갈 점. 러너는 자기 제안으로 달리고, 패서는 같은 점을 스루 후보로 본다
         IReadOnlyList<RunOffer> RunOffers { get; }

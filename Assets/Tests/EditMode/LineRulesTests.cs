@@ -185,6 +185,15 @@ public class LineRulesTests
         Assert.AreEqual(floor, LineRules.StandDepthCap(5f, floor), 1e-4f, "공이 하한보다 깊으면 하한");
     }
 
+    [Test]
+    public void 깊이_상한은_뒷줄과_둘째_줄에만_걸리고_앞줄은_상한이_없다()
+    {
+        // 11-10 묶음 C-1: 팀 상한을 전원에게 걸면 ST·W·CM이 공 바로 뒤 한 줄에 서서 4-4-2 CM-ST가 2m 간격으로 겹쳤다(정상 수비 2m 쌍 ×3.0). 앞줄은 출구로 남는다
+        Assert.AreEqual(16f, LineRules.StandDepthCapFor(isBackLine: true, isSecondLine: false, teamCap: 16f), "뒷줄은 팀 상한");
+        Assert.AreEqual(16f, LineRules.StandDepthCapFor(isBackLine: false, isSecondLine: true, teamCap: 16f), "둘째 줄도 팀 상한");
+        Assert.AreEqual(float.MaxValue, LineRules.StandDepthCapFor(isBackLine: false, isSecondLine: false, teamCap: 16f), "앞줄은 상한 없음");
+    }
+
     [TestCase(+1)]
     [TestCase(-1)]
     public void 깊이_아래면_그_깊이로_올리고_앞이면_그대로다(int sign)

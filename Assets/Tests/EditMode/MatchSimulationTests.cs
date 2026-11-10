@@ -26,6 +26,14 @@ internal static class PassFlightTestsHelper
         }
     }
 
+    // 소유자와 공을 같이 옮긴다. 공만 옮기면 다음 틱 실행에서 공이 소유자 발밑으로 돌아가 여러 틱을 돌리는 테스트가 엉뚱한 자리를 본다(11-10 C-2 재임 테스트)
+    internal static void MoveCarrier(MatchSimulation sim, PlayerState carrier, float x, float z)
+    {
+        carrier.X = x;
+        carrier.Z = z;
+        sim.Ball = BallRules.Own(sim.Ball, carrier.PlayerId, x, z);
+    }
+
     internal sealed class NoOp : BehaviorNode
     {
         public override NodeState Tick(IPlayerContext ctx)
@@ -1008,18 +1016,95 @@ public class MatchSimulationTests
     [Test]
     public void 전진_구역은_이번_틱_라인_깊이로_판정한다()
     {
-        // FillLineDepth가 FillPressEligible보다 먼저 돈다(순서 잠금). 첫 틱 공 깊이 18 → L 8.5·구역 18.5.
-        // 공을 깊이 29.5로 옮기면 이번 틱 L = min(20.8, 19.5) = 19.5·구역 29.5라 안이다. 직전 틱 L로 판정하면 구역 18.5 밖이라 후보가 아니다
+        // FillLineDepth가 FillPressEligible보다 먼저 돈다(순서 잠금). 첫 틱 공 깊이 18·z 25 → L 8.5·구역 18.5인데 박스 반폭 밖이라 전진 없음.
+        // 공을 깊이 29.5·중앙으로 옮기면 이번 틱 L = min(20.8, 19.5) = 19.5·구역 29.5라 안이다. 직전 틱 L로 판정하면 구역 18.5 밖이라 후보가 아니다.
+        // 11-10 C-2: 첫 틱에 전진이 켜져 있으면 둘째 틱 0순위가 재임(1초)으로도 나와 순서를 증명하지 못한다. 그래서 첫 틱은 꺼진 상태에서 시작한다(켜짐엔 재임이 안 걸린다)
         var sim = new MatchSimulation(() => 0.99f, new PassFlightTestsHelper.NoOp(), TestThreat.Real);
         PlayerState back = sim.AddPlayer(new PlayerState(0, 0, CenterBack(), -43.5f, 0f));
-        sim.AddPlayer(new PlayerState(2, 1, Striker(), -34.5f, 0f));
+        sim.AddPlayer(new PlayerState(2, 1, Striker(), -34.5f, 25f));
         sim.Kickoff();
-        sim.Ball = BallRules.Own(sim.Ball, 2, -34.5f, 0f);
+        sim.Ball = BallRules.Own(sim.Ball, 2, -34.5f, 25f);
         sim.Tick(Dt);
-        Assert.AreEqual(0, back.PressRank, "전제: 첫 틱 전진");
+        Assert.AreEqual(int.MaxValue, back.PressRank, "전제: 첫 틱은 구역 밖(박스 반폭 밖)");
         sim.Ball = BallRules.Own(sim.Ball, 2, -23f, 0f);
         sim.Tick(Dt);
         Assert.AreEqual(0, back.PressRank, "이번 틱 L로 구역을 다시 잰다");
+    }
+
+    private static void TickFor(MatchSimulation sim, int ticks)
+    {
+        for (int i = 0; i < ticks; i++)
+        {
+            sim.Tick(Dt);
+        }
+    }
+
+    // 전진 뒷줄 재임 테스트 명부(11-10 C-2): 팀 0 CB 두 명(깊이 9, z −5·+8, 압박 거리 0이라 거리 후보는 안 된다)과 공을 쥔 팀 1 ST.
+    // 공은 깊이 18·z −5(구역 18.5 안)라 첫 틱에 z −5의 CB A가 전진한다
+    private static (MatchSimulation sim, PlayerState a, PlayerState b, PlayerState carrier) TwoBacksWithStepOut()
+    {
+        var sim = new MatchSimulation(() => 0.99f, new PassFlightTestsHelper.NoOp(), TestThreat.Real);
+        PlayerStats backStats = CenterBack();
+        backStats.PressRange = 0f;
+        PlayerState a = sim.AddPlayer(new PlayerState(0, 0, backStats, -43.5f, -5f));
+        PlayerState b = sim.AddPlayer(new PlayerState(1, 0, backStats.Clone(), -43.5f, 8f));
+        PlayerState carrier = sim.AddPlayer(new PlayerState(2, 1, Striker(), -34.5f, -5f));
+        sim.Kickoff();
+        sim.Ball = BallRules.Own(sim.Ball, 2, -34.5f, -5f);
+        sim.Tick(Dt);
+        Assert.AreEqual(0, a.PressRank, "전제: 첫 틱 A 전진");
+        Assert.AreEqual(int.MaxValue, b.PressRank, "전제: B는 후보가 아니다");
+        return (sim, a, b, carrier);
+    }
+
+    [Test]
+    public void 전진_뒷줄은_맡은_뒤_1초_동안_더_가까운_뒷줄이_생겨도_바뀌지_않는다()
+    {
+        // 11-10 C-2(설계-C-형태와-압박 3-2): 압박 왕복의 +117/판이 전진 구역 안에서 났다. 전진 뒷줄도 압박 1순위처럼 맡으면 PressMinTenureTicks(1초)는 맡는다
+        (MatchSimulation sim, PlayerState a, PlayerState b, PlayerState carrier) = TwoBacksWithStepOut();
+        PassFlightTestsHelper.MoveCarrier(sim, carrier, -34.5f, 8f);
+        TickFor(sim, MatchTuning.PressMinTenureTicks - 1);
+        Assert.AreEqual(0, a.PressRank, "49틱째까지 A가 0순위(B가 더 가까워도)");
+        Assert.AreEqual(int.MaxValue, b.PressRank);
+        sim.Tick(Dt);
+        Assert.AreEqual(0, b.PressRank, "50틱째 더 가까운 B로 넘어간다");
+        Assert.AreEqual(int.MaxValue, a.PressRank);
+    }
+
+    [Test]
+    public void 전진_뒷줄이_얼면_재임_중에도_즉시_넘어간다()
+    {
+        // 태클 실패로 언 선수는 못 움직인다. 압박 1순위처럼 재임 중이어도 그 틱에 다른 뒷줄로 넘어간다
+        (MatchSimulation sim, PlayerState a, PlayerState b, _) = TwoBacksWithStepOut();
+        a.FrozenTicks = 10;
+        sim.Tick(Dt);
+        Assert.AreEqual(0, b.PressRank, "언 A 대신 같은 틱에 B");
+        Assert.AreEqual(int.MaxValue, a.PressRank);
+    }
+
+    [Test]
+    public void 전진_뒷줄_재임은_구역을_벗어나도_1초까지만_이어진다()
+    {
+        // 공이 깊이 40(L ≈ 25.9, 구역 35.9 밖)으로 나가도 재임 중엔 A가 0순위로 남고, 1초가 지나면 풀린다(트리 ⑧은 상대 소유일 때만 따라가 무해, 설계 구멍 1)
+        (MatchSimulation sim, PlayerState a, PlayerState b, PlayerState carrier) = TwoBacksWithStepOut();
+        PassFlightTestsHelper.MoveCarrier(sim, carrier, -12.5f, -5f);
+        TickFor(sim, MatchTuning.PressMinTenureTicks - 1);
+        Assert.AreEqual(0, a.PressRank, "49틱째까지 A가 0순위");
+        sim.Tick(Dt);
+        Assert.AreEqual(int.MaxValue, a.PressRank, "50틱째 구역 밖이라 풀린다");
+        Assert.AreEqual(int.MaxValue, b.PressRank);
+    }
+
+    [Test]
+    public void 킥오프_리셋은_전진_뒷줄_재임을_지운다()
+    {
+        // 11-10 C-2: 골·하프타임 킥오프(Kickoff)는 압박 1순위처럼 전진 뒷줄과 재임 시작 틱도 지운다. 안 지우면 재개 직후 1초 동안 직전 전진 선수가 0순위로 남는다
+        (MatchSimulation sim, PlayerState a, PlayerState b, PlayerState carrier) = TwoBacksWithStepOut();
+        sim.Kickoff();
+        PassFlightTestsHelper.MoveCarrier(sim, carrier, -34.5f, 8f);
+        sim.Tick(Dt);
+        Assert.AreEqual(0, b.PressRank, "리셋 뒤 첫 틱은 재임 없이 가장 가까운 B");
+        Assert.AreEqual(int.MaxValue, a.PressRank);
     }
 
     [Test]
@@ -1073,6 +1158,97 @@ public class MatchSimulationTests
         Assert.AreEqual(backStand.z, back.MoveTargetZ, 1e-4f);
         Assert.AreEqual(frontStand.x, front.MoveTargetX, 1e-4f, "앞 선수는 상한(공보다 골 쪽)에 선다(트리가 ctx.DefendDepthCap을 넘김)");
         Assert.AreEqual(LineRules.XAtDepth(cap, +1), front.MoveTargetX, 1e-4f, "상한 깊이 그대로");
+    }
+
+    // 4-4-2 팀 0(수비 시 자리 posX2, 다이얼 0, 압박 거리 0) + 공을 쥔 팀 1 ST 1명. 공 z 25는 박스 반폭(20.16) 밖이라 뒷줄 전진이 없고, 받을 상대가 없어 마크도 없다.
+    // 줄: CB(깊이 11.5)·FB(12.5) 뒷줄, CM(27.5)·W(29.5) 둘째 줄, ST(39.5) 앞줄. 슬롯 순서 = PlayerId(0 GK · 1~4 FB·CB·CB·FB · 5~8 W·CM·CM·W · 9~10 ST)
+    private static MatchSimulation FourFourTwoDefendingAt(float ballX, float ballZ)
+    {
+        var sim = new MatchSimulation(() => 0.99f, PlayerTreeBuilder.Build(), TestThreat.Real);
+        float[] defendX = { -48f, -40f, -41f, -41f, -40f, -23f, -25f, -25f, -23f, -13f, -13f };
+        float[] defendZ = { 0f, -22f, -7f, 7f, 22f, -24f, -8f, 8f, 24f, -6f, 6f };
+        string[] roles = { "GK", "FB", "CB", "CB", "FB", "W", "CM", "CM", "W", "ST", "ST" };
+        for (int i = 0; i < defendX.Length; i++)
+        {
+            PlayerStats stats = i == 0 ? Keeper() : CenterBack();
+            stats.PressRange = 0f;
+            stats.RoleId = roles[i];
+            sim.AddPlayer(new PlayerState(i, 0, stats, defendX[i], defendZ[i]));
+        }
+        sim.AddPlayer(new PlayerState(11, 1, Striker(), ballX, ballZ));
+        sim.Kickoff();
+        sim.Ball = BallRules.Own(sim.Ball, 11, ballX, ballZ);
+        sim.Tick(Dt);
+        return sim;
+    }
+
+    private static float KeeperLineDepthOf(PlayerState keeper)
+    {
+        return LineRules.HomeDepth(PositionRules.KeeperLineX(keeper.DefendHomeX, keeper.DefendHomeZ, keeper.AttackSign, keeper.Stats.LineHeight), keeper.AttackSign);
+    }
+
+    [Test]
+    public void 수비_때_앞줄은_공보다_앞에_서도_되고_둘째_줄은_공_뒤로_잘린다()
+    {
+        // 11-10 묶음 C-1: 깊이 상한(공 깊이 − 1.5)은 뒷줄·둘째 줄에만. 공 깊이 20에서 CM은 상한 18.5에 서고, ST는 편성 깊이 + Δ 그대로(공 앞), CB는 L
+        MatchSimulation sim = FourFourTwoDefendingAt(-32.5f, 25f);
+        PlayerState keeper = sim.Players[0];
+        PlayerState cb = sim.Players[2];
+        PlayerState cm = sim.Players[6];
+        PlayerState st = sim.Players[9];
+        Assert.AreEqual(+1, cb.AttackSign, "전제: 팀 0이 +X 공격");
+        Assert.IsTrue(cb.IsBackLine, "전제: CB 뒷줄");
+        Assert.IsTrue(cm.IsSecondLine, "전제: CM 둘째 줄");
+        Assert.IsFalse(st.IsBackLine || st.IsSecondLine, "전제: ST 앞줄");
+        Assert.GreaterOrEqual(cb.PressRank, MatchTuning.MaxPressers, "전제: 뒷줄 전진 없음");
+        Assert.IsFalse(cm.IsMarker, "전제: 마크 없음");
+
+        float ballDepth = 20f;
+        float keeperLineDepth = KeeperLineDepthOf(keeper);
+        float lineDepth = LineRules.LineDepth(ballDepth, sim.TacticsOf(0).DefenseLine, keeperLineDepth);
+        float shift = LineRules.TeamLineShift(ballDepth, sim.TacticsOf(0).DefenseLine, keeperLineDepth, LineRules.HomeDepth(cb.DefendHomeX, +1));
+        float cap = LineRules.TeamStandDepthCap(ballDepth, keeperLineDepth);
+        Assert.AreEqual(18.5f, cap, 1e-4f, "전제: 상한 = 공 깊이 − 1.5");
+
+        Assert.AreEqual(lineDepth, LineRules.HomeDepth(cb.MoveTargetX, +1), 1e-4f, "CB는 L");
+        Assert.AreEqual(cap, LineRules.HomeDepth(cm.MoveTargetX, +1), 1e-4f, "CM은 상한(공보다 골 쪽)으로 잘린다");
+        float stDepth = LineRules.HomeDepth(st.DefendHomeX, +1) + shift;
+        Assert.Greater(stDepth, ballDepth, "전제: ST 편성 깊이 + Δ는 공보다 앞");
+        Assert.AreEqual(stDepth, LineRules.HomeDepth(st.MoveTargetX, +1), 1e-4f, "ST는 상한 없이 편성 깊이 + Δ");
+    }
+
+    [Test]
+    public void 깊이_상한_스냅샷은_LineRules_함수와_같다()
+    {
+        // 11-10 묶음 C-1: 시뮬(FillSnapshots)이 넣는 DefendDepthCap = StandDepthCapFor(IsBackLine, IsSecondLine, TeamStandDepthCap). 미니 피치도 같은 함수를 부른다
+        MatchSimulation sim = FourFourTwoDefendingAt(-22.5f, 25f);
+        float teamCap = LineRules.TeamStandDepthCap(30f, KeeperLineDepthOf(sim.Players[0]));
+        int back = 0;
+        int second = 0;
+        int front = 0;
+        for (int i = 0; i < 11; i++)
+        {
+            PlayerState p = sim.Players[i];
+            Assert.AreEqual(LineRules.StandDepthCapFor(p.IsBackLine, p.IsSecondLine, teamCap), p.DefendDepthCap, $"{p.Stats.RoleId} {i}");
+            if (p.IsGoalkeeper) { continue; }
+            if (p.IsBackLine)
+            {
+                back++;
+            }
+            else if (p.IsSecondLine)
+            {
+                second++;
+            }
+            else
+            {
+                front++;
+            }
+        }
+        Assert.AreEqual(4, back, "뒷줄 4");
+        Assert.AreEqual(4, second, "둘째 줄 4");
+        Assert.AreEqual(2, front, "앞줄 2");
+        Assert.AreEqual(float.MaxValue, sim.Players[9].DefendDepthCap, "ST는 상한 없음");
+        Assert.AreEqual(teamCap, sim.Players[6].DefendDepthCap, 1e-4f, "CM은 팀 상한");
     }
 
     [Test]
@@ -1178,11 +1354,12 @@ public class MatchSimulationTests
         Assert.AreEqual(int.MaxValue, dm.PressRank, "수미는 더 가까워도 후보가 아니다");
 
         // 4-4-2 FB(−40, z 22)도 뒷줄이다. 11-07엔 구역 폭을 중앙 ±10.08로 좁혔지만, 11-09 D2-b(결정 4)에서 박스 반폭(±20.16)으로 되돌렸다:
-        // 라인이 오른 D2에선 측면 운반자를 아무도 앞에서 안 막았다. 측면 공(z 19)엔 가까운 FB가, 중앙 공(z 5)엔 CB가, 박스 폭 밖(z 25)엔 아무도 안 나간다
+        // 라인이 오른 D2에선 측면 운반자를 아무도 앞에서 안 막았다. 측면 공(z 19)엔 가까운 FB가, 중앙 공(z 5)엔 CB가, 박스 폭 밖(z 25)엔 아무도 안 나간다.
+        // 11-10 C-2: 전진 뒷줄은 맡으면 1초(PressMinTenureTicks) 재임하므로 공을 옮긴 뒤 50틱을 돌리고 본다. 재임 중의 유지는 전진_뒷줄은_맡은_뒤_1초_동안_... 테스트가 잠근다
         var wide = new MatchSimulation(() => 0.99f, new PassFlightTestsHelper.NoOp(), TestThreat.Real);
         PlayerState cb = wide.AddPlayer(new PlayerState(0, 0, CenterBack(), -41f, 7f));
         PlayerState fb = wide.AddPlayer(new PlayerState(1, 0, FullBack(), -40f, 22f));
-        wide.AddPlayer(new PlayerState(2, 1, Striker(), -36f, 19f));
+        PlayerState wideCarrier = wide.AddPlayer(new PlayerState(2, 1, Striker(), -36f, 19f));
         wide.Kickoff();
         wide.Ball = BallRules.Own(wide.Ball, 2, -36f, 19f);
         wide.Tick(Dt);
@@ -1190,13 +1367,13 @@ public class MatchSimulationTests
         Assert.AreEqual(0, fb.PressRank, "측면(z 19) 공엔 가까운 FB가 전진");
         Assert.AreEqual(int.MaxValue, cb.PressRank);
 
-        wide.Ball = BallRules.Own(wide.Ball, 2, -36f, 5f);
-        wide.Tick(Dt);
-        Assert.AreEqual(0, cb.PressRank, "중앙(z 5) 공엔 가까운 CB가 전진");
+        PassFlightTestsHelper.MoveCarrier(wide, wideCarrier, -36f, 5f);
+        TickFor(wide, MatchTuning.PressMinTenureTicks);
+        Assert.AreEqual(0, cb.PressRank, "중앙(z 5) 공엔 가까운 CB가 전진(FB 재임 1초 뒤)");
         Assert.AreEqual(int.MaxValue, fb.PressRank);
 
-        wide.Ball = BallRules.Own(wide.Ball, 2, -36f, 25f);
-        wide.Tick(Dt);
+        PassFlightTestsHelper.MoveCarrier(wide, wideCarrier, -36f, 25f);
+        TickFor(wide, MatchTuning.PressMinTenureTicks);
         Assert.AreEqual(int.MaxValue, fb.PressRank, "박스 폭(±20.16) 밖은 구역 밖");
         Assert.AreEqual(int.MaxValue, cb.PressRank);
     }

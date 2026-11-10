@@ -106,6 +106,15 @@ namespace Game.Core.Match
             return Math.Max(ballDepth - MatchTuning.GoalSideMargin, floorDepth);
         }
 
+        // 선수 하나에 거는 깊이 상한(11-10 묶음 C-1). 뒷줄·둘째 줄은 팀 상한, 앞줄은 상한 없음(float.MaxValue). 시뮬(FillSnapshots)과 미니 피치(TacticsPreview)가 같이 부른다.
+        // 팀 상한을 전원에게 걸면 앞줄(ST·4-3-3의 W)까지 공 바로 뒤 한 줄로 눌려 4-4-2 CM-ST가 2m 간격으로 겹쳤고(정상 수비 2m 쌍 0.26/틱, D2 전 0.09), 공을 되찾으면 그 무리가 한자리에서 같이 뛰어 나갔다.
+        // 둘째 줄까지 거는 이유: 지역 수비의 컴팩트 블록은 둘째 줄이 공 높이까지 내려오는 모양이고 앞줄은 출구로 남는다(설계-C-형태와-압박 3-1). 줄은 슬롯에서 파생해 역할 이름을 안 본다
+        public static float StandDepthCapFor(bool isBackLine, bool isSecondLine, float teamCap)
+        {
+            if (isBackLine || isSecondLine) { return teamCap; }
+            return float.MaxValue;
+        }
+
         // 마크 지점이 내려갈 수 있는 가장 깊은 곳 = max(하한, min(L, 공 깊이 − GoalSideMargin)). 마커는 라인 뒤로 안 빠지고, 공이 라인보다 깊을 때만 공보다 골 쪽 선까지 따라간다.
         // 공 깊이 − GoalSideMargin은 마크 상한(StandDepthCap)과 같은 선이라 하한이 상한을 넘지 않는다(11-09 D2-a)
         public static float MarkFloorDepth(float lineDepth, float ballDepth, float floorDepth)
