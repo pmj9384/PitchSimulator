@@ -1,129 +1,96 @@
 # PitchSimulator — 프로젝트 규약
 
 포트폴리오 3호작. 11대11 축구 경기 시뮬레이터 — 킥오프 전에 선수를 세팅(빌드·지시·자리)하고
-**개입 없이 관전**해 이긴다. 매니지먼트 없음. 4주 개발 + Google Play 출시.
+**개입 없이 관전**해 이긴다. 매니지먼트 없음. Google Play 출시 목표.
 
 **유저가 모든 코드를 면접에서 설명할 수 있어야 하므로, 유저의 이해가 결과물의 일부다.**
 혼자 달리지 말 것 — 승인 게이트 밖에서 코드 파일을 수정하지 않는다.
 
-작업 리듬·승인 게이트·설계 원칙의 SSOT = `~/.claude/rules/` (유저 스코프, 자동 로드).
-운영 절차의 SSOT = `/dev-cycle` 스킬(검증 루프 4.5절 포함). 이 파일엔 **프로젝트 특수사항만** 남긴다.
+작업 리듬·승인 게이트·설계 원칙의 SSOT = `~/.claude/rules/`(자동 로드). 운영 절차 = `/dev-cycle` 스킬.
+이 파일엔 **규칙과 포인터만** 둔다. 이력·세부 목록·근거는 Vault `설계문서/신규게임-축구시뮬/CLAUDE-상세.md`(2026-11-09 다이어트 때 옮긴 전문).
+새 내용은 반복되는 실수를 막는 규칙일 때만 여기 추가하고, 경위·수치는 설계 문서나 상세판에 쓴다.
 
-## 구현의 기준 문서
+## 기준 문서
 
-**`~/Documents/Obsidian Vault/설계문서/신규게임-축구시뮬/스펙.md`가 SSOT다.**
-필드 치수·선수 3겹(빌드·지시·자리 2쌍)·공 모델·행동 트리·경기 규칙·배치 조작·스테이지·데이터·스코프 밖이 전부 여기 있다.
-`레퍼런스-조사.md`(유사 게임 8·Simple Soccer AI 모델·xG식)는 근거 자료다. 스펙과 어긋나면 스펙을 따른다.
-장부 = 같은 폴더 `구현플랜/열린-태스크.md`.
+- **스펙 SSOT**: `~/Documents/Obsidian Vault/설계문서/신규게임-축구시뮬/스펙.md`. 근거 자료 `레퍼런스-조사.md`. 어긋나면 스펙
+- **장부**: 같은 폴더 `구현플랜/열린-태스크.md`. 설계 판단 문서는 `실험/`
+- **관전 장면 대조표**: `실험/2026-11-09-관전-장면-대조표.md`(FM·FC 대비 ○△✗)
 
 ## 이 게임의 축 (설계 판단이 갈릴 때의 기준)
 
 - **레버는 전부 킥오프 전에 있다.** 경기 중 개입은 없다. 막혔을 때의 답은 "선수 세팅을 다시 짠다"
-- **"유저가 원하는 대로"가 아니라 "유저가 준 규칙을 엔진이 일관되게 해석하고 그 차이가 결과에 보이는 것"이 목표다.**
-  자동 대전으로 "세팅을 바꾸면 결과가 바뀐다"를 실증한다
-- **전 선수가 같은 트리를 쓴다.** 판정값(지시 다이얼)만 다르다. 역할은 다이얼 프리셋이지 별도 트리가 아니다
+- **목표는 "유저가 준 규칙을 엔진이 일관되게 해석하고 그 차이가 결과에 보이는 것"이다.** 자동 대전으로 실증한다
+- **전 선수가 같은 트리를 쓴다.** 판정값(지시 다이얼)만 다르다. 역할은 다이얼 프리셋
 - **막히면 강화가 아니라 재세팅.** 스탯 총점 고정·성장·랜덤 없음
-- **공 하나를 22명이 다툰다.** 유닛 시뮬의 "각자 가장 가까운 적"과 갈리는 유일한 코어. 소유 판정은 "공에 가장 가까운 선수"
+- **공 하나를 22명이 다툰다.** 소유 판정은 "공에 가장 가까운 선수"
 
 ## 코드의 출신
 
-**커스텀 템플릿**(`com.pmj.template.mobilegame`, 2026-09-15 재패킹본 = ResumeFromPause·RestartGame(bool)·배너·SafeArea Clamp 포함)에서 생성.
+- **템플릿 출신**(`com.pmj.template.mobilegame` 09-15판): `Scripts/Core`·`Scripts/OutGame`·`Scripts/UISystem`·`Scripts/Data`·`Editor/`. 고치면 템플릿 역이식 여부를 판단한다("프로젝트가 달라도 하는 일이 같은가")
+- **WarTableSimulator에서 옮긴 것**: BT 엔진·`TargetSelector`·`FieldBounds`·`StageComposition`·매니저 골격·CSV 관례. 이름은 이 게임 말로(Unit→Player, Battle→Match)
+- **게임 코드**(역이식 안 함): `Scripts/Game/Core`(경기 규칙 전부), 경기장·관중 에디터 빌더와 셰이더, `Scripts/OutGame/Screens/`의 로비·매치데이·스카우트 화면. 파일 목록은 상세판
+- 제거한 모듈: 스태미나·가챠·스킨·상점. 코인은 남김(용처 미정)
 
-- **템플릿 출신** — `Scripts/Core`(매니저 허브·세이브·풀·로딩), `Scripts/OutGame`, `Scripts/UISystem`, `Scripts/Data`, `Editor/`.
-  고치면 **템플릿에도 역이식할지** 판단한다(기준: "프로젝트가 달라도 하는 일이 같은가")
-- **WarTableSimulator에서 옮겨 올 것**(장르 무관, 스펙 12절 표) — BT 엔진(`BehaviorNode`·`CompositeNodes`·`IUnitContext`), `TargetSelector`,
-  `FieldBounds`(`PlacementRules`·`PlacementManager`·`PlacementInput`·`PlacementPanel`은 10-27 슬롯 격자로 대체해 삭제·이식 안 함), `StageComposition` 파서·리포지토리·`StageManager`,
-  `UnitManager`(명부·풀)·`BattleManager` 틱 구조·`HudManager` 골격, CSV 관례·테스트 틀. 옮길 때 이름을 이 게임 말로 바꾼다(Unit→Player, Battle→Match)
-- **게임 코드** — 공·소유·패스·슛(`MatchRules`), 침투 런(`RunRules`)·리시버 마크(`MarkRules`, 11-06 S3 ①)·슛 결정 시간(`ShotDecisionRules`, 11-08 S3 1단계)·행동 값 비교(슛·운반·패스, `ThreatRules`·`ReceiverRules`의 되돌림 감점)·xT(`ThreatGrid`·`ThreatTableRepository`), 선수 트리, 스코어·시간 UI, 선수 세팅 화면. 템플릿에 안 올라간다
-  경기장(11-06): `Editor/StadiumPrefabBuilder`·`Editor/GrassWearBuilder`(Stadiums.csv → 프리팹 4종·잔디 머티리얼 4개 생성), `Shaders/GrassWear.shader`(URP HLSL, Shader Graph는 코드로 생성 불가라 대신), `Shaders/LedBoard.shader`·`Materials/Stadium/LedBoard.mat`(LED 광고판, 11-06. 더그아웃은 전 부 먼 쪽·지붕 포함, 앞에 테크니컬 에어리어 선), `Materials/Stadium/`, `Textures/Grass/`(ambientCG CC0, 출처는 폴더 README), 관중(11-06) `Editor/CrowdAtlasBuilder`(실루엣 아틀라스 직접 생성)·`Shaders/Crowd.shader`·`Game/Stadium/CrowdRenderer`(LateUpdate에서 `Graphics.RenderMeshInstanced`, 화면 전용이라 FixedUpdate 규칙 밖)·`Core/Placement/CrowdLayout`·`Data/StadiumSpecRepository`(Stadiums.csv 런타임 입구)·`Textures/Crowd/`. 게임 코드다
-  `Scripts/OutGame/Screens/`의 `LobbyScreen`·`MatchdayScreen`·`MatchdayLines`·`ScoutScreen`도 게임 코드다(10-15). 폴더가 템플릿 출신이라도 로비 내용은 이 게임 것이라 역이식하지 않는다
+## 검증
 
-**제거한 모듈**: 스태미나·가챠·스킨·상점 (2026-09-15 세팅 때 뗌). **코인은 남겼다** — 용처는 3주차에 결정, 없으면 그때 제거.
-
-## 검증 — Unity CLI (MCP 서버는 CLI가 호스팅)
-
-CLI는 Homebrew cask `unity-cli`(2026-10-06 기준 `1.0.0-beta.12`, 올릴 땐 `brew upgrade --cask unity-cli`). 아래 명령은 그 버전에서 직접 돌려 확인했다.
-에디터가 열려 있으면 파이프라인 서버(`com.unity.pipeline`)로 붙는다. `unity status --json`에 ready면:
+**Unity CLI**(Homebrew `unity-cli`). 에디터가 열려 있으면:
 
 ```bash
-unity command editor_status --result-only          # playMode가 stopped인지 먼저 본다(Play 중 재컴파일·테스트 금지)
-unity recompile --json                             # 컴파일하고 끝날 때까지 기다린다. data.failed == false, data.summary.errors == 0
-unity command run_tests --mode EditMode --timeout 300 --result-only   # Summary.Failed == 0. 10-06에 285개 약 55초, 11-05 교착 테스트가 90분 5판(dotnet 77초)이 되어 더 길다
-unity command console_status --result-only         # compilationFailed·경고 수. 본문은 console --level warning --tail 30
-unity command get_scene_hierarchy --result-only    # 씬 읽기
-unity command screenshot --view game --result-only # Play 중 화면, path에 PNG 경로
+unity command editor_status --result-only          # playMode == stopped 먼저(Play 중 재컴파일·테스트 금지)
+unity recompile --json                             # data.failed == false, errors 0
+unity command run_tests --mode EditMode --timeout 1500 --result-only   # 전체. 하나만이면 --filter <클래스명>
+unity command console_status --result-only
 ```
 
-- **`unity command`의 기본 제한 시간은 30초다.** EditMode 전체는 55초쯤 걸려서 `--timeout`을 안 주면 응답이 비어 온다(테스트는 에디터에서 끝까지 돈다). 09-30에 "30초 타임아웃"으로 보였던 것이 이것이다
-- `--result-only`는 겉 봉투(command·parameters·target)를 떼고 결과만 준다. 이 옵션 없이 `--json`으로 받으면 `data.result`가 문자열로 오는 명령이 있다(`recompile_status`) — 문자열이면 한 번 더 파싱
-- `unity recompile`이 `unity command recompile && unity command recompile_status` 두 줄을 대신한다. 경고까지 실패로 보려면 `--strict`. 분석기 오류가 `data.errors`에 같이 나오는지는 아직 실패 사례로 확인하지 않았다(`recompile_status`의 errors[]는 확인됨)
-- 씬 배선은 `create_gameobject`·`attach_script`·`set_serialized_field`·`set_parent`·`save_scene`으로 직접 한다. YAML 편집·1회성 에디터 도구 불필요. 여러 개를 한 Undo로 묶으려면 `batch`
-- 명령을 찾을 때: 에디터 명령은 `unity list`, CLI 명령은 `unity commands --grep <말>`
-- 에디터가 닫혀 있으면 배치: `unity projects verify .` · `unity run .` · `unity test . --mode EditMode`. `unity test --affected --since develop`(바뀐 코드가 닿는 테스트만)은 beta.9에 생겼고 아직 안 돌려 봤다
-- **동작 검증은 유저 Play Mode.** 체크리스트를 제시한다. `editor_play`는 에디터가 앞에 있어야 프레임이 돈다(뒤에 있으면 frameCount 1에서 멈춤) — AI는 콘솔 오류 확인까지만
+- `unity command` 기본 제한 30초. 긴 명령은 `--timeout`. 결과는 `~/Library/Application Support/DefaultCompany/PitchSimulator/TestResults.xml` 시각으로도 확인
+- **코드 최적화는 Release로 둔다.** Debug면 교착 테스트가 180초를 넘는다(`CompilationPipeline.codeOptimization`, eval로 바꿀 수 있다)
+- 에디터가 뒤에 있거나 닫혀 있으면 dotnet 스크래치(메모리 `unity-background-dotnet-runner`)
+- **동작 검증은 유저 Play.** 바꾼 것 체크리스트 + 머지 게이트 훅이 보여 주는 **Play 고정 7장면**(`~/.claude/hooks/pitch-play-fixed.md`)
+- 빌드 중(`Tools/Build/Android APK (로컬 배포)`)에는 리포 코드를 고치지 않는다(재컴파일이 끼어든다)
 
-## 회귀 대시보드 — 경기 규칙·상수를 바꿨으면 먼저 돌린다 (2026-10-25)
+## 회귀 대시보드 — 경기 규칙·상수·CSV를 바꿨으면 먼저 돌린다
 
-규칙 하나를 바꾸면 다른 지표가 한꺼번에 움직인다(10-25 하루에 4번: 슬라이드 수축 → ST 가로채기 문턱, 감속 1.2 → 추격 피로·압박 왕복 3배, 패스 거리 곡선 → ST 소유 57%).
-그래서 **설계 루프에서 "이 값을 읽는 곳" 표를 먼저 내고, 구현 뒤엔 지표를 전부 한 번에 잰다.** 러너는 Vault `설계문서/신규게임-축구시뮬/실험/러너/`(dotnet, 에디터 불필요, 결정성).
+규칙 하나를 바꾸면 다른 지표가 한꺼번에 움직인다. 설계 단계에서 **"이 값을 읽는 곳" 표와 구멍 점검**을 먼저 내고, 구현 뒤엔 지표를 전부 한 번에 잰다.
 
 ```bash
-cd "$HOME/Documents/Obsidian Vault/설계문서/신규게임-축구시뮬/실험/러너" && ./dashboard.sh develop        # base(develop) vs 작업 트리, 실제 90분, full. base 캐시 적중 약 1.6분, 미스 약 3.4분
-cd "$HOME/Documents/Obsidian Vault/설계문서/신규게임-축구시뮬/실험/러너" && ./dashboard.sh develop quick  # 약 0.8분(미스 1.5분). final은 최종 1칸에만(4부 300판·대칭 100판)
+cd "$HOME/Documents/Obsidian Vault/설계문서/신규게임-축구시뮬/실험/러너" && ./dashboard.sh develop quick   # 중간 확인 약 1분
+cd "$HOME/Documents/Obsidian Vault/설계문서/신규게임-축구시뮬/실험/러너" && ./dashboard.sh develop         # 머지 전 full 약 4분
 ```
 
-**11-05 S2부터 대시보드는 실제 90분**(`MatchLength.RealTime`)으로 잰다. 판은 6스레드로 나눠 돌리고 시드 순서로 합쳐 스레드 수와 무관하게 같은 출력이 나온다(`RUNNER_THREADS=1`로 확인). 표에 지표마다 95% 신뢰 구간과 실제 축구 기준(StatsBomb PL 15/16)·판정이 붙는다. base는 커밋 해시 + 러너 src + base Tables 해시로 캐시하고, base 빌드는 base 커밋의 CSV를 읽는다. 3분판 마지막 수치는 러너 폴더 `out-3min-final.txt`. 3분 압축으로 옛 수치와 대조할 땐 `RUNNER_LEN=short`.
+- 실제 90분·결정성·95% 신뢰 구간·실제 축구 기준(StatsBomb) 판정. 지표 목록·probe 방법은 러너 `README.md`
+- **머지 게이트 훅**(`~/.claude/hooks/pitch-merge-gate.py`): develop 머지 때 엔진을 바꾼 브랜치면 full 대시보드가 최신이고 현실감 지표(`현실.*`)가 있어야 통과
+- 무거운 측정은 동시에 돌리지 않는다. 러너 probe는 develop과 작업 트리 둘 다에서 빌드되게 쓴다
 
-지표(90분 full): 4부 100판 골·승·무·0:0·슛·빗나감 / 대칭 50판 골·슛·무·0:0·패스·가로채기·태클탈취·소유전환 / 슛 블록·빗나감·세이브·골·박스안·거리 / 패스 성공·길이·10m 미만 / 압박 교대·왕복 / 역할별 소유(ST 50% 넘으면 교착 테스트가 깨진다) / 폭·깊이·라인·스프린트 / GK 라인 세이브·골 중 접촉 / 체력 표 4칸 최대 차(3분 표라 90분에서는 판정 제외, S3에서 81칸 재생성, `실험/2026-09-30-LoadTable.cs.txt`).
-개별 probe·격자 스윕 방법은 그 폴더 `README.md`.
+## 정적 검사 (경고 0 정책)
 
-## 정적 검사 (2026-09-15 세팅, 경고 0 정책)
-
-컴파일러·분석기가 먼저 잡고 사람은 남은 것만 본다. 이식 전에 깔아 옮기는 코드가 첫 컴파일부터 검사된다.
-
-- `Assets/csc.rsp`: `-warnaserror+`(경고 = 컴파일 실패) · `-warnaserror-:612,618`(Obsolete 2종만 경고로 남김. Unity 패키지 업그레이드가 우리 손 밖이라. Unity 자체 리포 ml-agents·ECS 샘플과 같은 설정)
-- `Assets/Analyzers/Microsoft.Unity.Analyzers.dll`(1.27.0, 라벨 `RoslynAnalyzer`, 모든 플랫폼 끔): **Microsoft 제작** Unity 전용 규칙(UNTxxxx). VS·VS Code Unity 확장에 기본 탑재라 사실상 표준이고, Unity Technologies 공식은 아니다. 분석기 오류는 `recompile_status`의 errors[]에 CS 오류와 같이 나오므로 검증 루프가 그대로 잡는다
-- **심각도 기준 3층**(근거를 물으면 이 순서로 답한다): ① Unity "모바일 게임 성능 최적화" 가이드가 명시한 관행(빈 Update·CompareTag·WaitForSeconds 캐시·StringToHash·PropertyToID·매 프레임 문자열) → 오류 ② Microsoft 카테고리 Correctness·TypeSafety(fake null 비교 등, Unity 레퍼런스 `Object.operator==`가 근거) → 오류 ③ 그 외 Performance·Readability → Info. 성능 규칙은 "쓰지 마"가 아니라 "이 형태로"라서 읽기 편한 쪽으로 쓰고 프로파일러에 잡힌 곳만 규칙 형태로 바꾼다
-- **컴파일 시 심각도의 SSOT = `Assets/Default.ruleset`.** Unity 컴파일은 `.editorconfig`를 읽지 않는다(Bee rsp에 `-analyzerconfig` 없음, 09-15 실측). `.editorconfig`는 IDE 표시·문체용이고 UNT 값은 ruleset과 같게 유지한다
-- 서드파티 asmdef(`Plugins/SerializedCollections` Runtime·Editor)는 asmdef마다 옆의 `ThirdParty.ruleset`으로 UNT 규칙을 끈다. 남의 코드는 고치지 않는다. 새 플러그인을 넣으면 같은 파일을 복사한다
-- `UNT0021`(메시지를 protected로)은 끔. 분석기 기본값도 꺼져 있고 이 프로젝트 관례는 `private void Awake()`다
-- 문체는 Unity C# 스타일 가이드(Unity 6판)와 맞춘다: private 필드 camelCase 접두 없음(가이드의 첫 권장, m_는 선택), 공개 멤버 PascalCase, **한 줄 문장도 중괄호**(`if (x) { return; }`, 가이드 "don't omit braces"). `.editorconfig`가 IDE에서 표시한다
-- `-nullable:enable`은 게임 코드 어셈블리(`Game.Core`)의 asmdef 옆 `csc.rsp`에만 켠다. 템플릿 코드 전체에 켜면 경고가 쏟아진다. **asmdef 옆 csc.rsp는 `Assets/csc.rsp`를 대체한다**(합쳐지지 않음, 09-16 Bee rsp로 확인). 그래서 `-warnaserror+`·`-warnaserror-:612,618`을 거기에도 적는다. 새 asmdef를 만들면 `Scripts/Game/Core/csc.rsp`를 복사한다
-- `unity command audit --output <csv>` → `audit_status`(completed) → CSV. 4,800건 중 4,700건이 Packages라 **`RelativePath`가 `Assets/`(Plugins 제외)·`ProjectSettings`인 행만** 본다. 커밋 전 1회면 충분하다(구현 단위마다 안 돌린다)
+- `Assets/csc.rsp` `-warnaserror+`(Obsolete 612·618만 경고). asmdef 옆 `csc.rsp`는 이걸 **대체**하므로 같은 줄을 적는다. 새 asmdef면 `Scripts/Game/Core/csc.rsp`를 복사
+- 분석기 Microsoft.Unity.Analyzers. 컴파일 심각도 SSOT = `Assets/Default.ruleset`(Unity는 `.editorconfig`를 안 읽음). 서드파티 asmdef는 옆 `ThirdParty.ruleset`
+- `-nullable:enable`은 `Game.Core`에만. 문체는 Unity C# 스타일 가이드(private camelCase, 한 줄 문장도 중괄호)
+- 심각도 기준 3층·audit 사용법은 상세판
 
 ## 프로젝트 관례
 
-- 매니저: `InGameManager` 상속 + 태그 `"Manager"` + `GameManager` 프로퍼티·등록 — 3종 세트. 아웃게임은 `OutGameManager`가 따로
-- **국면은 `GameManager.GameState`가 유일한 진실.** 각 매니저는 Initialize에서 자기 상태의 진입/퇴장 훅을 구독하고 `running`·`IsActive` 같은 플래그를 따로 들지 않는다.
-  상태→UI는 `GameUIManager` 한 곳. 일시정지 복귀는 `ResumeFromPause()`(진입 훅 재실행 없음). GameReady = 선수 세팅 국면, GamePlay = 경기, GameClear/GameOver = 결과
-- 매니저 간 참조는 `GameManager.{Manager}` 경유. 프리팹 인스턴스는 매니저를 모르고 값만 받는다
-- **경기 판정은 역할 이름(`RoleId`)을 보지 않는다(GK 제외).** "역할 = 다이얼 프리셋" 축. 유일한 예외였던 박스 앞 CB 전진(`StepOutCenterBack`, 09-29)은 11-06 D1에 뒷줄(`LineRules.IsBackLine`, 수비 시 자리 깊이)로 일반화했다. 수비 역할의 행동 차이는 `DefenseRoles.csv` 열로 둔다
+- 매니저: `InGameManager` 상속 + 태그 `"Manager"` + `GameManager` 등록 3종 세트. 매니저 간 참조는 `GameManager.{Manager}` 경유. 프리팹 인스턴스는 매니저를 모르고 값만 받는다
+- **국면은 `GameManager.GameState`가 유일한 진실.** 매니저는 진입/퇴장 훅을 구독하고 상태 플래그를 따로 들지 않는다. 상태→UI는 `GameUIManager` 한 곳
+- **경기 판정은 역할 이름(`RoleId`)을 보지 않는다(GK 제외).** 역할 차이는 다이얼과 `DefenseRoles.csv` 열로
 - 오브젝트 생성은 ObjectPool. `FindObjectOfType`/`GameObject.Find` 금지
-- **경기 AI·이동·공은 고정 스텝(`FixedUpdate`)으로 돈다.** 공은 Rigidbody를 쓰지 않고 순수 계산으로 옮긴다(결정성). 기기가 달라도 결과가 같아야 한다
-- **선수 세팅은 StageComposition과 같은 데이터 형식으로 저장한다.** 재도전·상대 팀 데이터·멀티가 같은 것을 읽는다
-- **내 경기 시뮬은 `MyMatchAssembler.Create` 한 곳에서 만든다.** 인게임(`MatchManager.ResetMatch`)·치트 헤드리스·테스트가 같은 함수를 쓰고, 선수 뷰(`PlayerManager.Spawn`)는 그 시뮬의 `Players`에 몸만 붙인다(상태를 만들지 않는다, 11-06 S4-1)
-- 데이터는 CSV: `PlayerTable.csv`(`runStyle` 열 = 침투 성향, 0 없음·1 뒤공간·2 내려와 받기·3 박스 늦게) · `StageComposition.csv`(새 시즌의 내 기본 11명·러너 편성) · `TacticPresets.csv` · `FormationTemplates.csv` · `TierRules.csv` · `TeamNames.csv` · `DefenseRoles.csv`(수비 시 역할 5종 = 압박 거리 배율·라인 높이 오프셋 + 행동 열 2개 `marksAsSecond`(뒷줄이 모자랄 때 리시버 마크 2차 후보, 둘째 줄에서만 유효, tracking만 1)·`screens`(스크린 0 없음·1 공 쪽·2 항상, D4에서 읽음), 11-06 D1. 10-25 슬롯 격자. 이탈 반경 배율은 10-29 삭제) · `Stadiums.csv`(부별 경기장: 면·단·지붕·조명·채움·잔디 마모 wear·줄무늬 stripe·런오프. 부 → 경기장 키는 `TierRules.csv` stadium 열, 둘의 일치는 `StadiumTests`가 잠금. 바꾸면 `Tools/Pitch/경기장 프리팹 만들기`로 다시 생성) · `StaminaLoadTable.csv`(체력 부담 게이지의 실측 표 81칸. 체력·압박 규칙을 바꾸면 테스트가 깨지고 러너로 다시 잰다) · `ThreatTable.csv`(xT 12×8 격자 96칸. Karun Singh 2018 공식으로 8ebd41b 코어 2,240판 이벤트에서 직접 생성, 공개 격자 값은 라이선스 불명이라 안 씀. 헤더 `#` 줄에 생성 방법. 격자는 `MatchSimulation` 생성자로 주입한다(필수, null이면 예외). 게임 쪽 입구는 `ThreatTableRepository.Grid`(MatchManager·SeasonSystem), 러너는 `RunnerThreat.Grid`. 규칙을 바꾸면 러너 `xtgen`으로 다시 만든다) `StageTable.csv`는 09-27 시즌 연결 때 제거(스테이지 개념이 4부제 리그로 대체). 파싱은 CsvHelper + `ClassMap`, 자작 파서 금지
-- **코드 문체 앵커 = AnimalBreakOut 코드베이스** (유저가 손코딩기에 흡수한 팀 컨벤션, 2026-09-07 결정. 원본 = `WarTableSimulator/CLAUDE.md` 75~79행).
-  이른 반환(가드 문) 선호, **여러 줄 `&&` 체인 지양**(조건이 길면 가드 문이나 이름 붙은 bool 메서드로), 메서드는 중괄호 블록(식 본문 `=>`는 한 줄 상태 변경·계산 정도만),
-  람다는 외부 API가 함수를 요구할 때만(트리 노드 `ctx => ...`·주사위 `() => 0f` 같은 기존 자리). **콜백은 이름 붙은 private 메서드로 빼서 넘긴다**(`CreateUnit`·`OnGetFromPool`). `out var` 같은 압축 지양, 한 줄에 여러 선언·문장 지양. **한 줄 중괄호 블록은 문장 하나까지**(`if (x) { return; }`는 되고 `{ a(); return; }`은 여러 줄로. 10-08 유저 지적, 38건 펼침).
-  리뷰는 이 기준으로 한다(`~/.claude/rules/verification.md` 「재검증에는 코드 리뷰가 항상 들어간다」)
-- 커밋: 한국어 + why + 논리 단위. 쓰기 전 pangyo-tone 신호 14개 자체 점검. 구현 → 검증 루프(4.5절) → 유저 Play → 커밋
-- **브랜치**: `feature/*` → `develop`. `master`는 빌드 검증(AAB) 시점에만. 첫 수정 전에 브랜치부터
-
-## 빌드·출시
-
-- `Tools/Build/Android APK` · `Tools/Build/Android AAB`. 패키지명 `com.pmj.pitchsimulator`·제품명·가로 고정은 `Assets/Editor/BuildScript.cs` 상수가 빌드마다 강제
-- **Play Console 개인 계정은 프로덕션 전 테스터 12명·14일 연속.** 3주차 초에 돌아가는 빌드가 나오면 **즉시** 비공개 테스트에 올린다
-- AdMob은 이 게임용 앱을 따로 등록해야 한다(WarTableSimulator 앱 ID를 쓰지 않는다). 절차는 세팅 스킬 "광고 붙이기"
+- **경기 AI·이동·공은 고정 스텝(`FixedUpdate`)·결정적.** 공은 Rigidbody 없이 순수 계산. 화면 전용 연출만 예외
+- **내 경기 시뮬은 `MyMatchAssembler.Create` 한 곳에서 만든다.** 선수 뷰는 시뮬 `Players`에 몸만 붙인다
+- 선수 세팅은 StageComposition과 같은 데이터 형식으로 저장
+- **데이터는 CSV + CsvHelper `ClassMap`(자작 파서 금지).** CSV별 열 설명은 상세판. 바꾸면 그 CSV를 잠그는 테스트와 대시보드를 같이 돌린다(`StaminaLoadTable.csv`는 러너 `loadtable`로 재생성, `ThreatTable.csv`는 `xtgen`)
+- **코드 문체 앵커 = AnimalBreakOut**: 이른 반환, 여러 줄 `&&` 지양, 메서드는 중괄호 블록, 람다는 외부 API가 요구할 때만(콜백은 이름 붙은 private 메서드), `out var` 압축 지양, **한 줄 중괄호 블록은 문장 하나까지**. 리뷰 기준 원본은 `~/unity/WarTableSimulator/CLAUDE.md` 75~79행
+- 커밋: 한국어 + why + 논리 단위, pangyo-tone 신호 점검. 순서 = 구현 → 검증 → 리뷰 → 유저 Play → 커밋
+- **브랜치**: 태스크 하나 = `feature/*` 하나 → `develop`. `master`는 AAB 빌드 때만. 첫 수정 전에 브랜치부터
 
 ## 테스트 가능 경계
 
-MonoBehaviour 의존 없는 판정은 순수 C#(`Game.Core` asmdef, `noEngineReferences`)으로 뺀다.
+MonoBehaviour 의존 없는 판정은 순수 C#(`Game.Core`, `noEngineReferences`)으로 빼서 EditMode로 잠근다. 노드 안 판단은 순수 함수로 빼고 트리 노드는 얇은 어댑터. 트리 흐름·카메라·화면은 PlayMode·유저 Play. 잠근 규칙의 전체 목록은 상세판.
 
-- **EditMode 대상**: 공 소유 판정(가장 가까운 선수·타이브레이크), 뒷줄 판정(`LineRules` = 수비 시 자리 깊이가 팀 최솟값 + 6m 안, 편성 6종 전건 4·4·5·3·4·3)·리시버 마크 후보 2단(뒷줄 → 둘째 줄 `IsSecondLine` + tracking, 밴드 끝 포함)·상한 = 뒷줄 수(11-06 D1, 설계 `실험/2026-11-06-설계-수비-구조.md`), 패스 가로채기(상대 반응 지연·안전 가중, 10-29), 이동(개인 가속·반응 등가·Arrive/전력·자리 잡기 조깅·속도 자르기, 10-29 `MovementRules`), 슛 성공 확률(거리·각도), GK 슛 대응(닿음 판정·골 조준 간격·포스트 밖 밀기·반응 지연, 10-23~25), 공 높이·로빙·공 비행 코어(궤적 질의 해석식 vs 틱 적분·도달 경쟁 가장 이른 포획·동률 자리 선점·상대 GK 박스 안 2.6m, 11-02), 압박 1순위 최소 재임(10-23), 라인 깊이(D2, 11-08~09 `LineRules`, 설계 `실험/2026-11-09-설계-D2-재설계.md`: L = Metrica 앵커 3점 보간 + 팀 오프셋을 공 깊이 − 최소 간격 10m 아래로 → 하한 GK 라인 + 4m·상한 55m, 뒷줄 깊이 = 다이얼 얹은 수비 시 자리 최솟값, 팀 이동량 Δ로 전원 평행이동(GK 0), 수비 자리·마크 지점 둘 다 공보다 골 쪽(공 − 1.5m) 상한, 마크 하한 = max(하한, min(L, 공 − 1.5)), 날아오는 패스의 리시버는 GK 하한만, 시뮬·미니 피치가 같은 `TeamLineShift`·`TeamStandDepthCap`, GK 옆 상대는 오프사이드 위치)·라인 앞 전진(구역 = L + 10m·박스 반폭, 최근접 뒷줄이 압박 0순위 = `MaxPressers` 1의 예외, 틱 순서 FillLineDepth → FillPressEligible), 리시버 마크(`MarkRules`: 발동 = 공이 우리 골 중심 `MarkZoneRadius` 40m 안(11-08 슛 사거리 30과 분리), 대상 = 골에 가까운 상대 필드 선수·소유자와 GK 제외·직전 대상 골 거리 여유, 배정 = 거리순·동률 id·히스테리시스, 마크 지점 = 골 쪽 MarkDistance·반응 지연 = positioning·실제 상대보다 공 쪽으로 안 감, 교대 계측, 시뮬 배선 = 압박자 제외·패스 비행 중 리시버는 선정·지점 모두 도착점 기준, 11-06 S3 ①), 슛 결정 시간(`ShotDecisionRules`: 거리별 퍼스트 터치 확률(StatsBomb 실측 6구간)·준비 틱, 시뮬 배선 = 필드 선수가 사거리 30m 안에서 소유할 때 한 번 굴림·사거리 밖은 주사위 없이 준비 시간·준비 틱은 소유 틱 포함 정확히 N틱·퍼스트 터치 소유는 슛에 볼 끌기 안 걸림(패스엔 걸림)·게이트는 트리 `ShotReady`, 11-08 S3 1단계), 경기 길이(`MatchLength`: 3분 압축 기본·실제 90분, 추가시간 실제 틱, 체력 시간 배율, 시계·하프타임 틱, 11-05 S1)·골킥(GK 소유·4초 대기·상대 박스 밖, 11-05)·경기장 표시(`PitchLayout` = `FieldBounds` 치수·박스 판정 경계와 같은 선, 저장된 프리팹 대조는 Unity 전용 `PitchPrefabTests`, 11-05. 경기장 프리팹·잔디 머티리얼·텍스처 임포트 대조는 Unity 전용 `StadiumPrefabTests`, 11-06)·관중 배치(채운 좌석·1,023 분할·면 방향·면별 그리기 상자, `CrowdLayoutTests`. 아틀라스·머티리얼·프리팹 컴포넌트는 Unity 전용 `CrowdPrefabTests`, 리플렉션 사용, 11-06), 침투 사전 런(런 제안 생성·유지, 러너 도달 롤아웃 = 실행과 같은 이동 식, 11-03. 런 패스 수신 = 공 추격 `ChaseBall`, 롤아웃 범위 = 착지 시각, 11-06)·패스 흘려 보내기(비행 중 착지점 전까지 받을 선수가 아닌 우리 편은 못 잡음, 놓친 공은 누구든, 11-06)·행동 값 비교(슛·운반·패스 값, 되돌림 감점, 운반 끝점·위험, 후보 상한 가지치기 = 켜고 꺼도 같은 결과, 11-03 P1)·xT 격자(보간·구간 최댓값, `ThreatTableParser`), 팀 전술 미니 피치 자리(공 칸 9 × 공수 → 경기와 같은 Stand 함수, 10-29), 슬롯 격자 판정(역할군·GK 슬롯 보호·전환 거리 경고·포메이션 전환 재착석·격자 비겹침, 10-25~27. 자유 배치 판정은 10-27 ④에서 지움. 11명·GK 1은 선발 슬롯이 고정이라 늘 참. 로스터는 벤치 7까지 가변)·스쿼드 규칙(벤치 상한·같은 자리 교체·방출 코인·슬롯 기준 이월)·승강전 판정(계획·합산·승부차기)·내 경기 조립(`MyMatchAssembler`: 킥오프 = 일정상 홈 `setup.KickoffTeam`, 선수 번호 = 팀 0 먼저 라인업 순, 뷰 재료는 `SlotOf`, 인게임·치트·테스트가 같은 함수라 두 번 조립하면 같은 경기, 11-06 S4-1), 파서 전건 대조
-- **PlayMode·수동**: 트리 흐름, 이동, 카메라. 노드 안 판단은 `MatchRules` 순수 함수로 빼고 노드는 얇은 어댑터
+## 빌드·출시
+
+- `Tools/Build/Android APK (로컬 배포)` · `Tools/Build/Android AAB (스토어 제출)`. 패키지명·제품명·가로 고정은 `Assets/Editor/BuildScript.cs`가 강제
+- Play Console 개인 계정은 프로덕션 전 테스터 12명·14일 연속. AdMob은 이 게임용 앱을 따로 등록
 
 ## 레퍼런스 스킬
 
-플랜 문서 `superpowers:writing-plans`, 완료 선언 전 `superpowers:verification-before-completion`, 구현 후 `superpowers:requesting-code-review`.
-세팅은 `unity-project-setup` 스킬로 했다(2026-09-15).
+플랜 `superpowers:writing-plans`, 완료 선언 전 `superpowers:verification-before-completion`, 구현 후 `superpowers:requesting-code-review`.
