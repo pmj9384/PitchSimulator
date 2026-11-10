@@ -340,12 +340,63 @@ public class MatchSimulationTests
         for (int i = 2; i < MatchTuning.KeeperReactionTicks; i++) { sim.Tick(Dt); }
         sim.Tick(Dt);
         Assert.IsTrue(keeper.IncomingShot, "반응 지연(노골 1배) 뒤 차례");
-        float postAtLine = MatchRules.BallZAtLine(shotX, shotZ, FieldBounds.HalfLength, FieldBounds.GoalHalfWidth, PositionRules.KeeperLineX(keeper.DefendHomeX, keeper.DefendHomeZ, keeper.AttackSign, keeper.Stats.LineHeight));
-        Assert.AreEqual(postAtLine, keeper.IncomingShotTargetZ, 1e-3f, "목표는 조준을 포스트로 자른 교차점(골문 밖까지 안 쫓는다)");
+        float ballAtLine = MatchRules.BallZAtLine(shotX, shotZ, FieldBounds.HalfLength, aimZ, PositionRules.KeeperLineX(keeper.DefendHomeX, keeper.DefendHomeZ, keeper.AttackSign, keeper.Stats.LineHeight));
+        float clearance = MatchTuning.CaptureRadius + MatchTuning.NearMissKeeperClearance;
+        Assert.AreEqual(ballAtLine - clearance, keeper.IncomingShotTargetZ, 1e-3f, "목표는 공 교차점에서 발 반경 + 여유만큼 골 안쪽(11-10)");
 
         for (int i = 0; i < 400 && reports.Count == 0; i++) { sim.Tick(Dt); }
         Assert.AreEqual(1, reports.Count);
         Assert.AreEqual(ShotOutcome.Missed, reports[0].Outcome, "근소 빗나감에 세이브는 없다");
+    }
+
+    [Test]
+    public void 근소_빗나감에_몸을_던진_GK와_공_선의_간격은_발_반경보다_넓다()
+    {
+        // 11-10 재검증 🟡: 조준을 포스트로 잘라 그 교차점으로 가면 포스트 밖 1m 안 빗나감은 공이 GK 발 반경 안을 지나갔다(판정은 빗나감, 화면은 몸 통과).
+        // 전체 트리(⑨b)라 GK가 실제로 움직인다. GK z 0 → 목표 +3.16, 조준 roll (0.09, 0) = 표준정규 +0.43 → 약 4.0(포스트 밖 0.35m), 골 roll 0(골문 안이었다면 골)
+        var sim = new MatchSimulation(new RollQueue(new[] { 0.09f, 0f, 0f, 0.5f, 0.5f, 0.5f }).Next, PlayerTreeBuilder.Build(), TestThreat.Real) { ResetAfterEveryShot = true };
+        PlayerState striker = sim.AddPlayer(new PlayerState(0, 0, Striker(), 30f, 0f));
+        PlayerState keeper = sim.AddPlayer(new PlayerState(1, 1, Keeper(), 50f, 0f));
+        float aimZ = float.NaN;
+        float shotX = 0f;
+        float shotZ = 0f;
+        float lastKeeperX = 0f;
+        float lastKeeperZ = 0f;
+        float closest = float.MaxValue;
+        bool reacted = false;
+        sim.BallKicked += k =>
+        {
+            if (!k.IsShot) { return; }
+            shotX = striker.X;
+            shotZ = striker.Z;
+            aimZ = striker.Z + k.DirZ;
+        };
+        var reports = new List<ShotReport>();
+        sim.ShotResolved += r => reports.Add(r);
+        sim.Kickoff();
+        for (int i = 0; i < 20000 && sim.Ball.Phase != BallPhase.Flight; i++) { sim.Tick(Dt); }
+        Assert.AreEqual(BallPhase.Flight, sim.Ball.Phase, "슛이 떠야 한다");
+        Assert.Greater(aimZ, FieldBounds.GoalHalfWidth, "전제: 골문 밖");
+        Assert.LessOrEqual(aimZ, FieldBounds.GoalHalfWidth + 0.5f, "전제: 포스트 밖 0.5m 안(옛 규칙이면 공 선이 GK 발 반경 안을 지나는 띠)");
+
+        for (int i = 0; i < 400 && reports.Count == 0; i++)
+        {
+            sim.Tick(Dt);
+            if (reports.Count > 0) { break; }
+            if (keeper.IncomingShot) { reacted = true; }
+            lastKeeperX = keeper.X;
+            lastKeeperZ = keeper.Z;
+            float dx = sim.Ball.X - keeper.X;
+            float dz = sim.Ball.Z - keeper.Z;
+            closest = System.Math.Min(closest, (float)System.Math.Sqrt(dx * dx + dz * dz));
+        }
+
+        Assert.AreEqual(ShotOutcome.Missed, reports[0].Outcome, "판정은 빗나감 그대로");
+        Assert.IsTrue(reacted, "GK는 반응해 몸을 던진다");
+        Assert.Greater(lastKeeperZ, 0.5f, "GK는 공 쪽으로 움직였다(제자리 아님)");
+        float ballLineZ = MatchRules.BallZAtLine(shotX, shotZ, FieldBounds.HalfLength, aimZ, lastKeeperX);
+        Assert.Greater(ballLineZ - lastKeeperZ, MatchTuning.CaptureRadius, "GK 최종 자리와 공 선의 가로 간격 > 발 반경");
+        Assert.Greater(closest, MatchTuning.CaptureRadius, "비행 내내 공이 GK 발 반경 안을 지나지 않는다");
     }
 
     [Test]
