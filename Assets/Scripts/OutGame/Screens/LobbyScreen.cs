@@ -39,11 +39,12 @@ public class LobbyScreen : UIScreen
         Refresh();
     }
 
-    // UIManager가 시작 때 Close를 먼저 부른다. 그때는 시즌이 아직 없을 수 있다
-    public override void Close()
+    // 해제는 Close가 아니라 OnDisable에서 한다. 화면을 닫을 때(SetActive false)와 씬을 떠날 때 둘 다 불린다.
+    // 로비엔 지금 LoadScene으로 바로 떠나는 길이 없지만, 매치데이가 그 길로 누수됐던 것(11-10)과 같은 모양으로 맞춰 둔다
+    private void OnDisable()
     {
-        if (GameDataManager.Instance != null) { Season.Reported -= Refresh; }
-        base.Close();
+        if (!GameDataManager.HasInstance) { return; }   // 씬 teardown: Instance 접근은 죽은 싱글톤을 되살린다
+        Season.Reported -= Refresh;
     }
 
     // 보고 중(IsReporting)엔 CurrentMatch가 던진다. 로비에선 결과 화면이 보고를 끝내고 와서 안 걸리지만, 새 진입 경로가 생겨도 조용히 틀리지 않게 잠근다
