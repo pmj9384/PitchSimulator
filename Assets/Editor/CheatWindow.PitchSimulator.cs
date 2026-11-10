@@ -10,6 +10,11 @@ public partial class CheatWindow
     partial void DrawProjectCheats()
     {
         EditorGUILayout.Space();
+        EditorGUILayout.LabelField("경기 길이 (개발·녹화용)", EditorStyles.boldLabel);
+        DevMatchLength.RealTime = EditorGUILayout.Toggle("인게임 실제 90분", DevMatchLength.RealTime);
+        EditorGUILayout.LabelField("다음 경기부터 적용. 기본은 3분 압축(튜닝·대시보드는 실제 90분)");
+
+        EditorGUILayout.Space();
         EditorGUILayout.LabelField("시즌", EditorStyles.boldLabel);
         SeasonSystem season = GameDataManager.Instance.Season;
         EditorGUILayout.LabelField($"현재: {season.NextMatchLine()}  ·  보고 중 {season.IsReporting}");
