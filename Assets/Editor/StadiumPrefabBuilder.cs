@@ -44,7 +44,6 @@ public static class StadiumPrefabBuilder
     private const float DugoutOverhang = 1f;        // [가정] 지붕이 벤치보다 긴 길이(m)
     private const float DugoutDepthScale = 2.5f;    // [가정] 지붕 깊이 = 벤치 깊이 × 이 값
     private const float RoofLightDepth = 0.3f;      // [가정] 1부 조명 띠 깊이(m)
-    private const float ScoreboardGroundGap = 1f;   // [가정] 골대 뒤 관중석이 없을 때 런오프 끝에서 전광판까지(m)
     private const float BenchRunoffFraction = 0.4f; // [가정] 벤치 자리 = 먼 쪽 터치라인에서 런오프의 이 비율. 광고판(0.75)보다 선 쪽이고 지붕 뒤끝(1.5m 깊이)이 광고판 앞면을 넘지 않는다
     // 테크니컬 에어리어(IFAB Law 1 기술 구역): 좌석 양옆 1m, 터치라인 쪽으로 1m 떨어진 선까지 사각형 테두리. 뒤쪽 여유는 규정 없음 [가정]
     private const float TechAreaSideMargin = 1f;
@@ -58,8 +57,21 @@ public static class StadiumPrefabBuilder
     private const float LedPanelWidth = 6f;         // [가정] 패널 폭(m)
     private const float LedSeamWidth = 0.15f;       // [가정] 이음매 폭(m)
     private const float LedGlow = 1.25f;            // [가정] 발광 밝기 배율(HDR 블룸 없음 전제로 1을 약간 넘는 값)
+    // 바깥 둘레(11-10 유저 Play: 공이 측면·구석으로 가면 관중석 틈과 빈 면 너머로 카메라 배경이 보였다). 관중석 유무와 상관없이 같은 둘레를 두른다
+    private const float OuterGroundSize = 400f;     // [가정] 바깥 바닥 한 변(m). 중계 카메라 시야 끝까지 덮는 크기
+    private const float OuterGroundDrop = 0.02f;    // [가정] 잔디 평면 아래로 내리는 높이(겹침 깜빡임 방지)
+    private const float OuterWallThickness = 0.5f;  // [가정]
+    private const float OuterFenceHeight = 1.2f;    // [가정] 바깥 담 높이(m). 관중석보다 낮아 관중석이 있는 면에선 뒤에 가려 안 보이고, 없는 면·구석에서만 낮은 담으로 보인다(11-10 유저: 높은 남색 벽이 상자처럼 보여 어색)
+    private const int TerraceRows = 3;              // [가정] 관중석 없는 면 테라스 단 수
+    // 선수 통로(11-10 유저: FM26처럼 중앙에). 먼 쪽(+Z, 벤치가 있는 쪽) 관중석 앞 중앙의 어두운 입구 + 위 차양
+    private const float TunnelWidth = 4f;           // [가정]
+    private const float TunnelHeight = 2.4f;        // [가정]
+    private const float TunnelMouthDepth = 0.1f;    // [가정] 기단 앞면에서 내민 두께
+    private const float TunnelCanopyDepth = 1f;     // [가정] 차양이 경기장 쪽으로 나온 길이
+    private const float TunnelCanopyThickness = 0.2f; // [가정]
+    private const float TunnelCanopyOverhang = 0.3f;  // [가정] 차양이 입구보다 양옆으로 넓은 만큼
 
-    private enum Paint { Light, Dark, Led }
+    private enum Paint { Light, Dark, Led, Ground, Tunnel }
 
     [MenuItem("Tools/Pitch/경기장 프리팹 만들기")]
     public static void Build()
@@ -105,6 +117,8 @@ public static class StadiumPrefabBuilder
         BuildAdBoards(root.transform, spec, paints);
         BuildBenches(root.transform, spec, paints);
         BuildTechnicalAreas(root.transform, spec);
+        BuildOuterBounds(root.transform, spec, paints);
+        BuildTunnel(root.transform, spec, paints);
         BuildCrowd(root);
 
         string path = PrefabPathOf(spec.Id);
@@ -167,6 +181,97 @@ public static class StadiumPrefabBuilder
         }
     }
 
+    // 바깥 둘레: 넓은 바닥 1장 + 관중석 맨 뒤 선에 두르는 낮은 담 4장. 바닥이 카메라 배경색 빈 공간을 덮고,
+    // 담은 관중석이 없는 면·구석의 끝을 표시한다. 기존 관중석은 건드리지 않는다(관중석보다 낮아 그 뒤에 가린다)
+    private static void BuildOuterBounds(Transform root, StadiumSpec spec, Dictionary<Paint, Material> paints)
+    {
+        Transform parent = NewChild(root, "OuterBounds");
+        GameObject ground = Primitive(PrimitiveType.Plane, "OuterGround", parent, paints[Paint.Ground]);
+        ground.transform.localPosition = new Vector3(0f, -OuterGroundDrop, 0f);
+        ground.transform.localScale = new Vector3(OuterGroundSize / 10f, 1f, OuterGroundSize / 10f);   // 기본 Plane은 10m
+
+        float back = spec.Runoff + spec.Rows * spec.RowDepth;
+        float outerX = FieldBounds.HalfLength + back;
+        float outerZ = FieldBounds.HalfWidth + back;
+        float half = OuterWallThickness * 0.5f;
+        float spanX = (outerX + OuterWallThickness) * 2f;   // 앞뒤 벽이 양 끝 벽 바깥 면까지 덮어 구석에 틈이 없다
+        Material fence = paints[Paint.Light];
+        Cube(parent, "OuterFence_Far", new Vector3(0f, OuterFenceHeight * 0.5f, outerZ + half), new Vector3(spanX, OuterFenceHeight, OuterWallThickness), fence);
+        Cube(parent, "OuterFence_Near", new Vector3(0f, OuterFenceHeight * 0.5f, -outerZ - half), new Vector3(spanX, OuterFenceHeight, OuterWallThickness), fence);
+        Cube(parent, "OuterFence_EndLeft", new Vector3(-outerX - half, OuterFenceHeight * 0.5f, 0f), new Vector3(OuterWallThickness, OuterFenceHeight, outerZ * 2f), fence);
+        Cube(parent, "OuterFence_EndRight", new Vector3(outerX + half, OuterFenceHeight * 0.5f, 0f), new Vector3(OuterWallThickness, OuterFenceHeight, outerZ * 2f), fence);
+
+        BuildTerraces(parent, spec, paints);
+        BuildCorners(parent, spec, paints);
+    }
+
+    // 관중석이 없는 면엔 지붕 덮인 낮은 테라스(서서 보는 몇 단)를 둔다(11-10 유저: 회색 벽보다 지붕·테라스 느낌, 위는 하늘이나 지붕까지만 보이면 됨).
+    // 기존 관중석 면은 건드리지 않는다
+    private static void BuildTerraces(Transform parent, StadiumSpec spec, Dictionary<Paint, Material> paints)
+    {
+        StandSide[] sides = { StandSide.Far, StandSide.Near, StandSide.EndLeft, StandSide.EndRight };
+        float front = spec.Runoff;
+        float back = spec.Runoff + TerraceDepth(spec);
+        float top = spec.BaseHeight + TerraceRows * spec.RowHeight;
+        for (int s = 0; s < sides.Length; s++)
+        {
+            StandSide side = sides[s];
+            if (HasStand(spec, side)) { continue; }
+
+            Slab(parent, $"TerraceBase_{side}", spec, side, front - BaseFrontMargin, back, 0f, spec.BaseHeight, paints[Paint.Dark]);
+            for (int i = 0; i < TerraceRows; i++)
+            {
+                float stepFront = front + i * spec.RowDepth;
+                float stepTop = spec.BaseHeight + (i + 1) * spec.RowHeight;
+                Slab(parent, $"TerraceStep_{side}_{i}", spec, side, stepFront, back, spec.BaseHeight, stepTop, paints[Paint.Light]);
+            }
+            Slab(parent, $"TerraceRoof_{side}", spec, side, front, back, top + RoofClearance, top + RoofClearance + RoofThickness, paints[Paint.Light]);
+        }
+    }
+
+    private static float TerraceDepth(StadiumSpec spec)
+    {
+        return TerraceRows * spec.RowDepth;
+    }
+
+    private static float TerraceRoofTop(StadiumSpec spec)
+    {
+        return spec.BaseHeight + TerraceRows * spec.RowHeight + RoofClearance + RoofThickness;
+    }
+
+    // 구석: 두 면이 만나는 네모 자리를 블록으로 채운다. 4면 경기장에서 구석 틈으로 바깥이 보이던 자리(11-10 유저 Play 화면).
+    // 맞닿은 두 면이 모두 관중석이면 관중석 높이·깊이, 하나라도 테라스면 테라스 높이·깊이로 맞춰 옆보다 튀어나오지 않게 한다(11-10 리뷰)
+    private static void BuildCorners(Transform parent, StadiumSpec spec, Dictionary<Paint, Material> paints)
+    {
+        float innerX = FieldBounds.HalfLength + spec.Runoff;
+        float innerZ = FieldBounds.HalfWidth + spec.Runoff;
+        for (int i = 0; i < 4; i++)
+        {
+            float sx = (i & 1) == 0 ? 1f : -1f;
+            float sz = (i & 2) == 0 ? 1f : -1f;
+            bool bothStands = HasStand(spec, sx > 0f ? StandSide.EndRight : StandSide.EndLeft) && HasStand(spec, sz > 0f ? StandSide.Far : StandSide.Near);
+            int rows = bothStands ? spec.Rows : TerraceRows;
+            float depth = rows * spec.RowDepth;
+            float height = spec.BaseHeight + rows * spec.RowHeight;
+            Vector3 center = new Vector3(sx * (innerX + depth * 0.5f), height * 0.5f, sz * (innerZ + depth * 0.5f));
+            Cube(parent, $"Corner{i}", center, new Vector3(depth, height, depth), paints[Paint.Dark]);
+        }
+    }
+
+    // 선수 통로: 먼 쪽 관중석(전 부에 있다) 기단 앞 중앙에 어두운 입구와 위 차양. 하프타임·풀타임 퇴장 연출(장부 별도 항목)이 이 자리를 쓴다
+    private static void BuildTunnel(Transform root, StadiumSpec spec, Dictionary<Paint, Material> paints)
+    {
+        if (!HasStand(spec, StandSide.Far)) { return; }
+
+        Transform parent = NewChild(root, "Tunnel");
+        float frontZ = FieldBounds.HalfWidth + spec.Runoff - BaseFrontMargin;   // 기단 앞면
+        float mouthZ = frontZ - TunnelMouthDepth * 0.5f;
+        Cube(parent, "TunnelMouth", new Vector3(0f, TunnelHeight * 0.5f, mouthZ), new Vector3(TunnelWidth, TunnelHeight, TunnelMouthDepth), paints[Paint.Tunnel]);
+        float canopyY = TunnelHeight + TunnelCanopyThickness * 0.5f;
+        float canopyZ = frontZ - TunnelCanopyDepth * 0.5f;
+        Cube(parent, "TunnelCanopy", new Vector3(0f, canopyY, canopyZ), new Vector3(TunnelWidth + TunnelCanopyOverhang * 2f, TunnelCanopyThickness, TunnelCanopyDepth), paints[Paint.Light]);
+    }
+
     // 코너 조명탑. 코너 네모(관중석 면이 안 가는 구석)에 선다. 기둥 큐브 1 + 등 큐브 1
     private static void BuildTowers(Transform root, StadiumSpec spec, Dictionary<Paint, Material> paints)
     {
@@ -197,9 +302,14 @@ public static class StadiumPrefabBuilder
             float sign = i == 0 ? 1f : -1f;
             StandSide end = i == 0 ? StandSide.EndRight : StandSide.EndLeft;
             bool hasStand = HasStand(spec, end);
-            float distance = FieldBounds.HalfLength + spec.Runoff + (hasStand ? spec.Rows * spec.RowDepth : ScoreboardGroundGap);
-            float floor = hasStand ? spec.BaseHeight + spec.Rows * spec.RowHeight : 0f;
-            float y = floor + ScoreboardLift + ScoreboardHeight * 0.5f;
+            float distance = FieldBounds.HalfLength + spec.Runoff + spec.Rows * spec.RowDepth;
+            float y = spec.BaseHeight + spec.Rows * spec.RowHeight + ScoreboardLift + ScoreboardHeight * 0.5f;
+            if (!hasStand)
+            {
+                // 관중석이 없는 면엔 테라스가 선다(BuildTerraces). 테라스 지붕 뒤끝 위에 올린다(11-10 리뷰: 지면에 두면 테라스 단과 지붕을 뚫었다)
+                distance = FieldBounds.HalfLength + spec.Runoff + TerraceDepth(spec) - ScoreboardThickness * 0.5f;
+                y = TerraceRoofTop(spec) + ScoreboardHeight * 0.5f;
+            }
             Cube(parent, $"Scoreboard{i}", new Vector3(sign * distance, y, 0f), new Vector3(ScoreboardThickness, ScoreboardHeight, ScoreboardWidth), paints[Paint.Dark]);
         }
     }
@@ -383,20 +493,25 @@ public static class StadiumPrefabBuilder
         return go;
     }
 
-    // 구조물 재질: URP Lit 하나에 색만 다른 2개(SRP Batcher 호환) + LED 1개. 셰이더를 못 찾으면 null
+    // 구조물 재질: URP Lit 하나에 색만 다른 4개(밝은색·어두운색·바깥 바닥·통로, SRP Batcher 호환) + LED 1개. 셰이더를 못 찾으면 null
     private static Dictionary<Paint, Material> LoadPaints()
     {
         Directory.CreateDirectory(GrassWearBuilder.MaterialFolder);
         Material light = LoadPaint("StadiumLight", new Color(0.72f, 0.73f, 0.75f));   // 단·지붕
         Material dark = LoadPaint("StadiumDark", new Color(0.18f, 0.22f, 0.32f));     // 기단·탑·전광판·벤치·조명 띠
         Material led = LoadLedBoard();                                                // 광고판
+        Material ground = LoadPaint("StadiumGround", new Color(0.30f, 0.31f, 0.33f)); // 바깥 바닥(콘크리트)
+        Material tunnel = LoadPaint("StadiumTunnel", new Color(0.03f, 0.03f, 0.04f)); // 통로 입구(기단보다 어둡게)
         if (light == null || dark == null || led == null) { return null; }
+        if (ground == null || tunnel == null) { return null; }
 
         return new Dictionary<Paint, Material>
         {
             { Paint.Light, light },
             { Paint.Dark, dark },
             { Paint.Led, led },
+            { Paint.Ground, ground },
+            { Paint.Tunnel, tunnel },
         };
     }
 
