@@ -225,6 +225,8 @@ public static class StadiumPrefabBuilder
                 float stepTop = spec.BaseHeight + (i + 1) * spec.RowHeight;
                 Slab(parent, $"TerraceStep_{side}_{i}", spec, side, stepFront, back, spec.BaseHeight, stepTop, paints[Paint.Light]);
             }
+            if (side == StandSide.Near) { continue; }   // 카메라가 가까운 쪽 위(z −45, 높이 18)에 있어 지붕이 화면 아래를 가렸다(11-10 시연 영상 검수). 카메라 쪽은 계단만 둔다
+
             Slab(parent, $"TerraceRoof_{side}", spec, side, front, back, top + RoofClearance, top + RoofClearance + RoofThickness, paints[Paint.Light]);
         }
     }
