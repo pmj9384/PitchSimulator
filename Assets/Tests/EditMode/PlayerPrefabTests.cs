@@ -91,6 +91,27 @@ public class PlayerPrefabTests
         Assert.AreSame(animator, serialized.FindProperty("animator").objectReferenceValue, "PlayerController가 Model의 Animator를 본다");
     }
 
+    // 체형 메시 3종(PortraitRules.BodyOf 순서)이 몸 렌더러와 같은 뼈 수·서브메시 수다. 다르면 갈아 끼울 때 몸이 찢어진다
+    [Test]
+    public void 체형_메시가_BodyCount개이고_몸_렌더러와_뼈_수가_같다()
+    {
+        SerializedObject view = ViewOf(LoadPrefab());
+        var bodyRenderer = view.FindProperty("bodyRenderer").objectReferenceValue as SkinnedMeshRenderer;
+        Assert.IsNotNull(bodyRenderer, "bodyRenderer 없음");
+        Assert.AreEqual(BodyRendererName, bodyRenderer.name, "bodyRenderer가 몸 렌더러");
+        SerializedProperty meshes = view.FindProperty("bodyMeshes");
+        Assert.AreEqual(PortraitRules.BodyCount, meshes.arraySize, "체형 메시 수");
+        string[] shapes = { "Thin", "Regular", "Original" };
+        for (int i = 0; i < meshes.arraySize; i++)
+        {
+            var mesh = meshes.GetArrayElementAtIndex(i).objectReferenceValue as Mesh;
+            Assert.IsNotNull(mesh, $"체형 {i} 메시 null");
+            Assert.AreEqual($"{BakedFolder}/Body_{shapes[i]}.asset", AssetDatabase.GetAssetPath(mesh), $"체형 {i} 순서");
+            Assert.AreEqual(bodyRenderer.bones.Length, mesh.bindposes.Length, $"체형 {i} 바인드 포즈 수 = 뼈 수");
+            Assert.AreEqual(SubmeshCount, mesh.subMeshCount, $"체형 {i} 서브메시 수");
+        }
+    }
+
     // 헤어는 빌더가 뼈를 이름으로 몸 뼈에 다시 잇는다. 하나라도 비면 그 렌더러가 원점에 붙어 그려진다. 몸은 구운 원본 체형 메시를 쓴다
     [Test]
     public void 스킨_렌더러마다_뼈가_비어_있지_않고_몸은_구운_원본_메시를_쓴다()
