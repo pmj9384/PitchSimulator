@@ -10,6 +10,12 @@ public class PlayerPrefabTests
 {
     private const string PrefabPath = "Assets/Prefabs/Player.prefab";
     private const string ControllerPath = "Assets/Animations/PlayerAnimator.controller";
+    private const string UalPath = "Assets/Models/UAL/UAL1_Standard.fbx";
+    private const string IdleClipName = "Armature|Idle_Loop";
+    private const string ActionClipFolder = "Assets/Animations/Clips";
+    private const string InGameScenePath = "Assets/Scenes/InGameScene.unity";
+    private const string PortraitLookTemplate = "Assets/Materials/PlayerHome.mat";             // PortraitRenderer.LookTemplatePath와 같은 값(테스트 asmdef가 에디터 클래스를 못 본다)
+    private const string PortraitSkinTemplate = "Assets/Models/UBC/Materials/M_UBC_Skin.mat";  // PortraitRenderer.SkinTemplatePath와 같은 값
     private const string ModelPath = "Assets/Models/UBC/Superhero_Male_FullBody.fbx";
     private const string BodyRendererName = "SuperHero_Male";
     private const string BakedFolder = "Assets/Models/UBC/Baked";
@@ -89,6 +95,40 @@ public class PlayerPrefabTests
         Component controller = prefab.GetComponent("PlayerController");
         var serialized = new SerializedObject(controller);
         Assert.AreSame(animator, serialized.FindProperty("animator").objectReferenceValue, "PlayerController가 Model의 Animator를 본다");
+    }
+
+    // 동작 클립은 서기 첫 프레임 위에 포즈를 얹어 굽는다. 포즈 0(시작·끝)의 몸 높이가 서기 클립과 다르면 이동 → 동작 진입·복귀 때 몸이 위아래로 튄다
+    // (11-14 재검증: 땅 받치기가 서 있는 발끝까지 올려 4~5cm, 프리팹 발 올림 0.01이 섞여 1cm 떴다). 세리머니는 팔을 든 자세라 무게중심이 달라 뺀다
+    [Test]
+    public void 동작_클립의_시작과_끝_몸_높이가_서기_클립과_같다()
+    {
+        AnimationClip idle = null;
+        foreach (Object asset in AssetDatabase.LoadAllAssetsAtPath(UalPath))
+        {
+            var clip = asset as AnimationClip;
+            if (clip != null && clip.name == IdleClipName) { idle = clip; }
+        }
+        Assert.IsNotNull(idle, $"{UalPath}에 {IdleClipName} 없음");
+        var rootY = EditorCurveBinding.FloatCurve(string.Empty, typeof(Animator), "RootT.y");
+        float standing = AnimationUtility.GetEditorCurve(idle, rootY).Evaluate(0f);
+        foreach (string name in new[] { "Kick", "Shoot", "Catch", "Parry", "DiveLeft", "DiveRight", "LowSaveLeft", "LowSaveRight" })
+        {
+            var clip = AssetDatabase.LoadAssetAtPath<AnimationClip>($"{ActionClipFolder}/{name}.anim");
+            Assert.IsNotNull(clip, $"{name} 클립 없음");
+            AnimationCurve curve = AnimationUtility.GetEditorCurve(clip, rootY);
+            Assert.IsNotNull(curve, $"{name}에 RootT.y 커브 없음");
+            Assert.AreEqual(standing, curve.Evaluate(0f), 1e-3f, $"{name} 시작 몸 높이");
+            Assert.AreEqual(standing, curve.Evaluate(clip.length), 1e-3f, $"{name} 끝 몸 높이");
+        }
+    }
+
+    // 초상(PortraitRenderer)은 경기와 같은 머티리얼 원본으로 찍어야 초상과 경기 겉모습이 맞는다. 원본 경로가 씬 참조와 렌더러 상수 두 곳에 있어 씬만 바꾸면 조용히 어긋난다
+    [Test]
+    public void 경기_씬_선수_머티리얼_원본이_초상_렌더러와_같다()
+    {
+        string scene = System.IO.File.ReadAllText(InGameScenePath);
+        Assert.IsTrue(scene.Contains($"lookTemplate: {{fileID: 2100000, guid: {AssetDatabase.AssetPathToGUID(PortraitLookTemplate)}"), "lookTemplate = PlayerHome.mat(PortraitRenderer.LookTemplatePath)");
+        Assert.IsTrue(scene.Contains($"skinTemplate: {{fileID: 2100000, guid: {AssetDatabase.AssetPathToGUID(PortraitSkinTemplate)}"), "skinTemplate = M_UBC_Skin.mat(PortraitRenderer.SkinTemplatePath)");
     }
 
     // 체형 메시 3종(PortraitRules.BodyOf 순서)이 몸 렌더러와 같은 뼈 수·서브메시 수다. 다르면 갈아 끼울 때 몸이 찢어진다
