@@ -1,6 +1,7 @@
 using Game.Core.Match;
 using NUnit.Framework;
 using UnityEditor;
+using UnityEditor.Animations;
 using UnityEngine;
 
 // 선수 프리팹·구운 몸 메시가 PlayerPrefabBuilder·PlayerMeshBaker 결과와 같은지(11-14 모델 교체 1단계). 어긋나면 Tools/Pitch/선수 몸 메시 굽기 → 선수 프리팹 배선(UBC)을 다시 돌린다.
@@ -8,6 +9,7 @@ using UnityEngine;
 public class PlayerPrefabTests
 {
     private const string PrefabPath = "Assets/Prefabs/Player.prefab";
+    private const string ControllerPath = "Assets/Animations/PlayerAnimator.controller";
     private const string ModelPath = "Assets/Models/UBC/Superhero_Male_FullBody.fbx";
     private const string BodyRendererName = "SuperHero_Male";
     private const string BakedFolder = "Assets/Models/UBC/Baked";
@@ -109,6 +111,40 @@ public class PlayerPrefabTests
 
             Assert.AreEqual($"{BakedFolder}/Body_Original.asset", AssetDatabase.GetAssetPath(r.sharedMesh), "몸 메시");
         }
+    }
+
+    // 11-14 유저 Play: Humanoid 몸에 옛 Generic 클립이 걸려 아바타가 기본 근육 자세로 떨어지고 다리가 땅에 묻혔다. 컨트롤러의 모든 클립은 Humanoid여야 한다.
+    // 이동 트리 임계값은 LocomotionCadence(뷰의 재생 배율과 같은 값)와 같아야 한다. 상수를 바꾸고 빌더를 안 돌리면 여기서 깨진다
+    [Test]
+    public void 선수_컨트롤러의_클립은_전부_Humanoid이고_이동_트리_임계값이_LocomotionCadence와_같다()
+    {
+        var controller = AssetDatabase.LoadAssetAtPath<AnimatorController>(ControllerPath);
+        Assert.IsNotNull(controller, $"{ControllerPath} 없음");
+        bool foundTree = false;
+        foreach (ChildAnimatorState child in controller.layers[0].stateMachine.states)
+        {
+            var tree = child.state.motion as BlendTree;
+            if (tree == null)
+            {
+                var clip = child.state.motion as AnimationClip;
+                Assert.IsNotNull(clip, $"상태 {child.state.name}에 클립이 없다");
+                Assert.IsTrue(clip.humanMotion, $"상태 {child.state.name}의 클립 {clip.name}이 Humanoid가 아니다");
+                continue;
+            }
+
+            foundTree = true;
+            float[] expected = { 0f, LocomotionCadence.WalkAnimSpeed, LocomotionCadence.JogAnimSpeed, LocomotionCadence.SprintAnimSpeed };
+            ChildMotion[] motions = tree.children;
+            Assert.AreEqual(expected.Length, motions.Length, "이동 트리 칸 수");
+            for (int i = 0; i < motions.Length; i++)
+            {
+                Assert.AreEqual(expected[i], motions[i].threshold, 1e-4f, $"이동 트리 {i}번 임계값");
+                var clip = motions[i].motion as AnimationClip;
+                Assert.IsNotNull(clip, $"이동 트리 {i}번 클립 없음");
+                Assert.IsTrue(clip.humanMotion, $"이동 트리 클립 {clip.name}이 Humanoid가 아니다");
+            }
+        }
+        Assert.IsTrue(foundTree, "이동 블렌드 트리가 없다");
     }
 
     // 경계 정리(MaxSnap)와 체형 변형이 몸 모양을 크게 바꾸지 않는다(11-14 재검증: 클램프된 t로 판정해 7cm 옮겨진 버텍스가 있었다)
