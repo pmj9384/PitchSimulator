@@ -7,9 +7,9 @@ using UnityEngine;
 using UnityEngine.Rendering;
 
 // 경기장 프리팹 4종(11-06 경기장 4종 2단계, 설계 실험/2026-11-05-설계-경기장-4종.md §2).
-// Stadiums.csv의 부별 1행 → 잔디 평면 + CommonPitch 중첩 + 단 큐브·기단·지붕·조명탑·전광판·광고판·벤치를 큐브로 조립해 Resources/Stadiums/{id}.prefab으로 저장한다.
+// Stadiums.csv의 부별 1행 → 잔디 평면 + CommonPitch 중첩 + 단 큐브·기단·지붕·조명탑·전광판·광고판·벤치·선수 통로 홈을 큐브로 조립해 Resources/Stadiums/{id}.prefab으로 저장한다.
 // 단 큐브 자리는 StadiumLayout.Rows가 낸다(관중 4단계가 같은 Seats를 쓰므로 좌석 오브젝트는 만들지 않는다). StadiumPrefabTests가 저장본을 다시 대조한다.
-// 더그아웃·LED(11-06): 벤치·더그아웃 지붕(전 부)은 먼 쪽(+Z, 화면 위쪽) 터치라인 바깥, 앞 바닥에 테크니컬 에어리어 흰 선. 광고판은 LedBoard 재질(PitchSimulator/LedBoard) 면당 판 1장.
+// 더그아웃·LED(11-06): 벤치·더그아웃 지붕(전 부)은 먼 쪽(+Z, 화면 위쪽) 터치라인 바깥, 앞 바닥에 테크니컬 에어리어 흰 선. 광고판은 LedBoard 재질(PitchSimulator/LedBoard) 면당 판 1장(11-14부터 먼 쪽은 통로 앞에서 끊겨 2장).
 // 모바일 성능(11-06 관중석 최적화 레퍼런스 2단계 적용): 스탠드 재질 2개(URP Lit, 색만 다름, SRP Batcher 호환, GPU Instancing 끔), 콜라이더 없음,
 // 정적 배칭 안 씀(URP 권고: SRP Batcher 켬·정적 배칭 끔), 스탠드·지붕·광고판 등은 그림자 드리움·받음 둘 다 끔(잔디만 받음 설정. 지금 씬 조명은 그림자를 안 켜서 잔디도 실제로는 받지 않는다), 단 큐브는 면별 부모 아래
 public static class StadiumPrefabBuilder
@@ -19,7 +19,7 @@ public static class StadiumPrefabBuilder
     private const string StandsName = "Stands";
 
     // 치수 근거 없는 값은 전부 [가정]
-    private const float BaseFrontMargin = 0.2f;     // [가정] 기단이 첫 단 앞으로 내미는 폭(m)
+    private const float BaseFrontMargin = StadiumLayout.BaseFrontMargin;   // 통로 입구 z와 같은 값이라 StadiumLayout에 둔다
     private const float RoofClearance = 3f;         // [가정] 지붕 아래면과 맨 뒤 단 윗면 사이 높이(m)
     private const float RoofThickness = 0.3f;       // [가정]
     private const float LightStripHeight = 0.5f;    // [가정] 1부 지붕 가장자리 조명 띠 높이
@@ -63,13 +63,9 @@ public static class StadiumPrefabBuilder
     private const float OuterWallThickness = 0.5f;  // [가정]
     private const float OuterFenceHeight = 1.2f;    // [가정] 바깥 담 높이(m). 관중석보다 낮아 관중석이 있는 면에선 뒤에 가려 안 보이고, 없는 면·구석에서만 낮은 담으로 보인다(11-10 유저: 높은 남색 벽이 상자처럼 보여 어색)
     private const int TerraceRows = 3;              // [가정] 관중석 없는 면 테라스 단 수
-    // 선수 통로(11-10 유저: FM26처럼 중앙에). 먼 쪽(+Z, 벤치가 있는 쪽) 관중석 앞 중앙의 어두운 입구 + 위 차양
-    private const float TunnelWidth = 4f;           // [가정]
-    private const float TunnelHeight = 2.4f;        // [가정]
-    private const float TunnelMouthDepth = 0.1f;    // [가정] 기단 앞면에서 내민 두께
-    private const float TunnelCanopyDepth = 1f;     // [가정] 차양이 경기장 쪽으로 나온 길이
-    private const float TunnelCanopyThickness = 0.2f; // [가정]
-    private const float TunnelCanopyOverhang = 0.3f;  // [가정] 차양이 입구보다 양옆으로 넓은 만큼
+    // 선수 통로(11-10 유저: FM26처럼 중앙에). 치수·자리는 StadiumLayout.TunnelOf. 여기엔 홈 지붕·벽 모양 값만 둔다
+    private const float TunnelCanopyDepth = 1f;     // [가정] 홈 지붕이 입구보다 경기장 쪽으로 내민 길이(차양 겸용)
+    private const float TunnelWallThickness = 0.1f; // [가정] 홈 뒤 벽·옆 벽 두께
 
     private enum Paint { Light, Dark, Led, Ground, Tunnel }
 
@@ -143,7 +139,7 @@ public static class StadiumPrefabBuilder
         {
             StandRow row = rows[i];
             Transform sideParent = SideParent(parent, row.Side);
-            GameObject go = Primitive(PrimitiveType.Cube, RowName(row.Side, row.Index), sideParent, paints[Paint.Light]);
+            GameObject go = Primitive(PrimitiveType.Cube, RowName(row), sideParent, paints[Paint.Light]);
             go.transform.localPosition = new Vector3((row.FromX + row.ToX) * 0.5f, row.Height * 0.5f, (row.FromZ + row.ToZ) * 0.5f);
             float length = Mathf.Abs(row.ToX - row.FromX) + Mathf.Abs(row.ToZ - row.FromZ);   // 한 축으로만 달린다
             go.transform.localScale = StadiumLayout.IsAlongX(row.Side) ? new Vector3(length, row.Height, spec.RowDepth) : new Vector3(spec.RowDepth, row.Height, length);
@@ -154,12 +150,23 @@ public static class StadiumPrefabBuilder
         }
     }
 
-    // 기단: 첫 단 앞으로 살짝 내민 바닥~기단 높이 슬래브(앞면이 어두운 벽으로 보인다)
+    // 기단: 첫 단 앞으로 살짝 내민 바닥~기단 높이 슬래브(앞면이 어두운 벽으로 보인다). 통로 면은 홈 좌·우 2조각
     private static void BuildBase(Transform parent, StadiumSpec spec, StandSide side, Material material)
     {
         float front = spec.Runoff - BaseFrontMargin;
         float back = spec.Runoff + spec.Rows * spec.RowDepth;
-        Slab(parent, $"Base_{side}", spec, side, front, back, 0f, spec.BaseHeight, material);
+        if (side != StadiumLayout.TunnelSide)
+        {
+            Slab(parent, $"Base_{side}", spec, side, front, back, 0f, spec.BaseHeight, material);
+            return;
+        }
+
+        float halfAlongX = FieldBounds.HalfLength + spec.Runoff;
+        float halfWidth = StadiumLayout.TunnelOf(spec).HalfWidth;
+        float zFront = FieldBounds.HalfWidth + front;
+        float zBack = FieldBounds.HalfWidth + back;
+        Box(parent, $"Base_{side}_0", -halfAlongX, -halfWidth, zFront, zBack, 0f, spec.BaseHeight, material);
+        Box(parent, $"Base_{side}_1", halfWidth, halfAlongX, zFront, zBack, 0f, spec.BaseHeight, material);
     }
 
     private static void BuildRoofs(Transform root, StadiumSpec spec, Dictionary<Paint, Material> paints)
@@ -260,18 +267,22 @@ public static class StadiumPrefabBuilder
         }
     }
 
-    // 선수 통로: 먼 쪽 관중석(전 부에 있다) 기단 앞 중앙에 어두운 입구와 위 차양. 하프타임·풀타임 퇴장 연출(장부 별도 항목)이 이 자리를 쓴다
+    // 선수 통로: 먼 쪽 관중석 중앙의 낮은 단을 끊어 낸 홈(11-14, 설계 4-2 결정 1 가안). 단·기단은 StadiumLayout.Rows·BuildBase가 이미 끊었고,
+    // 여기서는 홈 지붕(앞으로 내민 차양 겸용)과 어두운 뒤 벽·옆 벽만 세운다. 11-10판의 기단 앞 판(TunnelMouth)은 4부·3부에서 기단 위로 1.4m 솟아 앞줄 관중을 가려서 없앴다.
+    // 하프타임·풀타임 퇴장 연출(장부 별도 항목)이 TunnelOf의 같은 자리를 쓴다
     private static void BuildTunnel(Transform root, StadiumSpec spec, Dictionary<Paint, Material> paints)
     {
-        if (!HasStand(spec, StandSide.Far)) { return; }
+        if (!StadiumLayout.HasTunnel(spec)) { return; }
 
         Transform parent = NewChild(root, "Tunnel");
-        float frontZ = FieldBounds.HalfWidth + spec.Runoff - BaseFrontMargin;   // 기단 앞면
-        float mouthZ = frontZ - TunnelMouthDepth * 0.5f;
-        Cube(parent, "TunnelMouth", new Vector3(0f, TunnelHeight * 0.5f, mouthZ), new Vector3(TunnelWidth, TunnelHeight, TunnelMouthDepth), paints[Paint.Tunnel]);
-        float canopyY = TunnelHeight + TunnelCanopyThickness * 0.5f;
-        float canopyZ = frontZ - TunnelCanopyDepth * 0.5f;
-        Cube(parent, "TunnelCanopy", new Vector3(0f, canopyY, canopyZ), new Vector3(TunnelWidth + TunnelCanopyOverhang * 2f, TunnelCanopyThickness, TunnelCanopyDepth), paints[Paint.Light]);
+        TunnelSpot tunnel = StadiumLayout.TunnelOf(spec);
+        float halfWidth = tunnel.HalfWidth;
+        float inner = halfWidth - TunnelWallThickness;
+        Material dark = paints[Paint.Tunnel];
+        Box(parent, "TunnelRoof", -halfWidth, halfWidth, tunnel.MouthZ - TunnelCanopyDepth, tunnel.BackZ, tunnel.Height, tunnel.RoofTop, paints[Paint.Light]);
+        Box(parent, "TunnelBack", -inner, inner, tunnel.BackZ - TunnelWallThickness, tunnel.BackZ, 0f, tunnel.Height, dark);
+        Box(parent, "TunnelWall_0", -halfWidth, -inner, tunnel.MouthZ, tunnel.BackZ, 0f, tunnel.Height, dark);
+        Box(parent, "TunnelWall_1", inner, halfWidth, tunnel.MouthZ, tunnel.BackZ, 0f, tunnel.Height, dark);
     }
 
     // 코너 조명탑. 코너 네모(관중석 면이 안 가는 구석)에 선다. 기둥 큐브 1 + 등 큐브 1
@@ -316,7 +327,7 @@ public static class StadiumPrefabBuilder
         }
     }
 
-    // 광고판: 선과 관중석 벽 사이에 길게 1개씩(LED 재질, 패널은 셰이더가 월드 미터 좌표로 나눈다). 11-06 유저 Play: 런오프 끝(벽에서 0.1m)에 두었더니 기단 벽과 겹쳐 안 보였다
+    // 광고판: 선과 관중석 벽 사이에 면당 길게 1개씩, 먼 쪽은 통로 앞에서 끊겨 2개(LED 재질, 패널은 셰이더가 월드 미터 좌표로 나눈다). 11-06 유저 Play: 런오프 끝(벽에서 0.1m)에 두었더니 기단 벽과 겹쳐 안 보였다
     private static void BuildAdBoards(Transform root, StadiumSpec spec, Dictionary<Paint, Material> paints)
     {
         if (spec.AdBoards.Count == 0) { return; }
@@ -336,7 +347,7 @@ public static class StadiumPrefabBuilder
             switch (side)
             {
                 case StandSide.Far:
-                    Cube(parent, name, new Vector3(0f, y, lineZ), new Vector3(outerX * 2f, AdBoardHeight, AdBoardThickness), paints[Paint.Led]);
+                    BuildFarAdBoards(parent, spec, outerX, y, lineZ, paints[Paint.Led]);
                     break;
                 case StandSide.Near:
                     Cube(parent, name, new Vector3(0f, y, -lineZ), new Vector3(outerX * 2f, AdBoardHeight, AdBoardThickness), paints[Paint.Led]);
@@ -349,6 +360,23 @@ public static class StadiumPrefabBuilder
                     break;
             }
         }
+    }
+
+    // 먼 쪽 판은 통로가 있으면 홈 폭만큼 끊어 2장(AdBoard_Far_0 = −X, _1 = +X). 퇴장 연출 때 선수가 판을 뚫지 않게(설계 4-2 결정 2)
+    private static void BuildFarAdBoards(Transform parent, StadiumSpec spec, float outerX, float y, float lineZ, Material led)
+    {
+        string name = $"AdBoard_{StandSide.Far}";
+        if (!StadiumLayout.HasTunnel(spec))
+        {
+            Cube(parent, name, new Vector3(0f, y, lineZ), new Vector3(outerX * 2f, AdBoardHeight, AdBoardThickness), led);
+            return;
+        }
+
+        float halfGap = StadiumLayout.TunnelOf(spec).HalfWidth;
+        float length = outerX - halfGap;
+        float centerX = (outerX + halfGap) * 0.5f;
+        Cube(parent, $"{name}_0", new Vector3(-centerX, y, lineZ), new Vector3(length, AdBoardHeight, AdBoardThickness), led);
+        Cube(parent, $"{name}_1", new Vector3(centerX, y, lineZ), new Vector3(length, AdBoardHeight, AdBoardThickness), led);
     }
 
     // 벤치 2개(먼 쪽 +Z 터치라인 바깥, 중앙선 양쪽)와 더그아웃 지붕(전 부). 카메라가 -Z에서 보므로 화면 위쪽에 놓인다
@@ -430,9 +458,18 @@ public static class StadiumPrefabBuilder
         return false;
     }
 
-    private static string RowName(StandSide side, int index)
+    // 프리팹 테스트(StadiumPrefabTests)가 같은 형식으로 찾는다. 테스트 asmdef가 에디터 어셈블리를 못 봐서 형식을 양쪽에 적는다
+    private static string RowName(StandRow row)
     {
-        return $"Stand_{side}_{index:00}";
+        return $"Stand_{row.Side}_{row.Index:00}_{row.Piece}";
+    }
+
+    // x0~x1·z0~z1·y0~y1 축 정렬 상자. 면 길이 일부만 덮는 조각(통로 홈·끊긴 기단)에 쓴다
+    private static GameObject Box(Transform parent, string name, float x0, float x1, float z0, float z1, float y0, float y1, Material material)
+    {
+        var center = new Vector3((x0 + x1) * 0.5f, (y0 + y1) * 0.5f, (z0 + z1) * 0.5f);
+        var size = new Vector3(x1 - x0, y1 - y0, z1 - z0);
+        return Cube(parent, name, center, size, material);
     }
 
     // 면 하나를 따라 앞뒤 거리(선에서 front~back)와 높이 y0~y1을 채우는 슬래브. 길이는 단과 같다(선 길이 + 양쪽 런오프)
@@ -503,7 +540,7 @@ public static class StadiumPrefabBuilder
         Material dark = LoadPaint("StadiumDark", new Color(0.18f, 0.22f, 0.32f));     // 기단·탑·전광판·벤치·조명 띠
         Material led = LoadLedBoard();                                                // 광고판
         Material ground = LoadPaint("StadiumGround", new Color(0.30f, 0.31f, 0.33f)); // 바깥 바닥(콘크리트)
-        Material tunnel = LoadPaint("StadiumTunnel", new Color(0.03f, 0.03f, 0.04f)); // 통로 입구(기단보다 어둡게)
+        Material tunnel = LoadPaint("StadiumTunnel", new Color(0.03f, 0.03f, 0.04f)); // 통로 홈 뒤 벽·옆 벽(기단보다 어둡게)
         if (light == null || dark == null || led == null) { return null; }
         if (ground == null || tunnel == null) { return null; }
 
