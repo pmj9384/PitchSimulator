@@ -39,7 +39,7 @@ public class PlayerTableParserTests
         Assert.AreEqual(0.1f, st.HoldUp);
         Assert.AreEqual(0f, st.GkRushRadius);
         Assert.AreEqual("포처", st.DisplayName);
-        Assert.AreEqual(PlayerStats.TotalPoints, st.BuildTotal);
+        Assert.AreEqual(PlayerStats.TableTotalPoints, st.BuildTotal);
 
         PlayerStats gk = roles[1];
         Assert.AreEqual("gk_standard", gk.VariantId);
@@ -110,7 +110,7 @@ public class PlayerTableParserTests
         }
         foreach (PlayerStats r in roles)
         {
-            Assert.AreEqual(PlayerStats.TotalPoints, r.BuildTotal, $"{r.VariantId} 총점");
+            Assert.AreEqual(PlayerStats.TableTotalPoints, r.BuildTotal, $"{r.VariantId} 총점");
             bool isGk = r.RoleId == "GK";
             Assert.AreEqual(isGk, r.GkRushRadius > 0f, $"{r.VariantId} GK 출격 반경은 GK만");
             Assert.AreEqual(isGk, r.Reflexes > 0, $"{r.VariantId} GK 스탯은 GK만");

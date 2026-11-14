@@ -246,7 +246,7 @@ public class LeagueSeasonTests
     public void 사부_시즌_한_바퀴가_돌고_승점표가_쌓이고_승강_판정이_난다()
     {
         TierRule tier = Tier(4);
-        SeasonState state = SeasonState.NewSeason(4, 11, myRows, table);
+        SeasonState state = SeasonState.NewSeason(4, TestTierTotals.Of(4), 11, myRows, table);
         Assert.AreEqual(11, state.Roster.Count);
         Assert.AreEqual(11, state.Lineup.Count);
         List<GeneratedTeam> opponents = TeamGenerator.Generate(state.SeasonSeed, tier, table, formations, names);
@@ -276,7 +276,7 @@ public class LeagueSeasonTests
     public void 내_경기_결과가_일정과_안_맞으면_거부한다()
     {
         TierRule tier = Tier(4);
-        SeasonState state = SeasonState.NewSeason(4, 1, myRows, table);
+        SeasonState state = SeasonState.NewSeason(4, TestTierTotals.Of(4), 1, myRows, table);
         List<GeneratedTeam> opponents = TeamGenerator.Generate(1, tier, table, formations, names);
         List<Fixture> schedule = SeasonSchedule.RoundRobin(tier.Teams);
         Assert.Throws<InvalidOperationException>(() => SeasonRunner.PlayRound(state, opponents, schedule, presets, new MatchResult(3, 4, 1, 0), TestThreat.Real));
@@ -285,13 +285,13 @@ public class LeagueSeasonTests
     [Test]
     public void 세이브_왕복은_상태를_그대로_돌려준다()
     {
-        SeasonState state = SeasonState.NewSeason(4, 42, myRows, table);
+        SeasonState state = SeasonState.NewSeason(4, TestTierTotals.Of(4), 42, myRows, table);
         state.AddRound(new List<MatchResult> { new MatchResult(0, 3, 2, 1), new MatchResult(1, 2, 0, 0) });
         state.SpendScoutAttempt(1, 0, false);   // 시도 2회(10-12: 카운터는 SpendScoutAttempt로만 오른다)
         state.SpendScoutAttempt(1, 0, false);
 
         SeasonSave save = state.ToSave();
-        SeasonState back = SeasonState.FromSave(save, table);
+        SeasonState back = TestTierTotals.Load(save, table);
 
         Assert.AreEqual(4, back.Tier);
         Assert.AreEqual(42, back.SeasonSeed);
@@ -317,24 +317,26 @@ public class LeagueSeasonTests
     [Test]
     public void 라인업이_로스터_밖_선수를_가리키면_로드에_실패한다()
     {
-        SeasonSave save = SeasonState.NewSeason(4, 1, myRows, table).ToSave();
+        SeasonSave save = SeasonState.NewSeason(4, TestTierTotals.Of(4), 1, myRows, table).ToSave();
         save.lineup[0].playerId = 99;
-        Assert.Throws<InvalidOperationException>(() => SeasonState.FromSave(save, table));
+        Assert.Throws<InvalidOperationException>(() => TestTierTotals.Load(save, table));
 
-        SeasonSave bad = SeasonState.NewSeason(4, 1, myRows, table).ToSave();
+        SeasonSave bad = SeasonState.NewSeason(4, TestTierTotals.Of(4), 1, myRows, table).ToSave();
         bad.roster[0].variantId = "없는_변형";
-        Assert.Throws<InvalidOperationException>(() => SeasonState.FromSave(bad, table));
+        Assert.Throws<InvalidOperationException>(() => TestTierTotals.Load(bad, table));
 
-        SeasonSave dup = SeasonState.NewSeason(4, 1, myRows, table).ToSave();
+        SeasonSave dup = SeasonState.NewSeason(4, TestTierTotals.Of(4), 1, myRows, table).ToSave();
         dup.roster[1].playerId = dup.roster[0].playerId;
-        Assert.Throws<InvalidOperationException>(() => SeasonState.FromSave(dup, table), "선수 id 중복");
+        Assert.Throws<InvalidOperationException>(() => TestTierTotals.Load(dup, table), "선수 id 중복");
 
-        SeasonSave tampered = SeasonState.NewSeason(4, 1, myRows, table).ToSave();
+        SeasonSave tampered = SeasonState.NewSeason(4, TestTierTotals.Of(4), 1, myRows, table).ToSave();
         tampered.roster[0].build[0] += 50;
-        Assert.Throws<InvalidOperationException>(() => SeasonState.FromSave(tampered, table), "빌드 합계 300 아님(강화 없음)");
+        SeasonState rescaled = TestTierTotals.Load(tampered, table);
+        Assert.IsTrue(rescaled.BuildsRescaledOnLoad, "합계가 부 총점과 다른 세이브는 거부하지 않고 다시 나눈다(11-12 설계 D2)");
+        Assert.AreEqual(TestTierTotals.Of(4), rescaled.Roster[0].Stats.BuildTotal, "강화는 안 된다: 합계는 부 총점으로 고정");
 
-        SeasonSave shortLineup = SeasonState.NewSeason(4, 1, myRows, table).ToSave();
+        SeasonSave shortLineup = SeasonState.NewSeason(4, TestTierTotals.Of(4), 1, myRows, table).ToSave();
         shortLineup.lineup.RemoveAt(0);
-        Assert.Throws<InvalidOperationException>(() => SeasonState.FromSave(shortLineup, table), "11명 아님");
+        Assert.Throws<InvalidOperationException>(() => TestTierTotals.Load(shortLineup, table), "11명 아님");
     }
 }

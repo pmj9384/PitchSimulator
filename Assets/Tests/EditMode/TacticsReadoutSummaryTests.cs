@@ -67,10 +67,10 @@ public class TacticsReadoutSummaryTests
     [Test]
     public void 세이브_왕복은_요약을_그대로_돌려준다()
     {
-        SeasonState state = SeasonState.NewSeason(4, 7, myRows, table);
+        SeasonState state = SeasonState.NewSeason(4, TestTierTotals.Of(4), 7, myRows, table);
         state.SetLastReadout(Sample());
 
-        SeasonState back = SeasonState.FromSave(state.ToSave(), table);
+        SeasonState back = TestTierTotals.Load(state.ToSave(), table);
 
         Assert.IsNotNull(back.LastReadout);
         TacticsReadoutSummary s = back.LastReadout;
@@ -93,32 +93,32 @@ public class TacticsReadoutSummaryTests
     [Test]
     public void 옛_세이브와_새_시즌엔_요약이_없다()
     {
-        SeasonState fresh = SeasonState.NewSeason(4, 7, myRows, table);
+        SeasonState fresh = SeasonState.NewSeason(4, TestTierTotals.Of(4), 7, myRows, table);
         Assert.IsNull(fresh.LastReadout, "아직 치른 경기가 없다");
 
         SeasonSave old = fresh.ToSave();
         old.lastReadout = null;   // 10-15 전 세이브엔 이 필드가 없다 → Json.NET이 null로 둔다
-        Assert.IsNull(SeasonState.FromSave(old, table).LastReadout);
+        Assert.IsNull(TestTierTotals.Load(old, table).LastReadout);
     }
 
     // 보조 표시값이 깨졌다고 시즌 로드가 실패하면 새 시즌으로 초기화된다(SeasonSystem.Load의 catch). 요약만 비우고 나머지는 살아야 한다
     [Test]
     public void 깨진_요약_세이브는_요약만_비우고_시즌은_그대로_읽는다()
     {
-        SeasonState state = SeasonState.NewSeason(4, 7, myRows, table);
+        SeasonState state = SeasonState.NewSeason(4, TestTierTotals.Of(4), 7, myRows, table);
         state.SetLastReadout(Sample());
 
         SeasonSave shortArray = state.ToSave();
         shortArray.lastReadout!.passCounts = new[] { 1, 2 };
-        Assert.IsNull(SeasonState.FromSave(shortArray, table).LastReadout, "서드 배열 2칸");
+        Assert.IsNull(TestTierTotals.Load(shortArray, table).LastReadout, "서드 배열 2칸");
 
         SeasonSave outOfRange = state.ToSave();
         outOfRange.lastReadout!.passStyle = 7;
-        Assert.IsNull(SeasonState.FromSave(outOfRange, table).LastReadout, "설정 범위 밖");
+        Assert.IsNull(TestTierTotals.Load(outOfRange, table).LastReadout, "설정 범위 밖");
 
         SeasonSave nullArray = state.ToSave();
         nullArray.lastReadout!.regains = null!;   // 깨진 JSON 흉내
-        SeasonState back = SeasonState.FromSave(nullArray, table);
+        SeasonState back = TestTierTotals.Load(nullArray, table);
         Assert.IsNull(back.LastReadout, "배열 null");
         Assert.AreEqual(4, back.Tier, "시즌 자체는 그대로");
     }

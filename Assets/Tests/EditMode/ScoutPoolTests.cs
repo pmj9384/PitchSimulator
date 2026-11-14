@@ -49,7 +49,7 @@ public class ScoutPoolTests
     [Test]
     public void 후보는_4명이고_같은_시드면_같고_겹치지_않고_내_자리에_들어간다()
     {
-        SeasonState state = SeasonState.NewSeason(4, 42, myRows, table);
+        SeasonState state = SeasonState.NewSeason(4, TestTierTotals.Of(4), 42, myRows, table);
         List<GeneratedTeam> own = Own(42, 4);
         GeneratedTeam upper = Upper(42, 4);
         List<ScoutCandidate> a = ScoutPool.Pick(42, state.Roster, own, upper, state.ScoutTargets);
@@ -70,7 +70,7 @@ public class ScoutPoolTests
     [Test]
     public void 사부는_내_부_2_위_부_2이고_일부는_위_부가_없어_전부_내_부다()
     {
-        SeasonState four = SeasonState.NewSeason(4, 7, myRows, table);
+        SeasonState four = SeasonState.NewSeason(4, TestTierTotals.Of(4), 7, myRows, table);
         List<ScoutCandidate> a = ScoutPool.Pick(7, four.Roster, Own(7, 4), Upper(7, 4), four.ScoutTargets);
         Assert.IsFalse(a[0].UpperTier);
         Assert.IsFalse(a[1].UpperTier);
@@ -78,7 +78,7 @@ public class ScoutPoolTests
         Assert.IsTrue(a[3].UpperTier);
         Assert.GreaterOrEqual(a[2].TeamId, PlayoffRules.ForeignTeamIdBase, "위 부 팀 id는 승점표 id와 안 겹친다");
 
-        SeasonState one = SeasonState.NewSeason(1, 7, myRows, table);
+        SeasonState one = SeasonState.NewSeason(1, TestTierTotals.Of(1), 7, myRows, table);
         List<ScoutCandidate> b = ScoutPool.Pick(7, one.Roster, Own(7, 1), null, one.ScoutTargets);
         Assert.AreEqual(4, b.Count);
         for (int i = 0; i < b.Count; i++) { Assert.IsFalse(b[i].UpperTier, $"1부 자리 {i}"); }
@@ -88,7 +88,7 @@ public class ScoutPoolTests
     public void 위_부_후보의_별은_내_부_후보보다_높다()
     {
         // 4부의 변별: TierRules 4부는 전원 ★1이고, 3부 선수는 상위 부 +1을 받아 최소 ★2
-        SeasonState state = SeasonState.NewSeason(4, 42, myRows, table);
+        SeasonState state = SeasonState.NewSeason(4, TestTierTotals.Of(4), 42, myRows, table);
         List<GeneratedTeam> own = Own(42, 4);
         GeneratedTeam upper = Upper(42, 4);
         List<ScoutCandidate> picked = ScoutPool.Pick(42, state.Roster, own, upper, state.ScoutTargets);
@@ -107,7 +107,7 @@ public class ScoutPoolTests
     [Test]
     public void 실패_기록은_후보를_안_바꾸고_성공한_자리만_다음_후보로_바뀐다()
     {
-        SeasonState state = SeasonState.NewSeason(4, 42, myRows, table);
+        SeasonState state = SeasonState.NewSeason(4, TestTierTotals.Of(4), 42, myRows, table);
         List<GeneratedTeam> own = Own(42, 4);
         GeneratedTeam upper = Upper(42, 4);
         List<ScoutCandidate> before = ScoutPool.Pick(42, state.Roster, own, upper, state.ScoutTargets);
@@ -132,7 +132,7 @@ public class ScoutPoolTests
     public void 후보에_없던_선수의_성공_기록은_후보를_안_바꾼다()
     {
         // 일괄 제시 전(10-12 설계) 세이브의 기록: 팀 11명 중 아무나 지목할 수 있었다
-        SeasonState state = SeasonState.NewSeason(4, 42, myRows, table);
+        SeasonState state = SeasonState.NewSeason(4, TestTierTotals.Of(4), 42, myRows, table);
         List<GeneratedTeam> own = Own(42, 4);
         GeneratedTeam upper = Upper(42, 4);
         List<ScoutCandidate> before = ScoutPool.Pick(42, state.Roster, own, upper, state.ScoutTargets);
@@ -157,7 +157,7 @@ public class ScoutPoolTests
     [Test]
     public void 같은_자리에서_두_번_성공하면_영입한_선수는_다시_안_뜨고_다른_자리는_그대로다()
     {
-        SeasonState state = SeasonState.NewSeason(4, 42, myRows, table);
+        SeasonState state = SeasonState.NewSeason(4, TestTierTotals.Of(4), 42, myRows, table);
         state.AddExtraScoutAttempt();   // 시도 3회
         List<GeneratedTeam> own = Own(42, 4);
         GeneratedTeam upper = Upper(42, 4);
@@ -178,7 +178,7 @@ public class ScoutPoolTests
     public void 위_부에_내_자리와_맞는_선수가_2명_미만이면_후보_4명이_전부_내_부다()
     {
         // 위 부 팀을 전원 AM(내 4-4-2 로스터엔 없는 자리)으로 만든다
-        SeasonState state = SeasonState.NewSeason(4, 42, myRows, table);
+        SeasonState state = SeasonState.NewSeason(4, TestTierTotals.Of(4), 42, myRows, table);
         List<GeneratedTeam> own = Own(42, 4);
         PlayerStats am = table.Find(p => p.RoleId == "AM");
         Assert.IsNotNull(am, "PlayerTable에 AM이 있어야 한다");
@@ -195,10 +195,10 @@ public class ScoutPoolTests
     [Test]
     public void 시도_기록의_성공_비트는_세이브로_왕복한다()
     {
-        SeasonState state = SeasonState.NewSeason(4, 42, myRows, table);
+        SeasonState state = SeasonState.NewSeason(4, TestTierTotals.Of(4), 42, myRows, table);
         state.SpendScoutAttempt(1, 3, success: false);
         state.SpendScoutAttempt(2, 5, success: true);
-        SeasonState loaded = SeasonState.FromSave(state.ToSave(), table);
+        SeasonState loaded = TestTierTotals.Load(state.ToSave(), table);
 
         Assert.AreEqual(2, loaded.ScoutTargets.Count);
         Assert.IsFalse(loaded.ScoutTargets[0].Success);

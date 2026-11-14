@@ -64,7 +64,7 @@ public class KitRulesTests
     [Test]
     public void 경기_세팅의_얼굴과_유니폼은_로스터와_규칙을_따른다()
     {
-        SeasonState state = SeasonState.NewSeason(4, 42, myRows, table);
+        SeasonState state = SeasonState.NewSeason(4, TestTierTotals.Of(4), 42, myRows, table);
         TierRule tier = tiers.Find(t => t.Tier == 4);
         List<GeneratedTeam> opponents = TeamGenerator.Generate(42, tier, table, formations, names);
         List<Fixture> schedule = SeasonSchedule.RoundRobin(tier.Teams);

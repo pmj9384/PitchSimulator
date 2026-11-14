@@ -56,7 +56,7 @@ public class MyMatchAssemblerTests
         List<Fixture> schedule = SeasonSchedule.RoundRobin(tier.Teams);
         for (int seasonSeed = 1; seasonSeed <= 10; seasonSeed++)
         {
-            SeasonState state = SeasonState.NewSeason(4, seasonSeed, myRows, table);
+            SeasonState state = SeasonState.NewSeason(4, TestTierTotals.Of(4), seasonSeed, myRows, table);
             List<GeneratedTeam> opponents = TeamGenerator.Generate(seasonSeed, tier, table, formations, names);
             for (int round = 0; round < tier.Matches; round++)
             {

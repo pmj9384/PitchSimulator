@@ -66,7 +66,7 @@ public class PortraitTests
     [Test]
     public void 기본_로스터는_playerId로_정하고_영입은_받은_번호를_그대로_든다()
     {
-        SeasonState state = SeasonState.NewSeason(4, 42, myRows, table);
+        SeasonState state = SeasonState.NewSeason(4, TestTierTotals.Of(4), 42, myRows, table);
         for (int i = 0; i < state.Roster.Count; i++)
         {
             Assert.AreEqual(PortraitRules.Of(state.Roster[i].PlayerId), state.Roster[i].Portrait);
@@ -80,7 +80,7 @@ public class PortraitTests
     public void 선발_교체_슬롯_설정_이월을_거쳐도_초상은_남는다()
     {
         // 10-27 슬롯 중심: 역할·지시는 슬롯 것이라 선수 객체를 다시 만들지 않는다. 선수를 다시 만드는 경로는 선발 교체와 이월뿐
-        SeasonState state = SeasonState.NewSeason(4, 42, myRows, table);
+        SeasonState state = SeasonState.NewSeason(4, TestTierTotals.Of(4), 42, myRows, table);
         RosterPlayer recruit = state.AddToBench(OpponentPlayer("ST"), 3, portrait: 9);
         int id = recruit.PlayerId;
         int starterSt = -1;
@@ -93,7 +93,7 @@ public class PortraitTests
         state.SwapStarter(id, starterSt);
         Assert.AreEqual(9, state.FindRosterPlayer(id).Portrait);
 
-        SeasonState next = SeasonState.NewSeason(4, 43, myRows, table);
+        SeasonState next = SeasonState.NewSeason(4, TestTierTotals.Of(4), 43, myRows, table);
         next.AdoptBench(state.Bench(), table);
         Assert.AreEqual(1, next.BenchCount);
         Assert.AreEqual(9, next.Bench()[0].Portrait);
@@ -102,14 +102,14 @@ public class PortraitTests
     [Test]
     public void 세이브가_왕복하고_옛_세이브는_playerId로_정한다()
     {
-        SeasonState state = SeasonState.NewSeason(4, 42, myRows, table);
+        SeasonState state = SeasonState.NewSeason(4, TestTierTotals.Of(4), 42, myRows, table);
         state.AddToBench(OpponentPlayer("ST"), 3, portrait: 4);
-        SeasonState back = SeasonState.FromSave(state.ToSave(), table);
+        SeasonState back = TestTierTotals.Load(state.ToSave(), table);
         Assert.AreEqual(4, back.Bench()[0].Portrait);
 
         SeasonSave old = state.ToSave();
         for (int i = 0; i < old.roster.Count; i++) { old.roster[i].portrait = PortraitRules.None; }   // 10-21 전 세이브엔 이 필드가 없다
-        SeasonState fromOld = SeasonState.FromSave(old, table);
+        SeasonState fromOld = TestTierTotals.Load(old, table);
         for (int i = 0; i < fromOld.Roster.Count; i++)
         {
             Assert.AreEqual(PortraitRules.Of(fromOld.Roster[i].PlayerId), fromOld.Roster[i].Portrait);

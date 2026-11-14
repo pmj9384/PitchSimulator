@@ -27,7 +27,7 @@ public class SlotTacticsTests
 
     private static SeasonState NewState()
     {
-        return SeasonState.NewSeason(4, 42, myRows, table);
+        return SeasonState.NewSeason(4, TestTierTotals.Of(4), 42, myRows, table);
     }
 
     private static int LineupIndexOf(SeasonState state, int playerId)
@@ -174,7 +174,7 @@ public class SlotTacticsTests
         TacticLibrary back = TacticLibrary.FromSave(library.ToSave(), formations, table, roles);
         Assert.IsTrue(back.Find("전술 1")!.Slots.SameAs(state.Slots), "저장 전술 목록 세이브 왕복");
 
-        SeasonState loaded = SeasonState.FromSave(state.ToSave(), table);
+        SeasonState loaded = TestTierTotals.Load(state.ToSave(), table);
         Assert.IsTrue(loaded.Slots.SameAs(state.Slots), "시즌 세이브 왕복");
         Assert.IsFalse(loaded.Slots.SameAs(NewState().Slots));
     }
@@ -205,7 +205,7 @@ public class SlotTacticsTests
         }
         old.lineup[9].defenseRole = "pressing";
 
-        SeasonState migrated = SeasonState.FromSave(old, table);
+        SeasonState migrated = TestTierTotals.Load(old, table);
 
         Assert.AreEqual(state.FindRosterPlayer(striker).Stats.VariantId, migrated.Slots.AttackVariantOf(attackSlot), "변형은 선 선수 것");
         IReadOnlyList<int> moved = migrated.Slots.InstructionsOf(attackSlot);
