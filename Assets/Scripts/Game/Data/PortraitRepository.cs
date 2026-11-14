@@ -2,7 +2,7 @@ using Game.Core.Match;
 using UnityEngine;
 
 // 초상 스프라이트 접근층. 다른 리포지토리와 같은 꼴(정적·지연 로드·캐시). 번호 규칙은 순수 코어(PortraitRules), 여기는 Resources에서 꺼내기만 한다.
-// 그림 = 경기 선수 머리(Quaternius 모듈러)를 조합마다 찍은 portrait_001~NNN(머리 × 피부 × 머리색). 장수가 PortraitRules.VariantCount와 같은지는 PortraitTests가 본다
+// 그림 = 경기 선수(Quaternius UBC, 11-14 교체)를 조합마다 찍은 portrait_001~NNN(머리 × 피부 × 머리색, Tools/Pitch/선수 초상 120장 렌더). 장수가 PortraitRules.VariantCount와 같은지는 PortraitTests가 본다
 public static class PortraitRepository
 {
     private const string ResourceFolder = "Sprites/Portrait";
