@@ -17,7 +17,8 @@ public static class PlayerClipBuilder
     private const string ControllerPath = "Assets/Animations/PlayerAnimator.controller";
     private const string ClipFolder = "Assets/Animations/Clips";
     private const float Fps = 30f;
-    private const float MinBoneHeight = 0.05f;   // [가정] 손·발·머리 뼈가 이 높이(m)보다 내려가면 엉덩이를 올린다. 뼈는 살 속에 있어 0이면 살이 땅을 뚫는다
+    private const float MinBoneHeight = 0.05f;   // [가정] 손·발·머리 뼈가 이 높이(m)보다 내려가면 엉덩이를 올린다. 뼈는 살 속에 있어 0이면 살이 땅을 뚫는다.
+                                                  // 서 있을 때 이미 이보다 낮은 뼈(발끝 0.015·발 0.086 중 발끝)는 서기 높이를 바닥으로 쓴다. 안 그러면 서기 자세부터 몸이 4~5cm 떴다(11-14 재검증)
     private static readonly HumanBodyBones[] GroundBones =
     {
         HumanBodyBones.LeftFoot, HumanBodyBones.RightFoot, HumanBodyBones.LeftToes, HumanBodyBones.RightToes,
@@ -117,7 +118,8 @@ public static class PlayerClipBuilder
         var instance = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
         try
         {
-            Animator animator = instance.transform.Find("Model").GetComponent<Animator>();
+            Transform model = instance.transform.Find("Model");
+            Animator animator = model == null ? null : model.GetComponent<Animator>();
             if (animator == null || animator.avatar == null || !animator.avatar.isHuman)
             {
                 Debug.LogError("[PlayerClipBuilder] 프리팹 Model에 Humanoid 아바타가 없다. 선수 프리팹 배선(UBC)을 먼저 돌린다");
@@ -125,25 +127,39 @@ public static class PlayerClipBuilder
             }
             if (!AssetDatabase.IsValidFolder(ClipFolder)) { AssetDatabase.CreateFolder("Assets/Animations", "Clips"); }
 
+            // HumanPose의 몸 위치·회전은 월드 공간 값이다(HumanPoseHandler.GetHumanPose 문서). 인스턴스를 원점·무회전에 두고,
+            // 프리팹 Model의 발 올림(로컬 y 0.01)도 굽는 동안 0으로 둔다. 안 그러면 그만큼 클립 몸 높이가 서기 클립보다 높아진다(11-14 측정 0.9552 대 0.9456)
+            model.localPosition = Vector3.zero;
             var handler = new HumanPoseHandler(animator.avatar, animator.transform);
-            AnimationClip kick = Bake(animator, handler, idle, "Kick", KickPoses(), false);
-            AnimationClip shoot = Bake(animator, handler, idle, "Shoot", ShootPoses(), false);
-            AnimationClip catchClip = Bake(animator, handler, idle, "Catch", CatchPoses(), false);
-            AnimationClip parry = Bake(animator, handler, idle, "Parry", ParryPoses(), false);
-            AnimationClip diveLeft = Bake(animator, handler, idle, "DiveLeft", DivePoses(-1f), false);
-            AnimationClip diveRight = Bake(animator, handler, idle, "DiveRight", DivePoses(1f), false);
-            AnimationClip lowSaveLeft = Bake(animator, handler, idle, "LowSaveLeft", LowSavePoses(-1f), false);
-            AnimationClip lowSaveRight = Bake(animator, handler, idle, "LowSaveRight", LowSavePoses(1f), false);
-            AnimationClip celebrate = Bake(animator, handler, idle, "Celebrate", CelebratePoses(), true);
-            handler.Dispose();
-            Wire(controller, kick, shoot, catchClip, parry, diveLeft, diveRight, lowSaveLeft, lowSaveRight, celebrate);
-            AssetDatabase.SaveAssets();
-            Debug.Log("[PlayerClipBuilder] Humanoid 클립 9개를 굽고 컨트롤러를 갱신했다");
+            try
+            {
+                BakeAll(controller, animator, handler, idle);
+            }
+            finally
+            {
+                handler.Dispose();
+            }
         }
         finally
         {
             Object.DestroyImmediate(instance);
         }
+    }
+
+    private static void BakeAll(AnimatorController controller, Animator animator, HumanPoseHandler handler, AnimationClip idle)
+    {
+        AnimationClip kick = Bake(animator, handler, idle, "Kick", KickPoses(), false);
+        AnimationClip shoot = Bake(animator, handler, idle, "Shoot", ShootPoses(), false);
+        AnimationClip catchClip = Bake(animator, handler, idle, "Catch", CatchPoses(), false);
+        AnimationClip parry = Bake(animator, handler, idle, "Parry", ParryPoses(), false);
+        AnimationClip diveLeft = Bake(animator, handler, idle, "DiveLeft", DivePoses(-1f), false);
+        AnimationClip diveRight = Bake(animator, handler, idle, "DiveRight", DivePoses(1f), false);
+        AnimationClip lowSaveLeft = Bake(animator, handler, idle, "LowSaveLeft", LowSavePoses(-1f), false);
+        AnimationClip lowSaveRight = Bake(animator, handler, idle, "LowSaveRight", LowSavePoses(1f), false);
+        AnimationClip celebrate = Bake(animator, handler, idle, "Celebrate", CelebratePoses(), true);
+        Wire(controller, kick, shoot, catchClip, parry, diveLeft, diveRight, lowSaveLeft, lowSaveRight, celebrate);
+        AssetDatabase.SaveAssets();
+        Debug.Log("[PlayerClipBuilder] Humanoid 클립 9개를 굽고 컨트롤러를 갱신했다");
     }
 
     // ── 포즈 (시간은 초)
@@ -155,7 +171,7 @@ public static class PlayerClipBuilder
         {
             new Pose(0f),
             // 각은 발 궤적을 에디터에서 재서 맞췄다: 접촉 때 발이 앞 0.55~0.6m·높이 0.2m 근처(= BallView 오프셋 0.55 + 공 반지름)
-            // 11-14 UBC 몸에서 다시 쟀다: 허벅지 −26°면 발끝이 엉덩이 앞 0.29m라 −42°로(발끝 앞 0.54m·높이 0.17m, 몸 기준 측정). 슛 접촉도 같은 값
+            // 11-14 UBC 몸에서 다시 쟀다: 허벅지 −26°면 발끝이 엉덩이 앞 0.29m라 −42°로(발끝 앞 0.54m·높이 0.13m, 몸 기준 측정. 공 반지름 0.11 근처). 슛 접촉도 같은 값
             new Pose(0.10f).Add(UpperLegR, Axis.Right, 30f).Add(LowerLegR, Axis.Right, 55f).Add(Abdomen, Axis.Right, -10f).Add(UpperArmL, Axis.Right, -30f).Add(UpperArmR, Axis.Right, 20f),
             new Pose(0.18f).Add(UpperLegR, Axis.Right, -42f).Add(LowerLegR, Axis.Right, 5f).Add(Abdomen, Axis.Right, -2f).Add(UpperArmL, Axis.Right, 15f).Add(UpperArmR, Axis.Right, -25f).Foot(25f),
             new Pose(0.32f).Add(UpperLegR, Axis.Right, -50f).Add(LowerLegR, Axis.Right, 15f).Add(Abdomen, Axis.Right, 8f).Add(UpperArmL, Axis.Right, 25f).Add(UpperArmR, Axis.Right, -35f).Foot(15f),
@@ -279,12 +295,13 @@ public static class PlayerClipBuilder
         GameObject root = animator.gameObject;
         idle.SampleAnimation(root, 0f);
         BodyAxes axes = AxesOf(animator);
+        float[] floors = GroundFloors(animator);
         var curves = new HumanCurves();
         var human = new HumanPose();
         for (int p = 0; p < poses.Count; p++)
         {
             idle.SampleAnimation(root, 0f);   // 서기 첫 프레임이 기준 자세. 모든 근육에 키가 생겨 다른 상태의 값이 새어 들어오지 않는다
-            ApplyPose(animator, axes, poses[p]);
+            ApplyPose(animator, axes, floors, poses[p]);
             handler.GetHumanPose(ref human);
             curves.Add(poses[p].Time, human);
         }
@@ -370,7 +387,7 @@ public static class PlayerClipBuilder
     }
 
     // Humanoid는 발이 정강이의 자식이라 옛 판의 LegFollow(IK형 리그의 발 따라붙이기)가 필요 없다
-    private static void ApplyPose(Animator animator, BodyAxes axes, Pose pose)
+    private static void ApplyPose(Animator animator, BodyAxes axes, float[] floors, Pose pose)
     {
         for (int i = 0; i < pose.Joints.Count; i++)
         {
@@ -379,23 +396,36 @@ public static class PlayerClipBuilder
         }
         animator.GetBoneTransform(Body).position += Vector3.down * pose.BodyDrop;
         animator.GetBoneTransform(FootR).Rotate(axes.Right, pose.FootDegrees, Space.World);
-        KeepAboveGround(animator);
+        KeepAboveGround(animator, floors);
     }
 
-    // 엉덩이 내림값(BodyDrop)은 옛 리그 키에 맞춘 눈대중이라 새 몸에서는 다이빙 몸이 땅에 묻혔다(11-14 렌더). 가장 낮은 뼈가 MinBoneHeight 아래면 그만큼 올린다
-    private static void KeepAboveGround(Animator animator)
+    // 뼈마다 바닥 높이 = min(MinBoneHeight, 서기 자세의 그 뼈 높이). 서기 자세에서는 어느 뼈도 바닥 아래가 아니라 포즈 0이 서기 그대로다
+    private static float[] GroundFloors(Animator animator)
     {
-        float lowest = float.MaxValue;
+        var floors = new float[GroundBones.Length];
+        for (int i = 0; i < GroundBones.Length; i++)
+        {
+            Transform bone = animator.GetBoneTransform(GroundBones[i]);
+            floors[i] = bone == null ? MinBoneHeight : Mathf.Min(MinBoneHeight, bone.position.y - animator.transform.position.y);
+        }
+        return floors;
+    }
+
+    // 엉덩이 내림값(BodyDrop)은 옛 리그 키에 맞춘 눈대중이라 새 몸에서는 다이빙 몸이 땅에 묻혔다(11-14 렌더). 바닥보다 가장 많이 내려간 뼈만큼 올린다
+    private static void KeepAboveGround(Animator animator, float[] floors)
+    {
+        float deficit = 0f;
         for (int i = 0; i < GroundBones.Length; i++)
         {
             Transform bone = animator.GetBoneTransform(GroundBones[i]);
             if (bone == null) { continue; }
 
-            lowest = Mathf.Min(lowest, bone.position.y - animator.transform.position.y);
+            float height = bone.position.y - animator.transform.position.y;
+            deficit = Mathf.Max(deficit, floors[i] - height);
         }
-        if (lowest >= MinBoneHeight) { return; }
+        if (deficit <= 0f) { return; }
 
-        animator.GetBoneTransform(Body).position += Vector3.up * (MinBoneHeight - lowest);
+        animator.GetBoneTransform(Body).position += Vector3.up * deficit;
     }
 
     private static Vector3 AxisOf(BodyAxes axes, Axis axis)

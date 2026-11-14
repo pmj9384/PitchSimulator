@@ -64,7 +64,7 @@ public class PlayerView : MonoBehaviour
         if (body < 0 || body >= bodyMeshes.Length)
         {
             Debug.LogError($"[PlayerView] 체형 번호 범위 밖: {body} / {bodyMeshes.Length}");
-            body = bodyMeshes.Length - 1;
+            body = bodyMeshes.Length - 1;   // 마지막 = 원본 체형(서브메시·뼈가 원본과 같아 가장 안전한 값)
         }
         ShowHead(head);
         bodyRenderer.sharedMesh = bodyMeshes[body];

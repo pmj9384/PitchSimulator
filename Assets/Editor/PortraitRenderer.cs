@@ -17,7 +17,7 @@ public static class PortraitRenderer
     private const string LookTemplatePath = "Assets/Materials/PlayerHome.mat";        // PlayerManager.lookTemplate와 같은 원본(InGameScene)
     private const string SkinTemplatePath = "Assets/Models/UBC/Materials/M_UBC_Skin.mat";   // PlayerManager.skinTemplate와 같은 원본
     private const int Size = 96;
-    private const int Supersample = 3;   // 3배 크기로 찍어 줄인다. 렌더 텍스처 MSAA는 URP 설정(4배)과 다르면 렌더가 실패해서(11-14 "Attachment 0 was created with 4 samples but 8") 쓰지 않는다
+    private const int Supersample = 2;   // 2배 크기로 찍어 줄인다(쌍선형 Blit이 2×2 평균이 된다. 3배면 대상 픽셀 중심이 가운데 텍셀에 떨어져 점 샘플이 됐다, 11-14 재검증). 렌더 텍스처 MSAA는 URP 설정(4배)과 다르면 렌더가 실패해서(11-14 "Attachment 0 was created with 4 samples but 8") 쓰지 않는다
     private const int MyKit = 0;
     private const float CameraDistance = 1.15f;   // [가정] 머리에서 카메라까지(m). 어깨까지 들어오는 거리
     private const float CameraLift = 0.02f;       // [가정] 눈높이보다 살짝 위에서
@@ -80,7 +80,7 @@ public static class PortraitRenderer
             BakeSkins(scene, body, baked);
             Aim(rig, animator);
             rig.Camera.Render();
-            Graphics.Blit(large, target);   // 쌍선형으로 줄인다
+            Graphics.Blit(large, target);   // 쌍선형 2×2 평균으로 줄인다
             Save(target, portrait);
         }
         finally

@@ -19,7 +19,7 @@ public static class PlayerMeshBaker
     private const string SkinSourcePath = ModelFolder + "/Textures/T_Superhero_Male_Ligh.png";
     // 원본 피부 대표색(0단계 B-8: 가장 많은 색 169·109·75). 원본을 이 색으로 나누면 밝기 무늬만 남고, 팔레트 색을 곱해 피부 4종을 만든다(결정 B10)
     private static readonly Color SkinReference = new Color(169f / 255f, 109f / 255f, 75f / 255f);
-    private const float SkinPatternGain = 0.85f;   // [가정] 대표색이 무늬에서 0.85가 되게 한다. 1이면 대표색보다 밝은 하이라이트가 잘린다
+    private const float SkinPatternGain = 0.85f;   // [가정] 대표색이 무늬에서 0.85가 되게 한다. 대표색(최빈색)이 피부 평균보다 붉어서 피부 픽셀의 약 19%는 G·B가 1로 잘리고(R은 안 잘림) 화면 색이 팔레트보다 약 15% 어둡다(11-14 재검증 측정)
 
     // 서브메시 순서. PlayerPrefabBuilder가 슬롯 역할(Skin·Kit·Kit·Kit·Boots)을 이 순서로 적는다
     public enum Region
