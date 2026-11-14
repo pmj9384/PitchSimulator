@@ -48,8 +48,8 @@ public class StadiumPrefabTests
             for (int i = 0; i < rows.Count; i++)
             {
                 StandRow row = rows[i];
-                Transform t = stands.Find($"{row.Side}/Stand_{row.Side}_{row.Index:00}");
-                Assert.IsNotNull(t, $"{spec.Id} {row.Side} {row.Index}단 없음");
+                Transform t = stands.Find($"{row.Side}/Stand_{row.Side}_{row.Index:00}_{row.Piece}");   // StadiumPrefabBuilder.RowName과 같은 형식
+                Assert.IsNotNull(t, $"{spec.Id} {row.Side} {row.Index}단 조각 {row.Piece} 없음");
                 Assert.AreEqual((row.FromX + row.ToX) * 0.5f, t.localPosition.x, Eps, $"{spec.Id} {row.Side}{row.Index} x");
                 Assert.AreEqual((row.FromZ + row.ToZ) * 0.5f, t.localPosition.z, Eps, $"{spec.Id} {row.Side}{row.Index} z");
                 Assert.AreEqual(row.Height, t.localScale.y, Eps, $"{spec.Id} {row.Side}{row.Index} 높이");
@@ -85,7 +85,7 @@ public class StadiumPrefabTests
             Assert.AreEqual(spec.Roof.Count, CountPrefix(root, "Roofs", "Roof_"), $"{spec.Id} 지붕");
             Assert.AreEqual(spec.LightTowers, CountPrefix(root, "Towers", "Tower"), $"{spec.Id} 조명탑");
             Assert.AreEqual(spec.Scoreboards, CountPrefix(root, "Scoreboards", "Scoreboard"), $"{spec.Id} 전광판");
-            Assert.AreEqual(spec.AdBoards.Count, CountPrefix(root, "AdBoards", "AdBoard_"), $"{spec.Id} 광고판");
+            Assert.AreEqual(AdBoardCount(spec), CountPrefix(root, "AdBoards", "AdBoard_"), $"{spec.Id} 광고판");
             Assert.AreEqual(2, CountPrefix(root, "Benches", "Bench"), $"{spec.Id} 벤치");
         }
     }
@@ -149,7 +149,7 @@ public class StadiumPrefabTests
                     structure.Add(r.sharedMaterial);
                 }
             }
-            // 구조물 = 밝은색·어두운색 + 바깥 바닥·통로 입구(11-10 유저 승인). 넷 다 URP Lit 하나에 색만 달라 SRP Batcher 호환은 그대로
+            // 구조물 = 밝은색·어두운색 + 바깥 바닥·통로 홈 벽(11-10 유저 승인). 넷 다 URP Lit 하나에 색만 달라 SRP Batcher 호환은 그대로
             Assert.AreEqual(4, structure.Count, $"{spec.Id} 구조물 재질 수");
             Assert.AreEqual(6, all.Count, $"{spec.Id} 전체 재질 수(구조물 4 + LED 1 + 선 1)");
             foreach (Material m in all)
@@ -201,16 +201,28 @@ public class StadiumPrefabTests
         return r.sharedMaterial.name == "FieldLine" || r.sharedMaterial.name == "LedBoard";
     }
 
-    // 11-06 더그아웃·LED: 광고판은 면당 판 1장·LedBoard 재질, 렌더러 수가 면 수와 같다
+    // 면당 판 1장, 통로가 있으면 먼 쪽만 홈 앞에서 끊겨 2장(11-14)
+    private static int AdBoardCount(StadiumSpec spec)
+    {
+        if (!StadiumLayout.HasTunnel(spec)) { return spec.AdBoards.Count; }
+
+        for (int i = 0; i < spec.AdBoards.Count; i++)
+        {
+            if (spec.AdBoards[i] == StandSide.Far) { return spec.AdBoards.Count + 1; }
+        }
+        return spec.AdBoards.Count;
+    }
+
+    // 11-06 더그아웃·LED: 광고판은 면당 판 1장·LedBoard 재질(11-14부터 먼 쪽은 통로 앞에서 끊긴 2장)
     [Test]
-    public void 광고판은_LedBoard_재질이고_면당_렌더러_1개다()
+    public void 광고판은_LedBoard_재질이고_렌더러가_면당_1개_먼_쪽은_통로로_2개다()
     {
         foreach (StadiumSpec spec in Specs())
         {
             Transform boards = Load(spec).transform.Find("AdBoards");
             Assert.IsNotNull(boards, $"{spec.Id} AdBoards 없음");
             MeshRenderer[] renderers = boards.GetComponentsInChildren<MeshRenderer>(true);
-            Assert.AreEqual(spec.AdBoards.Count, renderers.Length, $"{spec.Id} 광고판 렌더러 수");
+            Assert.AreEqual(AdBoardCount(spec), renderers.Length, $"{spec.Id} 광고판 렌더러 수");
             foreach (MeshRenderer r in renderers)
             {
                 Assert.AreEqual($"{MaterialFolder}LedBoard.mat", AssetDatabase.GetAssetPath(r.sharedMaterial), $"{spec.Id} {r.name} 재질");
@@ -287,11 +299,69 @@ public class StadiumPrefabTests
         }
     }
 
+    // 지금 CSV는 4개 부 모두 통로가 있어 먼 쪽 판이 끊긴 2장이다. −X 쪽 판으로 앞면 z를 잰다(두 장의 z는 같다)
     private static float AdBoardFarFrontZ(Transform root)
     {
-        Transform board = root.Find("AdBoards/AdBoard_Far");
-        Assert.IsNotNull(board, $"{root.name} AdBoard_Far 없음");
+        Transform board = root.Find("AdBoards/AdBoard_Far_0");
+        Assert.IsNotNull(board, $"{root.name} AdBoard_Far_0 없음");
         return board.localPosition.z - board.localScale.z * 0.5f;
+    }
+
+    // 11-14 fix/tunnel-recess: 기단 앞 판(TunnelMouth)을 없애고 홈 지붕·뒤 벽·옆 벽을 TunnelOf 자리에 둔다. 먼 쪽 광고판·기단은 홈 폭을 비운다
+    [Test]
+    public void 통로_홈은_TunnelOf_자리에_있고_광고판과_기단이_홈_앞을_막지_않는다()
+    {
+        foreach (StadiumSpec spec in Specs())
+        {
+            Transform root = Load(spec).transform;
+            TunnelSpot tunnel = StadiumLayout.TunnelOf(spec);
+            Transform parent = root.Find("Tunnel");
+            Assert.IsNotNull(parent, $"{spec.Id} Tunnel 없음");
+            Assert.IsNull(parent.Find("TunnelMouth"), $"{spec.Id} 옛 기단 앞 판이 남아 있다");
+            Transform roof = parent.Find("TunnelRoof");
+            Assert.IsNotNull(roof, $"{spec.Id} 홈 지붕 없음");
+            Assert.AreEqual(tunnel.Height, roof.localPosition.y - roof.localScale.y * 0.5f, Eps, $"{spec.Id} 홈 지붕 아랫면");
+            Assert.AreEqual(tunnel.RoofTop, roof.localPosition.y + roof.localScale.y * 0.5f, Eps, $"{spec.Id} 홈 지붕 윗면");
+            Assert.AreEqual(tunnel.BackZ, roof.localPosition.z + roof.localScale.z * 0.5f, Eps, $"{spec.Id} 홈 지붕 뒤끝 = 뒤 벽");
+            Transform back = parent.Find("TunnelBack");
+            Assert.IsNotNull(back, $"{spec.Id} 뒤 벽 없음");
+            Assert.AreEqual(tunnel.BackZ, back.localPosition.z + back.localScale.z * 0.5f, Eps, $"{spec.Id} 뒤 벽 z");
+            Assert.AreEqual(-tunnel.HalfWidth, roof.localPosition.x - roof.localScale.x * 0.5f, Eps, $"{spec.Id} 홈 지붕 −X 끝 = 홈 폭");
+            Assert.AreEqual(tunnel.HalfWidth, roof.localPosition.x + roof.localScale.x * 0.5f, Eps, $"{spec.Id} 홈 지붕 +X 끝 = 홈 폭");
+            Assert.Less(roof.localPosition.z - roof.localScale.z * 0.5f, tunnel.MouthZ, $"{spec.Id} 홈 지붕이 입구 앞으로 차양처럼 나온다");
+            for (int i = 0; i < 2; i++)
+            {
+                Transform wall = parent.Find($"TunnelWall_{i}");
+                Assert.IsNotNull(wall, $"{spec.Id} 옆 벽 {i} 없음");
+                Assert.AreEqual(tunnel.MouthZ, wall.localPosition.z - wall.localScale.z * 0.5f, Eps, $"{spec.Id} 옆 벽 {i} 앞끝 = 입구");
+                Assert.AreEqual(tunnel.BackZ, wall.localPosition.z + wall.localScale.z * 0.5f, Eps, $"{spec.Id} 옆 벽 {i} 뒤끝 = 뒤 벽");
+                Assert.LessOrEqual(Mathf.Abs(wall.localPosition.x) + wall.localScale.x * 0.5f, tunnel.HalfWidth + Eps, $"{spec.Id} 옆 벽 {i}가 홈 폭 안쪽");
+            }
+
+            foreach (Transform board in root.Find("AdBoards"))
+            {
+                if (!board.name.StartsWith("AdBoard_Far")) { continue; }
+
+                Assert.IsTrue(ClearsTunnel(board, tunnel), $"{spec.Id} {board.name}가 통로 홈 앞을 막는다");
+            }
+            Transform farStands = root.Find($"{StandsName}/{StandSide.Far}");
+            foreach (Transform part in farStands)
+            {
+                if (part.localPosition.z - part.localScale.z * 0.5f >= tunnel.BackZ - Eps) { continue; }   // 홈 뒤의 끊지 않은 단
+
+                Assert.IsTrue(ClearsTunnel(part, tunnel), $"{spec.Id} {part.name}이 통로 홈을 덮는다");
+            }
+        }
+    }
+
+    // 상자가 x로 홈 폭(±HalfWidth) 바깥에만 있다(맞닿는 것은 허용)
+    private static bool ClearsTunnel(Transform box, TunnelSpot tunnel)
+    {
+        float minX = box.localPosition.x - box.localScale.x * 0.5f;
+        float maxX = box.localPosition.x + box.localScale.x * 0.5f;
+        if (maxX <= -tunnel.HalfWidth + Eps) { return true; }
+
+        return minX >= tunnel.HalfWidth - Eps;
     }
 
     // 코너에서 광고판끼리 관통하지 않는다(면이 맞닿는 것은 허용)
