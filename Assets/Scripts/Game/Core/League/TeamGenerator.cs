@@ -7,7 +7,7 @@ using Game.Core.Match;
 namespace Game.Core.League
 {
     // 상대 팀 하나. 편성은 StageComposition 행(side enemy, stage = 팀 id)과 같은 형식이라 러너·매니저가 그대로 읽는다(스펙 §10).
-    // 선수 능력치는 부 총점(260~300)으로 축소한 복사본. PlayerTable 원본은 300 고정이라 여기서만 줄인다
+    // 선수 능력치는 부 총점(260~300)으로 축소한 복사본. PlayerTable 원본은 300 고정이라 상대는 여기서, 내 팀은 SeasonState.MyBuild에서 같은 BuildScaler.Scale로 줄인다(11-13)
     public sealed class GeneratedTeam
     {
         public int TeamId { get; }
