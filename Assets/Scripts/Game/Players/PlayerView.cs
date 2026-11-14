@@ -31,6 +31,8 @@ public class PlayerView : MonoBehaviour
     }
 
     [SerializeField] private HeadSlot[] heads;   // PortraitRules.HeadCount개, 머리 번호 순. 한 칸만 켠다
+    [SerializeField] private SkinnedMeshRenderer bodyRenderer;   // 몸(서브메시 5개). 체형 메시를 갈아 끼운다
+    [SerializeField] private Mesh[] bodyMeshes;                  // PortraitRules.BodyCount개, 체형 번호 순(마름·보통·원본). 뼈 순서와 서브메시 순서가 같은 구운 메시
     [SerializeField] private Part[] parts;       // 몸·눈·눈썹 + 머리 칸의 렌더러 전부
 
     // 프리팹과 코어 상수가 어긋나면 번호 뒤쪽 머리가 조용히 0번으로 몰린다. 몸 하나당 한 번만 확인한다
@@ -40,6 +42,10 @@ public class PlayerView : MonoBehaviour
         {
             Debug.LogError($"[PlayerView] 머리 칸 수 {heads.Length}가 PortraitRules.HeadCount {PortraitRules.HeadCount}와 다르다");
         }
+        if (bodyMeshes.Length != PortraitRules.BodyCount)
+        {
+            Debug.LogError($"[PlayerView] 체형 메시 수 {bodyMeshes.Length}가 PortraitRules.BodyCount {PortraitRules.BodyCount}와 다르다");
+        }
         for (int i = 0; i < parts.Length; i++)
         {
             int slots = parts[i].renderer.sharedMaterials.Length;
@@ -48,14 +54,20 @@ public class PlayerView : MonoBehaviour
         }
     }
 
-    public void ApplyLook(int head, Material kit, Material skin, Material hair, Material boots)
+    public void ApplyLook(int head, int body, Material kit, Material skin, Material hair, Material boots)
     {
         if (head < 0 || head >= heads.Length)
         {
             Debug.LogError($"[PlayerView] 머리 번호 범위 밖: {head} / {heads.Length}");
             head = 0;
         }
+        if (body < 0 || body >= bodyMeshes.Length)
+        {
+            Debug.LogError($"[PlayerView] 체형 번호 범위 밖: {body} / {bodyMeshes.Length}");
+            body = bodyMeshes.Length - 1;
+        }
         ShowHead(head);
+        bodyRenderer.sharedMesh = bodyMeshes[body];
         for (int i = 0; i < parts.Length; i++)
         {
             ApplyPart(parts[i], kit, skin, hair, boots);

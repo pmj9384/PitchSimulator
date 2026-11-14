@@ -194,6 +194,10 @@ public static class PlayerPrefabBuilder
         }
 
         bodyRenderer.sharedMesh = body;
+        Mesh[] shapes = LoadBodyShapes();
+        if (shapes == null) { return false; }
+
+        WireBodyShapes(model.parent.gameObject, bodyRenderer, shapes);
         var bodyMaterials = new Material[PlayerMeshBaker.SubmeshCount];
         for (int i = 0; i < bodyMaterials.Length; i++)
         {
@@ -206,6 +210,41 @@ public static class PlayerPrefabBuilder
         brows.sharedMaterials = new[] { materials.Hair[0] };
         parts.Add(new PartSpec(brows, new[] { PlayerView.SlotKind.Hair }));
         return true;
+    }
+
+    // 체형 메시 3종(PortraitRules.BodyOf 순서). 굽기 결과가 하나라도 없으면 배선하지 않는다
+    private static Mesh[] LoadBodyShapes()
+    {
+        if (PlayerMeshBaker.ShapeCount != PortraitRules.BodyCount)
+        {
+            Debug.LogError($"[PlayerPrefabBuilder] 체형 {PlayerMeshBaker.ShapeCount}종이 PortraitRules.BodyCount {PortraitRules.BodyCount}와 다르다");
+            return null;
+        }
+
+        var shapes = new Mesh[PortraitRules.BodyCount];
+        for (int i = 0; i < shapes.Length; i++)
+        {
+            shapes[i] = AssetDatabase.LoadAssetAtPath<Mesh>(PlayerMeshBaker.BodyPathOfIndex(i));
+            if (shapes[i] == null)
+            {
+                Debug.LogError($"[PlayerPrefabBuilder] {PlayerMeshBaker.BodyPathOfIndex(i)} 없음. 선수 몸 메시 굽기를 먼저 돌린다");
+                return null;
+            }
+        }
+        return shapes;
+    }
+
+    private static void WireBodyShapes(GameObject root, SkinnedMeshRenderer bodyRenderer, Mesh[] shapes)
+    {
+        var serialized = new SerializedObject(root.GetComponent<PlayerView>());
+        serialized.FindProperty("bodyRenderer").objectReferenceValue = bodyRenderer;
+        SerializedProperty meshes = serialized.FindProperty("bodyMeshes");
+        meshes.arraySize = shapes.Length;
+        for (int i = 0; i < shapes.Length; i++)
+        {
+            meshes.GetArrayElementAtIndex(i).objectReferenceValue = shapes[i];
+        }
+        serialized.ApplyModifiedPropertiesWithoutUndo();
     }
 
     // 결정 B12: 상의·하의·양말은 전부 유니폼 색, 축구화는 신발 색
@@ -358,10 +397,12 @@ public static class PlayerPrefabBuilder
             AssetDatabase.CreateFolder(PlayerMeshBaker.ModelFolder, "Materials");
         }
         Material body = EnsureMaterial("M_UBC_Body", "T_Superhero_Male_Ligh", "T_Superhero_Male_Normal");
+        Material skin = EnsureMaterial("M_UBC_Skin", "T_Skin_Pattern", "T_Superhero_Male_Normal");   // PlayerManager.skinTemplate(씬에서 잇는다). 피부 색을 곱할 밝기 무늬
         Material eyes = EnsureMaterial("M_UBC_Eyes", "T_Eye_Brown", "T_Eye_Normal");
         Material hair1 = EnsureMaterial("M_UBC_Hair1", "T_Hair_1_BaseColor", "T_Hair_1_Normal");
         Material hair2 = EnsureMaterial("M_UBC_Hair2", "T_Hair_2_BaseColor", "T_Hair_2_Normal");
         if (body == null || eyes == null || hair1 == null || hair2 == null) { return null; }
+        if (skin == null) { return null; }
 
         return new Materials(body, eyes, new[] { hair1, hair2 });
     }

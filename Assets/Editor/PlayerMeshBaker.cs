@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.IO;
 using UnityEditor;
 using UnityEngine;
 
@@ -14,6 +15,11 @@ public static class PlayerMeshBaker
     public const string BodyRendererName = "SuperHero_Male";
     public const string OutputFolder = ModelFolder + "/Baked";
     public const int SubmeshCount = 5;   // Region 값 순서 = 서브메시 순서
+    public const string SkinPatternPath = ModelFolder + "/Textures/T_Skin_Pattern.png";
+    private const string SkinSourcePath = ModelFolder + "/Textures/T_Superhero_Male_Ligh.png";
+    // 원본 피부 대표색(0단계 B-8: 가장 많은 색 169·109·75). 원본을 이 색으로 나누면 밝기 무늬만 남고, 팔레트 색을 곱해 피부 4종을 만든다(결정 B10)
+    private static readonly Color SkinReference = new Color(169f / 255f, 109f / 255f, 75f / 255f);
+    private const float SkinPatternGain = 0.85f;   // [가정] 대표색이 무늬에서 0.85가 되게 한다. 1이면 대표색보다 밝은 하이라이트가 잘린다
 
     // 서브메시 순서. PlayerPrefabBuilder가 슬롯 역할(Skin·Kit·Kit·Kit·Boots)을 이 순서로 적는다
     public enum Region
@@ -113,6 +119,17 @@ public static class PlayerMeshBaker
         return BodyPathOf(Shapes[Shapes.Length - 1].Name);
     }
 
+    // 체형 번호(PortraitRules.BodyOf) 순서의 메시 경로. 0 마름 · 1 보통 · 2 원본
+    public static string BodyPathOfIndex(int body)
+    {
+        return BodyPathOf(Shapes[body].Name);
+    }
+
+    public static int ShapeCount
+    {
+        get { return Shapes.Length; }
+    }
+
     [MenuItem("Tools/Pitch/선수 몸 메시 굽기")]
     public static void Bake()
     {
@@ -138,7 +155,52 @@ public static class PlayerMeshBaker
         {
             BakeShape(source, skeleton, planes, regions, Shapes[s]);
         }
+        BakeSkinPattern();
         AssetDatabase.SaveAssets();
+    }
+
+    // 피부 밝기 무늬: 원본 피부 텍스처를 대표색으로 나눈다. 텍스처가 Read/Write 꺼짐이라 PNG 파일을 직접 읽는다
+    private static void BakeSkinPattern()
+    {
+        if (!File.Exists(SkinSourcePath))
+        {
+            Debug.LogError($"[PlayerMeshBaker] {SkinSourcePath} 없음");
+            return;
+        }
+
+        var texture = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+        texture.LoadImage(File.ReadAllBytes(SkinSourcePath));
+        Color[] pixels = texture.GetPixels();
+        for (int i = 0; i < pixels.Length; i++)
+        {
+            pixels[i] = PatternOf(pixels[i]);
+        }
+        texture.SetPixels(pixels);
+        File.WriteAllBytes(SkinPatternPath, texture.EncodeToPNG());
+        Object.DestroyImmediate(texture);
+        AssetDatabase.ImportAsset(SkinPatternPath);
+        SetPatternImport();
+        Debug.Log($"[PlayerMeshBaker] {SkinPatternPath} 저장");
+    }
+
+    private static Color PatternOf(Color pixel)
+    {
+        float r = Mathf.Clamp01(pixel.r / SkinReference.r * SkinPatternGain);
+        float g = Mathf.Clamp01(pixel.g / SkinReference.g * SkinPatternGain);
+        float b = Mathf.Clamp01(pixel.b / SkinReference.b * SkinPatternGain);
+        return new Color(r, g, b, 1f);
+    }
+
+    // 다른 몸 텍스처와 같은 모바일 설정(Android 최대 512, ASTC 6x6)
+    private static void SetPatternImport()
+    {
+        var importer = (TextureImporter)AssetImporter.GetAtPath(SkinPatternPath);
+        TextureImporterPlatformSettings android = importer.GetPlatformTextureSettings("Android");
+        android.overridden = true;
+        android.maxTextureSize = 512;
+        android.format = TextureImporterFormat.ASTC_6x6;
+        importer.SetPlatformTextureSettings(android);
+        importer.SaveAndReimport();
     }
 
     private static SkinnedMeshRenderer FindBodyRenderer()
