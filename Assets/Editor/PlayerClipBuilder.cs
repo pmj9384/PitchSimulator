@@ -110,9 +110,23 @@ public static class PlayerClipBuilder
         }
     }
 
+    // 11-14 모델 교체 1단계: 이 빌더는 옛 Generic 모델(Humans_Master) 기준이다. 실수로 돌리면 새 컨트롤러·프리팹을 덮어써서 메뉴를 막는다(설계 구멍 12).
+    // Humanoid판으로 바꿀 때(2단계 이동·4단계 동작) 이 검사 함수를 지운다
+    [MenuItem("Tools/Animation/Build Player Clips", true)]
+    private static bool ValidateBuild()
+    {
+        return false;
+    }
+
     [MenuItem("Tools/Animation/Build Player Clips")]
     public static void Build()
     {
+        if (!ValidateBuild())
+        {
+            Debug.LogError("[PlayerClipBuilder] 옛 Generic 모델용 빌더라 막혀 있다(11-14 모델 교체). Humanoid판으로 바꾼 뒤 쓴다");
+            return;
+        }
+
         GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath);
         var instance = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
         try

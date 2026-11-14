@@ -6,7 +6,7 @@ namespace Game.Core.Match
     public static class PortraitRules
     {
         public const int None = 0;          // 옛 세이브(10-21 전)의 값. 로드 때 Of(playerId)로 바꾼다
-        public const int HeadCount = 6;     // 머리 메시 수(젊은 얼굴만 선별, PlayerView.headRenderers 순서). 에셋을 바꾸면 같이 고친다
+        public const int HeadCount = 6;     // 머리 칸 수(PlayerView.heads 순서, 11-14 UBC 헤어 4종 + 수염 조합 2칸). 에셋을 바꾸면 같이 고친다
         public const int SkinCount = 4;     // PlayerPalette.Skins
         public const int HairCount = 5;     // PlayerPalette.Hairs
         public const int VariantCount = HeadCount * SkinCount * HairCount;   // Resources/Sprites/Portrait 장수(PortraitTests가 대조)

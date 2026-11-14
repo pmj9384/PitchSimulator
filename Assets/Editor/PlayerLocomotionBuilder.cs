@@ -17,9 +17,23 @@ public static class PlayerLocomotionBuilder
     private const string RunClipName = "CharacterArmature|Run";
     private static readonly string[] OldStates = { "Idle", "Walk", "Run" };
 
+    // 11-14 모델 교체 1단계: 이 빌더는 옛 Generic 모델(Humans_Master) 기준이다. 실수로 돌리면 새 컨트롤러·프리팹을 덮어써서 메뉴를 막는다(설계 구멍 12).
+    // Humanoid판으로 바꿀 때(2단계 이동·4단계 동작) 이 검사 함수를 지운다
+    [MenuItem("Tools/Animation/Build Player Locomotion", true)]
+    private static bool ValidateBuild()
+    {
+        return false;
+    }
+
     [MenuItem("Tools/Animation/Build Player Locomotion")]
     public static void Build()
     {
+        if (!ValidateBuild())
+        {
+            Debug.LogError("[PlayerLocomotionBuilder] 옛 Generic 모델용 빌더라 막혀 있다(11-14 모델 교체). Humanoid판으로 바꾼 뒤 쓴다");
+            return;
+        }
+
         // 클립 3개를 먼저 읽는다. 하나라도 없으면 아무것도 안 바꾼다(10-29 리뷰: 옛 트리를 지운 뒤 빈 트리가 저장될 수 있었다)
         AnimationClip idle = LoadModelClip(IdleClipName);
         AnimationClip walk = LoadModelClip(WalkClipName);
