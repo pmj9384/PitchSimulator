@@ -6,48 +6,44 @@ using UnityEngine;
 // 선수 이동 애니 빌더(10-29). 서기·걷기·달리기 3상태(속도 0.5·4m/s에서 뚝 끊어 바꿈)를 1D 블렌드 트리 한 상태(Locomotion)로 합친다.
 // 10-29 유저 Play "가속이랑 조깅 차이가 안 느껴짐, 전력질주 폼이랑 조깅 폼이 같다": 조깅 상한 4.2m/s와 전력 7m/s가 둘 다 달리기 클립 1배라 똑같아 보였다.
 // 표준 방식(Unity 매뉴얼 Blend Trees: 이동 속도를 파라미터로 클립을 섞는다) + 달리기 기준 속도를 넘으면 재생 배율을 실제 속도에 비례(Cadence, PlayerController가 넣는다).
-// 다른 상태(킥·세이브·세리머니)가 돌아오던 Idle 전이는 Locomotion으로 옮긴다. 메뉴는 몇 번 눌러도 같은 결과
+// 다른 상태(킥·세이브·세리머니)가 돌아오던 Idle 전이는 Locomotion으로 옮긴다. 메뉴는 몇 번 눌러도 같은 결과.
+// 11-14 모델 교체 2단계(설계 실험/2026-11-12-설계-효과음-모델교체.md B-4·결정 B11): 클립을 Quaternius UAL(Humanoid, 제자리판)의 서기·걷기·조깅·전력 4점으로 바꿨다.
+// 옛 Generic 클립은 Humanoid 몸에 안 먹어 아바타가 기본 근육 자세로 떨어지고 다리가 땅에 묻혔다(11-14 유저 Play 화면 기록)
 public static class PlayerLocomotionBuilder
 {
     public const string StateName = "Locomotion";
-    public const string IdleClipName = "CharacterArmature|Idle";
+    public const string ClipModelPath = "Assets/Models/UAL/UAL1_Standard.fbx";
+    public const string IdleClipName = "Armature|Idle_Loop";
     private const string ControllerPath = "Assets/Animations/PlayerAnimator.controller";
-    private const string ModelPath = "Assets/Models/ModularMen/Humans_Master.fbx";
-    private const string WalkClipName = "CharacterArmature|Walk";
-    private const string RunClipName = "CharacterArmature|Run";
+    private const string WalkClipName = "Armature|Walk_Loop";
+    private const string JogClipName = "Armature|Jog_Fwd_Loop";
+    private const string SprintClipName = "Armature|Sprint_Loop";
     private static readonly string[] OldStates = { "Idle", "Walk", "Run" };
-
-    // 11-14 모델 교체 1단계: 이 빌더는 옛 Generic 모델(Humans_Master) 기준이다. 실수로 돌리면 새 컨트롤러·프리팹을 덮어써서 메뉴를 막는다(설계 구멍 12).
-    // Humanoid판으로 바꿀 때(2단계 이동·4단계 동작) 이 검사 함수를 지운다
-    [MenuItem("Tools/Animation/Build Player Locomotion", true)]
-    private static bool ValidateBuild()
-    {
-        return false;
-    }
 
     [MenuItem("Tools/Animation/Build Player Locomotion")]
     public static void Build()
     {
-        if (!ValidateBuild())
-        {
-            Debug.LogError("[PlayerLocomotionBuilder] 옛 Generic 모델용 빌더라 막혀 있다(11-14 모델 교체). Humanoid판으로 바꾼 뒤 쓴다");
-            return;
-        }
-
-        // 클립 3개를 먼저 읽는다. 하나라도 없으면 아무것도 안 바꾼다(10-29 리뷰: 옛 트리를 지운 뒤 빈 트리가 저장될 수 있었다)
+        // 클립 4개를 먼저 읽는다. 하나라도 없으면 아무것도 안 바꾼다(10-29 리뷰: 옛 트리를 지운 뒤 빈 트리가 저장될 수 있었다)
         AnimationClip idle = LoadModelClip(IdleClipName);
         AnimationClip walk = LoadModelClip(WalkClipName);
-        AnimationClip run = LoadModelClip(RunClipName);
-        if (idle == null || walk == null || run == null) { return; }
+        AnimationClip jog = LoadModelClip(JogClipName);
+        AnimationClip sprint = LoadModelClip(SprintClipName);
+        if (idle == null || walk == null) { return; }
+        if (jog == null || sprint == null) { return; }
 
         var controller = AssetDatabase.LoadAssetAtPath<AnimatorController>(ControllerPath);
+        if (controller == null)
+        {
+            Debug.LogError($"[PlayerLocomotionBuilder] {ControllerPath} 없음");
+            return;
+        }
         AnimatorStateMachine machine = controller.layers[0].stateMachine;
         EnsureFloat(controller, PlayerController.CadenceParamName, 1f);   // 기본 0이면 SetFloat 전에 재생이 멈춘다
 
         AnimatorState locomotion = FindState(machine, StateName);
         if (locomotion == null) { locomotion = machine.AddState(StateName); }
         RemoveOldTree(locomotion);
-        locomotion.motion = MakeTree(controller, idle, walk, run);
+        locomotion.motion = MakeTree(controller, idle, walk, jog, sprint);
         locomotion.speed = 1f;
         locomotion.speedParameterActive = true;
         locomotion.speedParameter = PlayerController.CadenceParamName;
@@ -59,24 +55,24 @@ public static class PlayerLocomotionBuilder
         EditorUtility.SetDirty(machine);
         EditorUtility.SetDirty(controller);
         AssetDatabase.SaveAssets();
-        Debug.Log("[PlayerLocomotionBuilder] Locomotion 블렌드 트리를 만들고 Idle·Walk·Run 상태를 합쳤다");
+        Debug.Log("[PlayerLocomotionBuilder] Locomotion 블렌드 트리(서기·걷기·조깅·전력)를 만들었다");
     }
 
     public static AnimationClip LoadModelClip(string name)
     {
-        Object[] assets = AssetDatabase.LoadAllAssetsAtPath(ModelPath);
+        Object[] assets = AssetDatabase.LoadAllAssetsAtPath(ClipModelPath);
         for (int i = 0; i < assets.Length; i++)
         {
             var clip = assets[i] as AnimationClip;
             if (clip == null) { continue; }
             if (clip.name == name) { return clip; }
         }
-        Debug.LogError($"[PlayerLocomotionBuilder] {ModelPath}에 {name} 클립이 없다");
+        Debug.LogError($"[PlayerLocomotionBuilder] {ClipModelPath}에 {name} 클립이 없다");
         return null;
     }
 
-    // 서기 0 · 걷기 WalkAnimSpeed · 달리기 RunAnimSpeed(m/s). 사이는 섞는다
-    private static BlendTree MakeTree(AnimatorController controller, AnimationClip idle, AnimationClip walk, AnimationClip run)
+    // 서기 0 · 걷기 · 조깅 · 전력(m/s, 클립의 자연 속도 = LocomotionCadence). 사이는 섞는다
+    private static BlendTree MakeTree(AnimatorController controller, AnimationClip idle, AnimationClip walk, AnimationClip jog, AnimationClip sprint)
     {
         var tree = new BlendTree
         {
@@ -88,7 +84,8 @@ public static class PlayerLocomotionBuilder
         };
         tree.AddChild(idle, 0f);
         tree.AddChild(walk, LocomotionCadence.WalkAnimSpeed);
-        tree.AddChild(run, LocomotionCadence.RunAnimSpeed);
+        tree.AddChild(jog, LocomotionCadence.JogAnimSpeed);
+        tree.AddChild(sprint, LocomotionCadence.SprintAnimSpeed);
         AssetDatabase.AddObjectToAsset(tree, controller);
         return tree;
     }

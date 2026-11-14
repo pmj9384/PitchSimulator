@@ -1,0 +1,16 @@
+-------------------------------------------------------
+License:
+CC0 1.0 Universal (CC0 1.0) 
+Public Domain Dedication
+https://creativecommons.org/publicdomain/zero/1.0/
+
+------------------------------------------------------
+Models by @Quaternius
+Consider supporting me on Patreon!
+
+https://www.patreon.com/quaternius
+
+
+------------------------------------------------------
+이 프로젝트에서 쓰는 것(11-14): UAL1_Standard.fbx(제자리판)의 Idle_Loop·Walk_Loop·Jog_Fwd_Loop·Sprint_Loop.
+출처: https://quaternius.itch.io/universal-animation-library (Standard, 무료판). 루트 모션판(_RM)은 클립 속도 측정에만 쓰고 리포에 넣지 않는다

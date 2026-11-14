@@ -6,7 +6,7 @@ using UnityEngine;
 public class PlayerController : MonoBehaviour
 {
     public const string SpeedParamName = "Speed";
-    private static readonly int SpeedParam = Animator.StringToHash(SpeedParamName);   // PlayerAnimator.controller의 float. Locomotion 블렌드 트리가 서기·걷기·달리기를 섞는다
+    private static readonly int SpeedParam = Animator.StringToHash(SpeedParamName);   // PlayerAnimator.controller의 float. Locomotion 블렌드 트리가 서기·걷기·조깅·전력을 섞는다(11-14 UAL 클립)
     public const string CadenceParamName = "Cadence";
     private static readonly int CadenceParam = Animator.StringToHash(CadenceParamName);   // float. Locomotion 재생 배율(LocomotionCadence, 10-29)
     private static readonly int KickParam = Animator.StringToHash("Kick");     // 트리거. 패스 순간(MatchSimulation.BallKicked)
@@ -193,7 +193,7 @@ public class PlayerController : MonoBehaviour
         SetSpeed();
     }
 
-    // 애니 Speed(서기·걷기·달리기 섞기)와 Cadence(재생 배율) = 직전 스텝에서 움직인 거리 ÷ 고정 스텝(m/s)에서. 시뮬·연출·정지 모두 이 한 곳에서 넣는다:
+    // 애니 Speed(서기·걷기·조깅·전력 섞기)와 Cadence(재생 배율) = 직전 스텝에서 움직인 거리 ÷ 고정 스텝(m/s)에서. 시뮬·연출·정지 모두 이 한 곳에서 넣는다:
     // 세리머니·하프타임 멈춤에서 안 넣으면 골 직전 달리던 값이 남아 제자리에서 달린다
     private void SetSpeed()
     {

@@ -111,7 +111,7 @@ public static class PlayerClipBuilder
     }
 
     // 11-14 모델 교체 1단계: 이 빌더는 옛 Generic 모델(Humans_Master) 기준이다. 실수로 돌리면 새 컨트롤러·프리팹을 덮어써서 메뉴를 막는다(설계 구멍 12).
-    // Humanoid판으로 바꿀 때(2단계 이동·4단계 동작) 이 검사 함수를 지운다
+    // Humanoid판으로 바꿀 때(4·5단계 동작) 이 검사 함수를 지운다. 그 전까지 동작 상태에는 HumanoidPlaceholderClips의 임시 클립이 들어간다
     [MenuItem("Tools/Animation/Build Player Clips", true)]
     private static bool ValidateBuild()
     {
