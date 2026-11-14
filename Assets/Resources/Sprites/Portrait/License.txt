@@ -1,12 +1,8 @@
+선수 초상 120장(portrait_001~120.png)은 Tools/Pitch/선수 초상 120장 렌더(Assets/Editor/PortraitRenderer.cs)로 찍은 그림이다(2026-11-14 모델 교체 6단계).
+모델: Universal Base Characters (Standard, 무료판) by @Quaternius — https://quaternius.itch.io/universal-base-characters
+
 ------------------------------------------------------
-Ultimate Modular Males by @Quaternius
-Consider supporting me on Patreon, even $1 helps me a lot!
-
-https://www.patreon.com/quaternius
--------------------------------------------------------
-
 License:
-CC0 1.0 Universal (CC0 1.0) 
+CC0 1.0 Universal (CC0 1.0)
 Public Domain Dedication
 https://creativecommons.org/publicdomain/zero/1.0/
-
