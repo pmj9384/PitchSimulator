@@ -7,11 +7,12 @@ using UnityEngine.Pool;
 // 선수 뷰의 수명 관리자. 풀 대여/반환·팀별 명부. 이 두 가지가 전부다.
 // 경기 상태(PlayerState·선수 번호)는 시뮬 조립(MyMatchAssembler)이 만든다. 여기는 이미 있는 상태에 몸을 붙일 뿐 상태를 만들거나 등록하지 않는다(11-06 S4-1).
 // 경기 진행은 MatchManager, 편성은 StageManager 몫. 여기는 "누가 필드에 있는가"의 명부만 안다.
-// 프리팹은 한 종류(Quaternius 모듈러 몸, 10-21). 겉모습 차이 = 머리 메시 하나 + 머티리얼(유니폼 KitRules, 피부·머리색 PortraitRules). 색은 PlayerPalette
+// 프리팹은 한 종류(Quaternius UBC 몸, 11-14 교체). 겉모습 차이 = 머리 칸 하나 + 체형 메시 + 머티리얼(유니폼 KitRules, 피부·머리색·체형 PortraitRules). 색은 PlayerPalette
 public class PlayerManager : InGameManager
 {
     [SerializeField] private GameObject playerPrefab;
-    [SerializeField] private Material lookTemplate;    // 단색 머티리얼 원본(URP Lit). 유니폼·피부·머리색·신발 전부 이걸 복사해 색만 바꾼다
+    [SerializeField] private Material lookTemplate;    // 단색 머티리얼 원본(URP Lit). 유니폼·머리색·신발은 이걸 복사해 색만 바꾼다
+    [SerializeField] private Material skinTemplate;    // 피부 원본(URP Lit + 피부 밝기 무늬 텍스처). 색을 곱해 피부 4종을 만든다. 얼굴 그림을 남기려고 단색과 따로 둔다(11-14 결정 B10)
 
     private ObjectPool<GameObject> pool;
     private readonly List<PlayerController>[] rosters = { new List<PlayerController>(), new List<PlayerController>() };
@@ -88,20 +89,20 @@ public class PlayerManager : InGameManager
         }
         int skin = PortraitRules.SkinOf(portrait);
         int hair = PortraitRules.HairOf(portrait);
-        view.ApplyLook(PortraitRules.HeadOf(portrait),
-            LookMaterial("kit", kit, PlayerPalette.Kit(kit)),
-            LookMaterial("skin", skin, PlayerPalette.Skin(skin)),
-            LookMaterial("hair", hair, PlayerPalette.Hair(hair)),
-            LookMaterial("boots", 0, PlayerPalette.Boots));
+        view.ApplyLook(PortraitRules.HeadOf(portrait), PortraitRules.BodyOf(portrait),
+            LookMaterial("kit", kit, PlayerPalette.Kit(kit), lookTemplate),
+            LookMaterial("skin", skin, PlayerPalette.Skin(skin), skinTemplate),
+            LookMaterial("hair", hair, PlayerPalette.Hair(hair), lookTemplate),
+            LookMaterial("boots", 0, PlayerPalette.Boots, lookTemplate));
     }
 
-    private Material LookMaterial(string kind, int index, Color color)
+    private Material LookMaterial(string kind, int index, Color color, Material template)
     {
         string key = $"{kind}:{index}";
         Material material;
         if (looks.TryGetValue(key, out material)) { return material; }
 
-        material = new Material(lookTemplate);
+        material = new Material(template);
         material.name = key;
         material.color = color;
         looks[key] = material;

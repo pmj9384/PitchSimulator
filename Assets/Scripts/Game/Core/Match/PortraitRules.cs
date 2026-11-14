@@ -6,10 +6,11 @@ namespace Game.Core.Match
     public static class PortraitRules
     {
         public const int None = 0;          // 옛 세이브(10-21 전)의 값. 로드 때 Of(playerId)로 바꾼다
-        public const int HeadCount = 6;     // 머리 메시 수(젊은 얼굴만 선별, PlayerView.headRenderers 순서). 에셋을 바꾸면 같이 고친다
+        public const int HeadCount = 6;     // 머리 칸 수(PlayerView.heads 순서, 11-14 UBC 헤어 4종 + 수염 조합 2칸). 에셋을 바꾸면 같이 고친다
         public const int SkinCount = 4;     // PlayerPalette.Skins
         public const int HairCount = 5;     // PlayerPalette.Hairs
         public const int VariantCount = HeadCount * SkinCount * HairCount;   // Resources/Sprites/Portrait 장수(PortraitTests가 대조)
+        public const int BodyCount = 3;     // 체형 수(마름·보통·원본, PlayerView 몸 메시 순서). 조합 축이 아니라 번호에서 파생해 VariantCount를 늘리지 않는다(11-14 모델 교체 결정 B8)
 
         private const int TeamStride = 13;  // 팀마다 시작 조합을 어긋나게 한다(VariantCount와 서로소). 같은 팀 안의 변화는 playerIndex가 이어지는 데서 온다
 
@@ -46,6 +47,13 @@ namespace Game.Core.Match
         public static int HairOf(int portrait)
         {
             return (portrait - 1) / (HeadCount * SkinCount);
+        }
+
+        // 체형: 피부·머리색 묶음 번호에서 돌린다. 머리 번호(HeadOf)와 같은 주기면 머리 모양마다 체형이 고정돼서 머리 6칸 단위로 건너뛴다.
+        // 같은 번호 = 같은 겉모습이 유지되고(초상과 경기 몸이 같은 번호에서 풀린다) 세이브·초상 장수가 그대로다
+        public static int BodyOf(int portrait)
+        {
+            return (portrait - 1) / HeadCount % BodyCount;
         }
 
         // 파츠 → 번호. HeadOf·SkinOf·HairOf의 역함수라 셋이 같은 배치를 쓴다(PortraitTests가 1~VariantCount 왕복을 잠근다)

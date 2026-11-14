@@ -146,4 +146,30 @@ public class PortraitTests
             Assert.IsNotNull(Resources.Load<Sprite>($"Sprites/Portrait/portrait_{portrait:000}"), $"portrait_{portrait:000} 없음");
         }
     }
+
+    // 11-14 모델 교체 결정 B8: 체형은 조합 축이 아니라 번호에서 파생한다. 범위 안이고, 머리 모양마다 체형 3종이 다 나온다(머리와 같은 주기면 머리마다 고정된다)
+    [Test]
+    public void 체형은_범위_안이고_머리_모양마다_3종이_다_나온다()
+    {
+        var seen = new bool[PortraitRules.HeadCount, PortraitRules.BodyCount];
+        int[] counts = new int[PortraitRules.BodyCount];
+        for (int portrait = 1; portrait <= PortraitRules.VariantCount; portrait++)
+        {
+            int body = PortraitRules.BodyOf(portrait);
+            Assert.That(body, Is.InRange(0, PortraitRules.BodyCount - 1), $"번호 {portrait}");
+            seen[PortraitRules.HeadOf(portrait), body] = true;
+            counts[body]++;
+        }
+        for (int head = 0; head < PortraitRules.HeadCount; head++)
+        {
+            for (int body = 0; body < PortraitRules.BodyCount; body++)
+            {
+                Assert.IsTrue(seen[head, body], $"머리 {head}에 체형 {body}가 없다");
+            }
+        }
+        for (int body = 0; body < PortraitRules.BodyCount; body++)
+        {
+            Assert.Greater(counts[body], PortraitRules.VariantCount / PortraitRules.BodyCount / 2, $"체형 {body} 수가 너무 적다");
+        }
+    }
 }
