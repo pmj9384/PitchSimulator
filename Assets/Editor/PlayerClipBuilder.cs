@@ -470,7 +470,7 @@ public static class PlayerClipBuilder
         EditorUtility.SetDirty(controller);
     }
 
-    // 트리거 한 번에 끝까지 재생하고 Idle로. Any State에서 들어오고 자기 자신으로는 재진입 안 함
+    // 트리거 한 번에 끝까지 재생하고 이동 상태(Locomotion)로. Any State에서 들어오고 자기 자신으로는 재진입 안 함
     // speedParameter: 주면 그 float 파라미터가 재생 배율을 곱한다(다이빙: 공 도착 시각에 맞춤). 없으면 1배
     private static void OneShot(AnimatorStateMachine machine, AnimatorState idle, string name, AnimationClip clip, string speedParameter = null)
     {
@@ -495,7 +495,7 @@ public static class PlayerClipBuilder
         exit.duration = 0.15f;
     }
 
-    // bool이 참인 동안 루프, 거짓이 되면 Idle로
+    // bool이 참인 동안 루프, 거짓이 되면 이동 상태(Locomotion)로
     private static void Held(AnimatorStateMachine machine, AnimatorState idle, string name, AnimationClip clip)
     {
         AnimatorState state = FindOrAddState(machine, name);
