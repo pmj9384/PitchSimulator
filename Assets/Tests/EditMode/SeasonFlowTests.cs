@@ -67,7 +67,7 @@ public class SeasonFlowTests
     public void 내_경기_조립은_내가_팀0이고_킥오프는_일정상_홈이_한다()
     {
         TierRule tier = Tier(4);
-        SeasonState state = SeasonState.NewSeason(4, 5, myRows, table);
+        SeasonState state = SeasonState.NewSeason(4, TestTierTotals.Of(4), 5, myRows, table);
         List<GeneratedTeam> opponents = TeamGenerator.Generate(5, tier, table, formations, names);
         List<Fixture> schedule = SeasonSchedule.RoundRobin(tier.Teams);
 
@@ -114,7 +114,7 @@ public class SeasonFlowTests
     public void 마지막_라운드가_끝나면_시즌이_끝나고_사부_1위는_다음_시즌_삼부다()
     {
         TierRule tier = Tier(4);
-        SeasonState state = SeasonState.NewSeason(4, 11, myRows, table);
+        SeasonState state = SeasonState.NewSeason(4, TestTierTotals.Of(4), 11, myRows, table);
         List<GeneratedTeam> opponents = TeamGenerator.Generate(11, tier, table, formations, names);
         List<Fixture> schedule = SeasonSchedule.RoundRobin(tier.Teams);
 
@@ -134,7 +134,7 @@ public class SeasonFlowTests
     public void 다_지면_사부는_강등이_없어_그대로_사부다()
     {
         TierRule tier = Tier(4);
-        SeasonState state = SeasonState.NewSeason(4, 11, myRows, table);
+        SeasonState state = SeasonState.NewSeason(4, TestTierTotals.Of(4), 11, myRows, table);
         List<GeneratedTeam> opponents = TeamGenerator.Generate(11, tier, table, formations, names);
         List<Fixture> schedule = SeasonSchedule.RoundRobin(tier.Teams);
         for (int round = 0; round < tier.Matches; round++)
@@ -149,7 +149,7 @@ public class SeasonFlowTests
     private static SeasonState FinishedSeason(int tier, int myGoals, int opponentGoals, List<MatchResult> extra = null)
     {
         TierRule rule = Tier(tier);
-        SeasonState state = SeasonState.NewSeason(tier, 3, myRows, table);
+        SeasonState state = SeasonState.NewSeason(tier, TestTierTotals.Of(tier), 3, myRows, table);
         for (int round = 0; round < rule.Matches; round++)
         {
             var results = new List<MatchResult> { new MatchResult(SeasonState.MyTeamId, round + 1, myGoals, opponentGoals) };
@@ -195,8 +195,8 @@ public class SeasonFlowTests
     public void ComputeRound는_상태를_바꾸지_않고_PlayRound와_같은_결과를_낸다()
     {
         TierRule tier = Tier(4);
-        SeasonState computed = SeasonState.NewSeason(4, 7, myRows, table);
-        SeasonState played = SeasonState.NewSeason(4, 7, myRows, table);
+        SeasonState computed = SeasonState.NewSeason(4, TestTierTotals.Of(4), 7, myRows, table);
+        SeasonState played = SeasonState.NewSeason(4, TestTierTotals.Of(4), 7, myRows, table);
         List<GeneratedTeam> opponents = TeamGenerator.Generate(7, tier, table, formations, names);
         List<Fixture> schedule = SeasonSchedule.RoundRobin(tier.Teams);
         MatchResult myResult = SeasonRunner.SetupMyMatch(computed, opponents, schedule, presets, 0, table).ResultFor(1, 0);
@@ -215,21 +215,21 @@ public class SeasonFlowTests
     [Test]
     public void 내_프리셋은_세이브를_왕복하고_옛_세이브엔_없어_balanced가_된다()
     {
-        SeasonState state = SeasonState.NewSeason(4, 42, myRows, table, "counter");
+        SeasonState state = SeasonState.NewSeason(4, TestTierTotals.Of(4), 42, myRows, table, "counter");
         Assert.AreEqual("counter", state.MyPresetId);
         SeasonSave save = state.ToSave();
         Assert.AreEqual("counter", save.myPresetId);
-        Assert.AreEqual("counter", SeasonState.FromSave(save, table).MyPresetId);
+        Assert.AreEqual("counter", TestTierTotals.Load(save, table).MyPresetId);
 
         save.myPresetId = null;   // 09-26 세이브엔 이 필드가 없다
-        Assert.AreEqual(SeasonState.DefaultPresetId, SeasonState.FromSave(save, table).MyPresetId);
+        Assert.AreEqual(SeasonState.DefaultPresetId, TestTierTotals.Load(save, table).MyPresetId);
     }
 
     [Test]
     public void 없는_프리셋은_거부하고_내_프리셋을_바꾸지_않는다()
     {
         // 09-30 팀 전술 설정창의 카드 선택. 조용히 balanced로 바꾸지 않는다(SeasonRunner.FindPreset과 같은 방식)
-        SeasonState state = SeasonState.NewSeason(4, 42, myRows, table);
+        SeasonState state = SeasonState.NewSeason(4, TestTierTotals.Of(4), 42, myRows, table);
         Assert.Throws<System.InvalidOperationException>(() => state.SetMyPreset("no_such_preset", presets));
         Assert.AreEqual(SeasonState.DefaultPresetId, state.MyPresetId);
 
@@ -242,7 +242,7 @@ public class SeasonFlowTests
     {
         // "막히면 재세팅"(스펙 축): 같은 경기를 다른 세팅으로 다시 치를 수 있어야 차이가 세팅 때문이라고 말할 수 있다
         TierRule tier = Tier(4);
-        SeasonState state = SeasonState.NewSeason(4, 5, myRows, table);
+        SeasonState state = SeasonState.NewSeason(4, TestTierTotals.Of(4), 5, myRows, table);
         List<GeneratedTeam> opponents = TeamGenerator.Generate(5, tier, table, formations, names);
         List<Fixture> schedule = SeasonSchedule.RoundRobin(tier.Teams);
 
@@ -263,7 +263,7 @@ public class SeasonFlowTests
     {
         // 09-30 팀 전술 설정창: 세이브 = 기준 카드 id + 바꾼 값 전체(myTactics). 경기 재료(Tactics0)는 바꾼 값
         TierRule tier = Tier(4);
-        SeasonState state = SeasonState.NewSeason(4, 5, myRows, table);
+        SeasonState state = SeasonState.NewSeason(4, TestTierTotals.Of(4), 5, myRows, table);
         List<GeneratedTeam> opponents = TeamGenerator.Generate(5, tier, table, formations, names);
         List<Fixture> schedule = SeasonSchedule.RoundRobin(tier.Teams);
 
@@ -275,7 +275,7 @@ public class SeasonFlowTests
         CollectionAssert.AreEqual(new[] { 2, 2, 2 }, setup.Tactics0.Width, "폭 2/1/1 + 1");
         Assert.AreEqual("balanced", state.MyPresetId, "기준 카드는 그대로");
 
-        SeasonState loaded = SeasonState.FromSave(state.ToSave(), table);
+        SeasonState loaded = TestTierTotals.Load(state.ToSave(), table);
         Assert.AreEqual(2, loaded.MyTactics(presets).Mentality, "세이브 왕복 뒤에도");
     }
 
@@ -283,7 +283,7 @@ public class SeasonFlowTests
     public void 내_전술_이름은_바꾼_값이_있어도_기준_카드_이름이고_세이브를_왕복해도_비지_않는다()
     {
         // 10-15 Play: 조정한 전술은 세이브 DTO에 DisplayName이 없어 왕복 뒤 홈·매치데이의 "내 전술:" 이 비었다
-        SeasonState state = SeasonState.NewSeason(4, 42, myRows, table, "counter");
+        SeasonState state = SeasonState.NewSeason(4, TestTierTotals.Of(4), 42, myRows, table, "counter");
         string counterName = SeasonRunner.FindPreset(presets, "counter").DisplayName;
         Assert.AreEqual(counterName, state.MyCardName(presets), "바꾼 값이 없을 때");
 
@@ -291,7 +291,7 @@ public class SeasonFlowTests
         state.SetMyTactics(TacticsEditing.ApplyForward(counter, counter, 1), presets);
         Assert.AreEqual(counterName, state.MyCardName(presets), "슬라이더로 바꾼 뒤에도 기준 카드 이름");
 
-        SeasonState loaded = SeasonState.FromSave(state.ToSave(), table);
+        SeasonState loaded = TestTierTotals.Load(state.ToSave(), table);
         Assert.IsNotNull(loaded.MyCustomTactics, "바꾼 값은 왕복한다");
         Assert.AreEqual(counterName, loaded.MyCardName(presets), "세이브 왕복 뒤에도 비지 않는다");
     }
@@ -299,10 +299,10 @@ public class SeasonFlowTests
     [Test]
     public void 옛_세이브엔_바꾼_값이_없어_카드_값을_쓰고_카드를_고르면_바꾼_값이_지워진다()
     {
-        SeasonState state = SeasonState.NewSeason(4, 42, myRows, table, "counter");
+        SeasonState state = SeasonState.NewSeason(4, TestTierTotals.Of(4), 42, myRows, table, "counter");
         SeasonSave save = state.ToSave();
         Assert.IsNull(save.myTactics, "안 바꿨으면 저장하지 않는다(09-27 세이브와 같은 모양)");
-        Assert.IsTrue(TacticsEditing.SameValues(SeasonRunner.FindPreset(presets, "counter"), SeasonState.FromSave(save, table).MyTactics(presets)));
+        Assert.IsTrue(TacticsEditing.SameValues(SeasonRunner.FindPreset(presets, "counter"), TestTierTotals.Load(save, table).MyTactics(presets)));
 
         TeamTactics counter = SeasonRunner.FindPreset(presets, "counter");
         state.SetMyTactics(TacticsEditing.ApplyForward(counter, counter, 1), presets);
@@ -315,19 +315,19 @@ public class SeasonFlowTests
     [Test]
     public void 범위_밖_전술_값이_든_세이브는_로드에서_거부한다()
     {
-        SeasonState state = SeasonState.NewSeason(4, 42, myRows, table);
+        SeasonState state = SeasonState.NewSeason(4, TestTierTotals.Of(4), 42, myRows, table);
         TeamTactics balanced = SeasonRunner.FindPreset(presets, "balanced");
         state.SetMyTactics(TacticsEditing.ApplyForward(balanced, balanced, 1), presets);
         SeasonSave save = state.ToSave();
         save.myTactics!.tempo[0] = 5;
-        Assert.Throws<System.InvalidOperationException>(() => SeasonState.FromSave(save, table));
+        Assert.Throws<System.InvalidOperationException>(() => TestTierTotals.Load(save, table));
     }
 
     [Test]
     public void 슬라이더로_바꾼_값이_기준_카드와_같아지면_바꾼_값이_없는_상태다()
     {
         // 불변식: MyCustomTactics가 있으면 값이 기준 카드와 다르다. 슬라이더를 가운데로 되돌리면 카드 그대로
-        SeasonState state = SeasonState.NewSeason(4, 42, myRows, table);
+        SeasonState state = SeasonState.NewSeason(4, TestTierTotals.Of(4), 42, myRows, table);
         TeamTactics balanced = SeasonRunner.FindPreset(presets, "balanced");
         state.SetMyTactics(TacticsEditing.ApplyForward(balanced, balanced, 1), presets);
         Assert.IsNotNull(state.MyCustomTactics);
@@ -341,12 +341,12 @@ public class SeasonFlowTests
         // 09-30 리뷰: 화면이 강조하는 카드와 슬라이더가 기준으로 삼는 카드가 어긋나면 안 된다
         TeamTactics pressing = SeasonRunner.FindPreset(presets, "pressing");
 
-        SeasonState byTable = SeasonState.NewSeason(4, 42, myRows, table);
+        SeasonState byTable = SeasonState.NewSeason(4, TestTierTotals.Of(4), 42, myRows, table);
         byTable.SetMyTacticsFromTable(TacticsEditing.Copy(pressing), presets);
         Assert.AreEqual("pressing", byTable.MyPresetId, "표: 그 카드를 고른 것으로");
         Assert.IsNull(byTable.MyCustomTactics);
 
-        SeasonState bySlider = SeasonState.NewSeason(4, 42, myRows, table);
+        SeasonState bySlider = SeasonState.NewSeason(4, TestTierTotals.Of(4), 42, myRows, table);
         bySlider.SetMyTactics(TacticsEditing.Copy(pressing), presets);
         Assert.AreEqual("balanced", bySlider.MyPresetId, "슬라이더: 기준 카드는 그대로");
         Assert.IsNotNull(bySlider.MyCustomTactics, "기준 카드와 값이 다르니 사용자 설정");
@@ -368,7 +368,7 @@ public class SeasonFlowTests
     public void 슬롯_역할을_바꾸면_경기_값은_새_역할_것이고_선수_빌드는_그대로며_슬롯_지시는_지워진다()
     {
         // 10-27 슬롯 중심: 역할·지시는 선수가 아니라 공격 슬롯의 것. 선수 객체(자연 변형·빌드)는 안 바뀐다
-        SeasonState state = SeasonState.NewSeason(4, 42, myRows, table);
+        SeasonState state = SeasonState.NewSeason(4, TestTierTotals.Of(4), 42, myRows, table);
         int striker = FirstPlayerOfRole(state, "ST");
         int slot = AttackSlotOf(state, striker);
         PlayerStats before = state.FindRosterPlayer(striker).Stats;
@@ -390,7 +390,7 @@ public class SeasonFlowTests
     [Test]
     public void 다른_자리_역할과_없는_역할과_잠긴_역할은_거부한다()
     {
-        SeasonState state = SeasonState.NewSeason(4, 42, myRows, table);
+        SeasonState state = SeasonState.NewSeason(4, TestTierTotals.Of(4), 42, myRows, table);
         int slot = AttackSlotOf(state, FirstPlayerOfRole(state, "ST"));
         string original = state.Slots.AttackVariantOf(slot);
 
@@ -410,7 +410,7 @@ public class SeasonFlowTests
     public void 슬롯_지시는_경기에_들어가고_세이브를_왕복하며_시드는_그대로다()
     {
         TierRule tier = Tier(4);
-        SeasonState state = SeasonState.NewSeason(4, 5, myRows, table);
+        SeasonState state = SeasonState.NewSeason(4, TestTierTotals.Of(4), 5, myRows, table);
         List<GeneratedTeam> opponents = TeamGenerator.Generate(5, tier, table, formations, names);
         List<Fixture> schedule = SeasonSchedule.RoundRobin(tier.Teams);
         int striker = FirstPlayerOfRole(state, "ST");
@@ -428,7 +428,7 @@ public class SeasonFlowTests
         SeasonSave save = state.ToSave();
         Assert.IsNull(save.roster[0].instructions, "선수에는 지시를 저장하지 않는다(10-27 슬롯 중심)");
         Assert.IsNotNull(save.slotTactics);
-        SeasonState loaded = SeasonState.FromSave(save, table);
+        SeasonState loaded = TestTierTotals.Load(save, table);
         Assert.AreEqual(2, loaded.Slots.InstructionsOf(slot)[(int)PlayerDial.PressRange]);
         Assert.AreEqual(rolePress + 4f, loaded.MyLineup(table, null)[striker].Stats.PressRange, 1e-4f);
     }
@@ -436,7 +436,7 @@ public class SeasonFlowTests
     [Test]
     public void 범위_밖_슬롯_지시나_골키퍼_자리의_필드_지시는_거부하고_세이브에서는_잘라낸다()
     {
-        SeasonState state = SeasonState.NewSeason(4, 42, myRows, table);
+        SeasonState state = SeasonState.NewSeason(4, TestTierTotals.Of(4), 42, myRows, table);
         int striker = FirstPlayerOfRole(state, "ST");
         int stSlot = AttackSlotOf(state, striker);
         int gkSlot = AttackSlotOf(state, FirstPlayerOfRole(state, "GK"));
@@ -447,7 +447,7 @@ public class SeasonFlowTests
         state.SetSlotInstruction(stSlot, PlayerDial.PushUp, 1, formations);
         SeasonSave save = state.ToSave();
         save.slotTactics!.instructions[stSlot - 1][(int)PlayerDial.PushUp] = 7;
-        SeasonState loaded = SeasonState.FromSave(save, table);
+        SeasonState loaded = TestTierTotals.Load(save, table);
         float rolePushUp = state.FindRosterPlayer(striker).Stats.PushUp;
         Assert.AreEqual(rolePushUp + 10f, loaded.MyLineup(table, null)[striker].Stats.PushUp, 1e-4f, "세이브의 범위 밖 지시는 +2로 잘라 쓴다(던져서 시즌을 잃지 않는다)");
     }
@@ -456,13 +456,13 @@ public class SeasonFlowTests
     public void 새_시즌은_이전_시즌의_자연_변형과_슬롯_설정을_이어받는다()
     {
         // 새 시즌의 로스터는 기본 편성에서 다시 만든다. 그대로 두면 승격하자마자 세팅이 풀린다. 슬롯 설정은 AdoptSlotTactics, 선수는 AdoptStarters(SeasonSystem.StartNextSeason 순서)
-        SeasonState previous = SeasonState.NewSeason(4, 42, myRows, table);
+        SeasonState previous = SeasonState.NewSeason(4, TestTierTotals.Of(4), 42, myRows, table);
         int striker = FirstPlayerOfRole(previous, "ST");
         int slot = AttackSlotOf(previous, striker);
         previous.SetSlotVariant(slot, "st_advanced", formations, table);
         previous.SetSlotInstruction(slot, PlayerDial.HoldUp, -1, formations);
 
-        SeasonState next = SeasonState.NewSeason(3, 43, myRows, table);
+        SeasonState next = SeasonState.NewSeason(3, TestTierTotals.Of(3), 43, myRows, table);
         next.SetFormations(previous.AttackFormationId, previous.DefenseFormationId, formations, table);
         next.AdoptSlotTactics(previous.Slots);
         next.AdoptStarters(previous.Roster, previous.Lineup, table);
@@ -483,13 +483,13 @@ public class SeasonFlowTests
             if (copy.VariantId == "st_targetman") { copy.Exposed = true; }
             tableWhenExposed.Add(copy);
         }
-        SeasonState previous = SeasonState.NewSeason(4, 42, myRows, tableWhenExposed);
+        SeasonState previous = SeasonState.NewSeason(4, TestTierTotals.Of(4), 42, myRows, tableWhenExposed);
         int striker = FirstPlayerOfRole(previous, "ST");
         int slot = AttackSlotOf(previous, striker);
         previous.SetSlotVariant(slot, "st_targetman", formations, tableWhenExposed);
         previous.SetSlotInstruction(slot, PlayerDial.HoldUp, 2, formations);
 
-        SeasonState next = SeasonState.NewSeason(3, 43, myRows, table);
+        SeasonState next = SeasonState.NewSeason(3, TestTierTotals.Of(3), 43, myRows, table);
         next.SetFormations(previous.AttackFormationId, previous.DefenseFormationId, formations, table);
         next.AdoptSlotTactics(previous.Slots);
         next.AdoptStarters(previous.Roster, previous.Lineup, table);
@@ -505,7 +505,7 @@ public class SeasonFlowTests
     public void 세이브가_없거나_생성기_버전이_다르면_새_시즌이_필요하다()
     {
         Assert.IsTrue(SeasonProgress.NeedsNewSeason(null), "세이브 없음");
-        SeasonSave save = SeasonState.NewSeason(4, 1, myRows, table).ToSave();
+        SeasonSave save = SeasonState.NewSeason(4, TestTierTotals.Of(4), 1, myRows, table).ToSave();
         Assert.IsFalse(SeasonProgress.NeedsNewSeason(save), "버전 일치면 이어 간다");
         save.generatorVersion = TeamGenerator.Version + 1;
         Assert.IsTrue(SeasonProgress.NeedsNewSeason(save), "생성기가 바뀌었으면 상대 팀을 재현 못 하니 새 시즌");

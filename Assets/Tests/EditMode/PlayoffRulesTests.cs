@@ -164,7 +164,7 @@ public class PlayoffRulesTests
     [Test]
     public void 키커는_GK를_빼고_슛_높은_순_5명이다()
     {
-        SeasonState state = SeasonState.NewSeason(4, 42, myRows, table);
+        SeasonState state = SeasonState.NewSeason(4, TestTierTotals.Of(4), 42, myRows, table);
         List<int> shots = PlayoffRules.TopShooters(state.MyLineup(table, null), 5);
         Assert.AreEqual(5, shots.Count);
         for (int i = 1; i < shots.Count; i++) { Assert.GreaterOrEqual(shots[i - 1], shots[i]); }
@@ -174,19 +174,19 @@ public class PlayoffRulesTests
     [Test]
     public void 승강전_결과는_세이브로_왕복하고_옛_세이브는_승강전_전이다()
     {
-        SeasonState state = SeasonState.NewSeason(4, 42, myRows, table);
+        SeasonState state = SeasonState.NewSeason(4, TestTierTotals.Of(4), 42, myRows, table);
         state.AddPlayoffResult(new PlayoffResult(PlayoffStage.Semifinal, 0, 3, 1, 1));
         state.AddPlayoffResult(new PlayoffResult(PlayoffStage.LegOne, 0, 1005, 2, 0));
         state.AddPlayoffResult(new PlayoffResult(PlayoffStage.LegTwo, 1005, 0, 2, 0, 4, 5));
 
-        SeasonState back = SeasonState.FromSave(state.ToSave(), table);
+        SeasonState back = TestTierTotals.Load(state.ToSave(), table);
         Assert.AreEqual(3, back.PlayoffResults.Count);
         Assert.AreEqual(PlayoffStage.LegTwo, back.PlayoffResults[2].Stage);
         Assert.AreEqual(5, back.PlayoffResults[2].AwayPenalties);
 
         SeasonSave old = state.ToSave();
         old.playoff = null;   // 10-08 전 세이브
-        Assert.AreEqual(0, SeasonState.FromSave(old, table).PlayoffResults.Count);
+        Assert.AreEqual(0, TestTierTotals.Load(old, table).PlayoffResults.Count);
     }
 
     [Test]
@@ -194,7 +194,7 @@ public class PlayoffRulesTests
     {
         TierRule tier = Tier(4);
         List<GeneratedTeam> opponents = TeamGenerator.Generate(42, tier, table, formations, names);
-        SeasonState state = SeasonState.NewSeason(4, 42, myRows, table);
+        SeasonState state = SeasonState.NewSeason(4, TestTierTotals.Of(4), 42, myRows, table);
 
         // 정규 시즌: 라운드마다 결과를 넣되 순위가 1위 = 팀 1, 2위 = 나, 3위 = 팀 2 …가 되게 꾸민다
         List<Fixture> schedule = SeasonSchedule.RoundRobin(tier.Teams);
@@ -260,7 +260,7 @@ public class PlayoffRulesTests
     {
         TierRule tier = Tier(3);   // 8팀: 7위가 최하위 바로 위
         List<GeneratedTeam> opponents = TeamGenerator.Generate(43, tier, table, formations, names);
-        SeasonState state = SeasonState.NewSeason(3, 43, myRows, table);
+        SeasonState state = SeasonState.NewSeason(3, TestTierTotals.Of(3), 43, myRows, table);
         List<Fixture> schedule = SeasonSchedule.RoundRobin(tier.Teams);
         int[] order = { 1, 2, 3, 4, 5, 6, 0, 7 };
         var rankOf = new Dictionary<int, int>();

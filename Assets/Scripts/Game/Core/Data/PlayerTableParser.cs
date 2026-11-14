@@ -84,9 +84,9 @@ namespace Game.Core.Data
             RequireNonNegative(p.Handling, "handling", line);
             RequireNonNegative(p.Diving, "diving", line);
 
-            if (p.BuildTotal != PlayerStats.TotalPoints)
+            if (p.BuildTotal != PlayerStats.TableTotalPoints)
             {
-                throw new FormatException($"PlayerTable {line}행: 빌드 합계는 {PlayerStats.TotalPoints} ({p.BuildTotal})");
+                throw new FormatException($"PlayerTable {line}행: 빌드 합계는 {PlayerStats.TableTotalPoints} ({p.BuildTotal})");
             }
             if (p.PressRange <= 0f)
             {

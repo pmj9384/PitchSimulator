@@ -33,7 +33,7 @@ public class FormationRulesTests
 
     private static SeasonState NewState()
     {
-        return SeasonState.NewSeason(4, 42, StageRows(), Table());
+        return SeasonState.NewSeason(4, TestTierTotals.Of(4), 42, StageRows(), Table());
     }
 
     [Test]
@@ -195,7 +195,7 @@ public class FormationRulesTests
         previous.SetFormations("4-3-3", "5-3-2", formations, Table());
         previous.SwapLineupSlots(previous.Lineup[1].PlayerId, previous.Lineup[4].PlayerId, defending: false, formations);
 
-        SeasonState next = SeasonState.NewSeason(3, 43, StageRows(), table);
+        SeasonState next = SeasonState.NewSeason(3, TestTierTotals.Of(3), 43, StageRows(), table);
         next.SetFormations(previous.AttackFormationId, previous.DefenseFormationId, formations, Table());   // SeasonSystem.StartNextSeason의 순서 그대로
         next.AdoptStarters(previous.Roster, previous.Lineup, table);
         Assert.AreEqual("4-3-3", next.AttackFormationId);
@@ -375,7 +375,7 @@ public class FormationRulesTests
         Assert.Throws<System.InvalidOperationException>(() => state.SetDefenseRole(cmSlot, "nope", roles));
 
         state.SetFormations("4-3-3", "4-4-2", Formations(), Table());
-        SeasonState back = SeasonState.FromSave(state.ToSave(), table);
+        SeasonState back = TestTierTotals.Load(state.ToSave(), table);
         Assert.AreEqual("4-3-3", back.AttackFormationId);
         Assert.AreEqual("pressing", back.Slots.DefenseRoleOf(cmSlot));
         Assert.AreEqual(state.Lineup[6].AttackX, back.Lineup[6].AttackX, 1e-4f);
@@ -395,7 +395,7 @@ public class FormationRulesTests
             old.lineup[i].defenseSlot = 0;
             old.lineup[i].defenseRole = null;
         }
-        SeasonState back = SeasonState.FromSave(old, table);
+        SeasonState back = TestTierTotals.Load(old, table);
         Assert.AreEqual("4-4-2", back.DefenseFormationId);
         Assert.AreEqual(7, back.Lineup[6].AttackSlot, "순서 i+1");
         Assert.AreEqual(DefenseRole.DefaultId, back.Slots.DefenseRoleOf(7));

@@ -71,7 +71,8 @@ public class SeasonSystem : ISaveLoad
         }
         try
         {
-            SeasonState state = SeasonState.FromSave(save, PlayerTableRepository.All);
+            SeasonState state = SeasonState.FromSave(save, PlayerTableRepository.All, TierRuleRepository.Get(save.tier).TotalPoints);
+            if (state.BuildsRescaledOnLoad) { Debug.LogWarning($"[Season] 세이브의 내 선수 빌드 합계가 {save.tier}부 총점 {state.BuildTotal}과 달라 비율로 다시 나눴다"); }
             if (string.IsNullOrEmpty(save.attackFormation))
             {
                 // 10-25 전 세이브: 자유 배치로 옮긴 좌표를 버리고 4-4-2 템플릿 슬롯 값으로 1회 바꾼다(10-27 ④, 스펙 §8). 슬롯 번호는 FromSave가 라인업 순서로 흡수했다

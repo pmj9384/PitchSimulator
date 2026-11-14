@@ -11,6 +11,6 @@ public static class SeasonFactory
     public static SeasonState NewSeason(int tier, int seasonSeed, string presetId)
     {
         IReadOnlyList<StageEntry> rows = StageCompositionRepository.RowsFor(DefaultRosterStage);
-        return SeasonState.NewSeason(tier, seasonSeed, rows, PlayerTableRepository.All, presetId);
+        return SeasonState.NewSeason(tier, TierRuleRepository.Get(tier).TotalPoints, seasonSeed, rows, PlayerTableRepository.All, presetId);   // (부, 총점) 짝은 여기와 SeasonSystem.Load 2곳에서만 만든다
     }
 }

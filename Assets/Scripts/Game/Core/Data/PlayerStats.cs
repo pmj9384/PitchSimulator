@@ -6,12 +6,12 @@ namespace Game.Core.Data
     // 역할 프리셋 1종(자리 × 변형)의 값 스키마. PlayerTable.csv 한 행과 1:1(스펙 §4: 빌드 9 + 지시 다이얼 11 + 표시).
     // 스키마의 주인은 이 클래스다: CSV 열을 늘리려면 여기부터 늘린다.
     // 09-17 확장: 자리(RoleId)마다 변형(VariantId)이 여러 개다(FM26·FC26·현실 용어 52종, 전술-기획.md 3-1).
-    // 변형은 다이얼만 다르고 빌드는 자리별로 같다. 총점 고정(TotalPoints)이 이 게임의 축이라 파서가 합계를 검증한다.
+    // 변형은 다이얼만 다르고 빌드는 자리별로 같다. 총점 고정이 이 게임의 축이라 파서가 표 합계(TableTotalPoints)를 검증한다.
     // GK 전용 3개(reflexes·handling·diving)도 같은 행에 있다(FM 방식). 필드 플레이어는 0을 둔다.
     // struct가 아니라 class인 이유: CsvHelper가 리플렉션으로 프로퍼티를 채운다.
     public class PlayerStats
     {
-        public const int TotalPoints = 300;   // 빌드 9개 합계. 부별 총점(스펙 §4-1)은 리그 로드 때 비율로 축소한다
+        public const int TableTotalPoints = 300;   // PlayerTable.csv 원본 행의 빌드 9개 합계. 경기에 서는 선수의 총점은 부 총점(TierRules)이고 BuildScaler가 이 값에서 비율로 맞춘다
 
         public string RoleId { get; set; } = string.Empty;      // 자리: GK·CB·FB·DM·CM·AM·W·ST
         public string VariantId { get; set; } = string.Empty;   // 변형: poacher·targetman·false9 …. 프리셋 키. 편성 CSV의 id가 이것을 가리킨다

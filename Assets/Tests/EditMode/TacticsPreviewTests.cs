@@ -29,7 +29,7 @@ public class TacticsPreviewTests
     // 새 시즌 기본 11명(4-4-2 슬롯 순서: 0 GK · 1~4 FB·CB·CB·FB · 5~8 W·CM·CM·W · 9~10 ST)
     private static IReadOnlyList<LineupSlot> Lineup()
     {
-        return SeasonState.NewSeason(4, 42, myRows, table).MyLineup(table, roles);
+        return SeasonState.NewSeason(4, TestTierTotals.Of(4), 42, myRows, table).MyLineup(table, roles);
     }
 
     [Test]

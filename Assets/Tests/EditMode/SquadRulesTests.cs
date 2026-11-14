@@ -72,7 +72,7 @@ public class SquadRulesTests
     [Test]
     public void 벤치는_7명까지고_차면_던진다()
     {
-        SeasonState state = SeasonState.NewSeason(4, 42, myRows, table);
+        SeasonState state = SeasonState.NewSeason(4, TestTierTotals.Of(4), 42, myRows, table);
         PlayerStats st = OpponentPlayer("ST");
         for (int i = 0; i < SquadRules.MaxBench; i++) { state.AddToBench(st, 1, portrait: 1); }
         Assert.AreEqual(SquadRules.MaxBench, state.BenchCount);
@@ -84,7 +84,7 @@ public class SquadRulesTests
     [Test]
     public void 방출은_벤치만_되고_선발은_던지며_코인은_별_곱_30이다()
     {
-        SeasonState state = SeasonState.NewSeason(4, 42, myRows, table);
+        SeasonState state = SeasonState.NewSeason(4, TestTierTotals.Of(4), 42, myRows, table);
         RosterPlayer added = state.AddToBench(OpponentPlayer("CB"), 4, portrait: 1);
         int starter = MyStarterOf(state, "CB");
 
@@ -100,7 +100,7 @@ public class SquadRulesTests
     [Test]
     public void 선발_교체는_같은_자리만_되고_자리_2쌍과_슬롯_설정은_슬롯에_남는다()
     {
-        SeasonState state = SeasonState.NewSeason(4, 42, myRows, table);
+        SeasonState state = SeasonState.NewSeason(4, TestTierTotals.Of(4), 42, myRows, table);
         RosterPlayer benchSt = state.AddToBench(OpponentPlayer("ST"), 1, portrait: 1);
         int starterSt = MyStarterOf(state, "ST");
         int starterGk = MyStarterOf(state, "GK");
@@ -128,16 +128,16 @@ public class SquadRulesTests
     [Test]
     public void 옛_세이브는_별이_없어_1이고_벤치가_비며_새_세이브는_벤치와_별이_왕복한다()
     {
-        SeasonState state = SeasonState.NewSeason(4, 42, myRows, table);
+        SeasonState state = SeasonState.NewSeason(4, TestTierTotals.Of(4), 42, myRows, table);
         SeasonSave old = state.ToSave();
         for (int i = 0; i < old.roster.Count; i++) { old.roster[i].stars = 0; }   // 10-19 전 세이브엔 이 필드가 없다
-        SeasonState fromOld = SeasonState.FromSave(old, table);
+        SeasonState fromOld = TestTierTotals.Load(old, table);
         Assert.AreEqual(0, fromOld.BenchCount);
         for (int i = 0; i < fromOld.Roster.Count; i++) { Assert.AreEqual(SquadRules.DefaultStars, fromOld.Roster[i].Stars); }
 
         state.AddToBench(OpponentPlayer("ST"), 3, portrait: 1);
         state.AddToBench(OpponentPlayer("CB"), 2, portrait: 1);
-        SeasonState back = SeasonState.FromSave(state.ToSave(), table);
+        SeasonState back = TestTierTotals.Load(state.ToSave(), table);
         Assert.AreEqual(2, back.BenchCount);
         Assert.AreEqual(13, back.Roster.Count);
         List<RosterPlayer> bench = back.Bench();
@@ -149,13 +149,13 @@ public class SquadRulesTests
     public void 선발_교체와_이월을_거쳐도_별은_남는다()
     {
         // 10-19 리뷰 🔴: RosterPlayer를 손으로 다시 만들던 4곳이 ★을 빠뜨려 1로 떨어졌다. 10-27부터 선수를 다시 만드는 경로는 이월(AdoptStarters·AdoptBench)뿐
-        SeasonState state = SeasonState.NewSeason(4, 42, myRows, table);
+        SeasonState state = SeasonState.NewSeason(4, TestTierTotals.Of(4), 42, myRows, table);
         RosterPlayer added = state.AddToBench(OpponentPlayer("ST"), 3, portrait: 1);
         int starterSt = MyStarterOf(state, "ST");
         state.SwapStarter(starterSt, added.PlayerId);
         Assert.AreEqual(3, state.FindRosterPlayer(added.PlayerId).Stars, "선발 교체 뒤");
 
-        SeasonState next = SeasonState.NewSeason(3, 43, myRows, table);
+        SeasonState next = SeasonState.NewSeason(3, TestTierTotals.Of(3), 43, myRows, table);
         next.AdoptStarters(state.Roster, state.Lineup, table);
         next.AdoptBench(state.Bench(), table);
         int slot = -1;
@@ -167,7 +167,7 @@ public class SquadRulesTests
     public void 스왑으로_선발이_된_영입_선수는_슬롯_기준으로_다음_시즌에_이월되고_내려간_선수는_벤치로만_간다()
     {
         // 10-19 리뷰 🔴: 이월이 선수 id 기준이라 선발에 선 영입 선수(id ≥ 11)가 사라지고 내려간 기본 선수가 선발과 벤치에 중복됐다
-        SeasonState previous = SeasonState.NewSeason(4, 42, myRows, table);
+        SeasonState previous = SeasonState.NewSeason(4, TestTierTotals.Of(4), 42, myRows, table);
         List<GeneratedTeam> upperTeams = TeamGenerator.Generate(42, tiers.Find(t => t.Tier == 3), table, formations, names);
         PlayerStats otherSt = null;
         foreach (GeneratedTeam team in upperTeams)
@@ -188,7 +188,7 @@ public class SquadRulesTests
         previous.SwapLineupSlots(recruit.PlayerId, otherSt2, defending: false, formations);   // 슬롯을 바꿔 둬야 이월이 번호를 옮기는지 잠긴다(10-27 리뷰 🟡)
         int attackSlot = previous.Lineup[slot].AttackSlot;
 
-        SeasonState next = SeasonState.NewSeason(3, 43, myRows, table);
+        SeasonState next = SeasonState.NewSeason(3, TestTierTotals.Of(3), 43, myRows, table);
         next.AdoptStarters(previous.Roster, previous.Lineup, table);
         next.AdoptBench(previous.Bench(), table);
 
@@ -204,11 +204,11 @@ public class SquadRulesTests
     [Test]
     public void 다음_시즌_벤치_이월은_상한을_넘기지_않고_라인업에_없는_자리는_두고_온다()
     {
-        SeasonState state = SeasonState.NewSeason(4, 42, myRows, table);
+        SeasonState state = SeasonState.NewSeason(4, TestTierTotals.Of(4), 42, myRows, table);
         PlayerStats st = OpponentPlayer("ST");
         for (int i = 0; i < SquadRules.MaxBench; i++) { state.AddToBench(st, 1, portrait: 1); }
 
-        SeasonState next = SeasonState.NewSeason(3, 43, myRows, table);
+        SeasonState next = SeasonState.NewSeason(3, TestTierTotals.Of(3), 43, myRows, table);
         next.AddToBench(st, 1, portrait: 1);   // 새 시즌에 이미 한 명 있다고 치면
         next.AdoptBench(state.Bench(), table);
         Assert.AreEqual(SquadRules.MaxBench, next.BenchCount, "상한에서 멈춘다");

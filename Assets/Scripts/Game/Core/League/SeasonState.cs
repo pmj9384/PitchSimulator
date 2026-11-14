@@ -99,6 +99,8 @@ namespace Game.Core.League
         public string DefenseFormationId { get; private set; } = DefaultFormationId;   // 수비 시 모양(FM26 Out of Possession). 따로 고른다
 
         public int Tier { get; }
+        public int BuildTotal { get; }   // 내 선수 전원의 빌드 합계 = 소속 부 총점(스펙 §4-1, TierRules.csv). 값은 SeasonFactory·SeasonSystem.Load가 넘긴다. 새로 만드는 3곳(새 시즌·영입·벤치 이월)은 MyBuild, 로드는 FromSave의 Scale, 선발 이월은 새 로스터 빌드 복사
+        public bool BuildsRescaledOnLoad { get; private set; }   // FromSave가 합계를 부 총점으로 다시 나눴나(옛 300 세이브 등). SeasonSystem.Load가 경고에 쓴다
         public int SeasonSeed { get; }
         public int GeneratorVersion { get; }
         public int RoundsPlayed { get; private set; }
@@ -122,13 +124,18 @@ namespace Game.Core.League
         private readonly List<LineupEntry> lineup;
         private SlotTactics slots;
 
-        public SeasonState(int tier, int seasonSeed, int generatorVersion, List<RosterPlayer> roster, List<LineupEntry> lineup,
+        public SeasonState(int tier, int buildTotal, int seasonSeed, int generatorVersion, List<RosterPlayer> roster, List<LineupEntry> lineup,
             List<MatchResult> results, int roundsPlayed, int scoutAttempts, string? myPresetId = null, TeamTactics? myCustomTactics = null, SlotTactics? slots = null)
         {
+            for (int i = 0; i < roster.Count; i++)
+            {
+                if (roster[i].Stats.BuildTotal != buildTotal) { throw new InvalidOperationException($"[SeasonState] 선수 {roster[i].PlayerId} 빌드 합계 {roster[i].Stats.BuildTotal} ≠ 부 총점 {buildTotal}"); }
+            }
             MyPresetId = string.IsNullOrEmpty(myPresetId) ? DefaultPresetId : myPresetId!;
             if (myCustomTactics != null) { TacticsEditing.Validate(myCustomTactics); }
             MyCustomTactics = myCustomTactics;
             Tier = tier;
+            BuildTotal = buildTotal;
             SeasonSeed = seasonSeed;
             GeneratorVersion = generatorVersion;
             this.roster = roster;
@@ -142,7 +149,8 @@ namespace Game.Core.League
 
         // 새 시즌: 내 로스터 11명은 편성 행(StageComposition의 player 쪽)에서 기본 변형으로 만든다. 선수 id는 0부터.
         // 행 → 자리 펼치기는 MatchAssembler.ToLineup 하나만 쓴다(09-27 리뷰 X2: StageManager와 여기가 각자 펼치던 것)
-        public static SeasonState NewSeason(int tier, int seasonSeed, IReadOnlyList<StageEntry> myRows, IReadOnlyList<PlayerStats> table, string? presetId = null)
+        // totalPoints = 그 부의 총점(TierRule.TotalPoints). 기본값을 두지 않는다: 300을 기본으로 두면 "내 팀만 300" 버그가 조용히 되살아난다(11-12 설계 D3)
+        public static SeasonState NewSeason(int tier, int totalPoints, int seasonSeed, IReadOnlyList<StageEntry> myRows, IReadOnlyList<PlayerStats> table, string? presetId = null)
         {
             IReadOnlyList<LineupSlot> slots = MatchAssembler.ToLineup(table, myRows, MyTeamId);
             var roster = new List<RosterPlayer>(slots.Count);
@@ -150,10 +158,16 @@ namespace Game.Core.League
             for (int i = 0; i < slots.Count; i++)
             {
                 LineupSlot s = slots[i];
-                roster.Add(new RosterPlayer(i, s.Stats));
+                roster.Add(new RosterPlayer(i, MyBuild(s.Stats, totalPoints)));   // 같은 변형이면 상대(TeamGenerator)와 입력·함수가 같아 같은 부 양 팀 빌드가 같다
                 lineup.Add(new LineupEntry(i, i + 1, i + 1, s.AttackX, s.AttackZ, s.DefendX, s.DefendZ));   // 편성 행 순서 = 4-4-2 슬롯 순서
             }
-            return new SeasonState(tier, seasonSeed, TeamGenerator.Version, roster, lineup, new List<MatchResult>(), 0, 0, presetId);
+            return new SeasonState(tier, totalPoints, seasonSeed, TeamGenerator.Version, roster, lineup, new List<MatchResult>(), 0, 0, presetId);
+        }
+
+        // 내 선수 빌드 = 표·상대 선수의 복사본을 부 총점으로 비율 조정(스펙 §4-1·§4-5). 복사부터 하는 이유: Scale은 합계가 같으면 원본을 그대로 돌려줘 표 객체를 공유하게 된다
+        private static PlayerStats MyBuild(PlayerStats source, int totalPoints)
+        {
+            return BuildScaler.Scale(BuildScaler.Copy(source), totalPoints);
         }
 
         public bool MatchesGenerator => GeneratorVersion == TeamGenerator.Version;
@@ -381,15 +395,13 @@ namespace Game.Core.League
             return false;
         }
 
-        // 영입 = 벤치에 추가. 대상의 자연 변형(역할 다이얼)을 가져오고 빌드는 내 총점(300)으로 재분배한다(강화 아님). 벤치가 차 있으면 던진다(화면이 먼저 막는다)
+        // 영입 = 벤치에 추가. 대상의 자연 변형(역할 다이얼)을 가져오고 빌드는 내 부 총점(BuildTotal)으로 비율 조정한다(강화 아님). 벤치가 차 있으면 던진다(화면이 먼저 막는다)
         // portrait = 후보 때 보여 준 얼굴(PortraitRules.Of(팀, 번호)). 새 playerId로 다시 정하면 영입 순간 얼굴이 바뀐다
         public RosterPlayer AddToBench(PlayerStats scouted, int stars, int portrait)
         {
             if (!SquadRules.BenchHasRoom(BenchCount)) { throw new InvalidOperationException($"[SeasonState] 벤치가 찼다({BenchCount}/{SquadRules.MaxBench}). 먼저 방출한다"); }
             if (!FitsLineupRole(scouted)) { throw new InvalidOperationException($"[SeasonState] {scouted.RoleId} 자리가 내 라인업에 없다"); }
-            PlayerStats incoming = BuildScaler.Copy(scouted);
-            incoming = BuildScaler.Scale(incoming, PlayerStats.TotalPoints);
-            var player = new RosterPlayer(NextPlayerId(), incoming, stars, portrait);
+            var player = new RosterPlayer(NextPlayerId(), MyBuild(scouted, BuildTotal), stars, portrait);
             roster.Add(player);
             return player;
         }
@@ -416,7 +428,7 @@ namespace Game.Core.League
             lineup[slot] = lineup[slot].WithPlayer(benchId);
         }
 
-        // 다음 시즌: 벤치 선수를 역할·★만 들고 넘어온다. 빌드는 그 역할의 기본값(선발 이월 규칙과 같다, 스펙 §4-5 [가정] ④). 역할이 표에서 사라졌으면 그 선수는 두고 온다
+        // 다음 시즌: 벤치 선수를 역할·★만 들고 넘어온다. 빌드는 그 역할의 기본값을 새 부 총점으로(선발 이월 규칙과 같다, 스펙 §4-5 [가정] ④). 역할이 표에서 사라졌으면 그 선수는 두고 온다
         public void AdoptBench(IReadOnlyList<RosterPlayer> previousBench, IReadOnlyList<PlayerStats> table)
         {
             for (int i = 0; i < previousBench.Count; i++)
@@ -425,7 +437,7 @@ namespace Game.Core.League
                 if (variant == null) { continue; }
                 if (!SquadRules.BenchHasRoom(BenchCount)) { return; }
                 if (!FitsLineupRole(variant)) { continue; }
-                roster.Add(new RosterPlayer(NextPlayerId(), BuildScaler.Copy(variant), previousBench[i].Stars, previousBench[i].Portrait));
+                roster.Add(new RosterPlayer(NextPlayerId(), MyBuild(variant, BuildTotal), previousBench[i].Stars, previousBench[i].Portrait));
             }
         }
 
@@ -677,11 +689,13 @@ namespace Game.Core.League
             return save;
         }
 
-        public static SeasonState FromSave(SeasonSave save, IReadOnlyList<PlayerStats> table)
+        // totalPoints = save.tier의 부 총점. 세이브에 총점을 따로 두지 않는다(SSOT = TierRules.csv)
+        public static SeasonState FromSave(SeasonSave save, IReadOnlyList<PlayerStats> table, int totalPoints)
         {
             if (save.lineup.Count != FormationTemplate.SlotCount) { throw new InvalidOperationException($"[SeasonState] 라인업은 {FormationTemplate.SlotCount}명이어야 한다({save.lineup.Count})"); }
             var roster = new List<RosterPlayer>(save.roster.Count);
             var ids = new HashSet<int>();
+            bool rescaled = false;
             for (int i = 0; i < save.roster.Count; i++)
             {
                 SeasonSave.Player p = save.roster[i];
@@ -699,7 +713,12 @@ namespace Game.Core.League
                 copy.Reflexes = p.build[6];
                 copy.Handling = p.build[7];
                 copy.Diving = p.build[8];
-                if (copy.BuildTotal != PlayerStats.TotalPoints) { throw new InvalidOperationException($"[SeasonState] 선수 {p.playerId} 빌드 합계가 {PlayerStats.TotalPoints}가 아니다({copy.BuildTotal}). 내 선수는 총점 고정(스펙 축: 강화 없음)"); }
+                if (copy.BuildTotal != totalPoints)
+                {
+                    // 옛 세이브(11-12 전 내 팀 300)·TierRules 총점 조정·조작된 값: 거부하지 않고 비율로 다시 나눈다. 강화는 안 된다(합계는 부 총점으로 고정, 11-12 설계 D2)
+                    copy = BuildScaler.Scale(copy, totalPoints);
+                    rescaled = true;
+                }
                 int stars = p.stars == 0 ? SquadRules.DefaultStars : p.stars;   // 옛 세이브(10-19 전)엔 없어 0 = 기본 로스터
                 roster.Add(new RosterPlayer(p.playerId, copy, stars, p.portrait));   // ★·초상 범위는 생성자가 검증한다. 초상 0(10-21 전)은 playerId로
             }
@@ -720,7 +739,8 @@ namespace Game.Core.League
                 results.Add(new MatchResult(r.home, r.away, r.homeGoals, r.awayGoals));
             }
             TeamTactics? custom = save.myTactics == null ? null : save.myTactics.ToTactics(save.myPresetId ?? DefaultPresetId);   // 범위는 생성자가 검증한다
-            var state = new SeasonState(save.tier, save.seasonSeed, save.generatorVersion, roster, lineup, results, save.roundsPlayed, save.scoutAttempts, save.myPresetId, custom);
+            var state = new SeasonState(save.tier, totalPoints, save.seasonSeed, save.generatorVersion, roster, lineup, results, save.roundsPlayed, save.scoutAttempts, save.myPresetId, custom);
+            state.BuildsRescaledOnLoad = rescaled;
             state.ScoutExtraAttempts = save.scoutExtra;
             state.AttackFormationId = string.IsNullOrEmpty(save.attackFormation) ? DefaultFormationId : save.attackFormation!;     // 옛 세이브(10-25 전)엔 없어 4-4-2
             state.DefenseFormationId = string.IsNullOrEmpty(save.defenseFormation) ? DefaultFormationId : save.defenseFormation!;

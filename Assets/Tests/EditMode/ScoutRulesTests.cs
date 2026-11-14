@@ -6,7 +6,7 @@ using Game.Core.Tactics;
 using NUnit.Framework;
 
 // 스카우트(스펙 §4-5, 10-12 구현 설계). ①별: 4부 전원 ★1 / 기본 아닌 변형 ★2~3 / 자리 2쌍 ★3 / 재분배 ★4 / 겹침 +1 / 상위 부 +1, 상한 5
-// ②확률 경계·보정 ③주사위 결정성 ④상대해 봤는지·코인 수입 ⑤시도 소모·추가(성공 비트는 10-19 추가, 후보 선정은 ScoutPoolTests) ⑥영입 교체(총점 300·같은 자리·지시 초기화) ⑦세이브 왕복·옛 세이브 ⑧★2/★3 다이얼 거리 경계
+// ②확률 경계·보정 ③주사위 결정성 ④상대해 봤는지·코인 수입 ⑤시도 소모·추가(성공 비트는 10-19 추가, 후보 선정은 ScoutPoolTests) ⑥영입 교체(내 부 총점·같은 자리·지시 초기화) ⑦세이브 왕복·옛 세이브 ⑧★2/★3 다이얼 거리 경계
 public class ScoutRulesTests
 {
     private static List<PlayerStats> table;
@@ -188,7 +188,7 @@ public class ScoutRulesTests
     [Test]
     public void 시도는_시즌당_2회에_코인_추가분이_더해지고_다_쓰면_던진다()
     {
-        SeasonState state = SeasonState.NewSeason(4, 42, myRows, table);
+        SeasonState state = SeasonState.NewSeason(4, TestTierTotals.Of(4), 42, myRows, table);
         Assert.AreEqual(ScoutRules.AttemptsPerSeason, state.RemainingScoutAttempts);
         state.SpendScoutAttempt(1, 3, false);
         state.SpendScoutAttempt(1, 3, false);
@@ -201,10 +201,10 @@ public class ScoutRulesTests
     }
 
     [Test]
-    public void 영입은_벤치에_추가하고_총점은_300으로_재분배하며_별을_적고_선발은_그대로다()
+    public void 영입은_벤치에_추가하고_총점은_내_부_총점으로_맞추며_별을_적고_선발은_그대로다()
     {
         // 10-19 스쿼드: 교체가 아니라 추가(스펙 §4-5 「10-19 스쿼드」)
-        SeasonState state = SeasonState.NewSeason(4, 42, myRows, table);
+        SeasonState state = SeasonState.NewSeason(4, TestTierTotals.Of(4), 42, myRows, table);
         List<GeneratedTeam> opponents = TeamGenerator.Generate(42, Tier(4), table, formations, names);
         GeneratedTeam team = opponents[0];
         int stIndex = -1;
@@ -218,7 +218,10 @@ public class ScoutRulesTests
         Assert.AreEqual(1, state.BenchCount);
         Assert.IsFalse(state.IsStarter(added.PlayerId), "벤치로 들어간다");
         Assert.AreEqual(target.VariantId, added.Stats.VariantId, "역할(변형)을 가져온다");
-        Assert.AreEqual(300, added.Stats.BuildTotal, "빌드는 내 총점으로");
+        Assert.AreEqual(TestTierTotals.Of(4), added.Stats.BuildTotal, "빌드는 내 부 총점으로(11-12 설계: 내 팀도 부 총점)");
+        Assert.AreEqual(new[] { target.Speed, target.Stamina, target.Pass, target.Shot, target.Tackle, target.Positioning, target.Reflexes, target.Handling, target.Diving },
+            new[] { added.Stats.Speed, added.Stats.Stamina, added.Stats.Pass, added.Stats.Shot, added.Stats.Tackle, added.Stats.Positioning, added.Stats.Reflexes, added.Stats.Handling, added.Stats.Diving },
+            "같은 부 선수는 합계가 같아 9칸 값이 그대로다");
         Assert.AreEqual(3, added.Stars, "판정 때의 ★을 적는다");
         Assert.AreEqual(260, target.BuildTotal, "상대 선수 객체는 안 바뀐다");
         Assert.AreEqual(11, state.Lineup.Count, "선발 11은 그대로");
@@ -231,20 +234,20 @@ public class ScoutRulesTests
     public void 영입한_선수는_세이브로_왕복하고_다음_시즌엔_역할과_별만_남고_빌드는_기본으로_돌아간다()
     {
         // 10-13 재검증 F2: 교체 결과만 잠겨 있고 세이브·이월 경로는 비어 있었다. 이월 규칙은 스펙 §4-5 [가정] ④. 10-19부터 벤치 선수가 대상
-        SeasonState state = SeasonState.NewSeason(4, 42, myRows, table);
+        SeasonState state = SeasonState.NewSeason(4, TestTierTotals.Of(4), 42, myRows, table);
         string myVariant = state.FindRosterPlayer(MyPlayerIdOf(state, "ST")).Stats.VariantId;
         PlayerStats target = FirstStrikerWithOtherVariant(TeamGenerator.Generate(42, Tier(3), table, formations, names), myVariant);   // 4부는 전원 기본 변형이라 같은 변형이 나와 단언이 공허해진다(10-13 리뷰). 3부에서 다른 변형을 고른다
         RosterPlayer added = state.AddToBench(target, 2, portrait: 1);
 
-        SeasonState back = SeasonState.FromSave(state.ToSave(), table);
+        SeasonState back = TestTierTotals.Load(state.ToSave(), table);
         RosterPlayer loaded = back.FindRosterPlayer(added.PlayerId);
         Assert.AreEqual(added.Stats.VariantId, loaded.Stats.VariantId);
-        Assert.AreEqual(300, loaded.Stats.BuildTotal, "FromSave의 총점 검사를 통과한다");
+        Assert.AreEqual(TestTierTotals.Of(4), loaded.Stats.BuildTotal, "세이브 왕복 뒤에도 내 부 총점");
         Assert.AreEqual(added.Stats.Speed, loaded.Stats.Speed);
         Assert.AreEqual(2, loaded.Stars, "★도 왕복한다");
         Assert.AreEqual(1, back.BenchCount);
 
-        SeasonState next = SeasonState.NewSeason(3, 43, myRows, table);
+        SeasonState next = SeasonState.NewSeason(3, TestTierTotals.Of(3), 43, myRows, table);
         next.AdoptStarters(back.Roster, back.Lineup, table);
         next.AdoptBench(back.Bench(), table);
         Assert.AreEqual(1, next.BenchCount, "벤치도 넘어온다");
@@ -252,16 +255,16 @@ public class ScoutRulesTests
         PlayerStats defaultVariant = PlayerTableLookup.FindVariant(table, added.Stats.VariantId);
         Assert.AreEqual(added.Stats.VariantId, carried.Stats.VariantId, "역할(변형)은 이어 간다");
         Assert.AreEqual(2, carried.Stars, "★도 이어 간다");
-        Assert.AreEqual(defaultVariant.Speed, carried.Stats.Speed, "빌드는 그 역할의 기본값");
+        Assert.AreEqual(BuildScaler.Scale(defaultVariant, TestTierTotals.Of(3)).Speed, carried.Stats.Speed, "빌드는 그 역할의 기본값을 새 부 총점으로");
     }
 
     [Test]
     public void 스카우트_상태는_세이브로_왕복하고_옛_세이브는_시도_0이다()
     {
-        SeasonState state = SeasonState.NewSeason(4, 42, myRows, table);
+        SeasonState state = SeasonState.NewSeason(4, TestTierTotals.Of(4), 42, myRows, table);
         state.SpendScoutAttempt(2, 5, false);
         state.AddExtraScoutAttempt();
-        SeasonState back = SeasonState.FromSave(state.ToSave(), table);
+        SeasonState back = TestTierTotals.Load(state.ToSave(), table);
         Assert.AreEqual(1, back.ScoutAttempts);
         Assert.AreEqual(1, back.ScoutExtraAttempts);
         Assert.AreEqual(1, back.ScoutRetriesOn(2, 5));
@@ -270,7 +273,7 @@ public class ScoutRulesTests
         SeasonSave old = state.ToSave();
         old.scoutTargets = null;
         old.scoutExtra = 0;
-        SeasonState fromOld = SeasonState.FromSave(old, table);
+        SeasonState fromOld = TestTierTotals.Load(old, table);
         Assert.AreEqual(0, fromOld.ScoutRetriesOn(2, 5));
         Assert.AreEqual(ScoutRules.AttemptsPerSeason - 1, fromOld.RemainingScoutAttempts, "scoutAttempts는 09-26부터 있던 필드라 그대로");
     }
