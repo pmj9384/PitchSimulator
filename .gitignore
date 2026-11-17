@@ -51,3 +51,5 @@ ProjectSettings/AndroidResolverDependencies.xml
 # 빌드 산출물(BuildScript OutputDir)과 Unity CLI 임시 폴더
 Builds/
 .utmp/
+/Assets/_Probe/
+/Assets/_Probe.meta
