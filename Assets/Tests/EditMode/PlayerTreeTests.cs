@@ -37,6 +37,7 @@ public class PlayerTreeTests
         public float MarkX { get; set; }
         public float MarkZ { get; set; }
         public bool IsKickoffTaker { get; set; }
+        public bool IsThrowInTaker { get; set; }
         public bool WantsTakeOn { get; set; }
         public bool ShotReady { get; set; } = true;
         public bool IsKeeperAlternate { get; set; }
@@ -535,6 +536,67 @@ public class PlayerTreeTests
         Assert.AreEqual("pass", kicker.Did);
         Assert.AreEqual(7, kicker.PassedTo, "앞선 10번(5m)이 더 가까워도 뒤의 7번(10m)");
         Assert.IsFalse(kicker.Lob, "킥오프는 땅볼만");
+    }
+
+    [Test]
+    public void 스로인_선수는_앞이_비어_운반_값이_커도_몰지_않고_던진다()
+    {
+        // 11-17 v1 스로인: 손에 든 공이라 운반·드리블이 없다. 같은 자리에서 표시가 없으면 운반한다(위 운반 테스트와 같은 배치)
+        var st = new Fake { PlayerId = 0, OwnsBall = true, BallPhase = BallPhase.Owned, BallOwnerTeam = 0, X = 20f, Z = 5f, BallThird = Third.Opponent, Threat = SlopeGrid(),
+            Teammates = new List<TargetInfo> { new TargetInfo(1, 30f, -8f) },
+            Opponents = new List<TargetInfo> { new TargetInfo(11, 32f, 20f) } };
+        st.Stats.RoleId = "ST"; st.Stats.ShotBias = 0f;
+        Tree.Tick(st);
+        Assert.AreEqual("move", st.Did, "전제: 표시가 없으면 운반");
+
+        st.IsThrowInTaker = true;
+        st.Did = "";
+        Tree.Tick(st);
+        Assert.AreEqual("pass", st.Did);
+        Assert.AreEqual(1, st.PassedTo);
+    }
+
+    [Test]
+    public void 스로인을_직접_받는_선수는_오프사이드_위치여도_후보다()
+    {
+        // IFAB 11.3. 앞으로 갈수록 오르는 격자라 9번(20m, 오프사이드 위치: 선 = 상대 2번째 15)이 7번(온사이드, 7m)보다 값이 크다.
+        // 면제가 없으면 9번이 빠져 7번에게 간다(후보가 남아 있어 폴백과 갈린다)
+        var thrower = new Fake { PlayerId = 4, OwnsBall = true, BallPhase = BallPhase.Owned, BallOwnerTeam = 0, X = 0f, Z = 33f, Threat = SlopeGrid(), IsThrowInTaker = true,
+            Teammates = new List<TargetInfo> { new TargetInfo(9, 20f, 33f), new TargetInfo(7, 5f, 28f) },
+            Opponents = new List<TargetInfo> { new TargetInfo(15, 15f, 15f), new TargetInfo(16, 50f, 0f) } };
+        Tree.Tick(thrower);
+        Assert.AreEqual("pass", thrower.Did);
+        Assert.AreEqual(9, thrower.PassedTo);
+
+        float line = OffsideRules.OnsideLine(thrower.Opponents, +1, thrower.X);
+        Assert.IsTrue(OffsideRules.IsOffsidePosition(20f, +1, line), "전제: 9번은 오프사이드 위치");
+        Assert.IsFalse(OffsideRules.IsOffsidePosition(5f, +1, line), "전제: 7번은 온사이드");
+    }
+
+    [Test]
+    public void 스로인은_값이_더_큰_동료가_있어도_25m_밖이면_던지지_않는다()
+    {
+        // 9번(30m)이 앞이라 값이 크고, 7번(10m)은 작다. 상대가 2명 미만이라 오프사이드 선이 없다
+        var thrower = new Fake { PlayerId = 4, OwnsBall = true, BallPhase = BallPhase.Owned, BallOwnerTeam = 0, X = 0f, Z = 33f, Threat = SlopeGrid(), IsThrowInTaker = true,
+            Teammates = new List<TargetInfo> { new TargetInfo(9, 30f, 33f), new TargetInfo(7, 10f, 33f) } };
+        Tree.Tick(thrower);
+        Assert.AreEqual("pass", thrower.Did);
+        Assert.AreEqual(7, thrower.PassedTo);
+
+        thrower.Teammates = new List<TargetInfo> { new TargetInfo(9, 24f, 33f), new TargetInfo(7, 10f, 33f) };
+        thrower.Did = "";
+        Tree.Tick(thrower);
+        Assert.AreEqual(9, thrower.PassedTo, "전제: 상한 안이면 앞의 9번이 값이 커서 뽑힌다");
+    }
+
+    [Test]
+    public void 스로인_후보가_25m_안에_없으면_가장_가까운_동료에게_던진다()
+    {
+        var thrower = new Fake { PlayerId = 4, OwnsBall = true, BallPhase = BallPhase.Owned, BallOwnerTeam = 0, X = 0f, Z = 33f, Threat = TestThreat.Flat(), IsThrowInTaker = true,
+            Teammates = new List<TargetInfo> { new TargetInfo(9, 40f, 0f), new TargetInfo(7, -28f, 30f) } };
+        Tree.Tick(thrower);
+        Assert.AreEqual("pass", thrower.Did);
+        Assert.AreEqual(7, thrower.PassedTo);
     }
 
     [Test]

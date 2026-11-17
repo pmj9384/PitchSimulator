@@ -16,7 +16,9 @@ namespace Game.Core.Match
         public const float CatchHandlingScale = 0.2f; // handling 0→100이 캐치 확률을 ±0.2 움직인다(0.3~0.7)
         public const float ParrySpeed = 4.4f;         // 튕겨 나가는 공의 초속. 약 8m 가서 멈춤(√(2·1.2·8)). 감속 4 때 8m/s와 같은 거리(10-25)
         public const float GoalKickOffset = 5.5f;     // 골킥 자리 = 골라인에서 5.5m(골 에어리어 앞)
-        public const float ThrowInInset = 1f;         // 스로인 자리 = 터치라인 안쪽 1m
+        public const float ThrowInInset = 1f;         // 스로인 자리 = 터치라인(코너 근처는 골라인도) 안쪽 1m
+        public const float ThrowInOpponentDistance = 2f;   // 스로인 때 상대가 던지는 자리에서 떨어지는 거리(IFAB 15조)
+        public const float ThrowInMaxPassDistance = 25f;   // 스로인 패스 후보 거리 상한(11-17 설계 정할 것 2). 실제 롱스로는 30m대 [가정]
         public const float MaxShotRange = 30f;        // 골 중심에서 이 밖은 슛 확률 0. xG 다항식이 학습 범위 밖(원거리)에서 역주행해서 막는다. 40 → 30(11-08 S3 1단계): StatsBomb PL 15/16 슛의 90%가 26.8m 안, 30m 밖 3.6%, HELIOS도 30m 컷
         public const float MarkZoneRadius = 40f;      // 리시버 마크 발동 구역(MarkRules). 옛 MaxShotRange 40을 같이 읽다가 11-08 사거리를 30으로 줄이며 갈랐다. 마크 구역을 같이 줄이면 D1 행동이 바뀌어 원인이 섞인다
         public const float StatLogitScale = 1f;       // 능력치 보정 폭: 스탯 0↔100이 로짓을 ±1 움직인다(오즈 약 2.7배)
@@ -139,6 +141,7 @@ namespace Game.Core.Match
         public const float NearMissKeeperClearance = 0.3f; // 근소 빗나감에 GK가 서는 곳 = 공 선에서 발 반경 + 이 여유만큼 골 안쪽. 몸을 던졌는데 공이 몸을 통과하는 장면을 막는다(11-10) [가정]
         public const int KeeperReactionTicks = 10;       // GK가 슛에 반응해 라인 교차점으로 움직이기 시작하는 지연(0.2초). [가정] 사람 단순 반응 시간 0.2~0.25초. 골로 정해진 슛엔 ×2(못 막을 슛을 "늦게 반응한" 모양으로)
         public const float GoalKickSetupSeconds = 4f;          // 골킥(11-05 유저 Play "골킥 때 수비랑 공을 주고받는다"): GK가 공을 들고 기다리는 시간. 그동안 양 팀이 트리로 자기 자리로 가고 상대는 박스 밖에 머문다(IFAB 16조). [가정] 출처 없는 출발값. 3분 압축이면 경기 시간 2분이라 Play로 본다
+        public const float ThrowInSetupSeconds = 2f;           // 스로인 선수가 공을 잡고 던지기까지 들고 있는 시간(11-17 설계 정할 것 3). 골킥 4초보다 짧게. 실제 소요 시간은 미조사 [가정]
         public const float KeeperHoldAfterCatchSeconds = 2f;   // GK가 슛을 잡은 뒤 배급까지 들고 있는 시간. FIFA 규칙은 6초 안(Law 12). 바로 차면 "잡자마자 패스"가 어색했다(10-25 유저 Play) [가정 2초]
         public const float FormationTransitionWarnMeters = 15f;   // 선수의 공격 자리·수비 자리 거리가 이보다 멀면 전술판이 경고(FM26 "둘 나란히" 경고처럼 막지 않음). 4-4-2 공수 차이 5m, 4-4-2↔4-3-3 대응 최대 15m쯤 [가정]
         // 유효 슛 골 확률(11-09 묶음 B3, MatchRules.GoalOnTargetProbability). 옛 "xG + 확정 보정 0.8 로짓"(10-23 임시 레버 ShotResolveLogitBonus)과 노골·못 닿음의 포스트 밖 밀기(ShotWideMargin)를 대체했다.
