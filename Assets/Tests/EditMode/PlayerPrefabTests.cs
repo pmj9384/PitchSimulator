@@ -126,9 +126,16 @@ public class PlayerPrefabTests
     [Test]
     public void 경기_씬_선수_머티리얼_원본이_초상_렌더러와_같다()
     {
+        // 경로의 에셋이 없으면 GUID가 빈 문자열이 되어 아래 Contains가 어떤 GUID에도 참이 된다(11-17 재검증). 먼저 에셋이 있는지 잠근다.
+        // 기본 옵션은 방금 지운 에셋의 GUID도 돌려주므로 OnlyExistingAssets로 묻는다
+        string lookGuid = AssetDatabase.AssetPathToGUID(PortraitLookTemplate, AssetPathToGUIDOptions.OnlyExistingAssets);
+        string skinGuid = AssetDatabase.AssetPathToGUID(PortraitSkinTemplate, AssetPathToGUIDOptions.OnlyExistingAssets);
+        Assert.IsNotEmpty(lookGuid, $"{PortraitLookTemplate}가 없다. 옮겼으면 PortraitRenderer.LookTemplatePath와 이 상수를 같이 고친다");
+        Assert.IsNotEmpty(skinGuid, $"{PortraitSkinTemplate}가 없다. 옮겼으면 PortraitRenderer.SkinTemplatePath와 이 상수를 같이 고친다");
+
         string scene = System.IO.File.ReadAllText(InGameScenePath);
-        Assert.IsTrue(scene.Contains($"lookTemplate: {{fileID: 2100000, guid: {AssetDatabase.AssetPathToGUID(PortraitLookTemplate)}"), "lookTemplate = PlayerHome.mat(PortraitRenderer.LookTemplatePath)");
-        Assert.IsTrue(scene.Contains($"skinTemplate: {{fileID: 2100000, guid: {AssetDatabase.AssetPathToGUID(PortraitSkinTemplate)}"), "skinTemplate = M_UBC_Skin.mat(PortraitRenderer.SkinTemplatePath)");
+        Assert.IsTrue(scene.Contains($"lookTemplate: {{fileID: 2100000, guid: {lookGuid}"), "lookTemplate = PlayerHome.mat(PortraitRenderer.LookTemplatePath)");
+        Assert.IsTrue(scene.Contains($"skinTemplate: {{fileID: 2100000, guid: {skinGuid}"), "skinTemplate = M_UBC_Skin.mat(PortraitRenderer.SkinTemplatePath)");
     }
 
     // 체형 메시 3종(PortraitRules.BodyOf 순서)이 몸 렌더러와 같은 뼈 수·서브메시 수다. 다르면 갈아 끼울 때 몸이 찢어진다
