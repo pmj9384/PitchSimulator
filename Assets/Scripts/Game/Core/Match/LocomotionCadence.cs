@@ -7,7 +7,7 @@ namespace Game.Core.Match
     // 11-14부터 조깅·전력 차이는 블렌드 트리의 클립이 내고, 이 배율은 전력 클립 기준 속도를 넘을 때만 다리 주기를 속도에 비례시킨다.
     // 순수 계산이라 Game.Core에 두고 EditMode로 잠근다(10-29 리뷰). 상태 없음.
     // 11-14 모델 교체 2단계(결정 B11): 클립이 UAL 걷기·조깅·전력 3개가 되어 기준 속도를 클립의 자연 속도로 바꿨다.
-    // 값 = 루트 모션판(UAL1_Standard_RM.fbx, 루트 회전 Body Orientation·XZ Center of Mass) 클립의 AnimationClip.averageSpeed 앞 방향 성분. 옆 성분 0.07 이하·위 성분 0 [측정]. 축 변환 굽기(Bake Axis Conversion)는 UBC·UAL 둘 다 끈다(0단계와 같음. 켜면 몸이 누웠다)
+    // 값 = 루트 모션판(UAL1_Standard_RM.fbx, 루트 회전 Body Orientation·XZ Center of Mass) 클립의 AnimationClip.averageSpeed 앞 방향 성분. 옆 성분 0.07 이하·위 성분 0 [측정]. 다시 재는 메뉴 = Tools/Pitch/이동 클립 기준 속도 재기(LocomotionSpeedProbe). 축 변환 굽기(Bake Axis Conversion)는 UBC·UAL 둘 다 끈다(0단계와 같음. 켜면 몸이 누웠다)
     public static class LocomotionCadence
     {
         public const float WalkAnimSpeed = 0.95f;    // 걷기 클립(Walk_Loop)이 100%인 속도(m/s). 측정 0.955

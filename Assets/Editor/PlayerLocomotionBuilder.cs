@@ -15,9 +15,9 @@ public static class PlayerLocomotionBuilder
     public const string ClipModelPath = "Assets/Models/UAL/UAL1_Standard.fbx";
     public const string IdleClipName = "Armature|Idle_Loop";
     private const string ControllerPath = "Assets/Animations/PlayerAnimator.controller";
-    private const string WalkClipName = "Armature|Walk_Loop";
-    private const string JogClipName = "Armature|Jog_Fwd_Loop";
-    private const string SprintClipName = "Armature|Sprint_Loop";
+    public const string WalkClipName = "Armature|Walk_Loop";
+    public const string JogClipName = "Armature|Jog_Fwd_Loop";
+    public const string SprintClipName = "Armature|Sprint_Loop";
     private static readonly string[] OldStates = { "Idle", "Walk", "Run" };
 
     [MenuItem("Tools/Animation/Build Player Locomotion")]
