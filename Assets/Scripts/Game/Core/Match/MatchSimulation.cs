@@ -181,6 +181,18 @@ namespace Game.Core.Match
         private const int NoEngagerSince = -100000;
         private readonly int[] engagerSince = { NoEngagerSince, NoEngagerSince };
         private int kickoffTakerId = BallState.NoOwner;   // 킥오프 공을 쥔 키커. 첫 킥이나 소유 변경 때 푼다. 스냅샷 IsKickoffTaker로 트리에 준다
+        // 마지막에 공에 닿은 팀(11-17 스로인). 킥·잡기·태클·블록·세이브 때 갱신하고 킥오프 때 지운다. 스로인 재개 팀(RestartRules)이 읽고 코너킥(v1 기능 2)도 읽는다.
+        // lastKickerId는 찬 선수 재잡기 가드라 잡히면 지워져서 이 용도로 못 쓴다
+        private int lastTouchTeam = RestartRules.NoTeam;
+        internal int LastTouchTeam => lastTouchTeam;   // 테스트: 블록·세이브 뒤 마지막 터치 팀
+        internal int ThrowInTeam => throwInTeam;       // 테스트: 재개 상태가 끝났는지
+        // 스로인 재개(11-17, IFAB 15조). 재개 팀 선수가 잡아 던질 때까지 그 팀만 공을 잡고, 상대는 던지는 자리 ThrowInOpponentDistance 밖에 둔다
+        private int throwInTeam = RestartRules.NoTeam;
+        private float throwInX;
+        private float throwInZ;
+        private int throwInTakerId = BallState.NoOwner;   // 스로인 공을 잡은 선수. 던지기 전까지 스냅샷 IsThrowInTaker로 트리에 준다
+        private bool throwInJustTaken;                    // 방금 스로인 공을 잡았다 → 그 소유의 볼 끌기 대기는 ThrowInSetupSeconds
+        private int throwerGuardId = BallState.NoOwner;   // 던진 선수. 다른 선수가 공을 잡기 전엔 다시 못 잡는다(IFAB 15조). lastKickerId는 반경을 벗어나면 풀려서 따로 둔다
         // 드리블 돌파 의도: 공을 잡을 때 드리블 성향으로 한 번 굴린다. 트리가 틱마다 굴리면 같은 소유 안에서 돌파·패스가 번갈아 흔들린다
         private int takeOnOwnerId = BallState.NoOwner;
         private int takeOnTicksLeft;
@@ -371,6 +383,7 @@ namespace Game.Core.Match
                 {
                     PlayerState p = players[i];
                     if (p.Team != team || p.IsGoalkeeper || p.FrozenTicks > 0) { continue; }
+                    if (p.PlayerId == throwerGuardId) { continue; }   // 던진 선수는 다시 못 잡으니 담당으로 뽑지 않는다. 뽑으면 공 위에 서서 못 잡고 동료도 안 와 상대가 그냥 줍는다(11-17 리뷰)
                     candidates.Add(new TargetInfo(p.PlayerId, p.X, p.Z));
                 }
                 looseChaser[team] = PressRules.FirstInRank(candidates, Ball.X, Ball.Z, looseChaser[team], MatchTuning.ChaserSwitchMargin);
@@ -663,6 +676,8 @@ namespace Game.Core.Match
             passReleased = true;
             lastKickerId = BallState.NoOwner;
             kickoffTakerId = BallState.NoOwner;
+            lastTouchTeam = RestartRules.NoTeam;
+            ResetThrowIn();   // 하프타임·골 뒤 킥오프가 스로인 대기 중에 와도 재개 상태가 남지 않게
             takeOnOwnerId = BallState.NoOwner;
             takeOnTicksLeft = 0;
             shotPrepOwnerId = BallState.NoOwner;
@@ -782,6 +797,7 @@ namespace Game.Core.Match
                 UpdateStamina(p, IsHighIntensity(p, moved / deltaTime, carrying && moved > 0f), Length.TimeScale);
             }
             KeepGoalKickBoxClear();
+            KeepThrowInClear();
         }
 
         // 고강도 틱(10-29 가속 D): 이번 틱 실제 속도가 개인 최고 속도 × HighIntensityFraction 이상, 또는 공을 몰고 움직였다.
@@ -875,6 +891,7 @@ namespace Game.Core.Match
                 p.RunOffers = runOffers[p.Team];
                 p.Threat = threat;
                 p.IsKickoffTaker = kickoffTakerId == p.PlayerId;
+                p.IsThrowInTaker = throwInTakerId == p.PlayerId;
                 p.WantsTakeOn = takeOnOwnerId == p.PlayerId && takeOnTicksLeft > 0;
                 bool inShotPrep = shotPrepOwnerId == p.PlayerId && shotPrepTicksLeft > 0;
                 p.ShotReady = !inShotPrep;
@@ -1149,6 +1166,7 @@ namespace Game.Core.Match
             if (keeper != null && ShouldPullAimIntoReach()) { PullAimIntoReach(keeper, shooter, goalX); }
             BallKicked?.Invoke(new KickReport(shooter.PlayerId, true, goalX - shooter.X, shotAimZ - shooter.Z));
             Ball = BallRules.Kick(Ball, goalX - shooter.X, shotAimZ - shooter.Z, MatchTuning.ShotSpeed);
+            OnKicked(shooter);
         }
 
         // 조준 구석의 좌우: GK가 슈터→골 중심 선에서 벗어난 반대쪽(자기 라인에서 잰다). GK가 없으면 슈터 자리의 먼 포스트
@@ -1192,6 +1210,7 @@ namespace Game.Core.Match
             float startZ = blocker.Z + dir.z * MatchTuning.BlockReboundStart;
             Ball = BallRules.Kick(BallState.FreeAt(startX, startZ), dir.x, dir.z, MatchTuning.BlockReboundSpeed);
             lastKickerId = shooter.PlayerId;   // 슈터는 공이 자기 반경을 벗어날 때까지 못 잡는다(찬 선수 가드와 같은 규칙)
+            lastTouchTeam = 1 - shooter.Team;  // 마지막 접촉은 막은 선수
             Finish(ShotOutcome.Blocked);
             return true;
         }
@@ -1218,6 +1237,7 @@ namespace Game.Core.Match
             kickOriginZ = Ball.Z;
             passReleased = false;
             lastKickerId = passer.PlayerId;
+            OnKicked(passer);
             kickoffTakerId = BallState.NoOwner;   // 킥오프는 첫 킥으로 끝난다
             takeOnOwnerId = BallState.NoOwner;    // 공을 내줬으면 돌파도 끝
 
@@ -1246,6 +1266,9 @@ namespace Game.Core.Match
             if (ownerNow != kickoffTakerId) { kickoffTakerId = BallState.NoOwner; }   // 키커가 아닌 선수가 공을 가지면 킥오프는 끝났다
 
             PlayerState owner = FindPlayer(ownerNow);
+            lastTouchTeam = owner.Team;
+            if (ownerNow != throwerGuardId) { throwerGuardId = BallState.NoOwner; }   // 던진 선수 말고 누군가 잡았으면 재접촉 금지는 끝
+            UpdateThrowInOnOwner(owner);
             PossessionChange kind = PossessionChange.Capture;
             owner.LastPasserId = BallState.NoOwner;   // 줍기·태클로 잡은 공엔 "방금 준 선수"가 없다(패스 수신 때만 쓰니 옛 값이 남아 되돌림 후보를 잘못 강등)
             if (passInFlight)
@@ -1270,7 +1293,7 @@ namespace Game.Core.Match
             PossessionChanged?.Invoke(new PossessionReport(ownerNow, owner.Team, previousOwnerId, kind, Ball.X, Ball.Z));
         }
 
-        // 소유 직후 킥을 미루는 시간. 보통은 개인 볼 끌기(holdUp). 골킥 소유는 GoalKickSetupSeconds(11-05), GK가 슛을 잡은 소유는 KeeperHoldAfterCatchSeconds — 바로 차면 "잡자마자 패스"가 어색했다(10-25 유저 Play)
+        // 소유 직후 킥을 미루는 시간. 보통은 개인 볼 끌기(holdUp). 골킥 소유는 GoalKickSetupSeconds(11-05), 스로인 소유는 ThrowInSetupSeconds(11-17), GK가 슛을 잡은 소유는 KeeperHoldAfterCatchSeconds — 바로 차면 "잡자마자 패스"가 어색했다(10-25 유저 Play)
         private float HoldUpSecondsFor(PlayerState owner)
         {
             if (goalKickJustStarted)
@@ -1278,18 +1301,23 @@ namespace Game.Core.Match
                 goalKickJustStarted = false;
                 return Math.Max(owner.Stats.HoldUp, MatchTuning.GoalKickSetupSeconds);
             }
+            if (throwInJustTaken)
+            {
+                throwInJustTaken = false;
+                return Math.Max(owner.Stats.HoldUp, MatchTuning.ThrowInSetupSeconds);
+            }
             if (!keeperJustCaught) { return owner.Stats.HoldUp; }
             keeperJustCaught = false;
             return Math.Max(owner.Stats.HoldUp, MatchTuning.KeeperHoldAfterCatchSeconds);
         }
 
-        // 돌파 의도는 소유가 바뀔 때 한 번 정한다. GK·킥오프 키커·우리 진영 서드는 안 굴린다. 드리블 성향 0(테스트 기본 스탯)이면 주사위를 안 써서
+        // 돌파 의도는 소유가 바뀔 때 한 번 정한다. GK·킥오프 키커·스로인 선수·우리 진영 서드는 안 굴린다. 드리블 성향 0(테스트 기본 스탯)이면 주사위를 안 써서
         // 주사위 수열로 슛을 잠근 옛 테스트가 그대로 돈다
         private void RollTakeOn(PlayerState owner)
         {
             takeOnOwnerId = BallState.NoOwner;
             takeOnTicksLeft = 0;
-            if (owner.IsGoalkeeper || owner.PlayerId == kickoffTakerId || owner.Stats.Dribble <= 0f) { return; }
+            if (owner.IsGoalkeeper || owner.PlayerId == kickoffTakerId || owner.PlayerId == throwInTakerId || owner.Stats.Dribble <= 0f) { return; }
             if (PositionRules.ThirdOf(Ball.X, owner.AttackSign) == Third.Own) { return; }
             if (!MatchRules.Resolve(DribbleRules.TakeOnChance(owner.Stats.Dribble, MatchTuning.TakeOnChanceScale), nextRoll())) { return; }
             takeOnOwnerId = owner.PlayerId;
@@ -1314,7 +1342,7 @@ namespace Game.Core.Match
             shotPrepOwnerId = owner.PlayerId;
             shotPrepTicksLeft = 0;
             firstTouchOwnerId = BallState.NoOwner;
-            if (owner.IsGoalkeeper || owner.PlayerId == kickoffTakerId) { return; }
+            if (owner.IsGoalkeeper || owner.PlayerId == kickoffTakerId || owner.PlayerId == throwInTakerId) { return; }
 
             shotPrepTicksLeft = ShotDecisionRules.PrepTicks(MatchTuning.ShotPrepSeconds);
             float distance = MatchRules.ShotDistance(Ball.X, Ball.Z, owner.AttackSign);
@@ -1463,6 +1491,7 @@ namespace Game.Core.Match
         // 세이브: 캐치(GK 소유) 또는 튕김(앞으로 자유 공)
         private void ResolveSave(PlayerState keeper)
         {
+            lastTouchTeam = keeper.Team;
             bool caught = MatchRules.Resolve(MatchRules.CatchProbability(keeper.Stats.Handling), nextRoll());
             if (caught)
             {
@@ -1593,6 +1622,7 @@ namespace Game.Core.Match
             if (Ball.Phase != BallPhase.Owned || immunityTicksLeft > 0) { return; }
 
             PlayerState owner = FindPlayer(Ball.OwnerId);
+            if (owner.PlayerId == throwInTakerId) { return; }   // 스로인 공은 손에 든 공이라 경합 대상이 아니다. 2m 밀기는 던지는 자리 기준이고 선수는 자리에서 잡기 반경만큼 떨어져 있을 수 있어, 상대가 태클 사거리(2m) 안에 든다
             if (owner.IsGoalkeeper) { return; }   // 공을 잡은 GK는 경합 대상이 아니다(규칙 12조). 09-23 탐지: 골문 앞 GK-ST 태클 핑퐁 7/30경기의 원인
             float reach2 = MatchTuning.TackleRange * MatchTuning.TackleRange;
             for (int i = 0; i < players.Count; i++)
@@ -1637,6 +1667,8 @@ namespace Game.Core.Match
                 PlayerState p = players[i];
                 if (keeperKickTeam != -1 && p.Team != keeperKickTeam) { continue; }   // GK가 찬 공은 그 박스 안에선 상대가 못 잡는다
                 if (p.Team == letThroughTeam && p.PlayerId != passReceiverId) { continue; }   // 받을 선수가 아닌 우리 편은 흘려 보낸다
+                if (!MayTakeThrowIn(p)) { continue; }
+                if (p.PlayerId == throwerGuardId) { continue; }   // 던진 선수는 다른 선수가 닿기 전엔 다시 못 잡는다
                 if (p.PlayerId == lastKickerId)
                 {
                     float kdx = p.X - Ball.X;
@@ -1688,7 +1720,7 @@ namespace Game.Core.Match
             return passer.Team;
         }
 
-        // 라인 밖(슛 비행 중은 제외: 골라인 판정이 먼저다) → 골라인은 그 골을 지키는 팀 GK의 골킥(11-05), 터치라인은 스로인 자리에 자유 공(스펙 §5)
+        // 라인 밖(슛 비행 중은 제외: 골라인 판정이 먼저다) → 골라인은 그 골을 지키는 팀 GK의 골킥(11-05), 터치라인은 마지막에 닿은 팀의 상대가 던지는 스로인(11-17, StartThrowIn)
         private bool ResetIfOut()
         {
             if (Ball.Phase == BallPhase.Owned || shotInFlight) { return false; }
@@ -1713,11 +1745,106 @@ namespace Game.Core.Match
             }
             if (Math.Abs(Ball.Z) > FieldBounds.HalfWidth)
             {
-                float sign = Math.Sign(Ball.Z);
-                Ball = BallState.FreeAt(Ball.X, sign * (FieldBounds.HalfWidth - MatchTuning.ThrowInInset));
+                (float x, float z) spot = RestartRules.ThrowInSpot(Ball.X, Ball.Z, MatchTuning.ThrowInInset);
+                Ball = BallState.FreeAt(spot.x, spot.z);
+                StartThrowIn(RestartRules.ThrowInTeam(lastTouchTeam), spot.x, spot.z);
                 return true;
             }
             return false;
+        }
+
+        // 스로인(IFAB 15조, 11-17): 공은 자리에 자유 공으로 두고, 재개 팀의 루즈볼 담당이 기존 ⑩ 추격으로 걸어가 잡는다(순간이동 없음).
+        // 마지막 터치를 모르거나(NoTeam) 재개 팀에 던질 선수나 받을 동료가 없으면(테스트·리트머스 시뮬) 예전처럼 누구나 줍는 자유 공이다. 안 그러면 아무도 못 잡아 멈춘다
+        private void StartThrowIn(int team, float x, float z)
+        {
+            ResetThrowIn();
+            lastKickerId = BallState.NoOwner;   // 블록 튕김이 곧바로 나가면 슈터 가드가 남아, 공 옆의 슈터(재개 팀)가 담당으로 뽑히고도 못 잡는다
+            if (team == RestartRules.NoTeam || !CanThrowIn(team)) { return; }
+            throwInTeam = team;
+            throwInX = x;
+            throwInZ = z;
+            KeepThrowInClear();
+        }
+
+        // 던질 필드 선수 1명과 받을 동료 1명(GK 포함)이 있어야 스로인이 된다. 받을 동료가 없으면 트리 ①c가 드리블로 떨어져, 태클 면제인 채 손에 든 공을 몰고 다닌다
+        private bool CanThrowIn(int team)
+        {
+            int fieldPlayers = 0;
+            int teamPlayers = 0;
+            for (int i = 0; i < players.Count; i++)
+            {
+                if (players[i].Team != team) { continue; }
+                teamPlayers++;
+                if (!players[i].IsGoalkeeper) { fieldPlayers++; }
+            }
+            return fieldPlayers >= 1 && teamPlayers >= 2;
+        }
+
+        // 재개 상태와 재접촉 가드를 같이 지운다(킥오프·새 스로인). 던질 때는 가드를 거는 쪽이라 EndThrowIn만 쓴다
+        private void ResetThrowIn()
+        {
+            EndThrowIn();
+            throwerGuardId = BallState.NoOwner;
+        }
+
+        private void EndThrowIn()
+        {
+            throwInTeam = RestartRules.NoTeam;
+            throwInTakerId = BallState.NoOwner;
+            throwInJustTaken = false;
+        }
+
+        // 아직 아무도 안 잡은 스로인
+        private bool IsThrowInWaiting()
+        {
+            if (throwInTeam == RestartRules.NoTeam) { return false; }
+            return throwInTakerId == BallState.NoOwner;
+        }
+
+        // 재개 중엔 재개 팀 필드 선수만 공을 잡는다. GK는 던지지 않는다
+        private bool MayTakeThrowIn(PlayerState p)
+        {
+            if (!IsThrowInWaiting()) { return true; }
+            return p.Team == throwInTeam && !p.IsGoalkeeper;
+        }
+
+        // 소유가 바뀐 틱: 기다리던 스로인을 재개 팀 선수가 잡았으면 던지는 선수로 정한다. 던지는 선수가 아닌 선수가 공을 가졌으면 스로인은 끝났다
+        // (킥오프 키커와 같은 규칙. 지금은 잡기 거르기·태클 면제로 안 생기지만, 생기면 상대를 옛 자리 밖으로 계속 밀게 된다)
+        private void UpdateThrowInOnOwner(PlayerState owner)
+        {
+            if (throwInTeam == RestartRules.NoTeam) { return; }
+            if (IsThrowInWaiting() && owner.Team == throwInTeam)
+            {
+                throwInTakerId = owner.PlayerId;
+                throwInJustTaken = true;
+                return;
+            }
+            if (owner.PlayerId != throwInTakerId) { EndThrowIn(); }
+        }
+
+        // 킥(패스·슛)이 나갔다: 마지막 터치를 찬 팀으로, 던지는 선수가 찼으면 스로인은 끝나고 그 선수에게 재접촉 금지를 건다
+        private void OnKicked(PlayerState kicker)
+        {
+            lastTouchTeam = kicker.Team;
+            if (kicker.PlayerId != throwInTakerId) { return; }
+            EndThrowIn();
+            throwerGuardId = kicker.PlayerId;
+        }
+
+        // 스로인 대기 중 상대를 던지는 자리 ThrowInOpponentDistance 밖에 둔다. 공이 던져지면(EndThrowIn) 끝
+        private void KeepThrowInClear()
+        {
+            if (throwInTeam == RestartRules.NoTeam) { return; }
+            for (int i = 0; i < players.Count; i++)
+            {
+                PlayerState p = players[i];
+                if (p.Team == throwInTeam) { continue; }
+                (float x, float z) kept = RestartRules.KeepAway(p.X, p.Z, throwInX, throwInZ, MatchTuning.ThrowInOpponentDistance);
+                if (kept.x == p.X && kept.z == p.Z) { continue; }   // KeepAway는 밖의 선수를 입력 그대로 돌려준다(그 계약을 RestartRulesTests가 잠근다)
+                p.X = kept.x;
+                p.Z = kept.z;
+                p.Stop();   // 골킥 박스 밀기와 같은 이유: 달려들던 속도가 남으면 풀리는 순간 튀어 나간다
+            }
         }
 
         private PlayerState? FindGoalkeeper(int team)

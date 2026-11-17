@@ -60,6 +60,7 @@ namespace Game.Core.Match
         public float MarkZ { get; set; }
         public bool IsLooseBallChaser { get; set; }   // 소유 팀 없는 공을 우리 팀에서 내가 맡았나(시뮬이 히스테리시스로 정함, 09-28 F1b)
         public bool IsKickoffTaker { get; set; }      // 킥오프 키커이고 첫 패스 전
+        public bool IsThrowInTaker { get; set; }      // 스로인 공을 잡은 선수이고 던지기 전
         public bool WantsTakeOn { get; set; }         // 돌파 의도
         public bool ShotReady { get; set; } = true;   // 슛을 판정에 넣어도 되나(소유 뒤 준비 시간이 지났거나 퍼스트 터치, 11-08 S3 1단계)
         public bool IsKeeperAlternate { get; set; }

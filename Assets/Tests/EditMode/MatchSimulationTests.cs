@@ -1182,6 +1182,36 @@ public class MatchSimulationTests
     }
 
     [Test]
+    public void 막힌_슛과_튕긴_세이브의_마지막_터치는_막은_팀이다()
+    {
+        // 11-17 스로인: 재개 팀은 마지막에 닿은 팀의 상대다. 블록·파링은 슈터가 아니라 막은 쪽이 마지막에 닿았다(코너킥도 이 값을 읽는다)
+        var blockRolls = new RollQueue(new[] { 0.99f, 0f }, 0.5f);   // 퍼스트 터치 실패 → 블록 0 < 곡선
+        var blocked = new MatchSimulation(blockRolls.Next, new PassFlightTestsHelper.ShootOnce(), TestThreat.Real);
+        blocked.AddPlayer(new PlayerState(0, 0, Striker(), 40f, 0f));
+        blocked.AddPlayer(new PlayerState(1, 1, Keeper(), 50f, 0f));
+        blocked.AddPlayer(new PlayerState(2, 1, CenterBack(), 41.5f, 0.4f));
+        blocked.Kickoff();
+        blocked.Ball = BallRules.Own(blocked.Ball, 0, 40f, 0f);
+        var outcomes = new List<ShotOutcome>();
+        blocked.ShotResolved += r => outcomes.Add(r.Outcome);
+        blocked.Tick(Dt);
+        Assert.AreEqual(ShotOutcome.Blocked, outcomes[0]);
+        Assert.AreEqual(1, blocked.LastTouchTeam, "블록");
+
+        var saveRolls = new RollQueue(new[] { 0.99f, 0.5f, 0.5f, 0.99f, 0.99f }, 0.5f);   // 퍼스트 터치 실패 → 조준 2 → 노골 → 캐치 실패(파링)
+        var saved = new MatchSimulation(saveRolls.Next, new PassFlightTestsHelper.ShootOnce(), TestThreat.Real);
+        saved.AddPlayer(new PlayerState(0, 0, Striker(), 40f, 0f));
+        saved.AddPlayer(new PlayerState(1, 1, Keeper(), 50f, 0f));
+        saved.Kickoff();
+        saved.Ball = BallRules.Own(saved.Ball, 0, 40f, 0f);
+        var saveOutcomes = new List<ShotOutcome>();
+        saved.ShotResolved += r => saveOutcomes.Add(r.Outcome);
+        for (int i = 0; i < 100 && saveOutcomes.Count == 0; i++) { saved.Tick(Dt); }
+        Assert.AreEqual(ShotOutcome.Parried, saveOutcomes[0]);
+        Assert.AreEqual(1, saved.LastTouchTeam, "파링");
+    }
+
+    [Test]
     public void 막힌_슛은_블록_주사위_하나만_쓴다()
     {
         // 11-09 B 직렬: 블록이 조준보다 먼저라 막힌 슛은 조준 2개·골 1개 주사위를 안 쓴다(주사위 순서가 결과에 안 갈리게).

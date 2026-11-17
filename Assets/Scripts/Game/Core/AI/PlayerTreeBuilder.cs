@@ -35,6 +35,12 @@ namespace Game.Core.AI
                     new ConditionNode(ctx => ctx.OwnsBall && ctx.IsKickoffTaker),
                     new ActionNode(ctx => PassUnchecked(ctx, PassRules.KickoffReceiver(ctx.X, ctx.Z, ctx.Teammates, ctx.AttackSign)))),
 
+                // ①c 스로인(11-17): 공을 잡은 재개 팀 선수는 던지기만 한다. 손으로 던지니 운반·드리블·돌파·슛이 없다.
+                // 후보는 ThrowInMaxPassDistance 안, 오프사이드 면제(IFAB 11.3). 기다리는 시간(ThrowInSetupSeconds)은 시뮬 볼 끌기가 잡는다
+                new SequenceNode(
+                    new ConditionNode(ctx => ctx.OwnsBall && ctx.IsThrowInTaker),
+                    new ActionNode(ctx => ThrowIn(ctx))),
+
                 // ② 슛 값(압박 보정 xG × 슛 성향 배율 − 지금 xT)이 운반·최선 패스 값보다 크면 슛(11-03 P1+ [가정 P-G17])
                 new SequenceNode(
                     new ConditionNode(ctx => ctx.OwnsBall && ShouldShoot(ctx)),
@@ -231,8 +237,21 @@ namespace Game.Core.AI
             return true;
         }
 
+        // 스로인: 값이 가장 큰 후보(ThrowInMaxPassDistance 안)를 던진다. 후보가 하나도 안 남으면 가장 가까운 아군에게. 드리블로 떨어지면 손에 든 공을 몰고 가게 된다
+        private static void ThrowIn(IPlayerContext ctx)
+        {
+            ValuedPass pass = BestPass(ctx, float.NegativeInfinity);
+            if (pass.Found)
+            {
+                PassTo(ctx, pass.Pass);
+                return;
+            }
+            PassUnchecked(ctx, TargetSelector.SelectNearest(ctx.X, ctx.Z, ctx.Teammates));
+        }
+
         // 패스 후보 중 값이 가장 큰 것. floor 이하면 None(Found가 거짓). 서드별 팀 값(패스 방식·리스크·폭)에 개인 패스 길이·리스크가 얹힌다.
         // 앞·옆·뒤 전원이 후보다(전엔 옆·뒤는 압박받을 때만이라 압박 없는 맨 앞줄이 줄 곳이 없었다). 오프사이드 위치 아군에겐 안 준다
+        // 던지는 선수(스로인)면 후보를 ThrowInMaxPassDistance 안으로 줄이고 오프사이드는 면제다(OnsideLine)
         private static ValuedPass BestPass(IPlayerContext ctx, float floor)
         {
             int third = Third(ctx);
@@ -247,6 +266,7 @@ namespace Game.Core.AI
             {
                 ceilings[i] = float.NegativeInfinity;
                 if (OffsideRules.IsOffsidePosition(mates[i].X, ctx.AttackSign, onsideLine)) { continue; }
+                if (ctx.IsThrowInTaker && !RestartRules.IsWithinThrow(ctx.X, ctx.Z, mates[i].X, mates[i].Z, MatchTuning.ThrowInMaxPassDistance)) { continue; }
                 ceilings[i] = float.PositiveInfinity;
                 if (PruneByCeiling) { ceilings[i] = ValueCeiling(ctx, mates[i], OfferIndexOf(ctx, mates[i].PlayerId), t.Width[third]); }
             }
@@ -390,9 +410,10 @@ namespace Game.Core.AI
             ctx.RunToward(aim.x, aim.z);
         }
 
-        // 온사이드 선(공격 방향 좌표). GK 배급은 골킥이라 오프사이드가 없다
+        // 온사이드 선(공격 방향 좌표). GK 배급은 골킥이라, 스로인은 직접 받는 선수가 면제라(IFAB 11.3) 오프사이드가 없다
         private static float OnsideLine(IPlayerContext ctx)
         {
+            if (ctx.IsThrowInTaker) { return OffsideRules.NoLine; }
             return ctx.IsGoalkeeper ? OffsideRules.NoLine : OffsideRules.OnsideLine(ctx.Opponents, ctx.AttackSign, ctx.BallX);
         }
 
