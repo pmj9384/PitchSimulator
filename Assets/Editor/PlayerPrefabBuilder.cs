@@ -5,8 +5,8 @@ using UnityEngine;
 
 // 선수 프리팹 배선(11-14 모델 교체 1단계, 설계 실험/2026-11-12-설계-효과음-모델교체.md B-4 1단계 ④·결정 B2·B9·B12).
 // Player.prefab의 Model 자식을 UBC 몸(Humanoid 아바타)으로 바꾸고, 구운 몸 메시(PlayerMeshBaker)·눈·눈썹·헤어를 붙인 뒤
-// PlayerView의 머리 칸 6개와 슬롯 역할, PlayerController의 Animator를 다시 잇는다. 손 배선을 남기지 않으려고 전부 이 스크립트가 한다(결정 B7).
-// 이동·동작 클립은 아직 옛 Generic 클립이라 Humanoid 몸에는 안 먹는다(2단계 이동, 4·5단계 동작에서 바꾼다). 메뉴는 몇 번 눌러도 같은 결과
+// PlayerView의 머리 칸 6개와 슬롯 역할, PlayerController의 Animator를 다시 잇는다. 손 배선을 남기지 않으려고 프리팹 안 배선은 전부 이 스크립트가 한다(결정 B7). 씬의 PlayerManager.lookTemplate·skinTemplate만 씬에서 잇고 PlayerPrefabTests가 잠근다.
+// 이동 트리(UAL 클립)는 PlayerLocomotionBuilder, 동작 클립 굽기는 PlayerClipBuilder가 따로 맡는다. 메뉴는 몇 번 눌러도 같은 결과
 public static class PlayerPrefabBuilder
 {
     private const string PrefabPath = "Assets/Prefabs/Player.prefab";
@@ -40,7 +40,7 @@ public static class PlayerPrefabBuilder
     private static readonly HairFile Beard = new HairFile("Hair_Beard", 1);
     private static readonly HairFile[] HairFiles = { Buzzed, SimpleParted, Long, Buns, Beard };
 
-    // 머리 칸(결정 B2 권장안): 헤어 4종 + 수염 조합 2칸. 번호 순서 = PortraitRules.HeadOf. 최종 6칸은 머리 후보 시트를 보고 유저가 확정한다
+    // 머리 칸(결정 B2 권장안): 헤어 4종 + 수염 조합 2칸. 번호 순서 = PortraitRules.HeadOf. 6칸 구성은 유저 확인 대기(장부 「유저 몫」). 바꾸면 초상 120장을 다시 찍는다(PortraitRenderer)
     private static readonly HairFile[][] HeadSlots =
     {
         new[] { Buzzed },
@@ -389,7 +389,7 @@ public static class PlayerPrefabBuilder
         serialized.ApplyModifiedPropertiesWithoutUndo();
     }
 
-    // 프리팹 기본 머티리얼(없으면 만들고 있으면 값을 맞춘다). 경기에서는 PlayerManager가 Skin·Hair·Kit·Boots 슬롯을 단색 머티리얼로 바꿔 끼운다(색은 3단계에서 정리)
+    // 프리팹 기본 머티리얼(없으면 만들고 있으면 값을 맞춘다). 경기에서는 PlayerManager가 Skin·Hair·Kit·Boots 슬롯을 단색 머티리얼로 바꿔 끼운다. 피부만 무늬 텍스처(skinTemplate)에 색을 곱한다
     private static Materials EnsureMaterials()
     {
         if (!AssetDatabase.IsValidFolder(MaterialFolder))

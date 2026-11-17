@@ -170,8 +170,8 @@ public static class PlayerClipBuilder
         return new List<Pose>
         {
             new Pose(0f),
-            // 각은 발 궤적을 에디터에서 재서 맞췄다: 접촉 때 발이 앞 0.55~0.6m·높이 0.2m 근처(= BallView 오프셋 0.55 + 공 반지름)
-            // 11-14 UBC 몸에서 다시 쟀다: 허벅지 −26°면 발끝이 엉덩이 앞 0.29m라 −42°로(발끝 앞 0.54m·높이 0.13m, 몸 기준 측정. 공 반지름 0.11 근처). 슛 접촉도 같은 값
+            // 각은 발 궤적을 에디터에서 재서 맞췄다(목표 = 앞 0.55m(BallView 오프셋), 높이는 공 반지름 0.11m 근처).
+            // 11-14 UBC 몸에서 쟀다: 허벅지 −26°면 발끝이 엉덩이 앞 0.29m라 −42°로(발끝 앞 0.54m·높이 0.13m, 몸 기준 측정. 공 반지름 0.11 근처). 슛 접촉도 같은 값
             new Pose(0.10f).Add(UpperLegR, Axis.Right, 30f).Add(LowerLegR, Axis.Right, 55f).Add(Abdomen, Axis.Right, -10f).Add(UpperArmL, Axis.Right, -30f).Add(UpperArmR, Axis.Right, 20f),
             new Pose(0.18f).Add(UpperLegR, Axis.Right, -42f).Add(LowerLegR, Axis.Right, 5f).Add(Abdomen, Axis.Right, -2f).Add(UpperArmL, Axis.Right, 15f).Add(UpperArmR, Axis.Right, -25f).Foot(25f),
             new Pose(0.32f).Add(UpperLegR, Axis.Right, -50f).Add(LowerLegR, Axis.Right, 15f).Add(Abdomen, Axis.Right, 8f).Add(UpperArmL, Axis.Right, 25f).Add(UpperArmR, Axis.Right, -35f).Foot(15f),
@@ -198,7 +198,7 @@ public static class PlayerClipBuilder
         return new List<Pose>
         {
             new Pose(0f),
-            // 팔 -90은 손이 어깨 위로 올라갔다(에디터 측정 y 1.55). -60 + 아래팔로 손이 가슴 앞(y 1.2, z 0.5)에 오게
+            // 팔 -90은 손이 어깨 위로 올라갔다(옛 몸에서 잰 y 1.55, UBC 몸에서는 미측정). -60 + 아래팔로 손이 가슴 앞에 오게
             new Pose(0.12f).Add(UpperArmL, Axis.Right, -60f).Add(UpperArmR, Axis.Right, -60f).Add(LowerArmL, Axis.Right, -40f).Add(LowerArmR, Axis.Right, -40f).Add(Abdomen, Axis.Right, -12f),
             new Pose(0.30f).Add(UpperArmL, Axis.Right, -45f).Add(UpperArmR, Axis.Right, -45f).Add(LowerArmL, Axis.Right, -80f).Add(LowerArmR, Axis.Right, -80f).Add(Abdomen, Axis.Right, -8f),
             new Pose(0.50f),
@@ -246,7 +246,7 @@ public static class PlayerClipBuilder
             // 착지: 옆구리가 닿고 팔을 접으며 무릎을 굽힌다
             new Pose(0.58f).Add(Body, Axis.Forward, -88f * side).Add(Abdomen, Axis.Forward, -5f * side).Add(Head, Axis.Forward, 10f * side)
                 .Add(nearArm, Axis.Forward, 120f * side).Add(farArm, Axis.Forward, 90f * side).Add(nearLowerArm, Axis.Right, -70f).Add(farLowerArm, Axis.Right, -70f)
-                .Add(UpperLegL, Axis.Right, -25f).Add(UpperLegR, Axis.Right, -25f).Add(LowerLegL, Axis.Right, 45f).Add(LowerLegR, Axis.Right, 45f).Drop(0.50f),   // 0.60이면 접은 손이 땅 아래(y −0.04, 에디터 샘플)
+                .Add(UpperLegL, Axis.Right, -25f).Add(UpperLegR, Axis.Right, -25f).Add(LowerLegL, Axis.Right, 45f).Add(LowerLegR, Axis.Right, 45f).Drop(0.50f),   // 0.60이면 접은 손이 땅 아래로 갔다(옛 몸 샘플). 지금은 KeepAboveGround도 땅 아래를 막는다
             new Pose(PlayerController.DiveSeconds),
         };
     }

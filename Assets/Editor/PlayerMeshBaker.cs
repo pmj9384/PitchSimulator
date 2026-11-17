@@ -82,20 +82,23 @@ public static class PlayerMeshBaker
         new BodyShape("Original", 1f, 1f, 1f, 1f),
     };
 
-    // 색이 갈리는 경계 하나. 두 영역 사이의 평면(점 + 뼈 축 방향 법선). 법선 쪽이 Positive 영역
+    // 색이 갈리는 경계 하나. 두 영역 사이의 평면(점 + 뼈 축 방향 법선). 법선 쪽이 Positive 영역.
+    // Reclassify = 목·발목처럼 삼각형을 이 평면으로 다시 나누는 경계인가. 영역 쌍으로 고르면 소매(Shirt·Skin)가 목과 같은 쌍이라 섞인다
     private readonly struct BoundaryPlane
     {
         public readonly Region Negative;
         public readonly Region Positive;
         public readonly Vector3 Point;
         public readonly Vector3 Normal;
+        public readonly bool Reclassify;
 
-        public BoundaryPlane(Region negative, Region positive, Vector3 point, Vector3 normal)
+        public BoundaryPlane(Region negative, Region positive, Vector3 point, Vector3 normal, bool reclassify)
         {
             Negative = negative;
             Positive = positive;
             Point = point;
             Normal = normal;
+            Reclassify = reclassify;
         }
 
         public int Mask
@@ -258,19 +261,19 @@ public static class PlayerMeshBaker
                 Debug.LogError($"[PlayerMeshBaker] {Sides[s]} 쪽 위팔·허벅지·종아리 뼈를 못 찾았다");
                 return null;
             }
-            planes.Add(PlaneOf(skeleton, arm, SleeveT, Region.Shirt, Region.Skin));
-            planes.Add(PlaneOf(skeleton, thigh, ShortsT, Region.Shorts, Region.Skin));
-            planes.Add(PlaneOf(skeleton, calf, SockT, Region.Skin, Region.Socks));
-            planes.Add(PlaneOf(skeleton, calf, 1f, Region.Socks, Region.Boots));
+            planes.Add(PlaneOf(skeleton, arm, SleeveT, Region.Shirt, Region.Skin, false));
+            planes.Add(PlaneOf(skeleton, thigh, ShortsT, Region.Shorts, Region.Skin, false));
+            planes.Add(PlaneOf(skeleton, calf, SockT, Region.Skin, Region.Socks, false));
+            planes.Add(PlaneOf(skeleton, calf, 1f, Region.Socks, Region.Boots, true));
         }
         int neck = skeleton.Find(Neck, string.Empty);
-        planes.Add(PlaneOf(skeleton, neck, 0f, Region.Shirt, Region.Skin));
+        planes.Add(PlaneOf(skeleton, neck, 0f, Region.Shirt, Region.Skin, true));
         return planes;
     }
 
-    private static BoundaryPlane PlaneOf(Skeleton skeleton, int bone, float t, Region negative, Region positive)
+    private static BoundaryPlane PlaneOf(Skeleton skeleton, int bone, float t, Region negative, Region positive, bool reclassify)
     {
-        return new BoundaryPlane(negative, positive, skeleton.PointAt(bone, t), skeleton.Direction(bone));
+        return new BoundaryPlane(negative, positive, skeleton.PointAt(bone, t), skeleton.Direction(bone), reclassify);
     }
 
     // 삼각형마다 세 버텍스 가중치를 합해 가장 큰 뼈를 고르고, 그 뼈 구간에서 무게중심의 위치(t)로 영역을 정한다
@@ -339,7 +342,8 @@ public static class PlayerMeshBaker
     }
 
     // 목 둘레와 발목은 가장 무거운 뼈가 경계 양쪽에서 섞여(목: spine_03·neck·Head, 발목: calf·foot) 버텍스 스냅만으로는 3cm 안에 못 모인다(11-14 재검증).
-    // 이 두 경계에 한해 평면 띠 안의 삼각형을 무게중심이 평면 어느 쪽인지로 다시 나눈다. 띠 밖과 다른 뼈의 삼각형은 그대로 둔다
+    // 이 두 경계에 한해 평면 띠 안의 삼각형을 무게중심이 평면 어느 쪽인지로 다시 나눈다. 띠 밖과 다른 뼈의 삼각형은 그대로 둔다.
+    // 평면은 무한해서 두 발목 높이가 같으면 반대쪽 발목 평면의 띠에도 든다. 그래서 먼저 기준점(발목·목뼈)이 가장 가까운 평면 하나를 고르고, 그 평면의 띠 안일 때만 나눈다
     private static void ReclassifyNeckAndAnkles(Mesh mesh, Skeleton skeleton, List<BoundaryPlane> planes, int[] regions)
     {
         Vector3[] vertices = mesh.vertices;
@@ -352,18 +356,32 @@ public static class PlayerMeshBaker
             if (!IsNeckOrAnkleBone(bone)) { continue; }
 
             Vector3 center = Centroid(triangles, f, vertices);
-            for (int p = 0; p < planes.Count; p++)
-            {
-                if (!IsNeckOrAnklePlane(planes[p])) { continue; }
-                if (!InPlanePair(planes[p], (Region)regions[f])) { continue; }
+            int plane = ClosestReclassifyPlane(planes, (Region)regions[f], center);
+            if (plane < 0) { continue; }
 
-                float distance = planes[p].Distance(center);
-                if (Mathf.Abs(distance) > ReclassifyBand) { continue; }
+            float distance = planes[plane].Distance(center);
+            if (Mathf.Abs(distance) > ReclassifyBand) { continue; }
 
-                regions[f] = (int)(distance > 0f ? planes[p].Positive : planes[p].Negative);
-                break;
-            }
+            regions[f] = (int)(distance > 0f ? planes[plane].Positive : planes[plane].Negative);
         }
+    }
+
+    private static int ClosestReclassifyPlane(List<BoundaryPlane> planes, Region region, Vector3 center)
+    {
+        int best = -1;
+        float bestSqrDistance = float.MaxValue;
+        for (int p = 0; p < planes.Count; p++)
+        {
+            if (!planes[p].Reclassify) { continue; }
+            if (!InPlanePair(planes[p], region)) { continue; }
+
+            float sqrDistance = (center - planes[p].Point).sqrMagnitude;
+            if (sqrDistance > bestSqrDistance) { continue; }
+
+            best = p;
+            bestSqrDistance = sqrDistance;
+        }
+        return best;
     }
 
     private static bool IsNeckOrAnkleBone(string bone)
@@ -372,13 +390,6 @@ public static class PlayerMeshBaker
         if (bone.ToLowerInvariant().StartsWith(HeadBone)) { return true; }
 
         return bone.StartsWith(Calf) || bone.StartsWith(Foot) || bone.StartsWith(Ball);
-    }
-
-    private static bool IsNeckOrAnklePlane(BoundaryPlane plane)
-    {
-        if (plane.Negative == Region.Shirt && plane.Positive == Region.Skin) { return true; }
-
-        return plane.Negative == Region.Socks && plane.Positive == Region.Boots;
     }
 
     private static bool InPlanePair(BoundaryPlane plane, Region region)

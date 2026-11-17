@@ -3,7 +3,8 @@ using System;
 namespace Game.Core.Match
 {
     // 이동 애니의 재생 배율(10-29). 뷰(PlayerController)와 상태기 빌더(PlayerLocomotionBuilder)가 같은 값을 읽는다.
-    // 유저 Play "가속과 조깅 차이가 안 느껴짐": 조깅 4.2m/s와 전력 7m/s가 달리기 클립 1배라 같아 보였다. 달리기 기준 속도를 넘으면 다리 주기를 속도에 비례시킨다.
+    // 10-29 유저 Play "가속과 조깅 차이가 안 느껴짐"에서 시작했다(그때는 조깅·전력이 같은 달리기 클립 1배라 같아 보였다).
+    // 11-14부터 조깅·전력 차이는 블렌드 트리의 클립이 내고, 이 배율은 전력 클립 기준 속도를 넘을 때만 다리 주기를 속도에 비례시킨다.
     // 순수 계산이라 Game.Core에 두고 EditMode로 잠근다(10-29 리뷰). 상태 없음.
     // 11-14 모델 교체 2단계(결정 B11): 클립이 UAL 걷기·조깅·전력 3개가 되어 기준 속도를 클립의 자연 속도로 바꿨다.
     // 값 = 루트 모션판(UAL1_Standard_RM.fbx, 루트 회전 Body Orientation·XZ Center of Mass) 클립의 AnimationClip.averageSpeed 앞 방향 성분. 옆 성분 0.07 이하·위 성분 0 [측정]. 축 변환 굽기(Bake Axis Conversion)는 UBC·UAL 둘 다 끈다(0단계와 같음. 켜면 몸이 누웠다)
