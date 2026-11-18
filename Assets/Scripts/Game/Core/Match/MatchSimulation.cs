@@ -38,13 +38,15 @@ namespace Game.Core.Match
         public readonly bool IsShot;
         public readonly float DirX;   // 찬 방향(정규화 안 함)
         public readonly float DirZ;
+        public readonly bool IsThrowIn;   // 스로인 던지기(11-17). 화면이 킥 대신 두 손 던지기 모션을 튼다. 시뮬에선 패스와 같다
 
-        public KickReport(int kickerId, bool isShot, float dirX, float dirZ)
+        public KickReport(int kickerId, bool isShot, float dirX, float dirZ, bool isThrowIn)
         {
             KickerId = kickerId;
             IsShot = isShot;
             DirX = dirX;
             DirZ = dirZ;
+            IsThrowIn = isThrowIn;
         }
     }
 
@@ -1164,7 +1166,7 @@ namespace Game.Core.Match
                 shotAimZ = MatchRules.AimAwayFromKeeper(shotAimZ, keeperZAtGoalLine, gapAtLine / fraction);
             }
             if (keeper != null && ShouldPullAimIntoReach()) { PullAimIntoReach(keeper, shooter, goalX); }
-            BallKicked?.Invoke(new KickReport(shooter.PlayerId, true, goalX - shooter.X, shotAimZ - shooter.Z));
+            BallKicked?.Invoke(new KickReport(shooter.PlayerId, true, goalX - shooter.X, shotAimZ - shooter.Z, isThrowIn: false));
             Ball = BallRules.Kick(Ball, goalX - shooter.X, shotAimZ - shooter.Z, MatchTuning.ShotSpeed);
             OnKicked(shooter);
         }
@@ -1201,7 +1203,7 @@ namespace Game.Core.Match
             if (pick.playerId == -1) { return false; }
             if (!MatchRules.Resolve(MatchRules.BlockChance(pick.distance), nextRoll())) { return false; }
 
-            BallKicked?.Invoke(new KickReport(shooter.PlayerId, true, goalX - shooter.X, targetZ - shooter.Z));
+            BallKicked?.Invoke(new KickReport(shooter.PlayerId, true, goalX - shooter.X, targetZ - shooter.Z, isThrowIn: false));
             // 튕김도 블로커를 고른 스냅샷 좌표로 계산한다. 라이브 위치는 PlayerId가 슈터보다 작으면 이번 틱에 이미 움직인 뒤다(판정과 실행의 시점 일치)
             TargetInfo blocker = FindSnapshot(candidates, pick.playerId);
             (float x, float z) dir = MatchRules.BlockReboundDirection(shooter.X, shooter.Z, goalX, targetZ, blocker.X, blocker.Z, MatchTuning.BlockReboundTurnDeg);
@@ -1237,6 +1239,7 @@ namespace Game.Core.Match
             kickOriginZ = Ball.Z;
             passReleased = false;
             lastKickerId = passer.PlayerId;
+            bool throwIn = passer.PlayerId == throwInTakerId;   // OnKicked가 던지는 선수를 지우기 전에 잡는다
             OnKicked(passer);
             kickoffTakerId = BallState.NoOwner;   // 킥오프는 첫 킥으로 끝난다
             takeOnOwnerId = BallState.NoOwner;    // 공을 내줬으면 돌파도 끝
@@ -1251,7 +1254,7 @@ namespace Game.Core.Match
                 float speed = PassRules.KickSpeed(distance, average, MatchTuning.BallDeceleration, MatchTuning.PassSpeedMax);
                 Ball = BallRules.Kick(Ball, dx, dz, speed);
             }
-            BallKicked?.Invoke(new KickReport(passer.PlayerId, false, dx, dz));
+            BallKicked?.Invoke(new KickReport(passer.PlayerId, false, dx, dz, isThrowIn: throwIn));
         }
 
         // 소유자가 바뀐 틱: 패스 비행 마감(받았거나 가로챘거나), 볼 끌기 대기 시작

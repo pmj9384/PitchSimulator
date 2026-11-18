@@ -124,6 +124,23 @@ public class ThrowInSimulationTests
         Assert.IsFalse(thrower.IsThrowInTaker, "던지고 나면 표시가 풀린다");
     }
 
+    // 화면이 킥 대신 던지기 모션을 틀 근거(11-17 유저 Play "스로인은 공을 던져야 하는데 발로 차는 느낌")
+    [Test]
+    public void 스로인_패스만_킥_보고에_던지기로_표시된다()
+    {
+        MatchSimulation sim = Build(out PlayerState _);
+        var kicks = new List<KickReport>();
+        sim.BallKicked += kicks.Add;
+        RunUntilOut(sim);
+        sim.BallKicked -= kicks.Add;
+        Assert.AreEqual(1, kicks.Count, "전제: 밖으로 찬 첫 킥 하나");
+        Assert.IsFalse(kicks[0].IsThrowIn, "터치라인 밖으로 찬 일반 패스는 던지기가 아니다");
+
+        KickReport thrown = RunUntilThrown(sim);
+        Assert.AreEqual(ThrowerId, thrown.KickerId);
+        Assert.IsTrue(thrown.IsThrowIn, "던지는 선수의 패스는 던지기");
+    }
+
     [Test]
     public void 재개_중_마지막에_닿은_팀은_공을_못_잡고_자리_2m_밖에_머문다()
     {

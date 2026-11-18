@@ -76,7 +76,17 @@ public class MatchManager : InGameManager
     {
         PlayerController player = GameManager.Players.Find(report.KickerId);
         if (player == null) { return; }
-        player.PlayKick(new Vector3(report.DirX, 0f, report.DirZ), report.IsShot);
+        var direction = new Vector3(report.DirX, 0f, report.DirZ);
+        if (report.IsThrowIn)
+        {
+            player.PlayThrow(direction);
+            if (ballView != null)
+            {
+                ballView.StartThrowRelease();
+            }
+            return;
+        }
+        player.PlayKick(direction, report.IsShot);
     }
 
     // 전술·개인 지시·킥오프는 ResetMatch의 조립에서 이미 들어갔다(11-06 S4-1: 킥오프 순간에 다시 넣던 SetTactics·개인 지시 재대입·KickoffBy를 지웠다).
@@ -166,8 +176,19 @@ public class MatchManager : InGameManager
 
         if (ballView != null)
         {
-            ballView.Apply(Simulation.Ball, CarrierForward());
+            ballView.Apply(Simulation.Ball, CarrierForward(), ThrowInHolder());
         }
+    }
+
+    // 스로인 공을 들고 기다리는 선수. 공을 발 앞이 아니라 그 선수 손에 그린다. 없거나 손 뼈가 없는 몸이면 null(발 앞에 그대로 그린다)
+    private PlayerController ThrowInHolder()
+    {
+        if (Simulation.Ball.Phase != BallPhase.Owned) { return null; }
+        PlayerController owner = FindView(Simulation.Ball.OwnerId);
+        if (owner == null) { return null; }
+        if (!owner.State.IsThrowInTaker) { return null; }
+        if (!owner.HasHands) { return null; }
+        return owner;
     }
 
     private void Hold(float seconds, bool halfTime)
@@ -299,7 +320,7 @@ public class MatchManager : InGameManager
 
         if (ballView != null)
         {
-            ballView.Snap(Simulation.Ball, CarrierForward());
+            ballView.Snap(Simulation.Ball, CarrierForward(), ThrowInHolder());
         }
     }
 
