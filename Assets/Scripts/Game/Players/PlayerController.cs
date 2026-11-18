@@ -19,6 +19,8 @@ public class PlayerController : MonoBehaviour
     private static readonly int LowSaveRightParam = Animator.StringToHash("LowSaveRight");
     private static readonly int DiveSpeedParam = Animator.StringToHash("DiveSpeed");   // float. 다이빙 클립 재생 배율(StartDive가 공 도착 시각으로 정한다)
     private static readonly int CelebrateParam = Animator.StringToHash("Celebrate"); // bool. 골 세리머니 동안 참
+    private static readonly int ThrowReadyParam = Animator.StringToHash("ThrowReady"); // bool. 스로인 공을 머리 뒤에 들고 기다리는 동안 참(11-17)
+    private static readonly int ThrowParam = Animator.StringToHash("Throw");           // 트리거. 스로인 던지는 순간(KickReport.IsThrowIn)
 
     [SerializeField] private Animator animator;
 
@@ -42,17 +44,40 @@ public class PlayerController : MonoBehaviour
     private float faceOverrideUntil;    // 그 방향을 유지하는 끝 시각(Time.time)
     private float saveUntil;            // 세이브 애니가 끝나는 시각. 그 전의 킥 트리거는 버린다
     private bool wasIncomingShot;       // 직전 스텝의 State.IncomingShot. 올라오는 순간 한 번만 다이빙을 튼다
+    private Transform leftHand;         // 스로인 공을 붙일 손 뼈(CacheHands). 아바타가 없으면 null
+    private Transform rightHand;
+    private bool hasThrown;             // 방금 던졌다. 시뮬 표시(IsThrowInTaker)는 다음 틱에 풀려서, 그 사이 대기 자세를 다시 켜지 않게 막는다
 
     public PlayerState State { get; private set; }
+    public bool HasHands => leftHand != null && rightHand != null;   // 아바타가 없는 몸이면 거짓. 스로인 공을 손에 붙일지 MatchManager가 본다
     public int PlayerId => State.PlayerId;
     public int Team => State.Team;
 
     public void Setup(PlayerState state)
     {
         State = state;
+        CacheHands();
         name = $"Player_{state.Team}_{state.Stats.VariantId}_{state.PlayerId}";   // 하이어라키에서 바로 읽히게
         ResetAnimation();   // 풀에서 다시 꺼낸 몸에 지난 경기의 트리거·세리머니가 남아 있을 수 있다
         SnapView();
+    }
+
+    private void CacheHands()
+    {
+        if (animator == null || animator.avatar == null || !animator.avatar.isHuman)
+        {
+            leftHand = null;
+            rightHand = null;
+            return;
+        }
+        leftHand = animator.GetBoneTransform(HumanBodyBones.LeftHand);
+        rightHand = animator.GetBoneTransform(HumanBodyBones.RightHand);
+    }
+
+    // 두 손 사이(스로인 공 자리). HasHands가 참일 때만 부른다
+    public Vector3 HandCenter()
+    {
+        return (leftHand.position + rightHand.position) * 0.5f;
     }
 
     // 고정 스텝 뒤 MatchManager가 부른다. 높이(y)는 발 높이 0
@@ -62,6 +87,26 @@ public class PlayerController : MonoBehaviour
         current = new Vector3(State.X, 0f, State.Z);
         SetSpeed();
         WatchIncomingShot();
+        WatchThrowIn();
+    }
+
+    // 스로인 공을 잡은 동안 머리 뒤에 들고 경기장 안쪽을 본다. 터치라인 쪽(공을 주우러 온 방향)을 보면 등을 경기장에 둔다
+    private void WatchThrowIn()
+    {
+        if (!State.IsThrowInTaker)
+        {
+            hasThrown = false;
+            SetThrowReady(false);
+            return;
+        }
+        if (hasThrown) { return; }
+        SetThrowReady(true);
+        FaceToward(new Vector3(0f, 0f, -Mathf.Sign(State.Z)), MatchTuning.FixedStep * 2f);
+    }
+
+    private void SetThrowReady(bool on)
+    {
+        if (animator != null) { animator.SetBool(ThrowReadyParam, on); }
     }
 
     // 슛에 반응할 차례가 오는 순간(시뮬 IncomingShot 상승) 다이빙을 튼다. 세이브 순간에 틀면 이미 공 자리에 선 채 기울여 애매했다(10-23 유저)
@@ -127,6 +172,15 @@ public class PlayerController : MonoBehaviour
         animator.SetTrigger(shot ? ShootParam : KickParam);
     }
 
+    // 스로인 던진 순간. 대기 자세를 먼저 끈다: 켜 둔 채면 Any State의 대기 전이가 던지기를 바로 끊는다
+    public void PlayThrow(Vector3 direction)
+    {
+        hasThrown = true;
+        FaceToward(direction, KickFaceSeconds);
+        SetThrowReady(false);
+        if (animator != null) { animator.SetTrigger(ThrowParam); }
+    }
+
     // 다이빙 중(saveUntil 안)이면 다이빙이 이미 세이브 장면이라 안 튼다
     public void PlayCatch()
     {
@@ -158,6 +212,7 @@ public class PlayerController : MonoBehaviour
         faceOverrideUntil = 0f;
         saveUntil = 0f;
         wasIncomingShot = false;
+        hasThrown = false;
         if (animator == null) { return; }
         animator.ResetTrigger(KickParam);
         animator.ResetTrigger(ShootParam);
@@ -167,6 +222,8 @@ public class PlayerController : MonoBehaviour
         animator.ResetTrigger(DiveRightParam);
         animator.SetFloat(DiveSpeedParam, 1f);   // 풀에서 다시 꺼낸 몸에 지난 경기 배율이 남지 않게
         animator.SetBool(CelebrateParam, false);
+        animator.ResetTrigger(ThrowParam);
+        animator.SetBool(ThrowReadyParam, false);
     }
 
     private void FaceToward(Vector3 direction, float seconds)

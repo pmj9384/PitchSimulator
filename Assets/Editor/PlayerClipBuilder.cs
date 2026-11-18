@@ -9,7 +9,7 @@ using UnityEngine;
 // 포즈표(각도·시점)는 그대로 두고, 뼈를 HumanBodyBones로 찾고, 자세를 HumanPoseHandler로 읽어 근육 커브(Humanoid 클립)로 굽는다.
 // 시점(킥 접촉 0.18·0.24초, 다이빙 수평 0.32초)과 길이가 그대로라 PlayerController 상수와 상태 전이가 바뀌지 않는다.
 // 회전 축은 서기 자세의 몸 기준(오른쪽 = 오른 허벅지 쪽, 위 = 월드 위, 앞 = 둘의 외적)이라 모델의 바인드 포즈 방향과 상관없다.
-// 메뉴 한 번이면 클립 9개(Kick·Shoot·Catch·Parry·DiveLeft·DiveRight·LowSaveLeft·LowSaveRight·Celebrate)와 컨트롤러 상태·트리거를 다시 만든다. 카메라가 멀어 실루엣이면 충분.
+// 메뉴 한 번이면 클립 11개(Kick·Shoot·Catch·Parry·DiveLeft·DiveRight·LowSaveLeft·LowSaveRight·Celebrate·ThrowReady·Throw)와 컨트롤러 상태·트리거를 다시 만든다. 카메라가 멀어 실루엣이면 충분.
 // 각도는 전부 출처 없는 눈대중 [가정]. Play로 조정한다
 public static class PlayerClipBuilder
 {
@@ -17,6 +17,7 @@ public static class PlayerClipBuilder
     private const string ControllerPath = "Assets/Animations/PlayerAnimator.controller";
     private const string ClipFolder = "Assets/Animations/Clips";
     private const float Fps = 30f;
+    private const float ThrowArmInward = 25f;   // 스로인 대기 자세에서 팔을 안쪽으로 모으는 각. 왼팔 −, 오른팔 +가 안쪽. Play 측정으로 맞춘 값
     private const float MinBoneHeight = 0.05f;   // [가정] 손·발·머리 뼈가 이 높이(m)보다 내려가면 엉덩이를 올린다. 뼈는 살 속에 있어 0이면 살이 땅을 뚫는다.
                                                   // 서 있을 때 이미 이보다 낮은 뼈(발끝 0.015·발 0.086 중 발끝)는 서기 높이를 바닥으로 쓴다. 안 그러면 서기 자세부터 몸이 4~5cm 떴다(11-14 재검증)
     private static readonly HumanBodyBones[] GroundBones =
@@ -157,9 +158,11 @@ public static class PlayerClipBuilder
         AnimationClip lowSaveLeft = Bake(animator, handler, idle, "LowSaveLeft", LowSavePoses(-1f), false);
         AnimationClip lowSaveRight = Bake(animator, handler, idle, "LowSaveRight", LowSavePoses(1f), false);
         AnimationClip celebrate = Bake(animator, handler, idle, "Celebrate", CelebratePoses(), true);
-        Wire(controller, kick, shoot, catchClip, parry, diveLeft, diveRight, lowSaveLeft, lowSaveRight, celebrate);
+        AnimationClip throwReady = Bake(animator, handler, idle, "ThrowReady", ThrowReadyPoses(), true);
+        AnimationClip throwClip = Bake(animator, handler, idle, "Throw", ThrowPoses(), false);
+        Wire(controller, kick, shoot, catchClip, parry, diveLeft, diveRight, lowSaveLeft, lowSaveRight, celebrate, throwReady, throwClip);
         AssetDatabase.SaveAssets();
-        Debug.Log("[PlayerClipBuilder] Humanoid 클립 9개를 굽고 컨트롤러를 갱신했다");
+        Debug.Log("[PlayerClipBuilder] Humanoid 클립 11개를 굽고 컨트롤러를 갱신했다");
     }
 
     // ── 포즈 (시간은 초)
@@ -284,6 +287,36 @@ public static class PlayerClipBuilder
             new Pose(0f).Add(UpperArmL, Axis.Forward, -150f).Add(UpperArmR, Axis.Forward, 150f).Add(Head, Axis.Right, -15f),
             new Pose(0.40f).Add(UpperArmL, Axis.Forward, -120f).Add(UpperArmR, Axis.Forward, 120f).Add(Head, Axis.Right, -10f),
             new Pose(0.80f).Add(UpperArmL, Axis.Forward, -150f).Add(UpperArmR, Axis.Forward, 150f).Add(Head, Axis.Right, -15f),
+        };
+    }
+
+    // 스로인 대기(11-17 유저 Play "스로인은 공을 던져야 하는데 발로 차는 느낌"): 두 손으로 공을 머리 뒤에 들고 상체를 조금 젖힌다(루프, 끝 = 시작).
+    // 젖힌 자세로 기다리는 이유: 시뮬 공은 던지는 틱에 바로 떠나서, 던지기 클립이 젖히기부터 시작하면 손이 놓기 전에 공이 먼저 날아간다(11-17 Play 캡처). 각은 눈대중 [가정]
+    private static List<Pose> ThrowReadyPoses()
+    {
+        return new List<Pose>
+        {
+            ThrowWindUp(0f),
+            ThrowWindUp(0.50f),
+        };
+    }
+
+    private static Pose ThrowWindUp(float time)
+    {
+        // 팔을 안쪽으로 모아 두 손이 공(지름 0.22m)을 잡는 간격으로. 안 모으면 손 간격이 0.66m, 반대 부호 12°면 0.84m였다(11-17 Play 측정). 12°마다 약 0.18m 바뀌므로 25°면 약 0.29m(계산값, Play로 확인)
+        return new Pose(time).Add(UpperArmL, Axis.Right, -170f).Add(UpperArmR, Axis.Right, -170f).Add(UpperArmL, Axis.Forward, -ThrowArmInward).Add(UpperArmR, Axis.Forward, ThrowArmInward).Add(LowerArmL, Axis.Right, -80f).Add(LowerArmR, Axis.Right, -80f).Add(Abdomen, Axis.Right, 8f);
+    }
+
+    // 스로인 던지기(IFAB 15조: 두 손, 머리 뒤에서 머리 위로): 대기 자세(머리 뒤) → 앞으로 휘둘러 놓음(0.07) → 팔로스루 → 복귀.
+    // 공은 트리거 순간에 떠나므로 놓는 순간을 킥(0.18)보다 더 앞에 둔다. 각은 눈대중 [가정]
+    private static List<Pose> ThrowPoses()
+    {
+        return new List<Pose>
+        {
+            ThrowWindUp(0f),
+            new Pose(0.07f).Add(UpperArmL, Axis.Right, -125f).Add(UpperArmR, Axis.Right, -125f).Add(LowerArmL, Axis.Right, -10f).Add(LowerArmR, Axis.Right, -10f).Add(Abdomen, Axis.Right, -8f),
+            new Pose(0.25f).Add(UpperArmL, Axis.Right, -70f).Add(UpperArmR, Axis.Right, -70f).Add(LowerArmL, Axis.Right, -5f).Add(LowerArmR, Axis.Right, -5f).Add(Abdomen, Axis.Right, -18f),
+            new Pose(0.50f),
         };
     }
 
@@ -437,7 +470,7 @@ public static class PlayerClipBuilder
 
     // ── 컨트롤러
 
-    private static void Wire(AnimatorController controller, AnimationClip kick, AnimationClip shoot, AnimationClip catchClip, AnimationClip parry, AnimationClip diveLeft, AnimationClip diveRight, AnimationClip lowSaveLeft, AnimationClip lowSaveRight, AnimationClip celebrate)
+    private static void Wire(AnimatorController controller, AnimationClip kick, AnimationClip shoot, AnimationClip catchClip, AnimationClip parry, AnimationClip diveLeft, AnimationClip diveRight, AnimationClip lowSaveLeft, AnimationClip lowSaveRight, AnimationClip celebrate, AnimationClip throwReady, AnimationClip throwClip)
     {
         EnsureParameter(controller, "Kick", AnimatorControllerParameterType.Trigger);
         EnsureParameter(controller, "Shoot", AnimatorControllerParameterType.Trigger);
@@ -450,6 +483,8 @@ public static class PlayerClipBuilder
         EnsureParameter(controller, "DiveSpeed", AnimatorControllerParameterType.Float);   // 다이빙 재생 배율. 공이 GK 라인에 닿는 시각에 수평 자세(0.32초)가 오도록 뷰가 넣는다(10-25)
         SetFloatDefault(controller, "DiveSpeed", 1f);   // 기본 0이면 SetFloat 전에 다이빙 상태에 들어갈 때 재생이 멈춘다
         EnsureParameter(controller, "Celebrate", AnimatorControllerParameterType.Bool);
+        EnsureParameter(controller, "ThrowReady", AnimatorControllerParameterType.Bool);
+        EnsureParameter(controller, "Throw", AnimatorControllerParameterType.Trigger);
 
         AnimatorStateMachine machine = controller.layers[0].stateMachine;
         AnimatorState idle = FindState(machine, PlayerLocomotionBuilder.StateName);   // 연출이 끝나면 돌아갈 이동 상태(10-29, 옛 Idle)
@@ -467,6 +502,9 @@ public static class PlayerClipBuilder
         OneShot(machine, idle, "LowSaveLeft", lowSaveLeft);
         OneShot(machine, idle, "LowSaveRight", lowSaveRight);
         Held(machine, idle, "Celebrate", celebrate);
+        // 스로인(11-17): 대기는 들고 있는 동안 루프, 던지기는 한 번. 끄는 순서는 PlayerController.PlayThrow 주석
+        Held(machine, idle, "ThrowReady", throwReady);
+        OneShot(machine, idle, "Throw", throwClip);
         EditorUtility.SetDirty(controller);
     }
 
