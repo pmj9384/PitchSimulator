@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using Game.Core.League;
 using Game.Core.Match;
 using Game.Core.Viewing;
@@ -102,6 +103,8 @@ public class MatchManager : InGameManager
     // 실패하면 구간 없이(전체 모드처럼) 재생한다. 결과는 같은 경기라 모드와 무관하다
     private async Awaitable PrepareHighlightsAsync(MatchSetup setup, MatchLength length)
     {
+        // await 뒤엔 이 오브젝트가 이미 파괴됐을 수 있어 토큰을 먼저 받아 둔다(Unity 문서 MonoBehaviour.destroyCancellationToken: 파괴 전에 캐시해야 한다)
+        CancellationToken token = destroyCancellationToken;
         GameManager.HoldReady();
         ViewingMode mode = viewingMode;
         MatchSimulation firstPass = MyMatchAssembler.Create(setup, ThreatTableRepository.Grid, length);
@@ -119,7 +122,7 @@ public class MatchManager : InGameManager
             Debug.LogError($"[Match] 하이라이트 계산 실패. 전체 경기로 재생한다: {e}");
         }
 
-        if (destroyCancellationToken.IsCancellationRequested) { return; }   // 계산 중 씬을 떠났다(Play 종료·재시작)
+        if (token.IsCancellationRequested) { return; }   // 계산 중 씬을 떠났다(Play 종료·재시작)
         if (ranges != null)
         {
             replayPlan = new ReplayPlan(ranges);
@@ -184,13 +187,9 @@ public class MatchManager : InGameManager
         }
         if (SkipToNextHighlight()) { return; }
 
-        // 이번 틱이 하프타임 틱인지 미리 안다. 전제: Ticks와 시뮬 내부 tickCount가 늘 같다(Simulation.Tick을 부르는 곳은 여기 한 곳, 09-30 리뷰)
-        bool halfTimeTick = Ticks + 1 == Simulation.HalfTimeTick;
         goalScorerId = BallState.NoOwner;
         shotMissedThisTick = false;
-        Simulation.Tick(MatchTuning.FixedStep);   // Unity 설정(Fixed Timestep)이 아니라 코어 상수로 흐른다: 설정이 바뀌어도 같은 시드 = 같은 경기(러너와 동일). 호출 주기만 설정이 정한다
-        myProbe.Sample();
-        Ticks++;
+        bool halfTimeTick = StepSimulation();
 
         if (goalScorerId != BallState.NoOwner)
         {
@@ -238,10 +237,7 @@ public class MatchManager : InGameManager
         }
         for (int i = 0; i < skip; i++)
         {
-            bool halfTimeTick = Ticks + 1 == Simulation.HalfTimeTick;
-            Simulation.Tick(MatchTuning.FixedStep);
-            myProbe.Sample();   // 결과 화면 실측이 전 경기 값이어야 전체 모드와 같다
-            Ticks++;
+            bool halfTimeTick = StepSimulation();
             if (halfTimeTick)
             {
                 SnapViews();
@@ -256,6 +252,17 @@ public class MatchManager : InGameManager
             SnapViews();
         }
         return true;
+    }
+
+    // 시뮬 한 틱. 보이는 틱(FixedUpdate)과 건너뛰는 틱(SkipToNextHighlight)이 같은 순서로 부른다: 두 모드의 결과가 같은 전제다(HighlightReplayTests).
+    // 이번 틱이 하프타임 틱이었는지 돌려준다. 전제: Ticks와 시뮬 내부 tickCount가 늘 같다(Simulation.Tick을 부르는 곳은 여기 한 곳, 09-30 리뷰)
+    private bool StepSimulation()
+    {
+        bool halfTimeTick = Ticks + 1 == Simulation.HalfTimeTick;
+        Simulation.Tick(MatchTuning.FixedStep);   // Unity 설정(Fixed Timestep)이 아니라 코어 상수로 흐른다: 설정이 바뀌어도 같은 시드 = 같은 경기(러너와 동일). 호출 주기만 설정이 정한다
+        myProbe.Sample();   // 건너뛰는 틱에도 잰다: 결과 화면 실측이 전 경기 값이어야 전체 모드와 같다
+        Ticks++;
+        return halfTimeTick;
     }
 
     private void SyncViews()
