@@ -1,12 +1,11 @@
 using Game.Core.League;
-using Game.Core.Viewing;
 using TMPro;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 // 매치데이 화면(스펙 §2-1, 10-15 재편. 레퍼런스 FM Pre-Match Hub). 홈의 [일정 진행]이 연다.
-// 다음 경기(라운드·상대·홈/원정·상대 전술)와 내 전술 요약을 보여 주고 [전술판]·[경기 시작] 두 길을 낸다. [경기 시작] 위에서 보기 모드(핵심·확장·전체)와 전체 모드 배속을 고른다(S4). 스카우트는 하단 탭이 입구라 여기 버튼이 없다.
+// 다음 경기(라운드·상대·홈/원정·상대 전술)와 내 전술 요약을 보여 주고 [전술판]·[경기 시작] 두 길을 낸다. 스카우트는 하단 탭이 입구라 여기 버튼이 없다.
 // 인게임 GameReady 전술판을 없앤 자리다: 상대를 보고 고치는 일은 여기 [전술판]이 맡고, 인게임은 들어가는 순간 킥오프다(SkipTitle).
 // 다음 시즌 열기는 홈의 [다음 시즌]이 맡는다. 끝난 시즌으로 여기 들어오면 안내만 하고 [경기 시작]을 잠근다.
 // 값은 전부 시즌(SeasonSystem)에서 읽기만 한다. 열 때마다 다시 채운다: 전술판에서 돌아올 때 바뀐 값이 보여야 한다
@@ -20,10 +19,6 @@ public class MatchdayScreen : UIScreen
     [SerializeField] private Button tacticsButton;
     [SerializeField] private Button backButton;        // 홈으로
     [SerializeField] private Button startButton;   // 글자는 프리팹의 "경기 시작" 고정. 시즌 끝 분기는 홈이 맡아 여기서 바꿀 일이 없다
-    [SerializeField] private SegmentedControl viewingModeControl;   // 핵심·확장·전체(S4). 칸 번호 = ViewingMode 값. 배치는 Editor/MatchdayViewingModeBuilder
-    [SerializeField] private SegmentedControl speedControl;         // ×1·×2·×4. 전체 모드일 때만 보인다(배속은 전체 모드에만 있다)
-
-    private static readonly string[] ViewingModeLabels = { "핵심", "확장", "전체" };   // ViewingMode 순서
 
     private bool initialized;
 
@@ -38,12 +33,7 @@ public class MatchdayScreen : UIScreen
             tacticsButton.onClick.AddListener(OnTactics);
             backButton.onClick.AddListener(OnBack);
             startButton.onClick.AddListener(OnStart);
-            viewingModeControl.SetLabels(ViewingModeLabels);
-            speedControl.SetLabels(SpeedLabels());
-            viewingModeControl.Selected += OnViewingModeSelected;
-            speedControl.Selected += OnSpeedSelected;
         }
-        ShowViewingMode();
         Season.Reported -= Refresh;   // 열려 있는 동안 보고가 끝나면 다시 그린다(치트 자동 진행 등 결과 화면을 안 거치는 경로). 빼고 더해 두 번 안 걸리게
         Season.Reported += Refresh;
         Refresh();
@@ -78,36 +68,6 @@ public class MatchdayScreen : UIScreen
         myTacticsText.text = MatchdayLines.MyTactics(season.State, TeamTacticsRepository.All);
         fixturesText.text = MatchdayLines.FixturesBlock(season);
         tableText.text = MatchdayLines.TableLines(season);
-    }
-
-    // 보기 모드는 기기 설정이라 시즌 상태와 무관하게 늘 고를 수 있다. 결과는 모드와 무관하다(재생만 다르다)
-    private void ShowViewingMode()
-    {
-        ViewingMode mode = ViewingModeSetting.Mode;
-        viewingModeControl.SetSelectedWithoutNotify((int)mode);
-        speedControl.SetSelectedWithoutNotify(System.Array.IndexOf(ViewingOptions.Speeds, ViewingModeSetting.Speed));
-        speedControl.gameObject.SetActive(mode == ViewingMode.Full);
-    }
-
-    private static string[] SpeedLabels()
-    {
-        var labels = new string[ViewingOptions.Speeds.Length];
-        for (int i = 0; i < labels.Length; i++)
-        {
-            labels[i] = $"×{ViewingOptions.Speeds[i]}";
-        }
-        return labels;
-    }
-
-    private void OnViewingModeSelected(int index)
-    {
-        ViewingModeSetting.SetMode(ViewingOptions.SanitizeMode(index));
-        ShowViewingMode();
-    }
-
-    private void OnSpeedSelected(int index)
-    {
-        ViewingModeSetting.SetSpeed(ViewingOptions.Speeds[index]);
     }
 
     private void OnTactics()

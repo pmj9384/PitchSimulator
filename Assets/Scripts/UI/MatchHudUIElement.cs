@@ -3,7 +3,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-// 경기 HUD: 스코어·시계(전반/후반 mm:ss)·소유 팀·일시정지 버튼. 값은 MatchManager에서 매 프레임 읽되 바뀐 프레임에만 문자열을 다시 만든다
+// 경기 HUD: 스코어·시계(전반/후반 mm:ss)·소유 팀·보기 패널 톱니·일시정지 버튼. 값은 MatchManager에서 매 프레임 읽되 바뀐 프레임에만 문자열을 다시 만든다
 // (Unity e-book Dirty Flag, 모바일 가이드 "매 프레임 문자열 금지"). 이벤트 구독을 두지 않는 이유: 정수 3개라 구독·해제 코드를 두는 쪽이 더 비싸다
 // 자막(09-28 자막): 경기 종료 > 하프타임 > 골 > 빈칸 순으로 한 칸을 나눠 쓴다. 골도 폴링으로 잡는다(점수 증가 = 골). 이 칸이 장부 「해설」(템플릿 해설)의 첫 층이다
 public class MatchHudUIElement : UIElement
@@ -16,6 +16,7 @@ public class MatchHudUIElement : UIElement
     [SerializeField] private TMP_Text scoreText;
     [SerializeField] private TMP_Text clockText;
     [SerializeField] private Button pauseButton;
+    [SerializeField] private Button viewingButton;   // 톱니(11-19, FM 경기 화면처럼 일시정지 왼쪽). 보기 패널을 켜고 끈다. 경기는 멈추지 않는다
     [SerializeField] private TMP_Text captionText;   // 경기 흐름 자막 한 칸(09-28 자막): 경기 종료·하프타임·골. 나중에 템플릿 해설(장부 「해설」)이 같은 칸에 얹힌다
     [SerializeField] private float goalCaptionSec = 2f;   // 골 자막 유지 시간. Time.time 기준이라 일시정지(timeScale 0) 동안엔 줄지 않는다
 
@@ -38,6 +39,14 @@ public class MatchHudUIElement : UIElement
     {
         gameObject.SetActive(false);
         pauseButton.onClick.AddListener(OnPause);
+        viewingButton.onClick.AddListener(OnViewing);
+    }
+
+    // 일시정지 버튼과 같은 구조: 패널을 켜고 끄는 일은 GameUIManager가 한다
+    private void OnViewing()
+    {
+        if (gameManager.CurrentState != GameManager.GameState.GamePlay) { return; }
+        gameUIManager.ToggleViewingControl();
     }
 
     // 일시정지는 경기 중에만. 세팅 국면·결과 국면에서 GameStop으로 가면 복귀할 상태가 애매하다

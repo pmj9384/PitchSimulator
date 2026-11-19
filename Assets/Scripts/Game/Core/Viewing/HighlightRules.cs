@@ -5,14 +5,12 @@ using Game.Core.Match;
 namespace Game.Core.Viewing
 {
     // 사건 목록 + 보기 모드 → 보여 줄 구간 목록(11-06 S4 설계 4절). 순수 함수. 새 판정은 없고 시뮬이 낸 슛·소유 사건만 읽는다.
-    // 구간은 정렬돼 있고 겹치지 않는다. 전체 모드는 [0, totalTicks) 하나
+    // 구간은 정렬돼 있고 겹치지 않는다. 전체 경기 모드는 [0, totalTicks) 하나
     public static class HighlightRules
     {
-        // 경기 시간 1초가 몇 틱인가. 3분 압축이면 약 1.67, 실제 90분이면 50(추가시간을 돌아도 같다)
-        public static float TicksPerSecond(MatchSimulation simulation)
-        {
-            return (float)simulation.TotalTicks / MatchClock.TotalDisplaySeconds(simulation.Added);
-        }
+        // 화면 1초(×1 배속)가 몇 틱인가 = 고정 스텝의 역수(50). ViewingTuning의 초를 이 값으로 바꾼다.
+        // 경기 시계 기준(TotalTicks ÷ 표시 초)이던 것을 11-19에 바꿨다: 3분 압축에서 45초가 화면 1.5초로 줄었다. 실제 90분에서는 두 값이 같다
+        public static float ScreenTicksPerSecond => 1f / MatchTuning.FixedStep;
 
         public static IReadOnlyList<TickRange> Build(IReadOnlyList<MatchEvent> events, ViewingMode mode, int totalTicks, float ticksPerSecond)
         {
@@ -80,7 +78,7 @@ namespace Game.Core.Viewing
             return shot.Probability >= ViewingTuning.DangerousBlockP;
         }
 
-        // 핵심이 하한보다 적으면 남은 슛을 p 높은 순으로 채운다. p가 같으면 먼저 찬 슛(정렬을 결정적으로)
+        // 주요 장면이 하한보다 적으면 남은 슛을 p 높은 순으로 채운다. p가 같으면 먼저 찬 슛(정렬을 결정적으로)
         private static void FillKeyMinimum(IReadOnlyList<MatchEvent> events, List<int> chosen)
         {
             while (chosen.Count < ViewingTuning.KeyMinimumShots)
@@ -120,7 +118,7 @@ namespace Game.Core.Viewing
         }
 
         // 슛 직전, 슛 팀이 패스 받기가 아닌 방법으로 공을 얻은 마지막 틱. 앞 슛(어느 팀이든)보다 이전이면 그 공격의 시작이 아니라고 보고 -1.
-        // 킥오프·골킥처럼 소유 사건 없이 시작한 공격도 -1이 되어 최대 여유(45초)로 시작한다
+        // 킥오프·골킥처럼 소유 사건 없이 시작한 공격도 -1이 되어 최대 여유(화면 45초)로 시작한다
         private static int BuildUpStartTick(IReadOnlyList<MatchEvent> events, int shotIndex)
         {
             MatchEvent shot = events[shotIndex];
@@ -185,7 +183,7 @@ namespace Game.Core.Viewing
             return a.Start.CompareTo(b.Start);
         }
 
-        // 1틱 미만으로 줄지 않게 올림. 3분 압축(1초 ≈ 1.67틱)에서도 여유가 0이 되지 않는다
+        // 1틱 미만으로 줄지 않게 올림(테스트처럼 1초가 몇 틱 안 되는 값을 넘겨도 여유가 0이 되지 않는다)
         private static int SecondsToTicks(float seconds, float ticksPerSecond)
         {
             return (int)Math.Ceiling(seconds * ticksPerSecond);

@@ -59,4 +59,17 @@ public class ReplayPlanTests
             Assert.AreEqual(0, plan.TicksToSkip(ticks, 1000, 5), $"{ticks}");
         }
     }
+
+    // 전체 경기는 구간이 없고(전부 보여 준다), 나머지 두 모드는 1차 계산이 만든 제 목록을 꺼낸다
+    [Test]
+    public void 모드별_구간_목록을_고른다()
+    {
+        var key = new[] { new TickRange(10, 20) };
+        var extended = new[] { new TickRange(5, 30) };
+        var set = new HighlightSet(key, extended);
+
+        Assert.AreSame(key, set.RangesFor(ViewingMode.Key));
+        Assert.AreSame(extended, set.RangesFor(ViewingMode.Extended));
+        Assert.IsNull(set.RangesFor(ViewingMode.Full));
+    }
 }

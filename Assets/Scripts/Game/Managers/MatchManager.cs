@@ -37,13 +37,17 @@ public class MatchManager : InGameManager
     private TacticsProbe myProbe;   // 내 팀의 전술 실측. 결과 화면이 설정과 나란히 보여 준다
     private readonly GoalCelebration celebration = new GoalCelebration();   // 세리머니 안무. 언제 시작·끝낼지는 여기서 정한다
     private bool celebrationBeforeHalfTime;   // 이번 세리머니가 하프타임 틱의 골인가. 끝나면 킥오프 준비 대신 하프타임 멈춤
-    private ViewingMode viewingMode;          // 이번 경기의 보기 모드(S4). 경기 시작 때 설정에서 한 번 읽는다
-    private ReplayPlan replayPlan;            // 하이라이트 구간. null이면 전부 보여 준다(전체 모드, 1차 계산 실패)
+    private ViewingMode viewingMode;          // 지금 보기 모드(S4). 경기 시작 때 설정에서 읽고, 경기 중에는 SetViewingMode가 바꾼다
+    private int speed;                        // 지금 배속(×1~×4, 모든 모드). 경기 시작 때 설정에서 읽고 SetSpeed가 바꾼다
+    private HighlightSet highlights;          // 1차 계산이 만든 두 모드의 구간. null이면 아직 계산 중이거나 실패
+    private ReplayPlan replayPlan;            // 지금 모드의 구간 커서. null이면 전부 보여 준다(전체 경기, 1차 계산 전·실패)
     private bool skipping;                    // 구간 밖을 화면 없이 돌리는 중
 
     public bool InHalfTimeHold => holdTicksLeft > 0 && holdIsHalfTime;   // HUD가 "하프타임" 자막을 띄운다
     public bool InCelebration => celebration.IsPlaying;                   // HUD가 골 자막을 세리머니 내내 유지한다
     public bool IsSkipping => skipping;                                   // HUD가 "다음 장면" 자막을 띄운다
+    public ViewingMode ViewingMode => viewingMode;                        // 보기 패널이 지금 칸을 그린다
+    public int Speed => speed;
 
     // 건너뛰기가 닿을 틱(다음 하이라이트 시작, 없으면 경기 끝). 건너뛰는 중이 아니면 지금 틱
     public int SkipTargetTick
@@ -61,6 +65,7 @@ public class MatchManager : InGameManager
     {
         GameManager.AddGameStateEnterAction(GameManager.GameState.GameReady, ResetMatch);   // 판이 새로 차려질 때 시계 0·시뮬 새로
         GameManager.AddGameStateEnterAction(GameManager.GameState.GamePlay, StartMatch);    // 킥오프
+        GameManager.AddGameStateExitAction(GameManager.GameState.GameStop, ApplySpeedAfterPause);   // 일시정지 중 바꾼 배속을 복귀 때 적용
     }
 
     // 틱이 도는지는 플래그가 아니라 상태가 정한다. 일시정지(GameStop)·종료(GameOver/Clear)에서 저절로 멈춘다
@@ -89,31 +94,30 @@ public class MatchManager : InGameManager
         Simulation.PossessionChanged += LogPossession;
         Simulation.BallKicked += OnBallKicked;
 
+        highlights = null;
         replayPlan = null;
         skipping = false;
         viewingMode = ViewingModeSetting.Mode;
-        if (viewingMode != ViewingMode.Full)
-        {
-            _ = PrepareHighlightsAsync(setup, Simulation.Length);
-        }
+        speed = ViewingModeSetting.Speed;
+        _ = PrepareHighlightsAsync(setup, Simulation.Length);
     }
 
-    // 하이라이트 1차 계산(S4, 설계 문서 2절 A안). 같은 조립으로 시뮬을 하나 더 만들어 뒤 스레드에서 끝까지 돌리고 보여 줄 구간을 만든다.
+    // 하이라이트 1차 계산(S4, 설계 문서 2절 A안). 같은 조립으로 시뮬을 하나 더 만들어 뒤 스레드에서 끝까지 돌리고 두 모드의 구간을 만든다.
+    // 전체 경기 모드여도 한다: 경기 중에 주요 장면·하이라이트로 바꿀 수 있다(11-19 유저 Play 피드백).
     // 그동안 GameReady를 붙잡아 둔다(SkipTitle 진입을 미룸). 재생할 시뮬은 GamePlay 전엔 Tick을 안 돌아 두 시뮬이 동시에 돌지 않는다.
-    // 실패하면 구간 없이(전체 모드처럼) 재생한다. 결과는 같은 경기라 모드와 무관하다
+    // 실패하면 구간 없이(전체 경기처럼) 재생한다. 결과는 같은 경기라 모드와 무관하다
     private async Awaitable PrepareHighlightsAsync(MatchSetup setup, MatchLength length)
     {
         // await 뒤엔 이 오브젝트가 이미 파괴됐을 수 있어 토큰을 먼저 받아 둔다(Unity 문서 MonoBehaviour.destroyCancellationToken: 파괴 전에 캐시해야 한다)
         CancellationToken token = destroyCancellationToken;
         GameManager.HoldReady();
-        ViewingMode mode = viewingMode;
         MatchSimulation firstPass = MyMatchAssembler.Create(setup, ThreatTableRepository.Grid, length);
-        IReadOnlyList<TickRange> ranges = null;
+        HighlightSet planned = null;
         try
         {
             // 시뮬은 순수 C#이라 스레드에서 돌려도 된다(SeasonSystem.ReportMyResultAsync와 같은 근거). 이 구간엔 Debug.Log도 부르지 않는다
             await Awaitable.BackgroundThreadAsync();
-            ranges = HighlightPlanner.Plan(firstPass, mode);
+            planned = HighlightPlanner.Plan(firstPass);
             await Awaitable.MainThreadAsync();
         }
         catch (Exception e)
@@ -123,12 +127,54 @@ public class MatchManager : InGameManager
         }
 
         if (token.IsCancellationRequested) { return; }   // 계산 중 씬을 떠났다(Play 종료·재시작)
-        if (ranges != null)
+        if (planned != null)
         {
-            replayPlan = new ReplayPlan(ranges);
-            Debug.Log($"[Match] 하이라이트 {mode}: 구간 {ranges.Count}개");
+            highlights = planned;
+            Debug.Log($"[Match] 하이라이트 계산: 주요 장면 구간 {planned.Key.Count}개, 하이라이트 구간 {planned.Extended.Count}개");
+            ApplyViewingMode();   // 계산 중에 모드를 바꿨어도 지금 모드로 고른다
         }
         GameManager.ReleaseReady();
+    }
+
+    // 보기 모드 바꾸기(경기 중 보기 패널, 11-19). 1차 계산이 만들어 둔 그 모드의 구간으로 커서만 바꾼다: 시뮬은 그대로라 결과가 같다
+    public void SetViewingMode(ViewingMode mode)
+    {
+        ViewingMode sanitized = ViewingOptions.SanitizeMode((int)mode);
+        ViewingModeSetting.SetMode(sanitized);
+        if (sanitized == viewingMode) { return; }
+        viewingMode = sanitized;
+        ApplyViewingMode();
+    }
+
+    // 배속 바꾸기(×1~×4, 모든 모드). 경기 중이면 바로 timeScale에 넣는다. 일시정지 중이면 복귀 훅(ApplySpeedAfterPause)이, 킥오프 전이면 StartMatch가 넣는다
+    public void SetSpeed(int value)
+    {
+        speed = ViewingOptions.SanitizeSpeed(value);
+        ViewingModeSetting.SetSpeed(speed);
+        if (!IsRunning) { return; }
+        Time.timeScale = speed;
+    }
+
+    // GameStop 퇴장 훅. GameManager가 멈추기 전 timeScale을 먼저 되돌린 뒤라(훅 등록 순서) 그 위에 지금 배속을 덮는다. 경기로 돌아갈 때만
+    private void ApplySpeedAfterPause()
+    {
+        if (!IsRunning) { return; }
+        Time.timeScale = speed;
+    }
+
+    // 지금 모드의 구간으로 커서를 새로 만든다. 커서는 0부터 지금 틱까지 저절로 따라온다(ReplayPlan.Advance).
+    // 건너뛰는 중이었으면 화면을 지금 시뮬 자리로 세운다: 새 모드가 이 틱을 보여 주면 다음 스텝부터 그대로 이어지고, 아니면 다음 스텝이 다시 건너뛰기를 시작한다
+    private void ApplyViewingMode()
+    {
+        replayPlan = null;
+        if (highlights != null)
+        {
+            IReadOnlyList<TickRange> ranges = highlights.RangesFor(viewingMode);
+            if (ranges != null) { replayPlan = new ReplayPlan(ranges); }
+        }
+        if (!skipping) { return; }
+        skipping = false;
+        SnapViews();
     }
 
     // 찬 선수의 킥 애니. 시뮬은 안 기다린다(연출)
@@ -152,12 +198,12 @@ public class MatchManager : InGameManager
 
     // 전술·개인 지시·킥오프는 ResetMatch의 조립에서 이미 들어갔다(11-06 S4-1: 킥오프 순간에 다시 넣던 SetTactics·개인 지시 재대입·KickoffBy를 지웠다).
     // 10-13부터 편집 화면은 로비에만 있어 GameReady와 GamePlay 사이에 재료가 바뀔 길이 없다(09-30 확인). GamePlay 진입 훅은 경기당 한 번(일시정지 복귀는 훅을 다시 안 쏜다)
-    // 배속(전체 모드만 ×2·×4)은 timeScale로 준다. FixedUpdate 빈도가 실시간 기준으로 늘 뿐 틱 수·순서는 그대로라 결과가 같다(Unity 문서 Time.timeScale)
+    // 배속(×1~×4, 모든 모드)은 timeScale로 준다. FixedUpdate 빈도가 실시간 기준으로 늘 뿐 틱 수·순서는 그대로라 결과가 같다(Unity 문서 Time.timeScale)
     private void StartMatch()
     {
         SnapViews();   // 킥오프 자리로 순간이동(보간하면 전 자리에서 미끄러져 온다)
         Hold(kickoffSetSec, halfTime: false);
-        Time.timeScale = ViewingOptions.EffectiveSpeed(viewingMode, ViewingModeSetting.Speed);
+        Time.timeScale = speed;
     }
 
     #region 심장: 고정 스텝 틱
@@ -227,7 +273,10 @@ public class MatchManager : InGameManager
     private bool SkipToNextHighlight()
     {
         if (replayPlan == null) { return false; }
-        int skip = replayPlan.TicksToSkip(Ticks, Simulation.TotalTicks, skipTicksPerStep);
+        // 배속이 N이면 FixedUpdate가 실시간 1초에 N배 불린다. 예산을 배속으로 나눠 실시간 1초당 건너뛰는 계산량(부하)을 배속과 무관하게 같게 둔다.
+        // 결과는 예산과 무관하다(HighlightReplayTests가 예산 1·1,000·100,000을 대조)
+        int budget = Mathf.Max(1, skipTicksPerStep / speed);
+        int skip = replayPlan.TicksToSkip(Ticks, Simulation.TotalTicks, budget);
         if (skip == 0) { return false; }
 
         if (!skipping)
@@ -260,7 +309,7 @@ public class MatchManager : InGameManager
     {
         bool halfTimeTick = Ticks + 1 == Simulation.HalfTimeTick;
         Simulation.Tick(MatchTuning.FixedStep);   // Unity 설정(Fixed Timestep)이 아니라 코어 상수로 흐른다: 설정이 바뀌어도 같은 시드 = 같은 경기(러너와 동일). 호출 주기만 설정이 정한다
-        myProbe.Sample();   // 건너뛰는 틱에도 잰다: 결과 화면 실측이 전 경기 값이어야 전체 모드와 같다
+        myProbe.Sample();   // 건너뛰는 틱에도 잰다: 결과 화면 실측이 전 경기 값이어야 전체 경기 모드와 같다
         Ticks++;
         return halfTimeTick;
     }
@@ -452,7 +501,7 @@ public class MatchManager : InGameManager
     public void EndMatch(int winnerTeam)
     {
         Debug.Log($"[Match] 경기 종료. 승리 팀: {winnerTeam}  ({Simulation.HomeGoals}:{Simulation.AwayGoals})");
-        Time.timeScale = 1f;   // 전체 모드 배속은 경기 동안만. 결과 화면은 제 속도로
+        Time.timeScale = 1f;   // 배속은 경기 동안만. 결과 화면은 제 속도로
         MatchEnded?.Invoke(winnerTeam);
         GameManager.SetGameState(winnerTeam == 0 ? GameManager.GameState.GameClear : GameManager.GameState.GameOver);
     }
@@ -461,6 +510,7 @@ public class MatchManager : InGameManager
     {
         GameManager.RemoveGameStateEnterAction(GameManager.GameState.GameReady, ResetMatch);
         GameManager.RemoveGameStateEnterAction(GameManager.GameState.GamePlay, StartMatch);
+        GameManager.RemoveGameStateExitAction(GameManager.GameState.GameStop, ApplySpeedAfterPause);
         MatchEnded = null;   // 씬이 내려가면 구독자도 같이 사라진다. 죽은 구독자를 들고 있지 않게
     }
 }

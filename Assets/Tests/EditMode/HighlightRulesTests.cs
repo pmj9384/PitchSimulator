@@ -38,15 +38,15 @@ public class HighlightRulesTests
     }
 
     [Test]
-    public void 핵심은_골과_큰_찬스만_고르고_확장은_유효_슛과_위험한_블록을_더한다()
+    public void 주요_장면은_골과_큰_찬스만_고르고_하이라이트는_유효_슛과_위험한_블록을_더한다()
     {
         var events = new List<MatchEvent>
         {
-            Shot(2000, 0, 0.05f, ShotOutcome.Goal),      // 0 골(낮은 p여도 핵심)
-            Shot(6000, 1, 0.40f, ShotOutcome.Missed),    // 1 큰 찬스 빗나감 → 핵심
-            Shot(10000, 0, 0.32f, ShotOutcome.Caught),   // 2 큰 찬스 세이브 → 핵심
-            Shot(14000, 1, 0.10f, ShotOutcome.Parried),  // 3 유효 슛 → 확장
-            Shot(18000, 0, 0.20f, ShotOutcome.Blocked),  // 4 위험한 블록 → 확장
+            Shot(2000, 0, 0.05f, ShotOutcome.Goal),      // 0 골(낮은 p여도 주요 장면)
+            Shot(6000, 1, 0.40f, ShotOutcome.Missed),    // 1 큰 찬스 빗나감 → 주요 장면
+            Shot(10000, 0, 0.32f, ShotOutcome.Caught),   // 2 큰 찬스 세이브 → 주요 장면
+            Shot(14000, 1, 0.10f, ShotOutcome.Parried),  // 3 유효 슛 → 하이라이트
+            Shot(18000, 0, 0.20f, ShotOutcome.Blocked),  // 4 위험한 블록 → 하이라이트
             Shot(22000, 1, 0.10f, ShotOutcome.Blocked),  // 5 약한 블록 → 제외
             Shot(26000, 0, 0.20f, ShotOutcome.Missed),   // 6 약한 빗나감 → 제외
         };
@@ -61,7 +61,7 @@ public class HighlightRulesTests
     }
 
     [Test]
-    public void 핵심이_하한보다_적으면_p_높은_순으로_채운다()
+    public void 주요_장면이_하한보다_적으면_p_높은_순으로_채운다()
     {
         var events = new List<MatchEvent>
         {
@@ -117,7 +117,7 @@ public class HighlightRulesTests
         var events = new List<MatchEvent>
         {
             Won(9800, 0),
-            Shot(9850, 1, 0.1f, ShotOutcome.Blocked),   // 그 사이 상대 슛(핵심이 아니라 안 골라진다): 9,800 소유의 공격은 여기서 끝났다
+            Shot(9850, 1, 0.1f, ShotOutcome.Blocked),   // 그 사이 상대 슛(주요 장면이 아니라 안 골라진다): 9,800 소유의 공격은 여기서 끝났다
             Shot(10000, 0, 0.5f, ShotOutcome.Goal),
             Shot(30000, 1, 0.5f, ShotOutcome.Goal),     // 하한(3개)을 골로 채워 블록 슛이 안 골라지게
             Shot(40000, 0, 0.5f, ShotOutcome.Goal),
@@ -206,5 +206,15 @@ public class HighlightRulesTests
         Assert.AreEqual(Total - length, key[1].Start);
         Assert.AreEqual(Total, key[1].End);
         Assert.AreEqual(2, extended.Count);
+    }
+
+    // 구간 초는 화면 시간: 1초 = 고정 스텝 수(50틱). 실제 90분(추가시간 포함)은 경기 시계 기준과 같은 값이라 그 길이에서는 바뀌지 않는다
+    [Test]
+    public void 화면_1초는_50틱이고_실제_90분의_경기_시계와_같다()
+    {
+        Assert.AreEqual(50f, HighlightRules.ScreenTicksPerSecond);
+        var added = new AddedTime(2, 5);
+        float realTimeClock = (float)MatchLength.RealTime.TotalTicks(added) / MatchClock.TotalDisplaySeconds(added);
+        Assert.AreEqual(realTimeClock, HighlightRules.ScreenTicksPerSecond);
     }
 }
