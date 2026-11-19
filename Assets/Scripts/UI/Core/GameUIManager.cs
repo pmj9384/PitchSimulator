@@ -32,8 +32,10 @@ public class GameUIManager : InGameManager
         GameManager.AddGameStateEnterAction(GameManager.GameState.GamePlay, ShowMatchHud);
     }
 
+    // 일시정지 창을 열 때 보기 패널은 닫는다: 화면 위 모달은 하나만(10-29 조사 모달 규칙). 복귀해도 다시 열지 않는다(톱니로 다시 연다)
     private void ShowPausePanel()
     {
+        HideUIElement(UIElementEnums.ViewingControl);
         ShowUIElement(UIElementEnums.PausePanel);
     }
 
