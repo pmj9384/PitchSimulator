@@ -11,6 +11,7 @@ public class MatchHudUIElement : UIElement
     private const string OwnerMark = "●";
     private const string FullTimeCaption = "경기 종료";
     private const string HalfTimeCaption = "하프타임";
+    private const string LastSkipCaption = "종료 휘슬로";
 
     [SerializeField] private TMP_Text scoreText;
     [SerializeField] private TMP_Text clockText;
@@ -30,6 +31,8 @@ public class MatchHudUIElement : UIElement
     private int seenAwayGoals = -1;
     private string goalCaption = string.Empty;   // 골 순간에 한 번 만들어 둔 "골! 팀 이름". 매 프레임 문자열을 만들지 않으려고 캐시한다
     private float goalCaptionUntil;              // 이 Time.time 전까지 골 자막을 띄운다
+    private int skipCaptionTarget = -1;          // 건너뛰기 자막을 만든 목표 틱. 목표가 바뀐 프레임에만 "다음 장면 32'"를 다시 만든다(S4)
+    private string skipCaption = string.Empty;
 
     public override void Initialize()
     {
@@ -124,7 +127,7 @@ public class MatchHudUIElement : UIElement
         goalCaptionUntil = Time.time + goalCaptionSec;
     }
 
-    // 우선순위: 골 세리머니 > 경기 종료 > 하프타임 > 골 > 빈칸. 경기 종료는 결과 화면(GameUIManager.resultPanelDelaySec 뒤)이 덮을 때까지 유지한다.
+    // 우선순위: 골 세리머니 > 경기 종료 > 하프타임 > 골 > 건너뛰기(S4) > 빈칸. 경기 종료는 결과 화면(GameUIManager.resultPanelDelaySec 뒤)이 덮을 때까지 유지한다.
     // 세리머니 동안은 골 자막을 유지한다: 마지막 틱 골이면 세리머니가 끝난 뒤에 경기 종료가 뜬다
     private string DesiredCaption(MatchManager match)
     {
@@ -132,7 +135,25 @@ public class MatchHudUIElement : UIElement
         if (match.Ticks >= match.Simulation.TotalTicks) { return FullTimeCaption; }
         if (match.InHalfTimeHold) { return HalfTimeCaption; }
         if (Time.time < goalCaptionUntil) { return goalCaption; }
+        if (match.IsSkipping) { return SkipCaption(match); }
         return string.Empty;
+    }
+
+    // 하이라이트 사이를 건너뛰는 동안 "다음 장면 32'". 시계는 Update가 그대로 빨리 흘려 보여 준다
+    private string SkipCaption(MatchManager match)
+    {
+        int target = match.SkipTargetTick;
+        if (target == skipCaptionTarget) { return skipCaption; }
+        skipCaptionTarget = target;
+        MatchSimulation sim = match.Simulation;
+        if (target >= sim.TotalTicks)
+        {
+            skipCaption = LastSkipCaption;
+            return skipCaption;
+        }
+        ClockReading c = MatchClock.Describe(target, sim.Added, sim.Length);
+        skipCaption = c.InAddedTime ? $"다음 장면 {c.Minute}+{c.AddedMinute}'" : $"다음 장면 {c.Minute}'";
+        return skipCaption;
     }
 
     private void ResetShown()
@@ -146,6 +167,8 @@ public class MatchHudUIElement : UIElement
         seenAwayGoals = -1;
         goalCaption = string.Empty;
         goalCaptionUntil = 0f;
+        skipCaptionTarget = -1;
+        skipCaption = string.Empty;
         captionText.text = string.Empty;
     }
 }
