@@ -127,6 +127,25 @@ public class HighlightReplayTests
         }
     }
 
+    // 매니저가 GameReady에서 부르는 1차 계산 함수가 헤드리스 사건으로 만든 구간과 같은 구간을 낸다
+    [Test]
+    public void 미리_계산_함수는_헤드리스_사건으로_만든_구간과_같다()
+    {
+        const int seed = 7;
+        MatchSimulation headless = Assemble(seed, MatchLength.Compressed);
+        List<MatchEvent> events = RunHeadless(headless);
+        IReadOnlyList<TickRange> expected = HighlightRules.Build(events, ViewingMode.Extended, headless.TotalTicks, HighlightRules.TicksPerSecond(headless));
+
+        IReadOnlyList<TickRange> planned = HighlightPlanner.Plan(Assemble(seed, MatchLength.Compressed), ViewingMode.Extended);
+
+        Assert.AreEqual(expected.Count, planned.Count);
+        for (int i = 0; i < expected.Count; i++)
+        {
+            Assert.AreEqual(expected[i].Start, planned[i].Start, $"{i}번 시작");
+            Assert.AreEqual(expected[i].End, planned[i].End, $"{i}번 끝");
+        }
+    }
+
     // 실제 90분(완료 판정 길이)에서 핵심 모드 재생이 1차와 같고, 하이라이트가 골·세이브·큰 찬스를 빠짐없이 덮는다
     [Test]
     public void 실제_90분_핵심_재생은_1차와_같고_골과_세이브를_빠짐없이_보여_준다()
