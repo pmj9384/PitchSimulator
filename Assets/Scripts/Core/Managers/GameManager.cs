@@ -51,14 +51,38 @@ public class GameManager : MonoBehaviour
 
     public static bool SkipTitle;
 
+    private int readyHolds;          // GameReady에서 준비를 붙잡은 매니저 수(예: 하이라이트 1차 계산). 0이 되면 미뤄 둔 GamePlay 진입을 한다
+    private bool playWhenReady;      // SkipTitle로 바로 시작해야 하는데 준비가 덜 끝나 미뤄 둔 상태
+
     private void Start()
     {
         SetGameState(GameState.GameReady);
-        if (SkipTitle)
+        if (!SkipTitle) { return; }
+        SkipTitle = false;
+        if (readyHolds > 0)
         {
-            SkipTitle = false;
-            SetGameState(GameState.GamePlay);
+            playWhenReady = true;
+            return;
         }
+        SetGameState(GameState.GamePlay);
+    }
+
+    // GameReady 진입 훅에서 부른다. 뒤 스레드 계산처럼 프레임을 넘겨 끝나는 준비가 있으면 SkipTitle 진입을 그만큼 미룬다
+    public void HoldReady()
+    {
+        readyHolds++;
+    }
+
+    // 준비가 끝났다. 마지막 붙잡이가 풀리면 미뤄 둔 GamePlay 진입을 한다(GameReady에 아직 있을 때만)
+    public void ReleaseReady()
+    {
+        if (readyHolds == 0) { return; }
+        readyHolds--;
+        if (readyHolds > 0) { return; }
+        if (!playWhenReady) { return; }
+        playWhenReady = false;
+        if (currentState != GameState.GameReady) { return; }
+        SetGameState(GameState.GamePlay);
     }
 
     private void InitializeStateActions()

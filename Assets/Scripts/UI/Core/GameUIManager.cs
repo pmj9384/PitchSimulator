@@ -28,12 +28,14 @@ public class GameUIManager : InGameManager
         GameManager.AddGameStateEnterAction(GameManager.GameState.GameOver, ShowResultPanelDelayed);
 
         // GameReady에는 화면이 없다: 세팅은 전부 로비 매치데이 허브에서 끝내고 들어온다(스펙 §2-1, 10-13). 로비가 SkipTitle을 켜서 GameReady를 바로 지난다
-        // 킥오프: HUD를 켠다. HUD는 휘슬 뒤 결과 화면이 뜰 때까지 경기 종료 자막을 보여 주고 그때 꺼진다
+        // 킥오프: HUD를 켠다. HUD는 휘슬 뒤 결과 화면이 뜰 때까지 경기 종료 자막을 보여 주고 그때 꺼진다. 보기 패널은 꺼진 채로 시작하고 HUD 톱니가 켠다(ToggleViewingControl)
         GameManager.AddGameStateEnterAction(GameManager.GameState.GamePlay, ShowMatchHud);
     }
 
+    // 일시정지 창을 열 때 보기 패널은 닫는다: 화면 위 모달은 하나만(10-29 조사 모달 규칙). 복귀해도 다시 열지 않는다(톱니로 다시 연다)
     private void ShowPausePanel()
     {
+        HideUIElement(UIElementEnums.ViewingControl);
         ShowUIElement(UIElementEnums.PausePanel);
     }
 
@@ -46,6 +48,18 @@ public class GameUIManager : InGameManager
     private void ShowMatchHud()
     {
         ShowUIElement(UIElementEnums.MatchHud);
+    }
+
+    // HUD 톱니가 부른다(11-19). 보기 패널은 꺼진 채로 킥오프하고, 톱니를 누를 때마다 켜고 끈다. 경기는 멈추지 않는다
+    public void ToggleViewingControl()
+    {
+        UIElement panel = uiElements[(int)UIElementEnums.ViewingControl];
+        if (panel.gameObject.activeSelf)
+        {
+            panel.Hide();
+            return;
+        }
+        panel.Show();
     }
 
     public void InitializedUIElements()
@@ -76,6 +90,7 @@ public class GameUIManager : InGameManager
         yield return resultPanelWait;
         // 결과 화면이 스코어를 다시 보여 주므로 HUD는 끈다. 배경이 반투명(알파 0.75)이라 HUD를 뒤로 보내도 글자가 비쳐 겹쳐 보였다(09-29 유저 Play)
         HideUIElement(UIElementEnums.MatchHud);
+        HideUIElement(UIElementEnums.ViewingControl);   // 톱니로 켜 둔 채 경기가 끝났어도 결과 화면에서는 끈다
         ShowUIElement(UIElementEnums.ResultPanel);
     }
 }

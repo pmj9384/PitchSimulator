@@ -4,5 +4,6 @@ public enum UIElementEnums
     PausePanel,
     SettingsPanel,
     MatchHud,   // 스코어·시간·소유 팀(09-27). uiElements 배열 인덱스 3
+    ViewingControl,   // 경기 중 우측 상단 보기 모드·배속 패널(11-19). HUD 톱니로 켜고 끈다. 배치는 Editor/MatchHudBuilder
     // 킥오프 전 전술 설정창과 스카우트 화면은 10-13에 로비(매치데이 허브, 스펙 §2-1)로 옮겨 인게임에서 뺐다. 인게임은 들어가는 순간 킥오프다
 }

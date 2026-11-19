@@ -74,7 +74,7 @@ public partial class CheatWindow
     }
 
     // 녹화용 배속(11-10): 실제 90분 경기에서 장면을 기다리는 시간을 줄인다. 화면 속도(Time.timeScale)만 바꾸고 시뮬은 고정 스텝이라 결과는 같다.
-    // 일시정지 복귀(GameManager)가 1배로 되돌리므로 다시 누른다
+    // 일시정지에서 복귀하면 경기 화면 보기 패널의 배속(MatchManager.ApplySpeedAfterPause)으로 돌아가므로, 이 배속을 계속 쓰려면 다시 누른다
     private static readonly float[] Speeds = { 1f, 2f, 4f, 8f };
 
     private void DrawSpeedButtons()

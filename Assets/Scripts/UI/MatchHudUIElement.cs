@@ -3,7 +3,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-// 경기 HUD: 스코어·시계(전반/후반 mm:ss)·소유 팀·일시정지 버튼. 값은 MatchManager에서 매 프레임 읽되 바뀐 프레임에만 문자열을 다시 만든다
+// 경기 HUD: 스코어·시계(전반/후반 mm:ss)·소유 팀·보기 패널 톱니·일시정지 버튼. 값은 MatchManager에서 매 프레임 읽되 바뀐 프레임에만 문자열을 다시 만든다
 // (Unity e-book Dirty Flag, 모바일 가이드 "매 프레임 문자열 금지"). 이벤트 구독을 두지 않는 이유: 정수 3개라 구독·해제 코드를 두는 쪽이 더 비싸다
 // 자막(09-28 자막): 경기 종료 > 하프타임 > 골 > 빈칸 순으로 한 칸을 나눠 쓴다. 골도 폴링으로 잡는다(점수 증가 = 골). 이 칸이 장부 「해설」(템플릿 해설)의 첫 층이다
 public class MatchHudUIElement : UIElement
@@ -11,10 +11,12 @@ public class MatchHudUIElement : UIElement
     private const string OwnerMark = "●";
     private const string FullTimeCaption = "경기 종료";
     private const string HalfTimeCaption = "하프타임";
+    private const string LastSkipCaption = "종료 휘슬로";
 
     [SerializeField] private TMP_Text scoreText;
     [SerializeField] private TMP_Text clockText;
     [SerializeField] private Button pauseButton;
+    [SerializeField] private Button viewingButton;   // 톱니(11-19, FM 경기 화면처럼 일시정지 왼쪽). 보기 패널을 켜고 끈다. 경기는 멈추지 않는다
     [SerializeField] private TMP_Text captionText;   // 경기 흐름 자막 한 칸(09-28 자막): 경기 종료·하프타임·골. 나중에 템플릿 해설(장부 「해설」)이 같은 칸에 얹힌다
     [SerializeField] private float goalCaptionSec = 2f;   // 골 자막 유지 시간. Time.time 기준이라 일시정지(timeScale 0) 동안엔 줄지 않는다
 
@@ -30,11 +32,21 @@ public class MatchHudUIElement : UIElement
     private int seenAwayGoals = -1;
     private string goalCaption = string.Empty;   // 골 순간에 한 번 만들어 둔 "골! 팀 이름". 매 프레임 문자열을 만들지 않으려고 캐시한다
     private float goalCaptionUntil;              // 이 Time.time 전까지 골 자막을 띄운다
+    private int skipCaptionTarget = -1;          // 건너뛰기 자막을 만든 목표 틱. 목표가 바뀐 프레임에만 "다음 장면 32'"를 다시 만든다(S4)
+    private string skipCaption = string.Empty;
 
     public override void Initialize()
     {
         gameObject.SetActive(false);
         pauseButton.onClick.AddListener(OnPause);
+        viewingButton.onClick.AddListener(OnViewing);
+    }
+
+    // 일시정지 버튼과 같은 구조: 패널을 켜고 끄는 일은 GameUIManager가 한다
+    private void OnViewing()
+    {
+        if (gameManager.CurrentState != GameManager.GameState.GamePlay) { return; }
+        gameUIManager.ToggleViewingControl();
     }
 
     // 일시정지는 경기 중에만. 세팅 국면·결과 국면에서 GameStop으로 가면 복귀할 상태가 애매하다
@@ -124,7 +136,7 @@ public class MatchHudUIElement : UIElement
         goalCaptionUntil = Time.time + goalCaptionSec;
     }
 
-    // 우선순위: 골 세리머니 > 경기 종료 > 하프타임 > 골 > 빈칸. 경기 종료는 결과 화면(GameUIManager.resultPanelDelaySec 뒤)이 덮을 때까지 유지한다.
+    // 우선순위: 골 세리머니 > 경기 종료 > 하프타임 > 골 > 건너뛰기(S4) > 빈칸. 경기 종료는 결과 화면(GameUIManager.resultPanelDelaySec 뒤)이 덮을 때까지 유지한다.
     // 세리머니 동안은 골 자막을 유지한다: 마지막 틱 골이면 세리머니가 끝난 뒤에 경기 종료가 뜬다
     private string DesiredCaption(MatchManager match)
     {
@@ -132,7 +144,25 @@ public class MatchHudUIElement : UIElement
         if (match.Ticks >= match.Simulation.TotalTicks) { return FullTimeCaption; }
         if (match.InHalfTimeHold) { return HalfTimeCaption; }
         if (Time.time < goalCaptionUntil) { return goalCaption; }
+        if (match.IsSkipping) { return SkipCaption(match); }
         return string.Empty;
+    }
+
+    // 하이라이트 사이를 건너뛰는 동안 "다음 장면 32'". 시계는 Update가 그대로 빨리 흘려 보여 준다
+    private string SkipCaption(MatchManager match)
+    {
+        int target = match.SkipTargetTick;
+        if (target == skipCaptionTarget) { return skipCaption; }
+        skipCaptionTarget = target;
+        MatchSimulation sim = match.Simulation;
+        if (target >= sim.TotalTicks)
+        {
+            skipCaption = LastSkipCaption;
+            return skipCaption;
+        }
+        ClockReading c = MatchClock.Describe(target, sim.Added, sim.Length);
+        skipCaption = c.InAddedTime ? $"다음 장면 {c.Minute}+{c.AddedMinute}'" : $"다음 장면 {c.Minute}'";
+        return skipCaption;
     }
 
     private void ResetShown()
@@ -146,6 +176,8 @@ public class MatchHudUIElement : UIElement
         seenAwayGoals = -1;
         goalCaption = string.Empty;
         goalCaptionUntil = 0f;
+        skipCaptionTarget = -1;
+        skipCaption = string.Empty;
         captionText.text = string.Empty;
     }
 }
